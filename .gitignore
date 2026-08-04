@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+*.tgz
+.DS_Store
+/.docs-harness/runs/
+/.docs-harness/background/
+/.docs-harness/knowledge-jobs/
+/.docs-harness/task-inputs/
+/.docs-harness/quality-ledger/

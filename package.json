@@ -1,0 +1,22 @@
+{
+  "name": "docs-harness",
+  "version": "1.6.2",
+  "private": true,
+  "description": "意图优先、证据可复用且失败关闭的独立 Docs Harness 控制技能。",
+  "files": [
+    "CHANGELOG.md",
+    "README.md",
+    "SKILL.md",
+    "VERSION",
+    "docs/",
+    "evals/",
+    "harness-home/",
+    "scripts/",
+    "tests/"
+  ],
+  "scripts": {
+    "test": "python3 -m unittest discover -s tests -p 'test_*.py'",
+    "self-test": "python3 scripts/harness.py self-test --target . --json",
+    "pack:check": "npm pack --dry-run"
+  }
+}
