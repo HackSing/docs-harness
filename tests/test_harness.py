@@ -21,6 +21,7 @@ assert HARNESS_SPEC and HARNESS_SPEC.loader
 HARNESS_MODULE = importlib.util.module_from_spec(HARNESS_SPEC)
 HARNESS_SPEC.loader.exec_module(HARNESS_MODULE)
 RULES = ROOT / "harness-home" / "rules"
+CURRENT_VERSION = HARNESS_MODULE.VERSION
 ACTIVE_RULE_FILES = {
     "api-compatibility.md",
     "external-input-security.md",
@@ -882,11 +883,24 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
         (self.project / "README.md").write_text("# Unattributed\n", encoding="utf-8")
         evidence = self.evidence("missing-write-receipt", evidence_type="document_review", covers=task_id, changed_paths=[])
-        _, blocked = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
+        _, pending = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=3
         )
-        self.assertEqual(blocked["reason_code"], "unattributed_drift_overlap")
-        self.assertEqual(blocked["workspace_attribution"]["attribution_quality"], "verified")
+        self.assertEqual(pending["result"], "补充证据")
+        self.assertEqual(pending["reason_code"], "unattributed_drift_overlap")
+        self.assertEqual(pending["missing_attribution_paths"], ["README.md"])
+        self.assertEqual(pending["next_action"], "provide_evidence")
+        self.assertEqual(pending["workspace_attribution"]["attribution_quality"], "verified")
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        self.assertEqual(package["package_revision"], 1)
+        receipt = self.evidence(
+            "write-receipt", evidence_type="document_review", covers=task_id, changed_paths=["README.md"]
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(receipt)
+        )
+        self.assertEqual(verified["result"], "完成")
 
     def test_v15_read_set_fingerprint_drift_requires_reread(self) -> None:
         self.init_project()
@@ -911,10 +925,25 @@ class DocsHarnessContractTest(unittest.TestCase):
             changed_paths=["README.md"],
             read_set=[{"path": "source.txt", "fingerprint": before}],
         )
-        _, blocked = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
+        _, pending = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=3
         )
-        self.assertEqual(blocked["reason_code"], "read_set_drift")
+        self.assertEqual(pending["result"], "补充证据")
+        self.assertEqual(pending["reason_code"], "read_set_drift")
+        self.assertEqual(pending["refresh_paths"], ["source.txt"])
+        self.assertEqual(pending["next_action"], "refresh_evidence")
+        after = HARNESS_MODULE.file_fingerprint(source)
+        refreshed = self.evidence(
+            "read-set-refreshed",
+            evidence_type="document_review",
+            covers=task_id,
+            changed_paths=["README.md"],
+            read_set=[{"path": "source.txt", "fingerprint": after}],
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(refreshed)
+        )
+        self.assertEqual(verified["result"], "完成")
 
     def test_v15_context_content_set_is_loaded_once_per_stage(self) -> None:
         self.init_project()
@@ -1117,7 +1146,12 @@ class DocsHarnessContractTest(unittest.TestCase):
             "host_receipt_count", "business_action_count",
         }
         self.assertTrue(events)
-        self.assertEqual([event["event"] for event in events], ["created", "verify"])
+        self.assertEqual([event["event"] for event in events], ["created", "verification_attempt"])
+        attempt = events[-1]
+        self.assertEqual(attempt["outcome_class"], "complete")
+        self.assertEqual(attempt["reason_codes"], ["complete"])
+        self.assertEqual(attempt["evidence_round_count"], 0)
+        self.assertFalse(attempt["evidence_regeneration_required"])
         self.assertTrue(all(event["context_load_count"] == 0 for event in events))
         for event in events:
             self.assertTrue(required <= set(event))
@@ -1372,12 +1406,12 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.init_project()
         agents_path = self.project / "AGENTS.md"
         agents_path.write_text(
-            agents_path.read_text(encoding="utf-8").replace("1.6.2", "1.4.1"),
+            agents_path.read_text(encoding="utf-8").replace(CURRENT_VERSION, "1.4.1"),
             encoding="utf-8",
         )
         index_path = self.project / "docs" / "INDEX.md"
         index_path.write_text(
-            index_path.read_text(encoding="utf-8").replace("1.6.2", "1.4.1")
+            index_path.read_text(encoding="utf-8").replace(CURRENT_VERSION, "1.4.1")
             + "\n项目自有内容。\n",
             encoding="utf-8",
         )
@@ -1405,14 +1439,14 @@ class DocsHarnessContractTest(unittest.TestCase):
         )
         changes = {item["path"]: item for item in preview["changes"]}
         self.assertEqual(changes["docs/INDEX.md"]["from_version"], "1.4.1")
-        self.assertEqual(changes["docs/INDEX.md"]["to_version"], "1.6.2")
+        self.assertEqual(changes["docs/INDEX.md"]["to_version"], CURRENT_VERSION)
         self.assertTrue(preview["apply_completion_possible"])
 
         _, applied = self.run_harness(
             "project", "upgrade", "--target", str(self.project), "--apply"
         )
         self.assertEqual(applied["status"], "upgraded")
-        self.assertIn("Docs Harness 当前版本：1.6.2", agents_path.read_text(encoding="utf-8"))
+        self.assertIn(f"Docs Harness 当前版本：{CURRENT_VERSION}", agents_path.read_text(encoding="utf-8"))
         self.assertIn("用户自己的规则", agents_path.read_text(encoding="utf-8"))
         self.assertIn("项目自有内容", index_path.read_text(encoding="utf-8"))
         _, repeated = self.run_harness(
@@ -1441,7 +1475,7 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertEqual(applied["status"], "upgraded")
         text = legacy.read_text(encoding="utf-8")
         self.assertIn("docs-harness:managed-version:start", text)
-        self.assertIn("Docs Harness 当前版本：1.6.2", text)
+        self.assertIn(f"Docs Harness 当前版本：{CURRENT_VERSION}", text)
         self.assertIn("保留此条目", text)
 
     def test_project_upgrade_reports_ambiguous_legacy_version_without_overwrite(self) -> None:
@@ -1512,7 +1546,7 @@ class DocsHarnessContractTest(unittest.TestCase):
         config["test_marker"] = "changed"
         config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
         _, pending = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, expected=4
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
         )
         self.assertEqual(pending["changed_paths"], [".docs-harness/config.json"])
         self.assertEqual(pending["reason_code"], "unattributed_drift_overlap")
@@ -2186,7 +2220,10 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertNotEqual(change_scoped["execution_route"], "background_goal_phased")
         self.assertEqual(change_scoped["estimate_basis"], "change_scoped")
         self.assertTrue(change_scoped["project_scale_context"]["scan_truncated"])
-        self.assertEqual(project_wide["source_fingerprint"], change_scoped["source_fingerprint"])
+        # v1.6.4：change-scoped 去重指纹只绑定变化路径、功能、交付物与写入范围，
+        # 不再与 project-wide 全量 inventory 指纹相同。
+        self.assertNotEqual(project_wide["source_fingerprint"], change_scoped["source_fingerprint"])
+        self.assertTrue(change_scoped["change_scope_fingerprint"])
 
     def test_v161_control_plane_scope_guard_and_git_runtime_prepare(self) -> None:
         subprocess.run(["git", "init", "-q"], cwd=self.project, check=True)
@@ -2429,11 +2466,12 @@ class DocsHarnessContractTest(unittest.TestCase):
         )
         self.assertEqual(admitted["admission_status"], "ready_planned")
         self.assertEqual(admitted["authorization_status"], "reported")
-        auth.write_text(auth.read_text(encoding="utf-8") + "\n", encoding="utf-8")
-        _, readmission = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, expected=4
+        auth.unlink()
+        _, blocked = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
         )
-        self.assertIn("授权", readmission["reason"])
+        self.assertNotEqual(blocked.get("reason_code"), "authorization_contract_drift")
+        self.assertNotIn("授权", str(blocked.get("reason", "")))
 
     def test_missing_project_fact_can_recompile_after_fact_is_filled(self) -> None:
         self.init_project()
@@ -2479,6 +2517,13 @@ class DocsHarnessContractTest(unittest.TestCase):
 
     def test_safe_local_verification_command_runs(self) -> None:
         self.init_project()
+        (self.project / "test_smoke.py").write_text(
+            "import unittest\n\n\n"
+            "class SmokeTest(unittest.TestCase):\n"
+            "    def test_pass(self):\n"
+            "        self.assertTrue(True)\n",
+            encoding="utf-8",
+        )
         facts = self.write_json(
             "safe-command.json",
             {
@@ -2503,6 +2548,171 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertEqual(verified["verification_commands"][0]["produces"], ["test_result"])
         self.assertEqual(verified["verification_receipts"][0]["schema_version"], "docs-harness/evidence-receipt/v2")
         self.assertEqual(verified["verification_receipts"][0]["producer"]["capability"], "verification_command")
+
+    def write_verification_byproduct_test(self, *, write_real_file: bool, write_configured_volatile: bool) -> None:
+        lines = [
+            "import pathlib",
+            "import unittest",
+            "",
+            "",
+            "class VerificationByproductTest(unittest.TestCase):",
+            "    def test_byproducts(self):",
+            "        root = pathlib.Path.cwd()",
+            "        cache = root / '__pycache__'",
+            "        cache.mkdir(exist_ok=True)",
+            "        (cache / 'cached.txt').write_text('x', encoding='utf-8')",
+            "        pytest_cache = root / '.pytest_cache' / 'v' / 'cache'",
+            "        pytest_cache.mkdir(parents=True, exist_ok=True)",
+            "        (pytest_cache / 'lastfailed').write_text('{}', encoding='utf-8')",
+            "        (root / '.coverage').write_text('coverage', encoding='utf-8')",
+            "        (root / 'report.log').write_text('log', encoding='utf-8')",
+        ]
+        if write_real_file:
+            lines.append("        (root / 'EXTRA_OUTPUT.md').write_text('# 额外写入', encoding='utf-8')")
+        if write_configured_volatile:
+            lines.append("        scratch = root / 'scratch'")
+            lines.append("        scratch.mkdir(exist_ok=True)")
+            lines.append("        (scratch / 'report.txt').write_text('scratch', encoding='utf-8')")
+        (self.project / "test_verification_byproducts.py").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    def run_verification_byproduct_flow(self) -> tuple[int, dict[str, Any]]:
+        facts = self.write_json(
+            "byproduct-command.json",
+            {
+                "allowed_scope": ["README.md"],
+                "verification_commands": [
+                    {"argv": ["python3", "-m", "unittest"], "produces": ["test_result"]}
+                ],
+            },
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        (self.project / "README.md").write_text("# README\n", encoding="utf-8")
+        evidence = self.evidence("byproduct-command", evidence_type="document_review", covers=task_id, changed_paths=["README.md"])
+        result, payload = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=None
+        )
+        return result.returncode, payload
+
+    def test_volatile_verification_byproducts_do_not_block_completion(self) -> None:
+        self.init_project()
+        self.write_verification_byproduct_test(write_real_file=False, write_configured_volatile=False)
+        code, verified = self.run_verification_byproduct_flow()
+        self.assertEqual(code, 0, json.dumps(verified, ensure_ascii=False))
+        self.assertEqual(verified["result"], "完成")
+        command_result = verified["verification_commands"][0]
+        self.assertEqual(command_result["result"], "passed")
+        self.assertEqual(command_result["produces"], ["test_result"])
+        self.assertNotIn("unexpected_write_set", command_result)
+        self.assertIn("__pycache__/cached.txt", command_result["volatile_write_set"])
+        self.assertIn(".pytest_cache/v/cache/lastfailed", command_result["volatile_write_set"])
+        self.assertIn(".coverage", command_result["volatile_write_set"])
+        self.assertIn("report.log", command_result["volatile_write_set"])
+        self.assertEqual(verified["verification_receipts"][0]["producer"]["capability"], "verification_command")
+
+    def test_verification_command_real_workspace_write_still_rejected(self) -> None:
+        self.init_project()
+        self.write_verification_byproduct_test(write_real_file=True, write_configured_volatile=False)
+        code, blocked = self.run_verification_byproduct_flow()
+        self.assertEqual(code, 3)
+        self.assertEqual(blocked["result"], "补充证据")
+        command_result = blocked["verification_commands"][0]
+        self.assertEqual(command_result["result"], "failed")
+        self.assertEqual(command_result["reason_code"], "verification_command_workspace_write")
+        self.assertEqual(command_result["unexpected_write_set"], ["EXTRA_OUTPUT.md"])
+        self.assertEqual(command_result["produces"], [])
+        self.assertIn(".coverage", command_result["volatile_write_set"])
+
+    def test_existing_volatile_named_file_modification_is_still_rejected(self) -> None:
+        self.init_project()
+        self.write_verification_byproduct_test(write_real_file=False, write_configured_volatile=False)
+        (self.project / "report.log").write_text("preexisting\n", encoding="utf-8")
+        code, blocked = self.run_verification_byproduct_flow()
+        self.assertEqual(code, 3)
+        command_result = blocked["verification_commands"][0]
+        self.assertEqual(command_result["reason_code"], "verification_command_workspace_write")
+        self.assertEqual(command_result["unexpected_write_set"], ["report.log"])
+        self.assertNotIn("report.log", command_result["volatile_write_set"])
+
+    def test_configured_volatile_paths_extend_verification_tolerance(self) -> None:
+        self.init_project()
+        config_path = self.project / ".docs-harness" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["verification"] = {"volatile_paths": ["scratch/*"]}
+        config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        self.write_verification_byproduct_test(write_real_file=False, write_configured_volatile=True)
+        code, verified = self.run_verification_byproduct_flow()
+        self.assertEqual(code, 0, json.dumps(verified, ensure_ascii=False))
+        self.assertEqual(verified["result"], "完成")
+        command_result = verified["verification_commands"][0]
+        self.assertEqual(command_result["result"], "passed")
+        self.assertIn("scratch/report.txt", command_result["volatile_write_set"])
+
+    def test_volatile_verification_path_builtin_and_configured_patterns(self) -> None:
+        module = HARNESS_MODULE
+        for relative in (
+            "__pycache__/mod.cpython-312.pyc",
+            "tests/__pycache__/mod.cpython-312.pyc",
+            ".pytest_cache/v/cache/nodeids",
+            ".mypy_cache/3.12/mod.json",
+            "htmlcov/index.html",
+            ".coverage",
+            ".coverage.worker-1",
+            "reports/run.log",
+            "build/output.tmp",
+            ".DS_Store",
+        ):
+            self.assertTrue(module.volatile_verification_path(relative), relative)
+        for relative in (
+            "README.md",
+            "src/app.py",
+            "coverage.xml",
+            "docs/notes.md",
+            "scratch/report.txt",
+        ):
+            self.assertFalse(module.volatile_verification_path(relative), relative)
+        self.assertTrue(module.volatile_verification_path("scratch/report.txt", ["scratch/*"]))
+        self.assertFalse(module.volatile_verification_path("src/app.py", ["scratch/*"]))
+
+    def test_configured_volatile_paths_reject_global_or_escaping_patterns(self) -> None:
+        for pattern in ("*", "**", "src?/*", "../scratch/*", "/scratch/*", ".git/tmp/*"):
+            with self.subTest(pattern=pattern):
+                with self.assertRaises(HARNESS_MODULE.HarnessError) as raised:
+                    HARNESS_MODULE.validate_volatile_verification_paths([pattern])
+                self.assertEqual(raised.exception.code, "invalid_project_config")
+
+    def test_project_upgrade_fails_before_writes_for_invalid_volatile_pattern(self) -> None:
+        self.init_project()
+        config_path = self.project / ".docs-harness" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["verification"] = {"volatile_paths": ["*"]}
+        config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        script = self.project / "scripts" / "harness.py"
+        before = HARNESS_MODULE.file_fingerprint(script)
+        _, rejected = self.run_harness(
+            "project", "upgrade", "--target", str(self.project), "--apply", expected=2
+        )
+        self.assertEqual(rejected["code"], "invalid_project_config")
+        self.assertEqual(HARNESS_MODULE.file_fingerprint(script), before)
+
+    def test_project_upgrade_preserves_verification_volatile_paths(self) -> None:
+        self.init_project()
+        config_path = self.project / ".docs-harness" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["verification"] = {"volatile_paths": ["scratch/*"]}
+        config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        self.run_harness("project", "upgrade", "--target", str(self.project), "--apply")
+        upgraded = json.loads(config_path.read_text(encoding="utf-8"))
+        self.assertEqual(upgraded["verification"], {"volatile_paths": ["scratch/*"]})
+        _, repeated = self.run_harness("project", "upgrade", "--target", str(self.project), "--apply")
+        self.assertEqual(repeated["changed"], [])
+        self.assertEqual(
+            json.loads(config_path.read_text(encoding="utf-8"))["verification"],
+            {"volatile_paths": ["scratch/*"]},
+        )
 
     def test_plan_contract_is_shared_with_context_and_has_executable_next_step(self) -> None:
         self.init_project()
@@ -2551,7 +2761,13 @@ class DocsHarnessContractTest(unittest.TestCase):
             str(plan),
             expected=3,
         )
-        self.assertEqual(revised["reason_code"], "scope_bound_context_reload")
+        self.assertEqual(revised["reason_code"], "scope_gate_plan_amendment_required")
+        self.assertEqual(revised["next_action"], "complete_plan_delta")
+        self.assertFalse(revised["plan_regeneration_required"])
+        self.assertFalse(revised["source_execution_allowed"])
+        self.assertEqual(revised["missing_plan_fields"], revised["added_plan_fields"])
+        self.assertIn("兼容策略", revised["missing_plan_fields"])
+        self.assertNotIn("背景", revised["missing_plan_fields"])
         self.assertIn(task_id, revised["next_command_argv"])
 
         state = self.project / ".docs-harness" / "runs" / task_id
@@ -2567,6 +2783,963 @@ class DocsHarnessContractTest(unittest.TestCase):
         )
         self.assertEqual(refreshed["plan_contract"]["plan_fields"], package["plan_fields"])
         self.assertFalse(refreshed["plan_contract"]["scope_required"])
+
+        contract = revised["plan_delta_contract"]
+        self.assertEqual(contract["schema_version"], "docs-harness/plan-delta-contract/v1")
+        self.assertEqual(contract["frozen_scope"], ["src/api/client.py"])
+        plan.unlink()
+        patch = self.write_json(
+            "plan-delta.json",
+            {field: f"{field}的受控说明" for field in contract["missing_plan_fields"]},
+        )
+        _, frozen = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(patch)
+        )
+        self.assertEqual(frozen["admission_status"], "ready_planned")
+        compiled = json.loads((state / "compiled-task.json").read_text(encoding="utf-8"))
+        self.assertIsNone(compiled["plan_delta_contract"])
+        self.assertTrue(Path(compiled["plan_ref"]).is_file())
+        self.assertTrue(str(compiled["plan_ref"]).startswith(str(state / "artifacts" / "plans")))
+        events = [item["event"] for item in HARNESS_MODULE.read_jsonl(state / "events.jsonl")]
+        self.assertEqual(events.count("plan_frozen"), 1)
+        self.assertEqual(
+            json.loads((state / "task-package.json").read_text(encoding="utf-8"))["package_revision"], 2
+        )
+
+    def test_v164_scope_gate_compilation_only_requires_added_plan_fields(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md", "security.md", "testing.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整现有能力"
+        )
+        task_id = routed["task_id"]
+        self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan"
+        )
+        plan = self.plan_for(
+            {"执行范围": ["src/auth/authService.ts", "src/auth/authService.test.ts"]}
+        )
+        _, amended = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task-id",
+            task_id,
+            "--plan",
+            str(plan),
+            expected=3,
+        )
+        self.assertEqual(amended["result"], "补充计划")
+        self.assertEqual(amended["reason_code"], "scope_gate_plan_amendment_required")
+        self.assertEqual(amended["next_action"], "complete_plan_delta")
+        self.assertIn("security-sensitive", amended["added_gates"])
+        self.assertIn("testing-acceptance", amended["added_gates"])
+        self.assertEqual(amended["missing_plan_fields"], ["安全边界", "负向路径"])
+        self.assertEqual(amended["added_plan_fields"], ["安全边界", "负向路径"])
+        self.assertIn("security_acceptance", amended["added_evidence_types"])
+        self.assertFalse(amended["plan_regeneration_required"])
+        self.assertFalse(amended["source_execution_allowed"])
+
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        contract = amended["plan_delta_contract"]
+        self.assertEqual(
+            contract["frozen_plan_fields"],
+            ["背景", "目标", "非目标", "成功标准", "执行内容", "验收结果"],
+        )
+        self.assertTrue(Path(contract["base_plan_ref"]).is_file())
+        # 受管计划副本让调用者临时文件删除后仍能合并补丁。
+        plan.unlink()
+        self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan"
+        )
+        patch = self.write_json(
+            "security-plan-delta.json",
+            {
+                "task_id": task_id,
+                "base_plan_fingerprint": contract["base_plan_fingerprint"],
+                "plan_contract_fingerprint": contract["plan_contract_fingerprint"],
+                "安全边界": "只改认证模块，不改变权限模型。",
+                "负向路径": ["非法凭证被拒绝"],
+            },
+        )
+        _, frozen = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(patch)
+        )
+        self.assertEqual(frozen["admission_status"], "ready_planned")
+        package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        self.assertEqual(package["package_revision"], 2)
+        merged = json.loads(
+            Path(
+                json.loads((state / "compiled-task.json").read_text(encoding="utf-8"))["plan_ref"]
+            ).read_text(encoding="utf-8")
+        )
+        self.assertEqual(merged["背景"], "当前能力需要调整。")
+        self.assertEqual(merged["安全边界"], "只改认证模块，不改变权限模型。")
+        self.assertEqual(merged["执行范围"], package["allowed_scope"])
+        events = [item["event"] for item in HARNESS_MODULE.read_jsonl(state / "events.jsonl")]
+        self.assertEqual(events.count("plan_frozen"), 1)
+        self.assertEqual(events.count("scope_bound_readmission"), 1)
+
+    def test_v164_complete_plan_draft_freezes_once_after_scope_compilation(self) -> None:
+        self.init_project()
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整现有能力"
+        )
+        task_id = routed["task_id"]
+        self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan"
+        )
+        plan = self.plan_for({"执行范围": ["src/helper.py"]})
+        _, admitted = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan)
+        )
+        self.assertEqual(admitted["admission_status"], "ready_planned")
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        self.assertEqual(package["package_revision"], 2)
+        self.assertIn("code-edit", package["matched_gates"])
+        self.assertNotIn("执行范围", package["plan_fields"])
+        events = HARNESS_MODULE.read_jsonl(state / "events.jsonl")
+        frozen_events = [item for item in events if item["event"] == "plan_frozen"]
+        self.assertEqual(len(frozen_events), 1)
+        self.assertEqual(frozen_events[0]["reason_code"], "scope_bound_plan_adopted")
+        self.assertFalse(frozen_events[0]["plan_regeneration_required"])
+        self.assertNotIn("plan_amendment_required", [item["event"] for item in events])
+
+    def test_v164_plan_delta_patch_cannot_change_frozen_scope(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md", "security.md", "testing.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整现有能力"
+        )
+        task_id = routed["task_id"]
+        self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan"
+        )
+        plan = self.plan_for({"执行范围": ["src/auth/authService.ts"]})
+        _, amended = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan), expected=3
+        )
+        self.assertEqual(amended["next_action"], "complete_plan_delta")
+        self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan"
+        )
+        conflicting = self.write_json(
+            "frozen-field-delta.json",
+            {
+                "安全边界": "只改认证模块。",
+                "负向路径": ["非法凭证被拒绝"],
+                "背景": "重写已冻结的背景。",
+            },
+        )
+        result, refused = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task-id",
+            task_id,
+            "--plan",
+            str(conflicting),
+            expected=None,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(refused["code"], "plan_delta_conflict")
+        patch = self.write_json(
+            "scope-changing-delta.json",
+            {
+                "安全边界": "只改认证模块。",
+                "负向路径": ["非法凭证被拒绝"],
+                "执行范围": ["src/auth/authService.ts", "src/payment/refund.ts"],
+            },
+        )
+        _, blocked = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(patch), expected=4
+        )
+        self.assertEqual(blocked["reason_code"], "plan_scope_mismatch")
+        self.assertEqual(blocked["next_action"], "rerun_harness_for_readmission")
+
+    def test_v164_identical_plan_and_action_context_delivers_content_once(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md", "security.md", "testing.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整现有能力"
+        )
+        task_id = routed["task_id"]
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan"
+        )
+        plan = self.plan_for({"执行范围": ["src/auth/authService.ts"]})
+        _, amended = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan), expected=3
+        )
+        _, plan_context = self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan"
+        )
+        self.assertGreater(plan_context["loaded_content_count"], 0)
+        patch = self.write_json(
+            "context-delta.json",
+            {field: f"{field}的受控说明" for field in amended["missing_plan_fields"]},
+        )
+        self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(patch)
+        )
+        package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        self.assertEqual(
+            package["context_schedule"]["action"], package["context_schedule"]["plan"]
+        )
+        _, action_context = self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+        )
+        self.assertEqual(action_context["loaded_content_count"], 0)
+        self.assertEqual(action_context["rules"], [])
+        self.assertEqual(action_context["project_facts"], [])
+        self.assertEqual(
+            action_context["reused_content_count"], plan_context["loaded_content_count"]
+        )
+        self.assertTrue(action_context["context_delta"])
+        self.assertFalse(action_context["context_cache_hit"])
+        receipts = HARNESS_MODULE.read_jsonl(state / "context-receipts.jsonl")
+        stages = [item["stage"] for item in receipts]
+        self.assertEqual(stages.count("action"), 1)
+        action_receipt = next(item for item in receipts if item["stage"] == "action")
+        self.assertEqual(action_receipt["delivered_content_fingerprints"], [])
+        self.assertEqual(
+            action_receipt["content_set_fingerprint"],
+            next(
+                item["content_set_fingerprint"]
+                for item in receipts
+                if item["stage"] == "plan" and item["package_revision"] == 2
+            ),
+        )
+
+    def test_path_gate_inference_recognizes_common_test_file_patterns(self) -> None:
+        gates = HARNESS_MODULE.infer_gates_from_paths(
+            [
+                "src/agentStream.test.ts",
+                "src/pptContent.spec.ts",
+                "src/对应测试文件",
+            ]
+        )
+        self.assertIn("testing-acceptance", gates)
+        self.assertIn("code-edit", gates)
+
+    def test_verify_incrementally_admits_additive_gate_and_reuses_receipt(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        source = self.project / "src" / "helper.py"
+        source.parent.mkdir(parents=True)
+        source.write_text("before\n", encoding="utf-8")
+        facts = self.write_json("incremental-gate.json", {"allowed_scope": ["src/**"]})
+        _, routed = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "调整现有能力",
+            "--facts",
+            str(facts),
+        )
+        task_id = routed["task_id"]
+        self.assertNotIn("code-edit", routed["matched_gates"])
+        source.write_text("after\n", encoding="utf-8")
+        receipt = self.evidence(
+            "incremental-gate-test",
+            evidence_type="test_result",
+            covers=task_id,
+            changed_paths=["src/helper.py"],
+        )
+        original_receipt = json.loads(receipt.read_text(encoding="utf-8"))
+
+        _, pending = self.run_harness(
+            "verify",
+            "--target",
+            str(self.project),
+            "--task-id",
+            task_id,
+            "--evidence",
+            str(receipt),
+            expected=3,
+        )
+        self.assertEqual(pending["reason_code"], "incremental_gate_context_required")
+        self.assertEqual(pending["added_gates"], ["code-edit"])
+        self.assertFalse(pending["evidence_regeneration_required"])
+
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        self.assertEqual(package["package_revision"], 2)
+        self.assertIn("code-edit", package["matched_gates"])
+        indexed = json.loads((state / "evidence-index.json").read_text(encoding="utf-8"))["evidence"]
+        self.assertEqual(len(indexed), 1)
+        self.assertEqual(indexed[0]["origin_package_fingerprint"], original_receipt["package_fingerprint"])
+        self.assertEqual(indexed[0]["package_fingerprint"], HARNESS_MODULE.package_fingerprint(package))
+        self.assertEqual(indexed[0]["adoption_reason"], "additive_gate_only")
+
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id
+        )
+        self.assertEqual(verified["result"], "完成")
+        events = HARNESS_MODULE.read_jsonl(state / "events.jsonl")
+        self.assertIn("incremental_gate_readmission", [event["event"] for event in events])
+
+    def test_v164_every_verify_attempt_is_recorded_as_bounded_event(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md", "testing.md")
+        facts = self.write_json(
+            "verify-attempt.json",
+            {"allowed_scope": ["src/**"], "gates": ["code-edit"]},
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整现有能力", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        for _ in range(2):
+            self.run_harness(
+                "verify", "--target", str(self.project), "--task-id", task_id, expected=3
+            )
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        attempts = [
+            item
+            for item in HARNESS_MODULE.read_jsonl(state / "events.jsonl")
+            if item.get("event") == "verification_attempt"
+        ]
+        self.assertEqual(len(attempts), 2)
+        self.assertEqual([item["outcome_class"] for item in attempts], ["provide_evidence"] * 2)
+        self.assertEqual([item["evidence_round_count"] for item in attempts], [0, 1])
+        for item in attempts:
+            self.assertEqual(item["exit_code"], 3)
+            self.assertTrue(item["reason_codes"])
+            self.assertTrue(
+                {
+                    "command_executed_count",
+                    "command_cache_hit_count",
+                    "context_full_load_count",
+                    "context_delta_load_count",
+                    "evidence_regeneration_required",
+                }
+                <= set(item)
+            )
+            serialized = json.dumps(item, ensure_ascii=False)
+            self.assertNotIn("调整现有能力", serialized)
+            self.assertNotIn("environment", serialized)
+
+    def test_v164_authorization_contract_survives_incremental_gate_admission(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md", "testing.md", "security.md")
+        facts = self.write_json(
+            "auth-incremental.json", {"allowed_scope": ["dist/**", "src/**"]}
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "发布 release", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan")
+        plan = self.plan_for({"外部目标": "测试发布目标。", "发布与回滚": "失败时回退到上一个版本。"})
+        _, pending = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan), expected=3
+        )
+        self.assertEqual(pending["admission_status"], "needs_authorization")
+        auth = self.write_json(
+            "auth-incremental-receipt.json",
+            {
+                "approved": True,
+                "authorized_actions": ["external_write"],
+                "authorized_scope": ["dist/**", "src/**"],
+                "external_target": "test-release",
+            },
+        )
+        _, admitted = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--authorization", str(auth)
+        )
+        self.assertEqual(admitted["admission_status"], "ready_planned")
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        original_package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        original_fingerprint = HARNESS_MODULE.package_fingerprint(original_package)
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        source = self.project / "src" / "helper.py"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("released\n", encoding="utf-8")
+        receipt = self.evidence(
+            "auth-incremental-test",
+            evidence_type="test_result",
+            covers=task_id,
+            changed_paths=["src/helper.py"],
+        )
+        _, incremental = self.run_harness(
+            "verify",
+            "--target",
+            str(self.project),
+            "--task-id",
+            task_id,
+            "--evidence",
+            str(receipt),
+            expected=3,
+        )
+        self.assertEqual(incremental["missing_evidence_types"], ["external_state"])
+        adoptions = [
+            item
+            for item in HARNESS_MODULE.read_jsonl(state / "authorization-receipts.jsonl")
+            if item.get("schema_version") == "docs-harness/authorization-adoption/v1"
+        ]
+        self.assertEqual(len(adoptions), 1)
+        adopted_package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        self.assertEqual(adopted_package["package_revision"], 2)
+        self.assertIn("code-edit", adopted_package["matched_gates"])
+        self.assertIn("release-external", adopted_package["matched_gates"])
+        self.assertEqual(
+            adoptions[0]["package_fingerprint"],
+            HARNESS_MODULE.package_fingerprint(adopted_package),
+        )
+        self.assertEqual(adoptions[0]["adopted_from_package_fingerprint"], original_fingerprint)
+        self.assertEqual(adoptions[0]["adoption_reason"], "authorization_contract_unchanged")
+        self.assertEqual(adoptions[0]["external_target"], "test-release")
+        self.assertTrue(adoptions[0]["artifact_ref"])
+        self.assertTrue(Path(adoptions[0]["artifact_ref"]).is_file())
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        result, second = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=None
+        )
+        self.assertNotEqual(second.get("reason_code"), "authorization_contract_drift")
+        self.assertNotIn("授权", str(second.get("reason", "")))
+        self.assertNotEqual(result.returncode, 4)
+        events = HARNESS_MODULE.read_jsonl(state / "events.jsonl")
+        readmission = [item for item in events if item.get("event") == "incremental_gate_readmission"]
+        self.assertEqual(len(readmission), 1)
+        self.assertTrue(readmission[0]["authorization_adopted"])
+        self.assertEqual(readmission[0]["disposition"], "incremental_admission")
+        self.assertEqual(events[-1]["readmission_count"], 1)
+
+    def test_v164_authorization_adoption_is_refused_when_any_scope_changes(self) -> None:
+        previous = {
+            "task_id": "t-1",
+            "package_revision": 1,
+            "authorization_requirements": ["external_write"],
+            "allowed_scope": ["dist/**"],
+            "write_scope": ["dist/**"],
+            "git_scope": [],
+            "external_scope": ["dist/**"],
+        }
+        candidate = {**previous, "package_revision": 2, "external_scope": ["dist/**", "release/**"]}
+        self.assertNotEqual(
+            HARNESS_MODULE.authorization_contract_fingerprint(previous),
+            HARNESS_MODULE.authorization_contract_fingerprint(candidate),
+        )
+        state = self.temp_root / "adoption-state"
+        state.mkdir()
+        self.assertIsNone(HARNESS_MODULE.authorization_adoption_record(state, previous, candidate))
+
+    def test_v164_evidence_managed_copy_survives_source_deletion(self) -> None:
+        self.init_project()
+        facts = self.write_json(
+            "facts-evmanaged.json",
+            {"allowed_scope": ["src/helper.py", "README.md"]},
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整现有能力", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+        )
+        (self.project / "src").mkdir(parents=True, exist_ok=True)
+        (self.project / "src" / "helper.py").write_text("value = 1\n", encoding="utf-8")
+        (self.project / "README.md").write_text("# README\n", encoding="utf-8")
+        doc_evidence = self.evidence(
+            "ev-managed-doc",
+            evidence_type="document_review",
+            covers=task_id,
+            changed_paths=["src/helper.py", "README.md"],
+        )
+        _, first = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(doc_evidence), expected=3
+        )
+        self.assertIn("test_result", first["missing_evidence_types"])
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        managed_dir = state / "artifacts" / "evidence"
+        self.assertTrue(any(managed_dir.iterdir()), "首次校验通过的证据必须摄取到受管副本")
+        doc_evidence.unlink()
+        test_evidence = self.evidence(
+            "ev-managed-test", evidence_type="test_result", covers=task_id, changed_paths=["src/helper.py"]
+        )
+        _, second = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(test_evidence)
+        )
+        self.assertEqual(second["result"], "完成")
+        self.assertNotIn("ev-managed-doc", second.get("stale_evidence", []))
+
+    def test_v164_passed_verification_command_not_rerun_when_supplying_evidence(self) -> None:
+        self.init_project()
+        (self.project / "test_smoke_cache.py").write_text(
+            "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_pass(self):\n        self.assertTrue(True)\n",
+            encoding="utf-8",
+        )
+        facts = self.write_json(
+            "cache-command.json",
+            {
+                "allowed_scope": ["src/helper.py", "README.md"],
+                "verification_commands": [
+                    {"argv": ["python3", "-m", "unittest", "test_smoke_cache"], "produces": ["test_result"]}
+                ],
+            },
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整现有能力", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+        )
+        (self.project / "src").mkdir(parents=True, exist_ok=True)
+        (self.project / "src" / "helper.py").write_text("value = 1\n", encoding="utf-8")
+        (self.project / "README.md").write_text("# README\n", encoding="utf-8")
+        changed = ["src/helper.py", "README.md"]
+        test_evidence = self.evidence(
+            "cache-test", evidence_type="test_result", covers=task_id, changed_paths=changed
+        )
+        _, first = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(test_evidence), expected=3
+        )
+        self.assertIn("document_review", first["missing_evidence_types"])
+        self.assertEqual(first["verification_commands"][0]["result"], "passed")
+        self.assertFalse(first["verification_commands"][0].get("cache_hit"))
+        evidence = self.evidence(
+            "cache-doc", evidence_type="document_review", covers=task_id, changed_paths=changed
+        )
+        _, second = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
+        )
+        self.assertEqual(second["result"], "完成")
+        self.assertTrue(second["verification_commands"][0]["cache_hit"])
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        attempts = [
+            item
+            for item in HARNESS_MODULE.read_jsonl(state / "events.jsonl")
+            if item.get("event") == "verification_attempt"
+        ]
+        self.assertEqual(attempts[-1]["command_executed_count"], 0)
+        self.assertEqual(attempts[-1]["command_cache_hit_count"], 1)
+
+    def test_v164_only_failed_verification_command_is_rerun(self) -> None:
+        self.init_project()
+        passing = "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_pass(self):\n        self.assertTrue(True)\n"
+        (self.project / "test_pass_a.py").write_text(passing, encoding="utf-8")
+        (self.project / "test_pass_b.py").write_text(passing, encoding="utf-8")
+        (self.project / "test_flag.py").write_text(
+            "import pathlib\nimport unittest\n\n\nclass T(unittest.TestCase):\n"
+            "    def test_flag(self):\n        self.assertTrue(pathlib.Path('flag.log').is_file())\n",
+            encoding="utf-8",
+        )
+        facts = self.write_json(
+            "multi-command.json",
+            {
+                "allowed_scope": ["README.md"],
+                "verification_commands": [
+                    {"argv": ["python3", "-m", "unittest", "test_pass_a"], "produces": ["test_result"]},
+                    {"argv": ["python3", "-m", "unittest", "test_flag"], "produces": ["test_result"]},
+                    {"argv": ["python3", "-m", "unittest", "test_pass_b"], "produces": ["test_result"]},
+                ],
+            },
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+        )
+        (self.project / "README.md").write_text("# README\n", encoding="utf-8")
+        evidence = self.evidence(
+            "multi-doc", evidence_type="document_review", covers=task_id, changed_paths=["README.md"]
+        )
+        _, first = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=3
+        )
+        by_command = {tuple(item["command"]): item for item in first["verification_commands"]}
+        self.assertEqual(by_command[("python3", "-m", "unittest", "test_pass_a")]["result"], "passed")
+        self.assertEqual(by_command[("python3", "-m", "unittest", "test_pass_b")]["result"], "passed")
+        self.assertEqual(by_command[("python3", "-m", "unittest", "test_flag")]["result"], "failed")
+        (self.project / "flag.log").write_text("ready\n", encoding="utf-8")
+        _, second = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id
+        )
+        self.assertEqual(second["result"], "完成")
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        attempts = [
+            item
+            for item in HARNESS_MODULE.read_jsonl(state / "events.jsonl")
+            if item.get("event") == "verification_attempt"
+        ]
+        self.assertEqual(attempts[-1]["command_executed_count"], 1)
+        self.assertEqual(attempts[-1]["command_cache_hit_count"], 2)
+
+    def test_v164_blocking_write_only_flips_its_own_verification_command(self) -> None:
+        self.init_project()
+        passing = "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_pass(self):\n        self.assertTrue(True)\n"
+        (self.project / "test_pass_keep.py").write_text(passing, encoding="utf-8")
+        (self.project / "test_write_extra.py").write_text(
+            "import pathlib\nimport unittest\n\n\nclass T(unittest.TestCase):\n"
+            "    def test_write(self):\n"
+            "        pathlib.Path('EXTRA_OUTPUT.md').write_text('# 额外写入', encoding='utf-8')\n",
+            encoding="utf-8",
+        )
+        facts = self.write_json(
+            "blocking-write-command.json",
+            {
+                "allowed_scope": ["README.md"],
+                "verification_commands": [
+                    {"argv": ["python3", "-m", "unittest", "test_write_extra"], "produces": ["test_result"]},
+                    {"argv": ["python3", "-m", "unittest", "test_pass_keep"], "produces": ["test_result"]},
+                ],
+            },
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+        )
+        (self.project / "README.md").write_text("# README\n", encoding="utf-8")
+        evidence = self.evidence(
+            "blocking-write-doc", evidence_type="document_review", covers=task_id, changed_paths=["README.md"]
+        )
+        _, first = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=3
+        )
+        by_command = {tuple(item["command"]): item for item in first["verification_commands"]}
+        writer = by_command[("python3", "-m", "unittest", "test_write_extra")]
+        keeper = by_command[("python3", "-m", "unittest", "test_pass_keep")]
+        self.assertEqual(writer["result"], "failed")
+        self.assertEqual(writer["reason_code"], "verification_command_workspace_write")
+        self.assertEqual(keeper["result"], "passed")
+        self.assertFalse(keeper.get("cache_hit"))
+        (self.project / "EXTRA_OUTPUT.md").unlink()
+        _, second = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
+        )
+        by_command = {tuple(item["command"]): item for item in second["verification_commands"]}
+        self.assertEqual(by_command[("python3", "-m", "unittest", "test_write_extra")]["result"], "failed")
+        self.assertTrue(by_command[("python3", "-m", "unittest", "test_pass_keep")]["cache_hit"])
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        attempts = [
+            item
+            for item in HARNESS_MODULE.read_jsonl(state / "events.jsonl")
+            if item.get("event") == "verification_attempt"
+        ]
+        self.assertEqual(attempts[-1]["command_executed_count"], 1)
+        self.assertEqual(attempts[-1]["command_cache_hit_count"], 1)
+
+    def test_v164_workspace_input_change_invalidates_command_cache(self) -> None:
+        self.init_project()
+        (self.project / "test_smoke_inv.py").write_text(
+            "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_pass(self):\n        self.assertTrue(True)\n",
+            encoding="utf-8",
+        )
+        facts = self.write_json(
+            "invalidate-command.json",
+            {
+                "allowed_scope": ["src/helper.py", "README.md"],
+                "verification_commands": [
+                    {"argv": ["python3", "-m", "unittest", "test_smoke_inv"], "produces": ["test_result"]}
+                ],
+            },
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整现有能力", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+        )
+        (self.project / "src").mkdir(parents=True, exist_ok=True)
+        (self.project / "src" / "helper.py").write_text("value = 1\n", encoding="utf-8")
+        (self.project / "README.md").write_text("# README v1\n", encoding="utf-8")
+        changed = ["src/helper.py", "README.md"]
+        test_evidence = self.evidence(
+            "invalidate-test", evidence_type="test_result", covers=task_id, changed_paths=changed
+        )
+        _, first = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(test_evidence), expected=3
+        )
+        self.assertFalse(first["verification_commands"][0].get("cache_hit"))
+        (self.project / "README.md").write_text("# README v2 已更新\n", encoding="utf-8")
+        evidence = self.evidence(
+            "invalidate-doc", evidence_type="document_review", covers=task_id, changed_paths=changed
+        )
+        _, second = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
+        )
+        self.assertEqual(second["result"], "完成")
+        self.assertFalse(second["verification_commands"][0].get("cache_hit"))
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        attempts = [
+            item
+            for item in HARNESS_MODULE.read_jsonl(state / "events.jsonl")
+            if item.get("event") == "verification_attempt"
+        ]
+        self.assertEqual(attempts[-1]["command_executed_count"], 1)
+        self.assertEqual(attempts[-1]["command_cache_hit_count"], 0)
+
+    def test_v164_command_cache_can_be_disabled_by_project_config(self) -> None:
+        self.init_project()
+        (self.project / "test_smoke_off.py").write_text(
+            "import unittest\n\n\nclass T(unittest.TestCase):\n    def test_pass(self):\n        self.assertTrue(True)\n",
+            encoding="utf-8",
+        )
+        config_path = self.project / ".docs-harness" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["verification"] = {"command_cache_enabled": False}
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        facts = self.write_json(
+            "cache-off-command.json",
+            {
+                "allowed_scope": ["src/helper.py", "README.md"],
+                "verification_commands": [
+                    {"argv": ["python3", "-m", "unittest", "test_smoke_off"], "produces": ["test_result"]}
+                ],
+            },
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整现有能力", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+        )
+        (self.project / "src").mkdir(parents=True, exist_ok=True)
+        (self.project / "src" / "helper.py").write_text("value = 1\n", encoding="utf-8")
+        (self.project / "README.md").write_text("# README\n", encoding="utf-8")
+        changed = ["src/helper.py", "README.md"]
+        test_evidence = self.evidence(
+            "cache-off-test", evidence_type="test_result", covers=task_id, changed_paths=changed
+        )
+        _, first = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(test_evidence), expected=3
+        )
+        self.assertEqual(first["verification_commands"][0]["result"], "passed")
+        self.assertFalse(first["verification_commands"][0].get("cache_hit"))
+        doc_evidence = self.evidence(
+            "cache-off-doc", evidence_type="document_review", covers=task_id, changed_paths=changed
+        )
+        _, second = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(doc_evidence)
+        )
+        self.assertEqual(second["result"], "完成")
+        self.assertFalse(second["verification_commands"][0].get("cache_hit"))
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        attempts = [
+            item
+            for item in HARNESS_MODULE.read_jsonl(state / "events.jsonl")
+            if item.get("event") == "verification_attempt"
+        ]
+        self.assertEqual(attempts[-1]["command_executed_count"], 1)
+        self.assertEqual(attempts[-1]["command_cache_hit_count"], 0)
+        self.assertFalse(attempts[-1]["command_cache_enabled"])
+        cache_index = state / "artifacts" / "verification" / "command-receipts.jsonl"
+        self.assertFalse(cache_index.exists(), "关闭缓存后不得写入验证命令收据")
+
+    def test_v164_same_active_task_key_returns_existing_task(self) -> None:
+        self.init_project()
+        facts = self.write_json("idem-facts.json", {"allowed_scope": ["README.md"]})
+        _, first = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--facts", str(facts)
+        )
+        _, second = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--facts", str(facts)
+        )
+        self.assertEqual(second["task_id"], first["task_id"])
+        self.assertTrue(second["active_task_reused"])
+        self.assertEqual(second["reason_code"], "active_task_reused")
+        self.assertEqual(second["admission_status"], first["admission_status"])
+        runs_root = self.project / ".docs-harness" / "runs"
+        task_dirs = [path for path in runs_root.iterdir() if path.is_dir()]
+        self.assertEqual(len(task_dirs), 1)
+        _, forced = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改 README 文档",
+            "--facts",
+            str(facts),
+            "--new-task",
+        )
+        self.assertNotEqual(forced["task_id"], first["task_id"])
+        self.assertNotIn("active_task_reused", forced)
+
+    def test_v164_different_initial_workspace_creates_new_task(self) -> None:
+        self.init_project()
+        facts = self.write_json("idem-ws-facts.json", {"allowed_scope": ["README.md"]})
+        _, first = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--facts", str(facts)
+        )
+        (self.project / "README.md").write_text("# 已存在\n", encoding="utf-8")
+        _, second = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--facts", str(facts)
+        )
+        self.assertNotEqual(second["task_id"], first["task_id"])
+        self.assertNotIn("active_task_reused", second)
+
+    def test_v164_change_scoped_estimate_ignores_unrelated_workspace_changes(self) -> None:
+        self.init_project()
+        (self.project / "src").mkdir(parents=True, exist_ok=True)
+        (self.project / "src" / "core.py").write_text("VALUE = 1\n", encoding="utf-8")
+        candidate = {
+            "estimate_basis": "change_scoped",
+            "changed_paths": ["src/core.py"],
+            "allowed_write_scope": ["docs/**"],
+            "selected_features": ["src/core"],
+            "deliverables": ["feature_knowledge_incremental_sync"],
+        }
+        first = HARNESS_MODULE.workload_estimate(self.project, candidate=candidate)
+        (self.project / "unrelated.txt").write_text("unrelated\n", encoding="utf-8")
+        second = HARNESS_MODULE.workload_estimate(self.project, candidate=candidate)
+        self.assertEqual(first["source_fingerprint"], second["source_fingerprint"])
+        (self.project / "src" / "core.py").write_text("VALUE = 2\n", encoding="utf-8")
+        third = HARNESS_MODULE.workload_estimate(self.project, candidate=candidate)
+        self.assertNotEqual(third["source_fingerprint"], first["source_fingerprint"])
+
+    def test_v164_completion_without_workspace_change_creates_zero_background_jobs(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md", "testing.md")
+        facts = self.write_json(
+            "no-change-facts.json",
+            {"allowed_scope": ["src/**"], "gates": ["code-edit"]},
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整现有能力", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.assertIn(
+            "feature_knowledge_incremental_sync",
+            [item["deliverable"] for item in routed["background_deliverables"]],
+        )
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        source = self.project / "docs" / "INDEX.md"
+        jobs_before = [job["job_id"] for job in HARNESS_MODULE.list_background_jobs(self.project)]
+        receipt = self.evidence(
+            "no-change-test",
+            evidence_type="test_result",
+            covers=task_id,
+            changed_paths=[],
+            read_set=[{"path": "docs/INDEX.md", "fingerprint": HARNESS_MODULE.file_fingerprint(source)}],
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(receipt)
+        )
+        self.assertEqual(verified["control_status"], "complete")
+        self.assertEqual(verified["changed_paths"], [])
+        self.assertEqual(verified["post_completion"]["reason_code"], "no_write_no_sync")
+        self.assertEqual(verified["post_completion"]["status"], "not_required")
+        self.assertEqual(verified["background"]["jobs"], [])
+        self.assertEqual(
+            [job["job_id"] for job in HARNESS_MODULE.list_background_jobs(self.project)],
+            jobs_before,
+        )
+
+    def test_incremental_gate_context_returns_only_new_content(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md", "testing.md")
+        source = self.project / "src" / "helper.test.ts"
+        source.parent.mkdir(parents=True)
+        source.write_text("before\n", encoding="utf-8")
+        facts = self.write_json(
+            "incremental-context.json",
+            {"allowed_scope": ["src/**"], "gates": ["code-edit"]},
+        )
+        _, routed = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "调整现有能力",
+            "--facts",
+            str(facts),
+        )
+        task_id = routed["task_id"]
+        _, initial_context = self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+        )
+        initial_refs = {
+            item["ref"] for item in [*initial_context["rules"], *initial_context["project_facts"]]
+        }
+        self.assertTrue(initial_refs)
+
+        source.write_text("after\n", encoding="utf-8")
+        receipt = self.evidence(
+            "incremental-context-test",
+            evidence_type="test_result",
+            covers=task_id,
+            changed_paths=["src/helper.test.ts"],
+        )
+        _, pending = self.run_harness(
+            "verify",
+            "--target",
+            str(self.project),
+            "--task-id",
+            task_id,
+            "--evidence",
+            str(receipt),
+            expected=3,
+        )
+        self.assertEqual(pending["added_gates"], ["testing-acceptance"])
+
+        _, delta = self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+        )
+        self.assertTrue(delta["context_delta"])
+        self.assertGreater(delta["reused_content_count"], 0)
+        self.assertGreater(delta["loaded_content_count"], 0)
+        delta_refs = {item["ref"] for item in [*delta["rules"], *delta["project_facts"]]}
+        self.assertTrue(delta_refs.isdisjoint(initial_refs))
+        self.assertIn("rule:DH-TESTING-RELEASE", delta_refs)
+        self.assertEqual(delta["next_action"], "verify")
+        self.assertIn("verify", delta["next_command_argv"])
+
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id
+        )
+        self.assertEqual(verified["result"], "完成")
+
+    def test_verify_keeps_full_readmission_for_gate_that_changes_route(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md", "security.md")
+        source = self.project / "src" / "auth.py"
+        source.parent.mkdir(parents=True)
+        source.write_text("before\n", encoding="utf-8")
+        facts = self.write_json("high-risk-gate.json", {"allowed_scope": ["src/**"]})
+        _, routed = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "调整现有能力",
+            "--facts",
+            str(facts),
+        )
+        task_id = routed["task_id"]
+        source.write_text("after\n", encoding="utf-8")
+        receipt = self.evidence(
+            "high-risk-gate-test",
+            evidence_type="test_result",
+            covers=task_id,
+            changed_paths=["src/auth.py"],
+        )
+        _, blocked = self.run_harness(
+            "verify",
+            "--target",
+            str(self.project),
+            "--task-id",
+            task_id,
+            "--evidence",
+            str(receipt),
+            expected=4,
+        )
+        self.assertEqual(blocked["result"], "重新准入")
+        self.assertEqual(blocked["reason_code"], "new_risk_gate")
+        self.assertIn("security-sensitive", blocked["new_gates"])
 
     def test_file_arguments_reject_inline_content_with_safe_structured_errors(self) -> None:
         self.init_project()
@@ -2787,7 +3960,7 @@ class DocsHarnessContractTest(unittest.TestCase):
             expected=3,
         )
         self.assertEqual(blocked["next_action"], "load_action_context")
-        self.assertEqual(blocked["reason_code"], "load_action_context")
+        self.assertEqual(blocked["reason_code"], "action_context_missing")
         self.assertIn("context", blocked["next_command_argv"])
         self.assertIn(routed["task_id"], blocked["next_command_argv"])
 
@@ -2871,17 +4044,25 @@ class DocsHarnessContractTest(unittest.TestCase):
             }
         )
         _, revised = self.run_harness(
-            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan), expected=3
-        )
-        self.assertEqual(revised["package_revision"], 2)
-        self.assertEqual(revised["next_action"], "load_plan_context")
-        state = self.project / ".docs-harness" / "runs" / task_id
-        self.assertTrue((state / "package-history" / "task-package.v1.json").is_file())
-        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan")
-        _, admitted = self.run_harness(
             "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan)
         )
-        self.assertEqual(admitted["admission_status"], "ready_planned")
+        self.assertEqual(revised["admission_status"], "ready_planned")
+        state = self.project / ".docs-harness" / "runs" / task_id
+        package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        self.assertEqual(package["package_revision"], 2)
+        self.assertTrue((state / "package-history" / "task-package.v1.json").is_file())
+        compiled = json.loads((state / "compiled-task.json").read_text(encoding="utf-8"))
+        self.assertEqual(compiled["next_action"], "load_action_context")
+        events = HARNESS_MODULE.read_jsonl(state / "events.jsonl")
+        frozen_events = [item for item in events if item["event"] == "plan_frozen"]
+        self.assertEqual(len(frozen_events), 1)
+        self.assertEqual(frozen_events[0]["reason_code"], "scope_bound_plan_adopted")
+        _, reloaded = self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+        )
+        self.assertEqual(reloaded["stage"], "action")
+        receipts = HARNESS_MODULE.read_jsonl(state / "context-receipts.jsonl")
+        self.assertEqual(receipts[-1]["package_revision"], 2)
 
     def test_plan_scope_mismatch_forces_readmission_instead_of_being_ignored(self) -> None:
         self.init_project()
@@ -2920,35 +4101,29 @@ class DocsHarnessContractTest(unittest.TestCase):
         readme.write_text("after\n", encoding="utf-8")
         extra = self.project / "docs" / "extra.md"
         extra.write_text("# Extra\n", encoding="utf-8")
-        _, blocked = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, expected=4
+        _, pending = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
         )
-        self.assertEqual(blocked["outside_scope"], [])
-        self.assertEqual(blocked["reason_code"], "unattributed_drift_overlap")
+        self.assertEqual(pending["result"], "补充证据")
+        self.assertEqual(pending["outside_scope"], [])
+        self.assertEqual(pending["reason_code"], "unattributed_drift_overlap")
+        self.assertEqual(pending["missing_attribution_paths"], ["README.md"])
         self.assertEqual(
-            blocked["workspace_attribution"]["unattributed_drift"],
+            pending["workspace_attribution"]["unattributed_drift"],
             ["README.md", "docs/extra.md"],
         )
 
-        expanded = self.write_json(
-            "expanded-scope.json", {"allowed_scope": ["README.md", "docs/extra.md"]}
-        )
-        _, readmitted = self.run_harness(
-            "run", "--target", str(self.project), "--task-id", task_id, "--facts", str(expanded)
-        )
-        self.assertEqual(readmitted["admission_status"], "ready_direct")
-        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
-        evidence = self.evidence(
+        receipt = self.evidence(
             "baseline-preserved",
             evidence_type="document_review",
             covers=task_id,
-            changed_paths=["README.md", "docs/extra.md"],
+            changed_paths=["README.md"],
         )
-        _, pending = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(receipt)
         )
-        self.assertEqual(pending["changed_paths"], ["README.md", "docs/extra.md"])
-        self.assertEqual(pending["control_status"], "complete")
+        self.assertEqual(verified["changed_paths"], ["README.md", "docs/extra.md"])
+        self.assertEqual(verified["control_status"], "complete")
 
     def test_non_git_snapshot_limit_fails_closed_without_partial_task_state(self) -> None:
         self.init_project()
@@ -2988,6 +4163,14 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.run_harness("run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan))
         self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
         plan.write_text(plan.read_text(encoding="utf-8") + "\n", encoding="utf-8")
+        self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
+        )
+        state = self.project / ".docs-harness" / "runs" / task_id
+        compiled = json.loads((state / "compiled-task.json").read_text(encoding="utf-8"))
+        managed_plan = Path(compiled["plan_ref"])
+        self.assertEqual(managed_plan.parent, state / "artifacts" / "plans")
+        managed_plan.write_text(managed_plan.read_text(encoding="utf-8") + "\n", encoding="utf-8")
         _, readmission = self.run_harness(
             "verify", "--target", str(self.project), "--task-id", task_id, expected=4
         )

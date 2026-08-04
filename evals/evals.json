@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v1",
-  "version": "1.5.0",
+  "version": "1.6.4",
   "cases": [
     {
       "id": "v2-read-only-intent",
@@ -137,6 +137,38 @@
     {
       "id": "background-runtime-prune",
       "expected": ["dry-run-default", "explicit-apply", "terminal-summary-indexed", "critical-finding-preserved"]
+    },
+    {
+      "id": "verification-volatile-byproducts",
+      "expected": ["builtin-cache-allowlist", "new-files-only", "volatile_write_set-visible", "configured-volatile_paths", "global-glob-rejected", "real-write-still-blocked", "upgrade-preserve"]
+    },
+    {
+      "id": "verification-incremental-gate-readmission",
+      "expected": ["test-pattern-gate-preinference", "additive-gate-only", "atomic-package-revision", "evidence-adoption-audit", "no-evidence-regeneration", "delta-context-only", "high-risk-full-readmission"]
+    },
+    {
+      "id": "v164-active-task-idempotency",
+      "expected": ["active_task_key", "active_task_reused", "--new-task", "blocked-no-reuse", "workspace-change-new-task"]
+    },
+    {
+      "id": "v164-verify-soft-classification",
+      "expected": ["provide_evidence-exit3", "refresh_evidence-exit3", "retry_verification", "no-revision-increase", "full_readmission-on-contract-change"]
+    },
+    {
+      "id": "v164-managed-evidence-artifact-store",
+      "expected": ["managed-copy", "source-deletion-safe", "artifact_ref"]
+    },
+    {
+      "id": "v164-verification-command-receipts",
+      "expected": ["per-command-receipt", "passed-not-rerun", "only-failed-rerun", "input-change-invalidates", "command_cache_enabled-toggle"]
+    },
+    {
+      "id": "v164-change-scoped-fingerprint",
+      "expected": ["scoped_files-binding", "unrelated-change-ignored", "changed-path-invalidates"]
+    },
+    {
+      "id": "v164-one-shot-plan-freeze",
+      "expected": ["contract_delta", "complete_plan_delta", "cross-stage-context-reuse"]
     }
   ]
 }

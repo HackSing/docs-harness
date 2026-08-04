@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Docs Harness v1.6.2 独立任务控制器。"""
+"""Docs Harness v1.6.3 独立任务控制器。"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 
-VERSION = "1.6.2"
+VERSION = "1.6.4"
 TASK_SCHEMA = "docs-harness/task-package/v2"
 LEGACY_TASK_SCHEMA = "docs-harness/task-package/v1"
 COMPILED_SCHEMA = "docs-harness/compiled-task/v2"
@@ -35,6 +35,12 @@ RECEIPT_SCHEMA = "docs-harness/context-receipt/v2"
 COMPLETION_MANIFEST_SCHEMA = "docs-harness/completion-manifest/v1"
 COMPILER_CONTRACT = "docs-harness/compiler/v2"
 AUTH_SCHEMA = "docs-harness/authorization-receipt/v2"
+AUTH_ADOPTION_SCHEMA = "docs-harness/authorization-adoption/v1"
+EVIDENCE_ADOPTION_SCHEMA = "docs-harness/evidence-adoption/v1"
+CONTRACT_DELTA_SCHEMA = "docs-harness/contract-delta/v1"
+PLAN_DELTA_SCHEMA = "docs-harness/plan-delta-contract/v1"
+MANAGED_PLAN_SCHEMA = "docs-harness/managed-plan/v1"
+VERIFICATION_RECEIPT_SCHEMA = "docs-harness/verification-command-receipt/v1"
 CONFIG_SCHEMA = "docs-harness/project-config/v4"
 QUALITY_REVIEW_SCHEMA = "docs-harness/quality-review/v1"
 QUALITY_RECORD_SCHEMA = "docs-harness/quality-record/v1"
@@ -114,6 +120,7 @@ BACKGROUND_ROUTES = {"background_direct", "background_goal", "background_goal_ph
 BACKGROUND_COMPLEX_ROUTES = {"background_goal", "background_goal_phased"}
 BACKGROUND_PROGRESS_STATUSES = {"pending", "in_progress", "completed", "blocked"}
 BACKGROUND_REASON_CODE_RE = re.compile(r"^[a-z][a-z0-9_]{0,63}$")
+VERIFICATION_REASON_CODE_LIMIT = 8
 KNOWN_LIMIT_CODES = {
     "source_not_verified",
     "local_runtime_not_verified",
@@ -875,7 +882,16 @@ def next_step_payload(
         command = harness_command_argv(
             "run", target, "--task-id", task_id, "--plan", str(artifact)
         )
+    elif next_action == "complete_plan_delta":
+        artifact = artifact or (state / "plan-delta.json")
+        command = harness_command_argv(
+            "run", target, "--task-id", task_id, "--plan", str(artifact)
+        )
     elif next_action == "load_action_context":
+        command = harness_command_argv(
+            "context", target, "--task-id", task_id, "--stage", "action"
+        )
+    elif next_action == "load_context_delta":
         command = harness_command_argv(
             "context", target, "--task-id", task_id, "--stage", "action"
         )
@@ -884,12 +900,12 @@ def next_step_payload(
         command = harness_command_argv(
             "run", target, "--task-id", task_id, "--authorization", str(artifact)
         )
-    elif next_action == "provide_evidence":
+    elif next_action in {"provide_evidence", "refresh_evidence"}:
         artifact = artifact or (state / "evidence.json")
         command = harness_command_argv(
             "verify", target, "--task-id", task_id, "--evidence", str(artifact)
         )
-    elif next_action == "verify":
+    elif next_action in {"verify", "retry_verification"}:
         command = harness_command_argv("verify", target, "--task-id", task_id)
     elif next_action == "rerun_harness_for_readmission":
         command = harness_command_argv("run", target, "--task-id", task_id)
@@ -962,7 +978,11 @@ def append_task_event(
         "package_revision": package["package_revision"],
         "context_cache_hit": bool(context_cache_hit),
         "context_load_count": sum(1 for item in prior if item.get("phase") == "context" and not item.get("context_cache_hit")),
-        "readmission_count": sum(1 for item in prior if item.get("event") in {"readmission", "scope_bound_readmission"}),
+        "readmission_count": sum(
+            1
+            for item in prior
+            if item.get("event") in {"readmission", "scope_bound_readmission", "incremental_gate_readmission"}
+        ),
         "evidence_round_count": sum(1 for item in prior if item.get("phase") == "verification"),
         "host_receipt_count": (
             len(read_jsonl(state / "context-receipts.jsonl"))
@@ -1043,6 +1063,86 @@ def workspace_snapshot(target: Path) -> dict[str, str]:
 
 def snapshot_changes(before: dict[str, str], after: dict[str, str]) -> list[str]:
     return sorted(path for path in set(before) | set(after) if before.get(path) != after.get(path))
+
+
+VOLATILE_VERIFICATION_DIR_PARTS = {
+    "__pycache__", ".pytest_cache", ".mypy_cache", ".ruff_cache", ".pytype",
+    ".tox", ".nox", ".hypothesis", ".cache", ".nyc_output", "htmlcov",
+}
+VOLATILE_VERIFICATION_SUFFIXES = {".pyc", ".pyo", ".tmp", ".temp", ".swp", ".bak", ".log"}
+VOLATILE_VERIFICATION_FILENAMES = {".coverage", ".ds_store", "thumbs.db", ".eslintcache"}
+
+
+def validate_volatile_verification_paths(value: Any) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or not all(isinstance(item, str) and item.strip() for item in value):
+        raise HarnessError("verification.volatile_paths 必须是非空字符串数组", code="invalid_project_config")
+    patterns: list[str] = []
+    for raw in value:
+        pattern = raw.strip()
+        parts = pattern.split("/")
+        if (
+            len(pattern) > 256
+            or "\\" in pattern
+            or ":" in pattern
+            or pattern.startswith("/")
+            or len(parts) < 2
+            or any(part in {"", ".", ".."} for part in parts)
+            or any(char in parts[0] for char in "*?[")
+            or parts[0].casefold() in {".git", ".docs-harness"}
+            or any(ord(char) < 32 or ord(char) == 127 for char in pattern)
+        ):
+            raise HarnessError(
+                f"verification.volatile_paths 必须是工作区内带固定根目录的 glob：{pattern}",
+                code="invalid_project_config",
+            )
+        patterns.append(pattern)
+    return list(dict.fromkeys(patterns))
+
+
+def configured_volatile_verification_patterns(target: Path) -> list[str]:
+    config = project_config(target) or {}
+    verification = config.get("verification")
+    if verification is None:
+        return []
+    if not isinstance(verification, dict):
+        raise HarnessError("项目配置 verification 必须是对象", code="invalid_project_config")
+    return validate_volatile_verification_paths(verification.get("volatile_paths"))
+
+
+def verification_command_cache_enabled(target: Path) -> bool:
+    """验证命令逐项缓存默认开启，可通过项目配置 verification.command_cache_enabled 整体关闭。"""
+    config = project_config(target) or {}
+    verification = config.get("verification")
+    if verification is None:
+        return True
+    if not isinstance(verification, dict):
+        raise HarnessError("项目配置 verification 必须是对象", code="invalid_project_config")
+    enabled = verification.get("command_cache_enabled", True)
+    if not isinstance(enabled, bool):
+        raise HarnessError("项目配置 verification.command_cache_enabled 必须是布尔值", code="invalid_project_config")
+    return enabled
+
+
+def volatile_verification_path(relative: str, extra_patterns: Sequence[str] = ()) -> bool:
+    parts = Path(relative).parts
+    if not parts:
+        return False
+    if any(part.casefold() in VOLATILE_VERIFICATION_DIR_PARTS for part in parts):
+        return True
+    name = parts[-1]
+    if Path(name).suffix.casefold() in VOLATILE_VERIFICATION_SUFFIXES:
+        return True
+    lowered = name.casefold()
+    if lowered in VOLATILE_VERIFICATION_FILENAMES or lowered.startswith(".coverage."):
+        return True
+    if name.startswith((".~", ".#")) or name.endswith("~"):
+        return True
+    return any(
+        fnmatch.fnmatchcase(relative, pattern) or fnmatch.fnmatchcase(name, pattern)
+        for pattern in extra_patterns
+    )
 
 
 def environment_fingerprint() -> dict[str, str]:
@@ -2055,6 +2155,7 @@ def infer_gates_from_paths(paths: Sequence[str], *, mutation_profile: str = "wor
         suffix = Path(lowered).suffix
         parts = tuple(part for part in lowered.split("/") if part)
         stems = {Path(part).stem for part in parts}
+        filename = parts[-1] if parts else ""
         if mutation_profile in {"workspace_write", "external_write"} and (lowered.endswith(".md") or lowered.startswith("docs/") or lowered in {"agents.md", "claude.md"}):
             gates.add("document-edit")
         if mutation_profile in {"workspace_write", "external_write"}:
@@ -2066,7 +2167,11 @@ def infer_gates_from_paths(paths: Sequence[str], *, mutation_profile: str = "wor
                 gates.add("frontend-design")
         if mutation_profile in {"workspace_write", "external_write"} and suffix in {".py", ".js", ".ts", ".go", ".rs", ".swift", ".java", ".kt"}:
             gates.add("code-edit")
-        if mutation_profile in {"workspace_write", "external_write"} and any(stem == "spec" or stem.startswith("test") or stem.endswith("_test") for stem in stems):
+        if mutation_profile in {"workspace_write", "external_write"} and (
+            any(stem == "spec" or stem.startswith("test") or stem.endswith("_test") for stem in stems)
+            or re.search(r"(?:^|[._-])(?:test|spec)(?:[._-]|$)", filename) is not None
+            or any("测试" in part for part in parts)
+        ):
             gates.add("testing-acceptance")
     return [gate for gate in GATE_ORDER if gate in gates]
 
@@ -2621,6 +2726,124 @@ def package_fingerprint(package: dict[str, Any]) -> str:
     return sha256_text(canonical_json(package))
 
 
+def scope_contract_fingerprint(package: dict[str, Any]) -> str:
+    """读写、Git、外部范围、动作、路线与工作包组成的范围合同指纹。"""
+    return sha256_text(
+        canonical_json(
+            {
+                "allowed_scope": package.get("allowed_scope", []),
+                "read_scope": package.get("read_scope", []),
+                "write_scope": package.get("write_scope", []),
+                "git_scope": package.get("git_scope", []),
+                "external_scope": package.get("external_scope", []),
+                "allowed_actions": package.get("allowed_actions", []),
+                "execution_route": package.get("execution_route"),
+                "execution_topology": package.get("execution_topology"),
+                "work_packages": package.get("work_packages", []),
+            }
+        )
+    )
+
+
+def plan_contract_fingerprint(package: dict[str, Any]) -> str:
+    """正式方案必须满足的字段、Gate、阻断交付物与成功标准指纹。"""
+    return sha256_text(
+        canonical_json(
+            {
+                "plan_fields": package.get("plan_fields", []),
+                "matched_gates": package.get("matched_gates", []),
+                "blocking_deliverables": package.get("blocking_deliverables", []),
+                "success_criteria": package.get("success_criteria", []),
+            }
+        )
+    )
+
+
+def authorization_contract_fingerprint(package: dict[str, Any]) -> str:
+    """授权动作与全部授权范围组成的授权合同指纹。"""
+    return sha256_text(
+        canonical_json(
+            {
+                "authorization_requirements": package.get("authorization_requirements", []),
+                "allowed_scope": package.get("allowed_scope", []),
+                "write_scope": package.get("write_scope", []),
+                "git_scope": package.get("git_scope", []),
+                "external_scope": package.get("external_scope", []),
+            }
+        )
+    )
+
+
+def context_schedule_refs(package: dict[str, Any]) -> list[str]:
+    schedule = package.get("context_schedule", {})
+    refs: list[str] = []
+    stages: list[dict[str, Any]] = []
+    for key in ("plan", "action", "acceptance"):
+        value = schedule.get(key)
+        if isinstance(value, dict):
+            stages.append(value)
+    for value in (schedule.get("work_packages") or {}).values():
+        if isinstance(value, dict):
+            stages.append(value)
+    for value in stages:
+        refs.extend(f"rule:{item}" for item in value.get("rule_ids", []))
+        refs.extend(str(item) for item in value.get("project_fact_refs", []))
+    return list(dict.fromkeys(refs))
+
+
+def required_evidence_types(package: dict[str, Any]) -> list[str]:
+    manifest = package.get("completion_manifest", {})
+    types = list(manifest.get("required_evidence_types", []))
+    types.extend(str(item.get("evidence_type")) for item in manifest.get("conditional_evidence", []))
+    return list(dict.fromkeys(types))
+
+
+def contract_disposition(previous: dict[str, Any], current: dict[str, Any]) -> str:
+    """只由控制器判定的合同分段处置结论。"""
+    if package_fingerprint(previous) == package_fingerprint(current):
+        return "no_change"
+    if (
+        scope_contract_fingerprint(previous) != scope_contract_fingerprint(current)
+        or authorization_contract_fingerprint(previous) != authorization_contract_fingerprint(current)
+        or previous.get("blocking_deliverables", []) != current.get("blocking_deliverables", [])
+    ):
+        return "full_readmission"
+    if set(current.get("plan_fields", [])) - set(previous.get("plan_fields", [])):
+        return "plan_amendment"
+    if set(current.get("matched_gates", [])) - set(previous.get("matched_gates", [])):
+        return "incremental_admission"
+    if set(required_evidence_types(current)) - set(required_evidence_types(previous)):
+        return "evidence_only"
+    if set(context_schedule_refs(current)) - set(context_schedule_refs(previous)):
+        return "context_only"
+    return "no_change"
+
+
+def build_contract_delta(previous: dict[str, Any], current: dict[str, Any]) -> dict[str, Any]:
+    prior_refs = set(context_schedule_refs(previous))
+    prior_types = set(required_evidence_types(previous))
+    return {
+        "schema_version": CONTRACT_DELTA_SCHEMA,
+        "from_package_fingerprint": package_fingerprint(previous),
+        "to_package_fingerprint": package_fingerprint(current),
+        "from_package_revision": previous.get("package_revision"),
+        "to_package_revision": current.get("package_revision"),
+        "added_gates": [item for item in current.get("matched_gates", []) if item not in previous.get("matched_gates", [])],
+        "added_plan_fields": [item for item in current.get("plan_fields", []) if item not in previous.get("plan_fields", [])],
+        "added_context_refs": [item for item in context_schedule_refs(current) if item not in prior_refs],
+        "added_evidence_types": [item for item in required_evidence_types(current) if item not in prior_types],
+        "scope_changed": scope_contract_fingerprint(previous) != scope_contract_fingerprint(current),
+        "route_changed": previous.get("execution_route") != current.get("execution_route"),
+        "authorization_contract_changed": authorization_contract_fingerprint(previous)
+        != authorization_contract_fingerprint(current),
+        "work_packages_changed": previous.get("work_packages", []) != current.get("work_packages", []),
+        "blocking_deliverables_changed": previous.get("blocking_deliverables", [])
+        != current.get("blocking_deliverables", []),
+        "plan_contract_changed": plan_contract_fingerprint(previous) != plan_contract_fingerprint(current),
+        "disposition": contract_disposition(previous, current),
+    }
+
+
 def initial_compiled(package: dict[str, Any], blockers: Sequence[str]) -> dict[str, Any]:
     states = {item["work_package_id"]: "pending" for item in package["work_packages"]}
     action_schedule = package["context_schedule"]["action"]
@@ -2641,6 +2864,8 @@ def initial_compiled(package: dict[str, Any], blockers: Sequence[str]) -> dict[s
         "scope_changed": False,
         "plan_ref": None,
         "plan_fingerprint": None,
+        "plan_artifact": None,
+        "plan_delta_contract": None,
         "authorization_status": "not_required" if not package["authorization_requirements"] else "missing",
         "authorization_receipt_ref": None,
         "verification_status": "not_started",
@@ -2940,6 +3165,51 @@ def generate_task_id() -> str:
     return f"dh-{stamp}-{uuid.uuid4().hex[:10]}"
 
 
+def normalize_task_text(task: str) -> str:
+    return " ".join(task.split())
+
+
+def active_task_key(target: Path, task: str, facts: dict[str, Any]) -> str:
+    """活动任务幂等键：相同 target、任务、facts 与初始工作区返回同一任务。"""
+    return sha256_text(
+        canonical_json(
+            {
+                "target_identity": target_identity(target),
+                "task": normalize_task_text(task),
+                "facts_fingerprint": sha256_text(canonical_json(facts or {})),
+                "workspace_snapshot_fingerprint": sha256_text(canonical_json(workspace_snapshot(target))),
+            }
+        )
+    )
+
+
+ACTIVE_TASK_TERMINAL_STATUSES = {"complete", "cancelled", "failed"}
+# blocked 任务不参与幂等复用：重新 run 时必须重新校验规则与合同，不得返回陈旧阻断原因。
+ACTIVE_TASK_NO_REUSE_STATUSES = ACTIVE_TASK_TERMINAL_STATUSES | {"blocked"}
+
+
+def find_existing_active_task(target: Path, key: str) -> Path | None:
+    """查找相同 active task key 的可复用任务；终态与 blocked 任务不复用。"""
+    root = runtime_root(target)
+    if not root.is_dir():
+        return None
+    for entry in sorted(root.iterdir()):
+        if not entry.is_dir():
+            continue
+        package_path = entry / "task-package.json"
+        compiled_path = entry / "compiled-task.json"
+        if not package_path.is_file() or not compiled_path.is_file():
+            continue
+        package = read_json(package_path)
+        if package.get("active_task_key") != key:
+            continue
+        compiled = read_json(compiled_path)
+        if compiled.get("control_status") in ACTIVE_TASK_NO_REUSE_STATUSES:
+            continue
+        return entry
+    return None
+
+
 def extract_markdown_sections(text: str) -> dict[str, str]:
     matches = list(re.finditer(r"(?m)^#{1,6}\s+(.+?)\s*$", text))
     result: dict[str, str] = {}
@@ -2992,6 +3262,151 @@ def validate_plan(plan: Any, fields: Sequence[str]) -> list[str]:
         if value is None or (isinstance(value, str) and not value.strip()) or value == []:
             missing.append(field)
     return missing
+
+
+ARTIFACT_KINDS = ("plans", "authorizations", "evidence", "verification")
+PLAN_SCOPE_FIELD = "执行范围"
+
+
+def artifact_store_dir(state: Path, kind: str) -> Path:
+    """控制器所有的受管工件目录；调用者临时文件清理后仍然有效。"""
+    if kind not in ARTIFACT_KINDS:
+        raise HarnessError("受管工件类别无效", code="invalid_artifact_kind")
+    path = state / "artifacts" / kind
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def store_managed_artifact(state: Path, kind: str, name: str, content: str) -> Path:
+    path = artifact_store_dir(state, kind) / name
+    atomic_write_text(path, content)
+    return path
+
+
+def ingest_managed_plan(
+    state: Path,
+    package: dict[str, Any],
+    plan_path: Path,
+    *,
+    kind: str,
+    content: str | None = None,
+) -> dict[str, Any]:
+    """把计划正文摄取为不可变受管副本，并记录调用者来源。"""
+    body = plan_path.read_text(encoding="utf-8") if content is None else content
+    suffix = plan_path.suffix.casefold() or ".txt"
+    stored = store_managed_artifact(state, "plans", f"{kind}.v{package['package_revision']}{suffix}", body)
+    return {
+        "schema_version": MANAGED_PLAN_SCHEMA,
+        "artifact_ref": str(stored),
+        "artifact_fingerprint": file_fingerprint(stored),
+        "source_ref": str(plan_path),
+        "source_fingerprint": file_fingerprint(plan_path),
+        "ingested_at": utc_now(),
+    }
+
+
+def load_managed_plan(ref: Any, fingerprint: Any) -> Any:
+    path = Path(str(ref or ""))
+    if not path.is_file() or file_fingerprint(path) != fingerprint:
+        raise HarnessError("受管计划副本不可用，必须重新提交完整方案", code="managed_plan_unavailable")
+    _, plan = load_plan(str(path))
+    return plan
+
+
+def validate_plan_delta_binding(patch: Any, package: dict[str, Any], contract: dict[str, Any]) -> None:
+    """计划补丁必须绑定当前任务、原计划工件与目标计划合同。"""
+    if not isinstance(patch, dict):
+        return
+    bindings = (
+        ("task_id", package["task_id"]),
+        ("base_plan_fingerprint", contract.get("base_plan_fingerprint")),
+        ("plan_contract_fingerprint", contract.get("plan_contract_fingerprint")),
+    )
+    for key, expected in bindings:
+        declared = patch.get(key)
+        if declared is not None and str(declared) != str(expected):
+            raise HarnessError(f"计划补丁绑定的 {key} 与当前任务不一致", code="plan_delta_conflict")
+
+
+def merge_plan_delta(
+    base: Any,
+    patch: Any,
+    *,
+    missing_fields: Sequence[str],
+    frozen_fields: Sequence[str],
+) -> Any:
+    """补丁只能补齐控制器列出的缺失字段；已冻结字段不得被改写。"""
+    for field in frozen_fields:
+        if field == PLAN_SCOPE_FIELD:
+            continue
+        patched = plan_value(patch, field)
+        if patched is None:
+            continue
+        if canonical_json(patched) != canonical_json(plan_value(base, field)):
+            raise HarnessError(f"计划补丁不得改写已冻结字段：{field}", code="plan_delta_conflict")
+    fillable = list(dict.fromkeys(list(missing_fields) + [PLAN_SCOPE_FIELD]))
+    if isinstance(base, dict):
+        merged = dict(base)
+        for field in fillable:
+            value = plan_value(patch, field)
+            if value is not None:
+                merged[field] = value
+        return merged
+    additions: list[str] = []
+    for field in fillable:
+        value = plan_value(patch, field)
+        if value is None:
+            continue
+        body = value if isinstance(value, str) else canonical_json(value)
+        additions.append(f"## {field}\n\n{body}\n")
+    if not additions:
+        return base
+    return str(base).rstrip("\n") + "\n\n" + "\n".join(additions)
+
+
+def plan_delta_contract(
+    package: dict[str, Any],
+    managed: dict[str, Any],
+    delta: dict[str, Any],
+    missing_fields: Sequence[str],
+) -> dict[str, Any]:
+    return {
+        "schema_version": PLAN_DELTA_SCHEMA,
+        "task_id": package["task_id"],
+        "package_revision": package["package_revision"],
+        "plan_contract_fingerprint": plan_contract_fingerprint(package),
+        "base_plan_ref": managed["artifact_ref"],
+        "base_plan_fingerprint": managed["artifact_fingerprint"],
+        "base_plan_source_ref": managed["source_ref"],
+        "frozen_plan_fields": [item for item in package["plan_fields"] if item not in set(missing_fields)],
+        "missing_plan_fields": list(missing_fields),
+        "added_gates": list(delta.get("added_gates", [])),
+        "added_plan_fields": list(delta.get("added_plan_fields", [])),
+        "added_evidence_types": list(delta.get("added_evidence_types", [])),
+        "frozen_scope": list(package["allowed_scope"]),
+        "created_at": utc_now(),
+    }
+
+
+def freeze_managed_plan(
+    state: Path,
+    package: dict[str, Any],
+    compiled: dict[str, Any],
+    plan_path: Path,
+    *,
+    plan: Any = None,
+) -> dict[str, Any]:
+    """正式计划一次冻结：引用受管副本，不再依赖调用者临时文件。"""
+    content = None
+    if plan is not None:
+        content = json.dumps(plan, ensure_ascii=False, indent=2) + "\n" if isinstance(plan, dict) else str(plan)
+    managed = ingest_managed_plan(state, package, plan_path, kind="plan", content=content)
+    compiled["plan_ref"] = managed["artifact_ref"]
+    compiled["plan_fingerprint"] = managed["artifact_fingerprint"]
+    compiled["plan_artifact"] = managed
+    compiled["plan_delta_contract"] = None
+    compiled["blockers"] = []
+    return managed
 
 
 def read_ref(target: Path, ref: str) -> dict[str, str]:
@@ -3088,6 +3503,29 @@ def find_context_receipt(
     return None
 
 
+def prior_context_content_fingerprints(
+    state: Path,
+    package: dict[str, Any],
+    target: Path,
+) -> set[str]:
+    """已在同一 task/target/compiler contract 下交付过的内容正文指纹；跨 stage 不重复交付。"""
+    fingerprints: set[str] = set()
+    identity = target_identity(target)
+    for receipt in read_jsonl(state / "context-receipts.jsonl"):
+        if receipt.get("schema_version") != RECEIPT_SCHEMA:
+            continue
+        if receipt.get("task_id") != package["task_id"] or receipt.get("target_identity") != identity:
+            continue
+        if receipt.get("compiler_contract") != COMPILER_CONTRACT:
+            continue
+        fingerprints.update(
+            item
+            for item in receipt.get("delivered_content_fingerprints", receipt.get("content_fingerprints", []))
+            if isinstance(item, str) and item.startswith("sha256:")
+        )
+    return fingerprints
+
+
 def context_receipt_valid(
     state: Path,
     package: dict[str, Any],
@@ -3145,6 +3583,13 @@ def command_context(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         stage=stage if stage != "work_package" else None,
         work_package=args.work_package,
     )
+    prior_fingerprints = prior_context_content_fingerprints(state, package, target)
+    delivered_contents = (
+        []
+        if cached_receipt is not None
+        else [item for item in contents if item["fingerprint"] not in prior_fingerprints]
+    )
+    context_delta = cached_receipt is None and bool(prior_fingerprints)
     receipt = {
         "schema_version": RECEIPT_SCHEMA,
         "task_id": package["task_id"],
@@ -3157,6 +3602,10 @@ def command_context(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "rule_ids": schedule.get("rule_ids", []),
         "project_fact_refs": schedule.get("project_fact_refs", []),
         "content_fingerprints": content_fingerprints,
+        "delivered_content_fingerprints": [item["fingerprint"] for item in delivered_contents],
+        "reused_content_fingerprints": [
+            item["fingerprint"] for item in contents if item["fingerprint"] in prior_fingerprints
+        ],
         "content_set_fingerprint": content_set,
         "loaded_at": utc_now(),
     }
@@ -3168,11 +3617,14 @@ def command_context(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     append_task_event(
         state,
         package,
-        event="context_reused" if cached_receipt is not None else "context_loaded",
+        event=("context_reused" if cached_receipt is not None else ("context_delta_loaded" if context_delta else "context_loaded")),
         phase="context",
-        reason_code="context_cache_hit" if cached_receipt is not None else "context_content_loaded",
+        reason_code=("context_cache_hit" if cached_receipt is not None else ("context_delta_loaded" if context_delta else "context_content_loaded")),
         duration_ms=int((time.monotonic() - started) * 1000),
         context_cache_hit=cached_receipt is not None,
+        context_delta=context_delta,
+        loaded_content_count=len(delivered_contents),
+        reused_content_count=max(0, len(contents) - len(delivered_contents)),
         stage=stage,
     )
     payload = {
@@ -3181,8 +3633,11 @@ def command_context(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "work_package_id": args.work_package,
         "control_status": compiled["control_status"],
         "context_cache_hit": cached_receipt is not None,
-        "rules": [] if cached_receipt is not None else [item for item in contents if item["ref"].startswith("rule:")],
-        "project_facts": [] if cached_receipt is not None else [item for item in contents if not item["ref"].startswith("rule:")],
+        "context_delta": context_delta,
+        "loaded_content_count": len(delivered_contents),
+        "reused_content_count": max(0, len(contents) - len(delivered_contents)),
+        "rules": [item for item in delivered_contents if item["ref"].startswith("rule:")],
+        "project_facts": [item for item in delivered_contents if not item["ref"].startswith("rule:")],
         "knowledge_context": package.get("knowledge_context", {}),
         "receipt": receipt,
     }
@@ -3198,13 +3653,19 @@ def command_context(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             )
         )
     elif stage == "action":
+        followup = (
+            "verify"
+            if compiled.get("verification_status") == "needs_evidence"
+            and compiled.get("next_action") == "load_action_context"
+            else "execute"
+        )
         payload.update(
             next_step_payload(
                 target,
                 state,
                 package,
-                "execute",
-                reason_code="action_context_loaded",
+                followup,
+                reason_code=("incremental_action_context_loaded" if followup == "verify" else "action_context_loaded"),
             )
         )
     elif stage == "work_package":
@@ -3283,14 +3744,16 @@ def authorization_receipt(path: str, package: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def archive_and_rewrite_package(state: Path, package: dict[str, Any], compiled: dict[str, Any], freeze: dict[str, Any], target: Path) -> None:
+def archive_and_rewrite_package(state: Path, package: dict[str, Any], compiled: dict[str, Any], freeze: dict[str, Any], target: Path) -> dict[str, Any]:
     current_package = read_json(state / "task-package.json")
     current_freeze = read_json(state / "freeze.json")
     revision = current_package["package_revision"]
+    delta = build_contract_delta(current_package, package)
     history = state / "package-history"
     history.mkdir(exist_ok=True)
     atomic_write_json(history / f"task-package.v{revision}.json", current_package)
     atomic_write_json(history / f"freeze.v{revision}.json", current_freeze)
+    atomic_write_json(history / f"contract-delta.v{revision}.json", delta)
     atomic_write_json(state / "task-package.json", package)
     atomic_write_json(state / "compiled-task.json", compiled)
     freeze.update(
@@ -3302,6 +3765,7 @@ def archive_and_rewrite_package(state: Path, package: dict[str, Any], compiled: 
         }
     )
     atomic_write_json(state / "freeze.json", freeze)
+    return delta
 
 
 def plan_scope(plan: Any) -> list[str] | None:
@@ -3324,7 +3788,7 @@ def recompile_package_from_plan_scope(
     requested_scope: Sequence[str],
     cli: argparse.Namespace,
     supplied_facts: dict[str, Any],
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[str]]:
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[str], dict[str, Any]]:
     recompile_facts = merge_recompile_facts(package, supplied_facts)
     recompile_facts["allowed_scope"] = list(requested_scope)
     new_package, blockers = build_package(
@@ -3340,7 +3804,7 @@ def recompile_package_from_plan_scope(
     new_compiled = initial_compiled(new_package, blockers)
     new_freeze = dict(freeze)
     with state_lock(state):
-        archive_and_rewrite_package(
+        delta = archive_and_rewrite_package(
             state,
             new_package,
             new_compiled,
@@ -3353,8 +3817,11 @@ def recompile_package_from_plan_scope(
             event="scope_bound_readmission",
             phase="admission",
             reason_code="scope_bound_context_reload",
+            disposition=delta["disposition"],
+            added_gates=delta["added_gates"],
+            added_plan_fields=delta["added_plan_fields"],
         )
-    return new_package, new_compiled, new_freeze, blockers
+    return new_package, new_compiled, new_freeze, blockers, delta
 
 
 def facts_from_package(package: dict[str, Any]) -> dict[str, Any]:
@@ -3413,53 +3880,56 @@ def merge_recompile_facts(package: dict[str, Any], supplied: dict[str, Any]) -> 
     return merged
 
 
-def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
-    target = safe_target(args.target)
-    facts = load_facts(args.facts)
-    if not args.task_id:
-        if not args.task or not args.task.strip():
-            raise HarnessError("首次 run 必须提供原始任务", code="missing_task")
-        task_id = generate_task_id()
-        package, blockers = build_package(target, args.task.strip(), facts, args, task_id)
-        state = create_task_state(target, package, blockers)
-        compiled = read_json(state / "compiled-task.json")
-        payload = {
-            "task_id": task_id,
-            "task_package_ref": str(state / "task-package.json"),
-            "progress_state_ref": str(state / "compiled-task.json"),
-            "execution_route": package["execution_route"],
-            "execution_topology": package["execution_topology"],
-            "task_intent": package["task_intent"],
-            "candidate_intents": package["candidate_intents"],
-            "deferred_intents": package.get("deferred_intents", []),
-            "intent_boundary_reason_codes": package.get("intent_boundary_reason_codes", []),
-            "mutation_profile": package["mutation_profile"],
-            "matched_gates": package["matched_gates"],
-            "matched_rules": package["matched_rules"],
-            "rules": [item["rule_id"] for item in package["matched_rules"]],
-            "allowed_scope": package["allowed_scope"],
-            "read_scope": package["read_scope"],
-            "write_scope": package["write_scope"],
-            "git_scope": package["git_scope"],
-            "external_scope": package["external_scope"],
-            "allowed_actions": package["allowed_actions"],
-            "success_criteria": package["success_criteria"],
-            "authorization_requirements": package["authorization_requirements"],
-            "stop_conditions": package["stop_conditions"],
-            "plan_fields": package["plan_fields"],
-            "plan_skeleton": package["plan_skeleton"],
-            "context_schedule": package["context_schedule"],
-            "knowledge_context": package.get("knowledge_context", {}),
-            "context_quality": package.get("context_quality", "complete"),
-            "blocking_deliverables": package.get("blocking_deliverables", []),
-            "background_deliverables": package.get("background_deliverables", []),
-            "completion_manifest": package["completion_manifest"],
-            "admission_status": compiled["control_status"],
-            "blockers": compiled["blockers"],
-            "next_action": compiled["next_action"],
-        }
-        payload["plan_contract"] = plan_contract_payload(package)
-        reason_code = (
+def first_run_payload(
+    target: Path,
+    state: Path,
+    package: dict[str, Any],
+    compiled: dict[str, Any],
+    *,
+    reused: bool = False,
+) -> tuple[int, dict[str, Any]]:
+    payload = {
+        "task_id": package["task_id"],
+        "task_package_ref": str(state / "task-package.json"),
+        "progress_state_ref": str(state / "compiled-task.json"),
+        "execution_route": package["execution_route"],
+        "execution_topology": package["execution_topology"],
+        "task_intent": package["task_intent"],
+        "candidate_intents": package["candidate_intents"],
+        "deferred_intents": package.get("deferred_intents", []),
+        "intent_boundary_reason_codes": package.get("intent_boundary_reason_codes", []),
+        "mutation_profile": package["mutation_profile"],
+        "matched_gates": package["matched_gates"],
+        "matched_rules": package["matched_rules"],
+        "rules": [item["rule_id"] for item in package["matched_rules"]],
+        "allowed_scope": package["allowed_scope"],
+        "read_scope": package["read_scope"],
+        "write_scope": package["write_scope"],
+        "git_scope": package["git_scope"],
+        "external_scope": package["external_scope"],
+        "allowed_actions": package["allowed_actions"],
+        "success_criteria": package["success_criteria"],
+        "authorization_requirements": package["authorization_requirements"],
+        "stop_conditions": package["stop_conditions"],
+        "plan_fields": package["plan_fields"],
+        "plan_skeleton": package["plan_skeleton"],
+        "context_schedule": package["context_schedule"],
+        "knowledge_context": package.get("knowledge_context", {}),
+        "context_quality": package.get("context_quality", "complete"),
+        "blocking_deliverables": package.get("blocking_deliverables", []),
+        "background_deliverables": package.get("background_deliverables", []),
+        "completion_manifest": package["completion_manifest"],
+        "admission_status": compiled["control_status"],
+        "blockers": compiled["blockers"],
+        "next_action": compiled["next_action"],
+    }
+    if reused:
+        payload["active_task_reused"] = True
+    payload["plan_contract"] = plan_contract_payload(package)
+    reason_code = (
+        "active_task_reused"
+        if reused
+        else (
             "scope_required"
             if compiled["control_status"] == "needs_plan" and not package["allowed_scope"]
             else (
@@ -3468,16 +3938,39 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 else compiled["control_status"]
             )
         )
-        payload.update(
-            next_step_payload(
-                target,
-                state,
-                package,
-                compiled["next_action"],
-                reason_code=reason_code,
-            )
+    )
+    payload.update(
+        next_step_payload(
+            target,
+            state,
+            package,
+            compiled["next_action"],
+            reason_code=reason_code,
         )
-        return (3 if compiled["control_status"] == "blocked" else 0), payload
+    )
+    return (3 if compiled["control_status"] == "blocked" else 0), payload
+
+
+def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    target = safe_target(args.target)
+    facts = load_facts(args.facts)
+    if not args.task_id:
+        if not args.task or not args.task.strip():
+            raise HarnessError("首次 run 必须提供原始任务", code="missing_task")
+        task_text = args.task.strip()
+        key = active_task_key(target, task_text, facts)
+        if not getattr(args, "new_task", False):
+            existing = find_existing_active_task(target, key)
+            if existing is not None:
+                package = read_json(existing / "task-package.json")
+                compiled = read_json(existing / "compiled-task.json")
+                return first_run_payload(target, existing, package, compiled, reused=True)
+        task_id = generate_task_id()
+        package, blockers = build_package(target, task_text, facts, args, task_id)
+        package["active_task_key"] = key
+        state = create_task_state(target, package, blockers)
+        compiled = read_json(state / "compiled-task.json")
+        return first_run_payload(target, state, package, compiled)
 
     state, package, compiled, freeze = load_state(target, args.task_id)
     should_recompile = bool(compiled.get("scope_changed")) or (
@@ -3525,11 +4018,23 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             )
             return 3, payload
         plan_path, plan = load_plan(args.plan)
+        pending_delta = compiled.get("plan_delta_contract")
+        if not isinstance(pending_delta, dict) or pending_delta.get("plan_contract_fingerprint") != plan_contract_fingerprint(package):
+            pending_delta = None
+            compiled["plan_delta_contract"] = None
+        if pending_delta is not None:
+            validate_plan_delta_binding(plan, package, pending_delta)
+            plan = merge_plan_delta(
+                load_managed_plan(pending_delta.get("base_plan_ref"), pending_delta.get("base_plan_fingerprint")),
+                plan,
+                missing_fields=pending_delta.get("missing_plan_fields", []),
+                frozen_fields=pending_delta.get("frozen_plan_fields", []),
+            )
         missing = validate_plan(plan, package["plan_fields"])
         if missing:
             compiled["control_status"] = "needs_plan"
             compiled["blockers"] = ["方案缺少字段：" + ", ".join(missing)]
-            compiled["next_action"] = "complete_plan"
+            compiled["next_action"] = "complete_plan_delta" if pending_delta else "complete_plan"
             atomic_write_json(state / "compiled-task.json", compiled)
             payload = {
                 "task_id": args.task_id,
@@ -3537,13 +4042,16 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 "missing_plan_fields": missing,
                 "plan_contract": plan_contract_payload(package),
             }
+            if pending_delta is not None:
+                payload["plan_delta_contract"] = pending_delta
+                payload["plan_regeneration_required"] = False
             payload.update(
                 next_step_payload(
                     target,
                     state,
                     package,
-                    "complete_plan",
-                    reason_code="plan_incomplete",
+                    compiled["next_action"],
+                    reason_code="plan_delta_required" if pending_delta else "plan_incomplete",
                     artifact_ref=plan_path,
                 )
             )
@@ -3574,10 +4082,11 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 )
             )
             return 4, payload
+        freeze_reason = "plan_delta_merged" if pending_delta is not None else "plan_submitted"
         if not package["allowed_scope"] and plan_contract_payload(package)["scope_required"]:
             if requested_scope is None:
                 raise HarnessError("正式方案仍未给出执行范围", code="missing_plan_scope")
-            package, compiled, freeze, blockers = recompile_package_from_plan_scope(
+            package, compiled, freeze, blockers, scope_delta = recompile_package_from_plan_scope(
                 state,
                 package,
                 freeze,
@@ -3607,31 +4116,64 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                     )
                 )
                 return 3, payload
-            compiled["control_status"] = "needs_plan"
-            compiled["next_action"] = "load_plan_context"
-            compiled["blockers"] = ["执行范围已冻结并完成 Gate 重编译，需重新加载方案上下文"]
-            atomic_write_json(state / "compiled-task.json", compiled)
-            payload = {
-                "task_id": args.task_id,
-                "admission_status": "needs_plan",
-                "package_revision": package["package_revision"],
-                "matched_gates": package["matched_gates"],
-                "blockers": compiled["blockers"],
-                "plan_contract": plan_contract_payload(package),
-            }
-            payload.update(
-                next_step_payload(
-                    target,
+            missing_after_scope = validate_plan(plan, package["plan_fields"])
+            if missing_after_scope:
+                managed = ingest_managed_plan(state, package, plan_path, kind="plan-draft")
+                contract = plan_delta_contract(package, managed, scope_delta, missing_after_scope)
+                compiled["control_status"] = "needs_plan"
+                compiled["next_action"] = "complete_plan_delta"
+                compiled["plan_delta_contract"] = contract
+                compiled["blockers"] = ["范围绑定新增 Gate 只需补充计划字段：" + ", ".join(missing_after_scope)]
+                atomic_write_json(state / "compiled-task.json", compiled)
+                append_task_event(
                     state,
                     package,
-                    compiled["next_action"],
-                    reason_code="scope_bound_context_reload",
+                    event="plan_amendment_required",
+                    phase="planning",
+                    reason_code="scope_gate_plan_amendment_required",
+                    added_gates=scope_delta["added_gates"],
+                    added_plan_fields=scope_delta["added_plan_fields"],
+                    missing_plan_field_count=len(missing_after_scope),
+                    plan_regeneration_required=False,
                 )
-            )
-            return 3, payload
-        compiled["plan_ref"] = str(plan_path)
-        compiled["plan_fingerprint"] = file_fingerprint(plan_path)
-        compiled["blockers"] = []
+                payload = {
+                    "task_id": args.task_id,
+                    "result": "补充计划",
+                    "admission_status": "needs_plan",
+                    "package_revision": package["package_revision"],
+                    "matched_gates": package["matched_gates"],
+                    "added_gates": scope_delta["added_gates"],
+                    "added_plan_fields": scope_delta["added_plan_fields"],
+                    "added_context_refs": scope_delta["added_context_refs"],
+                    "added_evidence_types": scope_delta["added_evidence_types"],
+                    "missing_plan_fields": missing_after_scope,
+                    "plan_regeneration_required": False,
+                    "source_execution_allowed": False,
+                    "plan_delta_contract": contract,
+                    "blockers": compiled["blockers"],
+                    "plan_contract": plan_contract_payload(package),
+                }
+                payload.update(
+                    next_step_payload(
+                        target,
+                        state,
+                        package,
+                        "complete_plan_delta",
+                        reason_code="scope_gate_plan_amendment_required",
+                    )
+                )
+                return 3, payload
+            freeze_reason = "scope_bound_plan_adopted"
+        managed_plan = freeze_managed_plan(state, package, compiled, plan_path, plan=plan)
+        append_task_event(
+            state,
+            package,
+            event="plan_frozen",
+            phase="planning",
+            reason_code=freeze_reason,
+            plan_artifact_fingerprint=managed_plan["artifact_fingerprint"],
+            plan_regeneration_required=False,
+        )
 
     if package["execution_route"] == "direct":
         compiled["control_status"] = "ready_direct"
@@ -3647,6 +4189,16 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             compiled["next_action"] = "obtain_authorization"
         else:
             receipt = authorization_receipt(args.authorization, package)
+            source = Path(str(receipt.get("source_ref", "")))
+            managed_auth = store_managed_artifact(
+                state,
+                "authorizations",
+                f"authorization.v{package['package_revision']}.json",
+                source.read_text(encoding="utf-8"),
+            )
+            receipt["artifact_ref"] = str(managed_auth)
+            receipt["artifact_fingerprint"] = file_fingerprint(managed_auth)
+            receipt["authorization_contract_fingerprint"] = authorization_contract_fingerprint(package)
             with state_lock(state):
                 append_jsonl(state / "authorization-receipts.jsonl", receipt)
             compiled["authorization_status"] = "reported"
@@ -3962,12 +4514,31 @@ def workspace_change_attribution(
     read_paths = {str(item.get("path")) for item in read_items if isinstance(item, dict)}
     write_scope = package.get("write_scope", package.get("allowed_scope", []))
     read_scope = package.get("read_scope", [])
+    current_snapshot = workspace_snapshot(target)
+    read_set_drift: list[str] = []
+    refreshed_reads: set[str] = set()
+    for item in read_items:
+        if not isinstance(item, dict):
+            continue
+        path = str(item.get("path"))
+        fingerprint = item.get("fingerprint")
+        if not fingerprint:
+            continue
+        if current_snapshot.get(path) != fingerprint:
+            read_set_drift.append(path)
+        else:
+            refreshed_reads.add(path)
+    unattributed -= refreshed_reads
     task_outside = sorted(path for path in reported_writes if not scope_covers(path, write_scope))
     concurrent_overlap = sorted(
         path for path in concurrent if scope_covers(path, write_scope) or scope_covers(path, read_scope) or path in read_paths
     )
+    drift_set = set(read_set_drift)
     unattributed_overlap = sorted(
-        path for path in unattributed if scope_covers(path, write_scope) or scope_covers(path, read_scope) or path in read_paths
+        path
+        for path in unattributed
+        if path not in drift_set
+        and (scope_covers(path, write_scope) or scope_covers(path, read_scope) or path in read_paths)
     )
     risk_gates = {"security-sensitive", "destructive-data", "release-external"}
     risky_concurrent = sorted(
@@ -3975,13 +4546,6 @@ def workspace_change_attribution(
         for path in concurrent | unattributed
         if set(infer_gates_from_paths([path], mutation_profile="workspace_write")) & risk_gates
     )
-    read_set_drift: list[str] = []
-    current_snapshot = workspace_snapshot(target)
-    for item in read_items:
-        path = str(item.get("path"))
-        fingerprint = item.get("fingerprint")
-        if fingerprint and current_snapshot.get(path) != fingerprint:
-            read_set_drift.append(path)
     new_gates = [
         gate
         for gate in infer_gates_from_paths(sorted(reported_writes), mutation_profile=package.get("mutation_profile", "workspace_write"))
@@ -4030,6 +4594,170 @@ def index_evidence(state: Path, evidence: dict[str, Any]) -> None:
     if not any(item.get("source_fingerprint") == evidence["source_fingerprint"] for item in items):
         items.append(evidence)
     atomic_write_json(state / "evidence-index.json", index)
+
+
+def discard_evidence_referencing_paths(state: Path, paths: set[str]) -> list[str]:
+    """read-set 漂移时只失效引用这些路径的证据，返回被失效的证据 id。"""
+    index_path = state / "evidence-index.json"
+    index = read_json(index_path)
+    items = index.get("evidence", [])
+    if not items:
+        return []
+    kept: list[dict[str, Any]] = []
+    discarded: list[str] = []
+    for item in items:
+        refs = {str(entry.get("path")) for entry in item.get("read_set", []) if isinstance(entry, dict)}
+        if refs & paths:
+            discarded.append(str(item.get("id", "unknown")))
+        else:
+            kept.append(item)
+    if discarded:
+        index["evidence"] = kept
+        atomic_write_json(index_path, index)
+    return discarded
+
+
+def incrementally_recompile_new_gates(
+    state: Path,
+    target: Path,
+    package: dict[str, Any],
+    compiled: dict[str, Any],
+    freeze: dict[str, Any],
+    new_gates: Sequence[str],
+    evidence: Sequence[dict[str, Any]],
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[dict[str, Any]], bool] | None:
+    """对不改变执行/授权/方案合同的新增 Gate 原子增量准入并继承同轮证据。"""
+    additions = [gate for gate in GATE_ORDER if gate in new_gates and gate not in package["matched_gates"]]
+    full_readmission_gates = {
+        "product-change",
+        "architecture-contract",
+        "security-sensitive",
+        "destructive-data",
+        "release-external",
+        "frontend-design",
+    }
+    if not additions or set(additions) & full_readmission_gates or package["execution_route"] == "extended":
+        return None
+    recompile_facts = merge_recompile_facts(package, {"gates": additions})
+    neutral_cli = argparse.Namespace(scope=[], action=[], success=[], feature=[])
+    candidate, blockers = build_package(
+        target,
+        package["original_task"],
+        recompile_facts,
+        neutral_cli,
+        package["task_id"],
+    )
+    candidate["package_revision"] = package["package_revision"] + 1
+    candidate["created_at"] = package["created_at"]
+    candidate["recompiled_at"] = utc_now()
+    stable_fields = (
+        "task_id",
+        "task_snapshot_ref",
+        "original_task",
+        "task_intent",
+        "candidate_intents",
+        "mutation_profile",
+        "execution_route",
+        "execution_topology",
+        "allowed_scope",
+        "read_scope",
+        "write_scope",
+        "git_scope",
+        "external_scope",
+        "git_operation",
+        "git_sync_scope",
+        "allowed_actions",
+        "success_criteria",
+        "authorization_requirements",
+        "verification_commands",
+        "work_packages",
+        "dispatch_contracts",
+        "blocking_deliverables",
+    )
+    if blockers or any(candidate.get(field) != package.get(field) for field in stable_fields):
+        return None
+    if package["execution_route"] != "direct" and candidate["plan_fields"] != package["plan_fields"]:
+        return None
+
+    action_schedule = candidate["context_schedule"]["action"]
+    needs_context = bool(action_schedule["rule_ids"] or action_schedule["project_fact_refs"]) and not context_receipt_valid(
+        state,
+        candidate,
+        target,
+        stage="action",
+    )
+    candidate_compiled = initial_compiled(candidate, [])
+    for field in (
+        "plan_ref",
+        "plan_fingerprint",
+        "plan_artifact",
+        "authorization_status",
+        "authorization_receipt_ref",
+        "work_package_states",
+        "current_work_package",
+    ):
+        candidate_compiled[field] = compiled.get(field)
+    candidate_compiled.update(
+        {
+            "control_status": compiled["control_status"],
+            "verification_status": "needs_evidence" if needs_context else "not_started",
+            "next_action": "load_action_context" if needs_context else "verify",
+            "blockers": [],
+            "scope_changed": False,
+            "updated_at": utc_now(),
+        }
+    )
+    candidate_freeze = dict(freeze)
+    old_fingerprint = package_fingerprint(package)
+    new_fingerprint = package_fingerprint(candidate)
+    adoption = authorization_adoption_record(state, package, candidate)
+    if candidate.get("authorization_requirements") and adoption is None:
+        return None
+    adopted: list[dict[str, Any]] = []
+    for item in evidence:
+        if item.get("schema_version") != EVIDENCE_RECEIPT_SCHEMA:
+            continue
+        value = dict(item)
+        value["origin_package_fingerprint"] = value.get("origin_package_fingerprint") or value.get("package_fingerprint")
+        value["adopted_from_package_fingerprint"] = value.get("package_fingerprint")
+        value["package_fingerprint"] = new_fingerprint
+        value["adoption_reason"] = "additive_gate_only"
+        value["adopted_at"] = utc_now()
+        adopted.append(value)
+
+    with state_lock(state):
+        delta = archive_and_rewrite_package(
+            state,
+            candidate,
+            candidate_compiled,
+            candidate_freeze,
+            target,
+        )
+        if adoption is not None:
+            append_jsonl(state / "authorization-receipts.jsonl", adoption)
+        if adopted:
+            index = read_json(state / "evidence-index.json")
+            fingerprints = {item.get("source_fingerprint") for item in adopted}
+            retained = [
+                item
+                for item in index.setdefault("evidence", [])
+                if item.get("source_fingerprint") not in fingerprints
+            ]
+            index["evidence"] = [*retained, *adopted]
+            atomic_write_json(state / "evidence-index.json", index)
+        append_task_event(
+            state,
+            candidate,
+            event="incremental_gate_readmission",
+            phase="admission",
+            reason_code="additive_gate_only",
+            added_gates=additions,
+            prior_package_fingerprint=old_fingerprint,
+            adopted_evidence_ids=[str(item.get("id", "unknown")) for item in adopted],
+            authorization_adopted=adoption is not None,
+            disposition=delta["disposition"],
+        )
+    return candidate, candidate_compiled, candidate_freeze, adopted, needs_context
 
 
 def command_progress(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
@@ -4252,30 +4980,187 @@ def normalize_verification_spec(raw: Any) -> tuple[list[str], list[str]]:
     return normalize_verification_command(raw), []
 
 
-def run_verification_commands(target: Path, raw_commands: Sequence[Any]) -> list[dict[str, Any]]:
+def verification_input_fingerprint(target: Path, volatile_patterns: Sequence[str]) -> str:
+    """排除 Harness Runtime 与允许 volatile 项后的完整工作区快照指纹，作为验证命令输入缓存键。"""
+    snapshot = workspace_snapshot(target)
+    filtered = {
+        path: digest
+        for path, digest in snapshot.items()
+        if not volatile_verification_path(path, volatile_patterns)
+    }
+    return sha256_text(canonical_json(filtered))
+
+
+def verification_command_cache_key(
+    *,
+    task_id: str,
+    target_identity: str,
+    command_argv_digest: str,
+    cwd: str,
+    input_fingerprint: str,
+    contract_digest: str,
+) -> str:
+    return sha256_text(
+        canonical_json(
+            {
+                "task_id": task_id,
+                "target_identity": target_identity,
+                "command_argv_digest": command_argv_digest,
+                "cwd": cwd,
+                "verification_input_fingerprint": input_fingerprint,
+                "contract_digest": contract_digest,
+            }
+        )
+    )
+
+
+def load_verification_command_receipts(state: Path) -> dict[str, dict[str, Any]]:
+    """读取验证命令收据缓存；同一 cache_key 以最后一条为准。"""
+    path = state / "artifacts" / "verification" / "command-receipts.jsonl"
+    index: dict[str, dict[str, Any]] = {}
+    for item in read_jsonl(path):
+        key = item.get("cache_key")
+        if isinstance(key, str):
+            index[key] = item
+    return index
+
+
+def verification_command_receipt_usable(receipt: dict[str, Any]) -> bool:
+    if receipt.get("result") != "passed":
+        return False
+    ttl = receipt.get("ttl")
+    cached_at = receipt.get("cached_at")
+    if ttl and cached_at:
+        try:
+            age = (dt.datetime.now(dt.timezone.utc) - parse_utc_timestamp(cached_at, "cached_at")).total_seconds()
+        except HarnessError:
+            return False
+        if age > float(ttl):
+            return False
+    return True
+
+
+def run_verification_commands_cached(
+    state: Path,
+    target: Path,
+    package: dict[str, Any],
+    volatile_patterns: Sequence[str],
+    *,
+    cache_enabled: bool = True,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], str]:
+    """逐条执行验证命令：命中可复用通过收据则跳过；否则命令前快照→执行→命令后快照→分类写入。
+
+    cache_enabled=False 时不读不写缓存，逐条真实执行（配置整体关闭开关）。
+    返回 (results, 待持久化的缓存条目, 输入指纹)。
+    """
+    input_fp = verification_input_fingerprint(target, volatile_patterns)
+    cache = load_verification_command_receipts(state)
+    cwd = str(target.resolve())
+    target_id = target_identity(target)
     results: list[dict[str, Any]] = []
-    for raw in raw_commands:
+    cache_entries: list[dict[str, Any]] = []
+    for raw in package.get("verification_commands", []):
         command, produces = normalize_verification_spec(raw)
+        argv_digest = sha256_text(canonical_json(command))
+        contract_digest = sha256_text(canonical_json(raw))
+        cache_key = verification_command_cache_key(
+            task_id=package["task_id"],
+            target_identity=target_id,
+            command_argv_digest=argv_digest,
+            cwd=cwd,
+            input_fingerprint=input_fp,
+            contract_digest=contract_digest,
+        )
+        cached = cache.get(cache_key) if cache_enabled else None
+        if cached is not None and verification_command_receipt_usable(cached):
+            results.append(
+                {
+                    "command": command,
+                    "command_argv_digest": argv_digest,
+                    "exit_code": cached.get("exit_code", 0),
+                    "duration_ms": 0,
+                    "started_at": cached.get("started_at"),
+                    "ended_at": cached.get("ended_at"),
+                    "output_or_artifact_digest": cached.get("output_or_artifact_digest"),
+                    "produces": cached.get("produces", produces),
+                    "result": "passed",
+                    "cache_hit": True,
+                }
+            )
+            continue
+        pre = workspace_snapshot(target)
         started = time.monotonic()
         started_at = utc_now()
         try:
             completed = subprocess.run(command, cwd=target, capture_output=True, text=True, timeout=120, check=False)
             output_digest = sha256_text(completed.stdout + "\0" + completed.stderr)
-            result = {
-                "command": command,
-                "command_argv_digest": sha256_text(canonical_json(command)),
-                "exit_code": completed.returncode,
-                "duration_ms": int((time.monotonic() - started) * 1000),
-                "started_at": started_at,
-                "ended_at": utc_now(),
-                "output_or_artifact_digest": output_digest,
-                "produces": produces if completed.returncode == 0 else [],
-                "result": "passed" if completed.returncode == 0 else "failed",
-            }
+            exit_code = completed.returncode
         except subprocess.TimeoutExpired:
-            result = {"command": command, "command_argv_digest": sha256_text(canonical_json(command)), "exit_code": None, "duration_ms": 120000, "started_at": started_at, "ended_at": utc_now(), "output_or_artifact_digest": sha256_text("timeout"), "produces": [], "result": "failed"}
+            output_digest = sha256_text("timeout")
+            exit_code = None
+        ended_at = utc_now()
+        duration_ms = int((time.monotonic() - started) * 1000)
+        post = workspace_snapshot(target)
+        write_set = snapshot_changes(pre, post)
+        volatile_write_set = [
+            path
+            for path in write_set
+            if path not in pre and path in post and volatile_verification_path(path, volatile_patterns)
+        ]
+        blocking_write_set = [path for path in write_set if path not in set(volatile_write_set)]
+        result: dict[str, Any] = {
+            "command": command,
+            "command_argv_digest": argv_digest,
+            "exit_code": exit_code,
+            "duration_ms": duration_ms,
+            "started_at": started_at,
+            "ended_at": ended_at,
+            "output_or_artifact_digest": output_digest,
+            "produces": produces if exit_code == 0 else [],
+            "result": "passed" if exit_code == 0 else "failed",
+            "cache_hit": False,
+        }
+        if exit_code == 0 and blocking_write_set:
+            result["result"] = "failed"
+            result["reason_code"] = "verification_command_workspace_write"
+            result["unexpected_write_set"] = blocking_write_set
+            result["produces"] = []
+        if volatile_write_set:
+            result["volatile_write_set"] = volatile_write_set
         results.append(result)
-    return results
+        if cache_enabled and result["result"] == "passed":
+            cache_entries.append(
+                {
+                    "schema_version": VERIFICATION_RECEIPT_SCHEMA,
+                    "cache_key": cache_key,
+                    "task_id": package["task_id"],
+                    "target_identity": target_id,
+                    "command_argv_digest": argv_digest,
+                    "cwd": cwd,
+                    "verification_input_fingerprint": input_fp,
+                    "contract_digest": contract_digest,
+                    "produces": produces,
+                    "exit_code": exit_code,
+                    "output_or_artifact_digest": output_digest,
+                    "started_at": started_at,
+                    "ended_at": ended_at,
+                    "ttl": 3600,
+                    "result": "passed",
+                    "cached_at": utc_now(),
+                }
+            )
+    return results, cache_entries, input_fp
+
+
+def persist_verification_command_cache(state: Path, entries: Sequence[dict[str, Any]]) -> None:
+    """把本次新产生的通过收据合并进验证命令缓存；写入失败不改变既有索引。"""
+    if not entries:
+        return
+    index = load_verification_command_receipts(state)
+    for entry in entries:
+        index[entry["cache_key"]] = entry
+    path = artifact_store_dir(state, "verification") / "command-receipts.jsonl"
+    atomic_write_text(path, "".join(json.dumps(item, ensure_ascii=False, sort_keys=True) + "\n" for item in index.values()))
 
 
 def persist_verification_receipts(
@@ -4337,25 +5222,89 @@ def plan_is_current(compiled: dict[str, Any]) -> bool:
     return path.is_file() and file_fingerprint(path) == expected
 
 
-def authorization_is_current(state: Path, package: dict[str, Any]) -> bool:
-    if not package["authorization_requirements"]:
-        return True
-    for receipt in reversed(read_jsonl(state / "authorization-receipts.jsonl")):
-        if receipt.get("package_fingerprint") != package_fingerprint(package):
-            continue
+def authorization_receipt_usable(receipt: dict[str, Any]) -> bool:
+    artifact_ref = receipt.get("artifact_ref")
+    if artifact_ref:
+        managed = Path(str(artifact_ref))
+        if not managed.is_file() or file_fingerprint(managed) != receipt.get("artifact_fingerprint"):
+            return False
+    else:
         source = Path(str(receipt.get("source_ref", "")))
         if not source.is_file() or file_fingerprint(source) != receipt.get("source_fingerprint"):
             return False
-        expires = receipt.get("expires_at")
-        if expires:
-            try:
-                expiry = dt.datetime.fromisoformat(str(expires).replace("Z", "+00:00"))
-            except ValueError:
-                return False
-            if expiry <= dt.datetime.now(dt.timezone.utc):
-                return False
+    expires = receipt.get("expires_at")
+    if expires:
+        try:
+            expiry = dt.datetime.fromisoformat(str(expires).replace("Z", "+00:00"))
+        except ValueError:
+            return False
+        if expiry <= dt.datetime.now(dt.timezone.utc):
+            return False
+    return True
+
+
+def find_authorization_receipt(state: Path, fingerprint: str) -> dict[str, Any] | None:
+    """返回绑定给定 package fingerprint 且仍然有效的授权收据或采用记录。"""
+    for receipt in reversed(read_jsonl(state / "authorization-receipts.jsonl")):
+        if receipt.get("schema_version") not in {AUTH_SCHEMA, AUTH_ADOPTION_SCHEMA}:
+            continue
+        if receipt.get("package_fingerprint") != fingerprint:
+            continue
+        return receipt if authorization_receipt_usable(receipt) else None
+    return None
+
+
+def authorization_is_current(state: Path, package: dict[str, Any]) -> bool:
+    if not package["authorization_requirements"]:
         return True
-    return False
+    return find_authorization_receipt(state, package_fingerprint(package)) is not None
+
+
+def evidence_source_current(item: dict[str, Any]) -> bool:
+    """已摄取证据是否仍然有效：优先读受管副本，其次来源文件（兼容未摄取的历史收据）。"""
+    artifact_ref = item.get("artifact_ref")
+    if artifact_ref:
+        managed = Path(str(artifact_ref))
+        return managed.is_file() and file_fingerprint(managed) == item.get("artifact_fingerprint")
+    source = Path(str(item.get("source_ref", "")))
+    return source.is_file() and file_fingerprint(source) == item.get("source_fingerprint")
+
+
+def authorization_adoption_record(
+    state: Path,
+    previous: dict[str, Any],
+    candidate: dict[str, Any],
+) -> dict[str, Any] | None:
+    """授权合同完全相同时，为新 package fingerprint 生成可审计的授权继承记录。"""
+    if not candidate.get("authorization_requirements"):
+        return None
+    if authorization_contract_fingerprint(previous) != authorization_contract_fingerprint(candidate):
+        return None
+    origin = find_authorization_receipt(state, package_fingerprint(previous))
+    if origin is None:
+        return None
+    return {
+        "schema_version": AUTH_ADOPTION_SCHEMA,
+        "task_id": candidate["task_id"],
+        "package_revision": candidate["package_revision"],
+        "package_fingerprint": package_fingerprint(candidate),
+        "origin_package_fingerprint": origin.get("origin_package_fingerprint") or origin.get("package_fingerprint"),
+        "adopted_from_package_fingerprint": origin.get("package_fingerprint"),
+        "authorization_contract_fingerprint": authorization_contract_fingerprint(candidate),
+        "authorized_actions": list(origin.get("authorized_actions", [])),
+        "authorized_scope": list(origin.get("authorized_scope", [])),
+        "authorized_git_scope": list(origin.get("authorized_git_scope", [])),
+        "authorized_external_scope": list(origin.get("authorized_external_scope", [])),
+        "external_target": origin.get("external_target"),
+        "expires_at": origin.get("expires_at"),
+        "source_ref": origin.get("source_ref"),
+        "source_fingerprint": origin.get("source_fingerprint"),
+        "artifact_ref": origin.get("artifact_ref"),
+        "artifact_fingerprint": origin.get("artifact_fingerprint"),
+        "trust_level": origin.get("trust_level", "reported"),
+        "adoption_reason": "authorization_contract_unchanged",
+        "adopted_at": utc_now(),
+    }
 
 
 def minimum_delivery_receipt(
@@ -4389,9 +5338,130 @@ def minimum_delivery_receipt(
     }
 
 
+RETRY_VERIFICATION_REASON_CODES = {
+    "verification_command_failed",
+    "git_tool_unavailable",
+    "git_probe_failed",
+    "git_remote_unreachable",
+}
+REFRESH_EVIDENCE_REASON_CODES = {"read_set_drift", "stale_evidence"}
+INCREMENTAL_ADMISSION_REASON_CODES = {"incremental_gate_context_required"}
+
+
+def verification_reason_codes(payload: dict[str, Any]) -> list[str]:
+    """从 verify 返回载荷提取受控原因码，不包含自由文本或命令输出。"""
+    codes: list[str] = []
+    declared = payload.get("reason_code")
+    if isinstance(declared, str) and declared:
+        codes.append(declared)
+    commands = payload.get("verification_commands")
+    if isinstance(commands, list) and any(
+        isinstance(item, dict) and item.get("result") != "passed" for item in commands
+    ):
+        codes.append("verification_command_failed")
+    for field, code in (
+        ("missing_evidence_types", "missing_evidence_types"),
+        ("missing_receipts", "missing_receipts"),
+        ("missing_blocking_deliverables", "missing_blocking_deliverables"),
+        ("stale_evidence", "stale_evidence"),
+        ("incomplete_work_packages", "incomplete_work_packages"),
+    ):
+        if payload.get(field):
+            codes.append(code)
+    return list(dict.fromkeys(codes))[:VERIFICATION_REASON_CODE_LIMIT]
+
+
+def classify_verification_outcome(exit_code: int, reason_codes: Sequence[str]) -> str:
+    if exit_code == 0:
+        return "complete"
+    codes = set(reason_codes)
+    if exit_code == 4:
+        return "full_readmission"
+    if codes & INCREMENTAL_ADMISSION_REASON_CODES:
+        return "incremental_admission"
+    if codes & RETRY_VERIFICATION_REASON_CODES:
+        return "retry_verification"
+    if codes & REFRESH_EVIDENCE_REASON_CODES:
+        return "refresh_evidence"
+    return "provide_evidence"
+
+
+def context_load_counters(state: Path) -> tuple[int, int]:
+    events = read_jsonl(state / "events.jsonl")
+    full = sum(
+        1
+        for item in events
+        if item.get("phase") == "context"
+        and not item.get("context_cache_hit")
+        and not item.get("context_delta")
+    )
+    delta = sum(1 for item in events if item.get("phase") == "context" and item.get("context_delta"))
+    return full, delta
+
+
+def record_verification_attempt(
+    telemetry: dict[str, Any],
+    *,
+    exit_code: int,
+    payload: dict[str, Any],
+) -> None:
+    """为每次 verify 入口写入一个有界遥测事件，不保存正文、输出或凭据。"""
+    state = telemetry.get("state")
+    package = telemetry.get("package")
+    if not isinstance(state, Path) or not isinstance(package, dict):
+        return
+    reason_codes = verification_reason_codes(payload)
+    outcome_class = classify_verification_outcome(exit_code, reason_codes)
+    if not reason_codes:
+        reason_codes = ["complete" if exit_code == 0 else "verification_incomplete"]
+    full_loads, delta_loads = context_load_counters(state)
+    with contextlib.suppress(OSError):
+        append_task_event(
+            state,
+            package,
+            event="verification_attempt",
+            phase="verification",
+            reason_code=reason_codes[0],
+            duration_ms=int(telemetry.get("duration_ms", 0)),
+            outcome_class=outcome_class,
+            reason_codes=reason_codes,
+            exit_code=int(exit_code),
+            command_executed_count=int(telemetry.get("command_executed_count", 0)),
+            command_cache_hit_count=int(telemetry.get("command_cache_hit_count", 0)),
+            command_cache_enabled=bool(telemetry.get("command_cache_enabled", True)),
+            context_full_load_count=full_loads,
+            context_delta_load_count=delta_loads,
+            evidence_regeneration_required=bool(
+                outcome_class == "full_readmission" or payload.get("stale_evidence")
+            ),
+            changed_path_count=len(payload.get("changed_paths") or []),
+        )
+
+
 def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    telemetry: dict[str, Any] = {"command_executed_count": 0, "command_cache_hit_count": 0}
+    started = time.monotonic()
+    try:
+        exit_code, payload = verify_task(args, telemetry)
+    except HarnessError as exc:
+        telemetry["duration_ms"] = int((time.monotonic() - started) * 1000)
+        if telemetry.get("input_accepted"):
+            record_verification_attempt(
+                telemetry,
+                exit_code=exc.exit_code,
+                payload={"reason_code": exc.code},
+            )
+        raise
+    telemetry["duration_ms"] = int((time.monotonic() - started) * 1000)
+    record_verification_attempt(telemetry, exit_code=exit_code, payload=payload)
+    return exit_code, payload
+
+
+def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
     state, package, compiled, freeze = load_state(target, args.task_id)
+    telemetry["state"] = state
+    telemetry["package"] = package
     manifest = package.get("completion_manifest")
     if not completion_manifest_valid(manifest):
         raise HarnessError("completion_manifest 缺失或指纹无效", code="invalid_completion_manifest")
@@ -4402,27 +5472,27 @@ def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         compiled["verification_status"] = "needs_readmission"
         compiled["next_action"] = "rerun_harness_for_readmission"
         atomic_write_json(state / "compiled-task.json", compiled)
-        return 4, {"task_id": package["task_id"], "result": "重新准入", "reason": "正式方案缺失或指纹已变化", "next_action": compiled["next_action"]}
+        return 4, {"task_id": package["task_id"], "result": "重新准入", "reason": "正式方案缺失或指纹已变化", "reason_code": "plan_contract_drift", "next_action": compiled["next_action"]}
     if not authorization_is_current(state, package):
         compiled["control_status"] = "blocked"
         compiled["verification_status"] = "needs_readmission"
         compiled["next_action"] = "rerun_harness_for_readmission"
         atomic_write_json(state / "compiled-task.json", compiled)
-        return 4, {"task_id": package["task_id"], "result": "重新准入", "reason": "授权缺失、过期或指纹已变化", "next_action": compiled["next_action"]}
+        return 4, {"task_id": package["task_id"], "result": "重新准入", "reason": "授权缺失、过期或指纹已变化", "reason_code": "authorization_contract_drift", "next_action": compiled["next_action"]}
     action_schedule = package["context_schedule"]["action"]
     if package["execution_route"] != "extended" and (action_schedule["rule_ids"] or action_schedule["project_fact_refs"]):
         if not context_receipt_valid(state, package, target, stage="action"):
             compiled["verification_status"] = "needs_evidence"
             compiled["next_action"] = "load_action_context"
             atomic_write_json(state / "compiled-task.json", compiled)
-            return 3, {"task_id": package["task_id"], "result": "补充证据", "reason": "执行阶段上下文未加载或已失效", "next_action": compiled["next_action"]}
+            return 3, {"task_id": package["task_id"], "result": "补充证据", "reason": "执行阶段上下文未加载或已失效", "reason_code": "action_context_missing", "next_action": compiled["next_action"]}
     if package["execution_route"] == "extended":
         compiled = refresh_compiled_progress(state, package, compiled, target)
         incomplete = [work_id for work_id, status in compiled["work_package_states"].items() if status != "verified"]
         if incomplete:
             compiled["verification_status"] = "needs_evidence"
             atomic_write_json(state / "compiled-task.json", compiled)
-            return 3, {"task_id": package["task_id"], "result": "补充证据", "incomplete_work_packages": incomplete, "next_action": compiled["next_action"]}
+            return 3, {"task_id": package["task_id"], "result": "补充证据", "reason_code": "work_package_incomplete", "incomplete_work_packages": incomplete, "next_action": compiled["next_action"]}
     git_result = git_postcheck(target, package)
     if git_result is not None and not git_result["passed"]:
         compiled["scope_changed"] = True
@@ -4446,10 +5516,10 @@ def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             target=target,
         )
         supplied.append(evidence)
+    telemetry["input_accepted"] = True
     reusable_evidence: list[dict[str, Any]] = []
     existing_index = read_json(state / "evidence-index.json")
     for item in existing_index.get("evidence", []):
-        source = Path(str(item.get("source_ref", "")))
         expires_at = item.get("expires_at")
         expired = False
         if expires_at:
@@ -4464,7 +5534,7 @@ def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 and item.get("target_identity") == target_identity(target)
             )
         )
-        if source.is_file() and file_fingerprint(source) == item.get("source_fingerprint") and not expired and binding_valid:
+        if evidence_source_current(item) and not expired and binding_valid:
             reusable_evidence.append(item)
     attribution = workspace_change_attribution(
         target,
@@ -4476,6 +5546,44 @@ def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     changed = attribution["changed_paths"]
     outside = attribution["outside_scope"]
     new_gates = attribution["new_gates"]
+    blocker_codes = {str(item.get("reason_code")) for item in attribution["blockers"]}
+    if blocker_codes == {"new_risk_gate"}:
+        detected_new_gates = list(new_gates)
+        incremental = incrementally_recompile_new_gates(
+            state,
+            target,
+            package,
+            compiled,
+            freeze,
+            new_gates,
+            [*reusable_evidence, *supplied],
+        )
+        if incremental is not None:
+            package, compiled, freeze, adopted_evidence, needs_context = incremental
+            telemetry["package"] = package
+            reusable_evidence = adopted_evidence
+            supplied = []
+            attribution = workspace_change_attribution(
+                target,
+                package,
+                freeze,
+                reusable_evidence,
+                git_result=git_result,
+            )
+            changed = attribution["changed_paths"]
+            outside = attribution["outside_scope"]
+            new_gates = attribution["new_gates"]
+            if needs_context:
+                return 3, {
+                    "task_id": package["task_id"],
+                    "result": "补充证据",
+                    "reason_code": "incremental_gate_context_required",
+                    "package_revision": package["package_revision"],
+                    "added_gates": detected_new_gates,
+                    "adopted_evidence_ids": [str(item.get("id", "unknown")) for item in adopted_evidence],
+                    "evidence_regeneration_required": False,
+                    "next_action": compiled["next_action"],
+                }
     current_rules, rule_errors = load_active_rules(
         target,
         package["matched_gates"],
@@ -4485,6 +5593,24 @@ def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     frozen_rules = {(item["rule_id"], item["content_fingerprint"]) for item in package["matched_rules"]}
     active_rules = {(item["rule_id"], item["content_fingerprint"]) for item in current_rules}
     if attribution["blockers"] or rule_errors or active_rules != frozen_rules:
+        stable_contract = not rule_errors and active_rules == frozen_rules
+        if stable_contract and blocker_codes == {"unattributed_drift_overlap"}:
+            write_scope = package.get("write_scope", package.get("allowed_scope", []))
+            overlap_paths = sorted(
+                {path for item in attribution["blockers"] for path in item.get("paths", [])}
+            )
+            if overlap_paths and all(scope_covers(path, write_scope) for path in overlap_paths):
+                compiled["verification_status"] = "needs_evidence"
+                compiled["next_action"] = "provide_evidence"
+                atomic_write_json(state / "compiled-task.json", compiled)
+                return 3, {"task_id": package["task_id"], "result": "补充证据", "reason_code": "unattributed_drift_overlap", "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "missing_attribution_paths": overlap_paths, "workspace_attribution": attribution, "next_action": compiled["next_action"]}
+        if stable_contract and blocker_codes == {"read_set_drift"}:
+            drift_paths = {path for item in attribution["blockers"] for path in item.get("paths", [])}
+            discarded_ids = discard_evidence_referencing_paths(state, drift_paths)
+            compiled["verification_status"] = "needs_evidence"
+            compiled["next_action"] = "refresh_evidence"
+            atomic_write_json(state / "compiled-task.json", compiled)
+            return 3, {"task_id": package["task_id"], "result": "补充证据", "reason_code": "read_set_drift", "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "refresh_paths": sorted(drift_paths), "discarded_evidence_ids": discarded_ids, "workspace_attribution": attribution, "next_action": compiled["next_action"]}
         compiled["scope_changed"] = True
         compiled["control_status"] = "blocked"
         compiled["verification_status"] = "needs_readmission"
@@ -4497,13 +5623,22 @@ def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         for evidence in supplied:
             if any(path not in changed for path in evidence.get("write_set", [])):
                 raise HarnessError("任务证据 write_set 包含实际未变化路径", code="stale_evidence")
+            source_path = Path(str(evidence.get("source_ref", "")))
+            if source_path.is_file():
+                managed_evidence = store_managed_artifact(
+                    state,
+                    "evidence",
+                    f"evidence.{evidence.get('id', 'item')}.v{package['package_revision']}.json",
+                    source_path.read_text(encoding="utf-8"),
+                )
+                evidence["artifact_ref"] = str(managed_evidence)
+                evidence["artifact_fingerprint"] = file_fingerprint(managed_evidence)
             index_evidence(state, evidence)
     index = read_json(state / "evidence-index.json")
     all_evidence = index.get("evidence", [])
     fresh_evidence: list[dict[str, Any]] = []
     stale_evidence: list[str] = []
     for item in all_evidence:
-        source = Path(str(item.get("source_ref", "")))
         evidence_writes = set(item.get("write_set", item.get("changed_paths", [])))
         task_paths_match = package["task_id"] not in item.get("covers", []) or evidence_writes <= set(changed)
         expires_at = item.get("expires_at")
@@ -4520,7 +5655,7 @@ def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 and item.get("target_identity") == target_identity(target)
             )
         )
-        if source.is_file() and file_fingerprint(source) == item.get("source_fingerprint") and task_paths_match and not expired and binding_valid:
+        if evidence_source_current(item) and task_paths_match and not expired and binding_valid:
             fresh_evidence.append(item)
         else:
             stale_evidence.append(str(item.get("id", "unknown")))
@@ -4532,18 +5667,19 @@ def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     }
     if git_result is not None and git_result["passed"]:
         evidence_types.add(f"{package['git_operation']}_result")
-    pre_command_snapshot = workspace_snapshot(target)
-    command_results = run_verification_commands(target, package["verification_commands"])
-    command_write_set = snapshot_changes(pre_command_snapshot, workspace_snapshot(target))
-    if command_write_set:
-        for result in command_results:
-            if result.get("result") == "passed":
-                result["result"] = "failed"
-                result["reason_code"] = "verification_command_workspace_write"
-                result["unexpected_write_set"] = command_write_set
-                result["produces"] = []
+    volatile_patterns = configured_volatile_verification_patterns(target)
+    cache_enabled = verification_command_cache_enabled(target)
+    command_results, command_cache_entries, _verification_input_fp = run_verification_commands_cached(
+        state, target, package, volatile_patterns, cache_enabled=cache_enabled
+    )
+    telemetry["command_executed_count"] = sum(
+        1 for item in command_results if not item.get("cache_hit")
+    )
+    telemetry["command_cache_hit_count"] = sum(1 for item in command_results if item.get("cache_hit"))
+    telemetry["command_cache_enabled"] = cache_enabled
     with state_lock(state):
         command_receipts = persist_verification_receipts(state, target, package, command_results)
+        persist_verification_command_cache(state, command_cache_entries)
     command_failed = any(item["result"] != "passed" for item in command_results)
     evidence_types.update(item["type"] for item in command_receipts)
     activated_conditions: list[dict[str, str]] = []
@@ -4585,15 +5721,6 @@ def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     compiled["next_action"] = "none"
     compiled["completed_at"] = utc_now()
     atomic_write_json(state / "compiled-task.json", compiled)
-    append_task_event(
-        state,
-        package,
-        event="verify",
-        phase="verification",
-        reason_code="complete",
-        result="complete",
-        changed_paths=changed,
-    )
     background_jobs: list[dict[str, Any]] = []
     declared_deliverables = [
         str(item.get("deliverable"))
@@ -4610,36 +5737,35 @@ def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 "reason_code": "no_background_deliverables",
             }
         else:
-            if "feature_knowledge_incremental_sync" in declared_deliverables:
-                if not changed:
+            if not changed:
+                post_completion = {
+                    "action": "dispatch_declared_background_deliverables",
+                    "status": "not_required",
+                    "reason_code": "no_write_no_sync",
+                }
+            elif "feature_knowledge_incremental_sync" in declared_deliverables:
+                knowledge_job = create_post_completion_knowledge_job(target, package, changed)
+                if knowledge_job.get("created") is False:
                     post_completion = {
-                        "action": "dispatch_declared_background_deliverables",
-                        "status": "not_required",
-                        "reason_code": "no_write_no_sync",
+                        "action": "knowledge_handoff",
+                        "status": "action_required",
+                        "reason_code": knowledge_job.get("reason_code"),
+                        "knowledge_handoff": knowledge_job.get("knowledge_handoff"),
                     }
                 else:
-                    knowledge_job = create_post_completion_knowledge_job(target, package, changed)
-                    if knowledge_job.get("created") is False:
-                        post_completion = {
-                            "action": "knowledge_handoff",
-                            "status": "action_required",
-                            "reason_code": knowledge_job.get("reason_code"),
-                            "knowledge_handoff": knowledge_job.get("knowledge_handoff"),
-                        }
-                    else:
-                        background_jobs.append(knowledge_job)
-                        post_completion = {
-                            "action": "dispatch_declared_background_deliverables",
-                            "status": "dispatch_required",
-                            "job_id": knowledge_job["job_id"],
-                        }
+                    background_jobs.append(knowledge_job)
+                    post_completion = {
+                        "action": "dispatch_declared_background_deliverables",
+                        "status": "dispatch_required",
+                        "job_id": knowledge_job["job_id"],
+                    }
             else:
                 post_completion = {
                     "action": "dispatch_declared_background_deliverables",
                     "status": "not_required",
                     "reason_code": "no_knowledge_incremental_deliverable",
                 }
-            governance_job = create_post_completion_governance_job(target, package, changed)
+            governance_job = create_post_completion_governance_job(target, package, changed) if changed else None
             if governance_job:
                 background_jobs.append(governance_job)
                 route_contract = governance_job.get("document_route_contract", {})
@@ -5858,6 +6984,23 @@ def workload_estimate(target: Path, *, candidate: dict[str, Any] | None = None) 
         f"四类功能文档{coverage_label}，跨功能依赖{dependency_label}",
     ]
     fingerprint_input = [{"path": item["path"], "size": item["size"]} for item in inventory]
+    if estimate_basis == "change_scoped":
+        current = workspace_snapshot(target)
+        scoped_files = {
+            path: fingerprint
+            for path, fingerprint in current.items()
+            if path in set(changed_paths) or scope_covers(path, estimate_write_scope)
+        }
+        source_fingerprint = sha256_text(
+            canonical_json(
+                {
+                    "change_scope_fingerprint": change_scope_fingerprint,
+                    "scoped_files": scoped_files,
+                }
+            )
+        )
+    else:
+        source_fingerprint = sha256_text(canonical_json(fingerprint_input))
     return {
         "schema_version": WORKLOAD_ESTIMATE_SCHEMA,
         "estimate_basis": estimate_basis,
@@ -5879,7 +7022,7 @@ def workload_estimate(target: Path, *, candidate: dict[str, Any] | None = None) 
         "architecture_domain_count": len(effective_domains),
         "technology_stack_count": len(effective_stacks),
         "scan_truncated": truncated,
-        "source_fingerprint": sha256_text(canonical_json(fingerprint_input)),
+        "source_fingerprint": source_fingerprint,
         "suggested_work_packages": [
             "功能识别与知识地图",
             "功能文档补全",
@@ -7347,6 +8490,8 @@ def project_changes(
             changes.append({"path": f"{PROJECT_RULES_RELATIVE}/{name}", "action": "update"})
     config = target / ".docs-harness" / "config.json"
     current_config = project_config(target)
+    if current_config is not None:
+        configured_volatile_verification_patterns(target)
     _, route_config_errors = document_route_config(target)
     if route_config_errors:
         changes.append({
@@ -7381,6 +8526,8 @@ def apply_project_install(
     source_script, source_rules = validate_project_source(source_root)
     target_script = target / "scripts" / "harness.py"
     config = project_config(target)
+    if config is not None:
+        configured_volatile_verification_patterns(target)
     if target_script.exists() and not config and file_fingerprint(target_script) != file_fingerprint(source_script):
         raise HarnessError("目标 scripts/harness.py 已存在且不受 Docs Harness 管理", code="install_conflict")
     if target_script.exists() and config:
@@ -7494,6 +8641,11 @@ def apply_project_install(
     existing_knowledge = existing_config.get("knowledge", {}) if existing_config and isinstance(existing_config.get("knowledge"), dict) else {}
     if "inventory_include" in existing_knowledge:
         config_value["knowledge"]["inventory_include"] = existing_knowledge["inventory_include"]
+    existing_verification = existing_config.get("verification", {}) if existing_config and isinstance(existing_config.get("verification"), dict) else {}
+    if "volatile_paths" in existing_verification:
+        config_value["verification"] = {
+            "volatile_paths": validate_volatile_verification_paths(existing_verification["volatile_paths"])
+        }
     if existing_config != config_value:
         atomic_write_json(config_path, config_value)
         changed.append(".docs-harness/config.json")
@@ -8081,6 +9233,11 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_target(run)
     run.add_argument("--task")
     run.add_argument("--task-id", help="继续已有任务并完成方案、授权或重新准入")
+    run.add_argument(
+        "--new-task",
+        action="store_true",
+        help="跳过活动任务幂等复用，强制创建独立任务",
+    )
     run.add_argument(
         "--facts",
         metavar="FACTS_FILE",

@@ -1,10 +1,10 @@
-# Docs Harness v1.6.2 合同
+# Docs Harness v1.6.4 合同
 
 ## 1. 产品边界
 
 Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、证据、验收、后台治理和 Git 交付检查。它不自动提交、推送、发布、安装下游项目或修改 `.gitignore`，也不把源码、本地 Runtime、当前 HEAD、远端、fresh clone、发布产物和真实 UI 合并为一个完成结论。
 
-项目配置继续使用 `docs-harness/project-config/v4`，版本值为 `1.6.2`。Harness Home 缺失、没有合法 active 规则、规则指纹漂移、来源版本不一致或配置无效均失败关闭。
+项目配置继续使用 `docs-harness/project-config/v4`，版本值为 `1.6.4`。Harness Home 缺失、没有合法 active 规则、规则指纹漂移、来源版本不一致或配置无效均失败关闭。
 
 ## 2. task-package/v2
 
@@ -43,6 +43,8 @@ Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、�
 
 路径范围只接受项目内相对路径、glob 或受控 Git 资源。完整句子、否定说明和自然语言边界返回 `invalid_scope_description`。自然语言约束应放入任务约束，不得伪装成路径。
 
+`run` 按 active task key 幂等复用：同一 target、归一化任务文本、事实指纹与当前工作区快照命中活动任务时返回 `active_task_reused` 和原 task_id，不重复建立上下文与授权。任务文本、事实或初始工作区不同则新建；`--new-task` 强制新建；`complete|cancelled|failed|blocked` 状态的任务不复用，blocked 保证重新校验规则。
+
 ## 3. 准入、路线与完成清单
 
 准入状态保持：
@@ -71,7 +73,9 @@ ready_extended
 }
 ```
 
-`verify` 只按当前清单固定项及预声明条件验收。新风险 Gate、范围扩大或清单外条件必须重新准入，不得在收尾阶段临时增加隐藏要求。补证使用增量收据；父任务最终正文只生成一次。
+`verify` 只按当前清单固定项及预声明条件验收，不得在收尾阶段静默增加隐藏要求。产品、架构、安全、数据破坏、外部发布、前端设计、extended 路线，以及任何改变执行路线、授权、范围、方案字段、工作包或阻断交付物的新 Gate，必须完整重新准入。仅追加且保持上述合同不变的普通 Gate 由控制器原子生成下一 package revision：保留首次冻结基线，把同轮已校验收据以 `origin_package_fingerprint|adopted_from_package_fingerprint|adoption_reason` 留痕后继承，并在需要时只要求加载新 action context；宿主不重新执行完整 `run`，也不重新生成相同证据。补证使用增量收据；父任务最终正文只生成一次。
+
+合同与方案一次冻结：package revision 变化时控制器生成 `contract_delta`（新增证据类型、收据、条件项与阻断项）并归档到 `package-history`；新增 Gate 只缺方案字段时返回 `complete_plan_delta` 和 `plan_delta_contract`，宿主只补充缺失字段，不重做完整方案。上下文正文按 task、stage、compiler contract 与内容指纹跨阶段复用，不随 revision 重复加载。
 
 ## 4. Git 状态合同
 
@@ -126,6 +130,18 @@ ready_extended
 
 能够证明与全部范围不重叠且不命中高风险边界的漂移只记录警告，不归因给当前任务。无 Hook 宿主不得把 `reported|partial|unknown` 扩大为已证明来源。
 
+合同稳定（无规则错误且 active 规则指纹等于冻结规则）时，verify 按五级处置返回：
+
+| 处置 | 条件 | 退出码 |
+|---|---|---|
+| `provide_evidence` | 未归因写入全部在 `write_scope` 内，可补证据归因 | `3`，不增 package revision |
+| `refresh_evidence` | 读取基线漂移，只失效引用漂移路径的证据后重读 | `3`，不增 package revision |
+| `retry_verification` | 验证命令失败，输入不变 | `3` |
+| `incremental_admission` | 仅追加普通 Gate 且合同不变 | `3` |
+| `full_readmission` | 范围、高风险合同或规则变化 | `4` |
+
+重读漂移路径后其指纹与当前快照一致即视为已解释，不再阻断。
+
 ## 6. evidence-receipt/v2
 
 新任务只接受 `docs-harness/evidence-receipt/v2`。必填绑定字段：
@@ -160,7 +176,11 @@ ready_extended
 }
 ```
 
-`produces` 只能使用证据白名单。命令退出 0、输出摘要和工作区无额外写入同时满足后，控制器生成并持久化 v2 收据；原始 stdout/stderr 不进入 Runtime。
+`produces` 只能使用证据白名单。命令退出 0、输出摘要和工作区无额外交付写入同时满足后，控制器生成并持久化 v2 收据；原始 stdout/stderr 不进入 Runtime。只容忍验证期间新建的已知临时副产物：`__pycache__`、`.pytest_cache`、`.mypy_cache`、`.ruff_cache`、`.tox`、`.nox`、`.hypothesis`、`.cache`、`.nyc_output`、`htmlcov` 等缓存目录，`.pyc|.pyo|.tmp|.temp|.swp|.bak|.log` 后缀，`.coverage`（含并行分片）、`.DS_Store`、`Thumbs.db`、`.eslintcache` 和编辑器临时文件；同名已有文件被修改或删除仍阻断。项目可在 `.docs-harness/config.json` 的 `verification.volatile_paths` 追加带固定根目录的 glob 白名单，`*|**`、越界、绝对路径和控制面路径失败关闭。被容忍的新建写入进入 `volatile_write_set` 保持可见，其余写入仍使命令失败并只列出阻断路径。
+
+宿主提交的证据文件在验收时复制进受管 artifact store（任务 Runtime 内），准入只依赖受管副本；原始文件事后删除或修改不影响已采纳证据，收据保留 `artifact_ref` 指回副本。
+
+验证命令使用 `docs-harness/verification-command-receipt/v1` 逐项收据：命令按 argv、声明 `produces` 与输入指纹（读取集与工作区相关写入）绑定。输入不变且上次通过的命令直接复用收据（`cache_hit=true`），不重复执行；输入变化、上次失败或 volatile 副产物改变输入时重跑。只重跑失败或输入变化的命令，其余沿用通过收据。项目可在 `.docs-harness/config.json` 设置 `verification.command_cache_enabled=false` 整体关闭复用；关闭时不读不写收据缓存，验证事件记录 `command_cache_enabled=false`。
 
 ## 7. 上下文与授权收据
 
@@ -253,7 +273,7 @@ retry 只归档当前 attempt 工件、推进 attempt、清空准备引用并刷
 
 知识审查与工作量估算共享过滤器。`.git`、`.docs-harness`、依赖/构建/缓存目录、`.playwright-cli`、`zbuddy-output`、敏感路径及图片、音视频、压缩包、DMG、Office/PPT 等资产默认排除；响应返回 `excluded_summary`。assessment、consent 与 decline cache 绑定实际返回库存生成的 `knowledge_inventory_fingerprint`。
 
-工作量估算的 `estimate_basis` 缺省为 `project_wide`，供 bootstrap、全项目审查和全量 preserve-and-merge 使用。知识增量和交付治理传入有界 `change_scoped` 候选项，按实际 `changed_paths`、selected features、deliverables 与允许写入范围路由；整仓扫描截断在此模式只降低 confidence，不单独强制 phased。响应保留 `project_scale_context` 和 `change_scope_fingerprint`，原 `source_fingerprint` 与 Job 幂等键语义不变。
+工作量估算的 `estimate_basis` 缺省为 `project_wide`，供 bootstrap、全项目审查和全量 preserve-and-merge 使用。知识增量和交付治理传入有界 `change_scoped` 候选项，按实际 `changed_paths`、selected features、deliverables 与允许写入范围路由；整仓扫描截断在此模式只降低 confidence，不单独强制 phased。响应保留 `project_scale_context` 和 `change_scope_fingerprint`。`change_scoped` 模式下 `source_fingerprint` 只绑定 `change_scope_fingerprint` 与范围内文件指纹（`changed_paths` 或写入范围覆盖的文件），范围外无关文件变化不改变 Job 幂等键；`project_wide` 模式仍按全量库存指纹。
 
 知识缺失、构建中、失败或隔离只降低 `context_quality`，不自动阻断业务准入；控制规则、授权、安全、范围和必要证据继续失败关闭。
 
@@ -273,7 +293,7 @@ Runtime、锁、迁移 journal、收据和本地质量账本不进入 Git。真�
 | `0` | 命令成功；只有 `verify.result=完成` 表示父任务完成 |
 | `1` | 项目检查、自检或完整性读取失败 |
 | `2` | 输入、合同、绑定或状态无效 |
-| `3` | 需要方案、授权、证据、迁移、用户输入或 Git 交付 |
+| `3` | 需要方案、授权、证据（含 `provide_evidence`/`refresh_evidence`）、迁移、用户输入或 Git 交付 |
 | `4` | 范围、漂移、Gate、远端、授权或规则变化，必须重新准入 |
 
 所有文件型参数只接受文件路径。文件大小、UTF-8、JSON 类型和文件系统错误必须转成结构化错误，不回显敏感输入。

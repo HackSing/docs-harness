@@ -2,7 +2,7 @@
 
 > 为没有原生 Hook 的 AI 编程宿主提供可安装、可追踪、可验收，并且“主交付优先、文档异步治理”的任务控制闭环。
 
-Docs Harness v1.6.2 为后台文档治理增加失败关闭的真源路由合同：显式配置优先，未配置时只接受根目录或 `docs/` 下的唯一可信候选；缺失、多候选、非法配置或运行时漂移都不会获得写权限。研发任务仍拆成两条状态独立的通道：
+Docs Harness v1.6.4 把重复协作成本降下来：同一任务重复 `run` 幂等复用活动任务；合同与方案一次冻结，新增 Gate 只补差异字段；证据采用受管副本，已通过的验证命令带逐项收据复用，只重跑失败或输入变化的命令。合同稳定时 `verify` 按五级处置返回（补证据/重读/重试/增量准入/完整重新准入），不再把可补救问题一律升级为重新准入。v1.6.3 让 `verify` 的本地验证命令对验证期间新建的已知临时副产物（缓存、测试中间产物、日志和系统垃圾，如 `__pycache__`、`.pytest_cache`、`.coverage`）不再误判为额外写入；同名已有文件被修改或删除仍失败关闭。项目可通过 `.docs-harness/config.json` 的 `verification.volatile_paths` 追加带固定根目录的 glob 白名单，全局或越界模式拒绝。v1.6.2 为后台文档治理增加失败关闭的真源路由合同：显式配置优先，未配置时只接受根目录或 `docs/` 下的唯一可信候选；缺失、多候选、非法配置或运行时漂移都不会获得写权限。研发任务仍拆成两条状态独立的通道：
 
 - 主任务通道完成用户价值、用户明确要求的交付物和必要验收；
 - 后台治理通道处理知识初始化、知识增量、ADR、Changelog、TODO 和非阻塞证据整理。
@@ -102,7 +102,7 @@ python3 scripts/harness.py run \
   --json
 ```
 
-`run` 返回唯一任务包、准入状态、`context_quality`、阻塞/后台交付物、带指纹的 `completion_manifest` 和下一条可执行命令。`planned` 与 `extended` 使用同一个 `task-id` 完成方案和工作包，不创建重复任务。
+`run` 返回唯一任务包、准入状态、`context_quality`、阻塞/后台交付物、带指纹的 `completion_manifest` 和下一条可执行命令。`planned` 与 `extended` 使用同一个 `task-id` 完成方案和工作包，不创建重复任务。同一 target、任务文本、事实与工作区快照重复 `run` 时幂等复用活动任务（返回 `active_task_reused`）；任务或初始工作区不同则新建，`--new-task` 强制新建，`complete|cancelled|failed|blocked` 状态不复用。
 
 任务包使用 `docs-harness/task-package/v2`：
 
@@ -138,11 +138,15 @@ python3 scripts/harness.py verify \
 
 `git_fetch|git_sync` 冻结脱敏远端身份、目标 OID、HEAD、索引、工作区和受控 refs。`git_sync` 根据预检目标自动生成变化范围，不要求操作者手写文件清单；远端漂移、非 fast-forward、ref 越界、重叠脏改动、LFS/Submodule 不可验证均失败关闭。
 
-验收分别输出 `task_write_set`、`read_set`、`concurrent_drift` 和 `unattributed_drift`。无关且不重叠的漂移只告警；读取事实、写入范围或安全/数据/发布边界重叠时重新准入。
+验收分别输出 `task_write_set`、`read_set`、`concurrent_drift` 和 `unattributed_drift`。无关且不重叠的漂移只告警；读取事实、写入范围或安全/数据/发布边界重叠时重新准入。仅追加且不改变路线、授权、范围、方案字段或阻断交付物的普通 Gate 由控制器原子增量准入；同轮收据随来源指纹留下继承记录并继续复用，宿主只加载新增上下文。产品、架构、安全、数据破坏、外部发布、前端设计、extended 路线及其他合同变化仍完整重新准入。
+
+合同稳定时 verify 按五级处置：未归因写入全部在写入范围内返回 `provide_evidence`（退出 3，补证据后继续，不增 package revision）；读取基线漂移返回 `refresh_evidence`，只失效引用漂移路径的证据后重读；验证命令失败返回 `retry_verification`；追加 Gate 走 `incremental_admission`；只有范围、高风险合同或规则变化才 `full_readmission`（退出 4）。
 
 ### v2 证据与上下文复用
 
-新任务只接受 `docs-harness/evidence-receipt/v2`。收据必须绑定当前任务、目标、任务包指纹、可信生产者、命令摘要、时效、结果摘要及读写集合；过期、跨任务、跨目标和不可信生产者均拒绝。验证命令必须使用白名单 `produces` 声明证据类型，退出 0 不会自动获得任意语义证据。
+新任务只接受 `docs-harness/evidence-receipt/v2`。收据首次提交必须绑定当前任务、目标、任务包指纹、可信生产者、命令摘要、时效、结果摘要及读写集合；过期、跨任务、跨目标和不可信生产者均拒绝。若同一次 `verify` 只触发兼容的增量 Gate 准入，控制器可把已经校验的收据原子继承到新包并记录原始/来源 package fingerprint，不要求宿主伪造或重写收据。验证命令必须使用白名单 `produces` 声明证据类型，退出 0 不会自动获得任意语义证据。
+
+证据文件在验收时复制进受管 artifact store，准入只依赖受管副本；原始文件事后删除或修改不影响已采纳证据。验证命令按 argv、`produces` 与输入指纹带逐项收据：输入不变且上次通过的命令直接复用（`cache_hit=true`），只重跑失败或输入变化的命令；`verification.command_cache_enabled=false` 可整体关闭。
 
 上下文收据按同一 task、target、stage、compiler contract 和 `content_set_fingerprint` 复用；命中缓存时不重复返回规则和项目事实正文。授权仍绑定当前 package fingerprint，不跨修订复用。
 
@@ -235,4 +239,4 @@ npm run pack:check
 
 这些命令只证明当前来源包的对应检查。发布还必须分别取得临时项目、真实 Git/fresh clone、直接后台路线、目标型后台路线、部分支持宿主和完全不支持宿主的证据。
 
-当前版本：`1.6.2`。详细 Schema 与状态机见 [docs/contracts.md](docs/contracts.md)，版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：`1.6.4`。详细 Schema 与状态机见 [docs/contracts.md](docs/contracts.md)，版本历史见 [CHANGELOG.md](CHANGELOG.md)。

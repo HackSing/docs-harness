@@ -1,5 +1,25 @@
 # Changelog
 
+## 1.6.4 - 2026-08-04
+
+- 关闭“增量 Gate + 授权收据 + delta context”下一轮 verify 再次失效的循环：授权合同指纹未变时通过 `authorization-adoption/v1` 记录受控继承，证据同轮复用；每次 verify（含失败）都写入有界 `verification_attempt` 事件，`readmission_count` 纳入增量 Gate 重新准入；`changed_paths=[]` 不再创建知识增量与治理 Job。
+- 正式计划只冻结一次：范围绑定后在同一事务中重新校验并采用原计划；只缺新增字段时通过 `contract_delta`/`complete_plan_delta` 补丁完成，补丁不得修改已冻结字段或 scope；测试 Gate 单独新增不要求计划补写；上下文正文按内容寻址跨 stage 复用，stage 确认收据单独生成。
+- 受管 artifact store（`artifacts/plans|authorizations|evidence|verification`）：计划、授权、证据摄取为受管副本，调用者临时文件删除后继续有效；证据新鲜度与授权有效性优先校验受管副本指纹。
+- 验证命令改为逐项执行与复用：每条命令独立计算输入指纹（排除 volatile 项的完整工作区快照）、命令前后快照与写入分类；通过的命令写入 `verification-command-receipt/v1` 收据（绑定 task、target、argv digest、cwd、输入指纹、合同摘要与 TTL），补证或重试时命中收据不重跑，只重跑失败或输入失效的命令；阻断写入只翻转当事命令，新建 volatile 副产物保持可见；项目配置 `verification.command_cache_enabled=false` 可整体关闭缓存并回退为逐命令执行。
+- verify 结果由“补证或完整重新准入”二分法改为五级分类：`provide_evidence`、`refresh_evidence`、`retry_verification`、`incremental_admission`、`full_readmission`；允许范围内缺 write-set 归因降级为补归因收据（不增加 package revision），read-set 漂移只失效引用该路径的证据；越界写入、高风险 Gate、规则或授权合同变化、远端漂移仍完整重新准入。
+- 首次 `run` 计算活动任务幂等键（target、任务、facts 与初始工作区快照）：相同键的非终态任务默认复用并返回当前状态，终态与 blocked 任务不复用；`--new-task` 强制创建独立任务。
+- change-scoped 工作量估算保留 project-wide 规模上下文，但去重与 `source_fingerprint` 只绑定变化路径、选中功能、交付物与解析后写入范围的文件指纹，无关项目文件变化不再改变后台 Job 幂等键。
+- `npm test` 脚本去掉 Windows cmd 不剥离的单引号模式参数，修复 Windows 上 `npm test` 发现 0 个测试的问题。
+
+## 1.6.3 - 2026-08-04
+
+- 路径 Gate 推导识别 `*.test.*`、`*.spec.*` 与中文“测试文件”范围描述，减少直到最终 `verify` 才发现 `testing-acceptance` 的情况。
+- `verify` 晚发现仅追加、且不改变执行路线、授权、范围、方案字段或阻断交付物的 Gate 时，由控制器原子执行增量准入；同轮已验证收据写入来源指纹和继承记录后复用，只加载新增上下文，不再要求完整 `run` 和重新生成相同证据。产品、架构、安全、数据破坏、外部发布、前端设计、extended 路线及任何合同变化仍完整重新准入。
+- `verify` 的本地验证命令工作区写入检查区分交付写入与验证期间新建的已知临时副产物：`__pycache__`、`.pytest_cache`、`.mypy_cache`、`.ruff_cache`、`.tox`、`.nox`、`.hypothesis`、`.cache`、`.nyc_output`、`htmlcov` 等缓存目录，`.pyc|.pyo|.tmp|.temp|.swp|.bak|.log` 后缀，`.coverage`（含并行分片）、`.DS_Store`、`Thumbs.db`、`.eslintcache` 与编辑器临时文件不再把通过的命令翻转为 `verification_command_workspace_write`；同名已有文件被修改或删除仍失败关闭。
+- 验证命令结果新增 `volatile_write_set` 字段，被容忍的临时写入保持可见；交付路径的真实写入仍然失败关闭并只列出阻断路径。
+- 项目配置新增 `verification.volatile_paths` glob 白名单，允许项目声明额外可容忍的验证副产物；模式必须位于工作区内并带固定根目录，`*|**` 等全局模式失败关闭；`project upgrade` preserve-and-merge 该配置。
+- npm 打包显式排除 Python bytecode、`__pycache__` 与本地 tgz，验证缓存不会进入发布包。
+
 ## 1.6.2 - 2026-08-04
 
 - 新增 `docs-harness/document-routes/v1`：统一解析 Architecture、Changelog、TODO、ADR 与 Review 真源，显式合法配置优先，自动探测仅接受受控范围内的唯一可信候选。
