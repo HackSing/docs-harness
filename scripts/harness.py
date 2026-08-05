@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Docs Harness v1.6.3 独立任务控制器。"""
+"""Docs Harness v1.6.6 独立任务控制器。"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 
-VERSION = "1.6.4"
+VERSION = "1.6.6"
 TASK_SCHEMA = "docs-harness/task-package/v2"
 LEGACY_TASK_SCHEMA = "docs-harness/task-package/v1"
 COMPILED_SCHEMA = "docs-harness/compiled-task/v2"
@@ -31,6 +31,8 @@ EVENT_SCHEMA = "docs-harness/event/v2"
 EVIDENCE_SCHEMA = "docs-harness/evidence-index/v2"
 FREEZE_SCHEMA = "docs-harness/freeze/v2"
 EVIDENCE_RECEIPT_SCHEMA = "docs-harness/evidence-receipt/v2"
+EVIDENCE_DECLARATION_SCHEMA = "docs-harness/evidence-declaration/v1"
+EMPTY_TREE_HASH = "4b825dc642cb6eb9a060e54bf8d69288fbee4904"
 RECEIPT_SCHEMA = "docs-harness/context-receipt/v2"
 COMPLETION_MANIFEST_SCHEMA = "docs-harness/completion-manifest/v1"
 COMPILER_CONTRACT = "docs-harness/compiler/v2"
@@ -88,6 +90,9 @@ RUNTIME_FILES = (
 PROJECT_RULES_RELATIVE = ".docs-harness/harness-home/rules"
 KNOWLEDGE_ROOT_RELATIVE = "docs"
 KNOWLEDGE_MAP_RELATIVE = "docs/knowledge-map.json"
+# 外部只消费知识源：项目存在该目录时，harness 不初始化/更新知识库，仅消费其文档。
+REPOWIKI_RELATIVE = ".qoder/repowiki"
+REPOWIKI_CARD_LIMIT = 200
 KNOWLEDGE_CATEGORIES = ("product", "development", "testing", "design")
 FALLBACK_SNAPSHOT_FILE_LIMIT = 4096
 BACKGROUND_MAX_ATTEMPTS = 3
@@ -238,6 +243,8 @@ SCOPE_DESCRIPTION_MARKERS = (
 TRUSTED_EVIDENCE_PRODUCERS = {
     ("docs-harness", "git_postcheck"),
     ("docs-harness", "verification_command"),
+    ("docs-harness", "auto_attribution"),
+    ("docs-harness", "host_declaration"),
     ("codex-host", "file_receipt"),
     ("codex-host", "command_receipt"),
     ("codex-host", "review_receipt"),
@@ -373,6 +380,16 @@ GATE_KNOWLEDGE_CATEGORIES = {
     "testing-acceptance": ("testing",),
     "code-edit": ("development",),
 }
+
+# 宿主权威声明 gate 时仍由代码强制兜底的安全底线集合：模型只能加不能减。
+SAFETY_FLOOR_GATES = {"security-sensitive", "destructive-data", "release-external"}
+# 底线触发不复用宽泛的 GATE_DEFS 词表：专用精确词表 + 否定守卫，只修剪明显误报。
+FLOOR_TERMS: dict[str, tuple[str, ...]] = {
+    "security-sensitive": ("安全", "鉴权", "权限", "密钥", "隐私", "security", "auth", "token"),
+    "destructive-data": ("清空", "覆盖", "删除数据", "迁移数据", "删库", "drop", "truncate", "delete data"),
+    "release-external": ("发布", "上线", "部署", "推送到远端", "推送远端", "git push", "publish", "deploy", "release"),
+}
+NEGATION_MARKERS = ("不要", "不用", "先不", "无需", "不许", "禁止", "别", "非", "不", "without", "don't", "do not", "no ")
 
 
 class HarnessError(Exception):
@@ -628,6 +645,22 @@ def git_remote_target(
     return sha256_text(canonical_json(refs)), refs
 
 
+def git_name_status_paths(output: str) -> list[str]:
+    """解析 `git diff --name-status -M` 输出为重命名前后的完整路径清单。"""
+    paths: list[str] = []
+    for line in output.splitlines():
+        columns = line.split("\t")
+        if not columns:
+            continue
+        status = columns[0]
+        members = columns[1:]
+        if status.startswith("R") and len(members) == 2:
+            paths.extend(members)
+        elif members:
+            paths.append(members[-1])
+    return paths
+
+
 def git_scope_target(git_scope: Sequence[str], *, require_exact: bool) -> tuple[str, str, str]:
     resources = [item for item in git_scope if item.startswith(".git:refs/remotes/")]
     if not resources:
@@ -683,18 +716,12 @@ def git_preflight_contract(
             diff_result = git_command(target, "diff", "--name-status", "-M", head, target_oid)
             if diff_result.returncode != 0:
                 raise HarnessError("无法生成 git_sync 变化清单", code="git_preflight_failed", exit_code=3)
-            for line in diff_result.stdout.splitlines():
-                columns = line.split("\t")
-                if not columns:
-                    continue
-                status = columns[0]
-                paths = columns[1:]
-                if status.startswith("R") and len(paths) == 2:
-                    sync_scope.extend(paths)
-                elif paths:
-                    sync_scope.append(paths[-1])
-                if status.startswith("D"):
-                    deletion_count += 1
+            sync_scope = git_name_status_paths(diff_result.stdout)
+            deletion_count = sum(
+                1
+                for line in diff_result.stdout.splitlines()
+                if line.split("\t", 1)[0].startswith("D")
+            )
         uses_lfs = (target / ".gitattributes").is_file() and "filter=lfs" in (target / ".gitattributes").read_text(encoding="utf-8", errors="ignore")
         lfs_probe = git_command(target, "lfs", "version") if uses_lfs else None
         lfs_available = not uses_lfs or bool(lfs_probe and lfs_probe.returncode == 0)
@@ -743,6 +770,11 @@ def git_preflight_contract(
             "worktree_fingerprint": sha256_text(canonical_json(workspace_snapshot(target))),
             "controlled_refs_namespace": list(dict.fromkeys([
                 *git_scope,
+                *(
+                    f".git:refs/remotes/{match.group(1)}/HEAD"
+                    for item in git_scope
+                    if (match := re.fullmatch(r"\.git:refs/remotes/([^/]+)/.+", item))
+                ),
                 *([f".git:{current_branch_ref}"] if operation == "git_sync" and current_branch_ref else []),
             ])),
             "controlled_ref": controlled_ref,
@@ -779,7 +811,6 @@ def git_postcheck(target: Path, package: dict[str, Any]) -> dict[str, Any] | Non
         refs = git_refs_snapshot(target)
         head_result = git_command(target, "rev-parse", "HEAD")
         head = head_result.stdout.strip() if head_result.returncode == 0 else "unborn"
-        index_result = git_command(target, "ls-files", "-s", "-z")
         current_workspace_fingerprint = sha256_text(canonical_json(workspace_snapshot(target)))
     except HarnessError as exc:
         return {"passed": False, "reason_code": exc.code, "checks": {}}
@@ -800,11 +831,12 @@ def git_postcheck(target: Path, package: dict[str, Any]) -> dict[str, Any] | Non
     checks: dict[str, bool] = {
         "remote_target_unchanged": current_target == snapshot.get("preflight_target_oid"),
         "refs_within_contract": not outside_refs,
-        "index_readable": index_result.returncode == 0,
     }
     if operation == "git_fetch":
+        index_result = git_command(target, "ls-files", "-s", "-z")
         checks.update(
             {
+                "index_readable": index_result.returncode == 0,
                 "head_unchanged": head == snapshot.get("head"),
                 "index_unchanged": sha256_text(index_result.stdout) == snapshot.get("index_tree"),
                 "worktree_unchanged": current_workspace_fingerprint == snapshot.get("worktree_fingerprint"),
@@ -1167,6 +1199,20 @@ def verification_command_cache_enabled(target: Path) -> bool:
     enabled = verification.get("command_cache_enabled", True)
     if not isinstance(enabled, bool):
         raise HarnessError("项目配置 verification.command_cache_enabled 必须是布尔值", code="invalid_project_config")
+    return enabled
+
+
+def auto_attribute_in_scope(target: Path) -> bool:
+    """write_scope 内未归因写入默认由控制器自动归因，可通过 verification.auto_attribute_in_scope 关闭。"""
+    config = project_config(target) or {}
+    verification = config.get("verification")
+    if verification is None:
+        return True
+    if not isinstance(verification, dict):
+        raise HarnessError("项目配置 verification 必须是对象", code="invalid_project_config")
+    enabled = verification.get("auto_attribute_in_scope", True)
+    if not isinstance(enabled, bool):
+        raise HarnessError("项目配置 verification.auto_attribute_in_scope 必须是布尔值", code="invalid_project_config")
     return enabled
 
 
@@ -1552,6 +1598,72 @@ def read_knowledge_map(target: Path, *, require_files: bool = True) -> dict[str,
     return normalize_knowledge_map(target, read_json(path), require_files=require_files)
 
 
+def repowiki_knowledge_root(target: Path) -> Path | None:
+    """返回 .qoder/repowiki 的知识卡根目录（knowledge/<locale>/），不存在时返回 None。"""
+    base = target / REPOWIKI_RELATIVE / "knowledge"
+    if not base.is_dir():
+        return None
+    locales = sorted(path for path in base.iterdir() if path.is_dir())
+    ordered = [path for path in locales if path.name == "zh"] + [path for path in locales if path.name != "zh"]
+    for candidate in ordered:
+        if any(candidate.rglob("*.md")):
+            return candidate
+    return None
+
+
+def parse_repowiki_frontmatter(path: Path) -> dict[str, Any]:
+    """定向解析知识卡 frontmatter 的标量与列表字段（纯标准库，仅支持机器生成的简单形态）。"""
+    try:
+        with path.open("r", encoding="utf-8") as handle:
+            text = handle.read(4096)
+    except OSError:
+        return {}
+    if not text.startswith("---"):
+        return {}
+    end = text.find("\n---", 3)
+    if end == -1:
+        return {}
+    result: dict[str, Any] = {}
+    current_key: str | None = None
+    for line in text[3:end].splitlines():
+        stripped = line.strip()
+        if not stripped:
+            continue
+        if stripped.startswith("- ") and current_key:
+            result[current_key].append(stripped[2:].strip().strip("'\""))
+        elif not line[0].isspace() and ":" in line:
+            key, _, value = line.partition(":")
+            key = key.strip()
+            value = value.strip().strip("'\"")
+            if value:
+                result[key] = value
+                current_key = None
+            else:
+                result[key] = []
+                current_key = key
+    return result
+
+
+def repowiki_cards(target: Path) -> list[dict[str, Any]]:
+    """枚举 repowiki 知识卡：相对路径 + frontmatter 的 name/scope/category。"""
+    root = repowiki_knowledge_root(target)
+    if root is None:
+        return []
+    cards: list[dict[str, Any]] = []
+    for path in sorted(root.rglob("*.md"))[:REPOWIKI_CARD_LIMIT]:
+        meta = parse_repowiki_frontmatter(path)
+        scope = meta.get("scope")
+        cards.append(
+            {
+                "ref": path.relative_to(target).as_posix(),
+                "name": str(meta.get("name") or path.stem),
+                "scope": [str(item) for item in scope] if isinstance(scope, list) else [],
+                "category": str(meta.get("category") or ""),
+            }
+        )
+    return cards
+
+
 def meaningful_knowledge_doc(target: Path, relative: str) -> bool:
     path = target / relative
     if not path.is_file() or path.stat().st_size > 1024 * 1024:
@@ -1608,6 +1720,14 @@ def knowledge_dependency_outcome(bootstrap_job: dict[str, Any], target: Path) ->
 
 
 def knowledge_status(target: Path) -> dict[str, Any]:
+    if repowiki_knowledge_root(target) is not None:
+        return {
+            "status": "ready",
+            "source": "repowiki",
+            "features": len(repowiki_cards(target)),
+            "gaps": [],
+            "knowledge_root": REPOWIKI_RELATIVE,
+        }
     docs = target / KNOWLEDGE_ROOT_RELATIVE
     if not docs.is_dir():
         return {"status": "absent", "features": 0, "gaps": ["docs/ 不存在"]}
@@ -1644,6 +1764,19 @@ def knowledge_status(target: Path) -> dict[str, Any]:
 def knowledge_handoff(target: Path, operation: str, docs_preexisted: bool) -> dict[str, Any]:
     """统一生成 init/upgrade 与后台路由使用的知识交接合同。"""
     status = knowledge_status(target)
+    if status.get("source") == "repowiki":
+        return {
+            "mode": "external_consume_only",
+            "operation": operation,
+            "knowledge_status": status,
+            "requires_user_consent_before_update": False,
+            "job_id": None,
+            "dispatch_required": False,
+            "dispatch_status": "not_required",
+            "knowledge_next_action": "none",
+            "knowledge_next_command_argv": [],
+            "assessment_artifact_ref": str(knowledge_runtime_root(target) / "assessment.json"),
+        }
     active = active_knowledge_bootstrap(target)
     current = str(status.get("status"))
     configured = project_config(target) or {}
@@ -1738,6 +1871,71 @@ def pending_knowledge_jobs(target: Path, feature_ids: Sequence[str]) -> list[dic
     return pending
 
 
+def resolve_repowiki_knowledge(
+    target: Path,
+    task: str,
+    scope: Sequence[str],
+    categories: list[str],
+    requested: Sequence[str],
+) -> tuple[dict[str, Any], list[str], list[str]]:
+    """repowiki 只消费知识源：按任务文本与 scope 命中知识卡，绝不产生写动作。"""
+    cards = repowiki_cards(target)
+    selected: list[dict[str, Any]] = []
+    if requested:
+        for feature_id in requested:
+            match = next(
+                (card for card in cards if card["name"] == feature_id or feature_id.casefold() in card["name"].casefold()),
+                None,
+            )
+            if match is None:
+                raise HarnessError(f"未知功能 ID：{feature_id}", code="unknown_feature")
+            selected.append(match)
+    else:
+        lowered = task.casefold()
+        for card in cards:
+            text_match = bool(card["name"]) and card["name"].casefold() in lowered
+            scope_match = any(
+                fnmatch.fnmatch(path, pattern) or scope_covers(path, [pattern])
+                for path in scope
+                for pattern in card["scope"]
+            )
+            if text_match or scope_match:
+                selected.append(card)
+    selected = list({card["ref"]: card for card in selected}.values())
+    if not selected and len(cards) == 1:
+        selected = list(cards)
+    meaningful = [card for card in selected if meaningful_knowledge_doc(target, card["ref"])]
+    if not meaningful:
+        return {
+            "status": "unresolved",
+            "source": "repowiki",
+            "context_quality": "degraded",
+            "coverage": "partial",
+            "selected_features": [],
+            "loaded_categories": [],
+            "missing_categories": categories,
+            "category_refs": {},
+            "shared_refs": [],
+            "fallback_required": True,
+        }, [], []
+    refs = [card["ref"] for card in meaningful]
+    return {
+        "status": "ready",
+        "source": "repowiki",
+        "context_quality": "complete",
+        "coverage": "complete",
+        "selected_features": [card["name"] for card in meaningful],
+        "categories": categories,
+        "loaded_categories": list(categories),
+        "missing_categories": [],
+        "category_refs": {category: list(refs) for category in categories},
+        "shared_refs": [],
+        "pending_update_jobs": [],
+        "fallback_required": False,
+        "fallback_fact_refs": [],
+    }, refs, []
+
+
 def resolve_feature_knowledge(
     target: Path,
     task: str,
@@ -1748,6 +1946,8 @@ def resolve_feature_knowledge(
     categories = knowledge_categories_for_gates(gates)
     if not categories:
         return {"status": "not_required", "selected_features": [], "category_refs": {}, "shared_refs": []}, [], []
+    if repowiki_knowledge_root(target) is not None:
+        return resolve_repowiki_knowledge(target, task, scope, categories, requested)
     status = knowledge_status(target)
     if status["status"] not in {"ready", "partial"}:
         if any(term in task.casefold() for term in ("新增功能", "创建功能", "new feature")):
@@ -1946,8 +2146,10 @@ def install_delivery_status(target: Path, relative_paths: Sequence[str]) -> dict
         if not path.is_file():
             pending.append(relative)
             continue
-        head_fingerprint = "sha256:" + hashlib.sha256(blob).hexdigest()
-        if head_fingerprint != file_fingerprint(path):
+        # 用 git 自身判定工作区与 HEAD 是否一致，尊重 autocrlf/.gitattributes 的行尾转换；
+        # 字节级指纹对比会把仅行尾差异误判为未交付。
+        diff = git_command(root, "diff", "--quiet", "HEAD", "--", git_relative)
+        if diff.returncode != 0:
             pending.append(relative)
     if ignored:
         status = "blocked"
@@ -1965,14 +2167,23 @@ def install_delivery_status(target: Path, relative_paths: Sequence[str]) -> dict
 
 def project_delivery_summary(target: Path, controller_paths: Sequence[str]) -> dict[str, Any]:
     controller = install_delivery_status(target, controller_paths)
-    knowledge_paths = knowledge_delivery_paths(target)
-    knowledge_delivery = install_delivery_status(target, knowledge_paths) if knowledge_paths else {
-        "delivery_status": "not_ready",
-        "clone_ready": False,
-        "required_commit_paths": [],
-        "ignored_paths": [],
-    }
     current_knowledge = knowledge_status(target)
+    if current_knowledge.get("source") == "repowiki":
+        # 外部只消费知识源不参与交付判定：.qoder 常被 gitignore，纳入会误报 blocked
+        knowledge_delivery = {
+            "delivery_status": "external_repowiki",
+            "clone_ready": True,
+            "required_commit_paths": [],
+            "ignored_paths": [],
+        }
+    else:
+        knowledge_paths = knowledge_delivery_paths(target)
+        knowledge_delivery = install_delivery_status(target, knowledge_paths) if knowledge_paths else {
+            "delivery_status": "not_ready",
+            "clone_ready": False,
+            "required_commit_paths": [],
+            "ignored_paths": [],
+        }
     clone_ready = bool(
         controller["clone_ready"]
         and current_knowledge["status"] == "ready"
@@ -2084,6 +2295,26 @@ def phrase_matches(text: str, term: str) -> bool:
     if re.search(r"[a-z0-9]", needle):
         return bool(re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", lowered))
     return needle in lowered
+
+
+def floor_term_matches(text: str, term: str) -> bool:
+    """带否定守卫的底线词匹配：命中词前紧邻否定标记（「不要」「无需」等）时视为未命中。"""
+    lowered = text.casefold()
+    needle = term.casefold()
+    if re.search(r"[a-z0-9]", needle):
+        pattern = rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])"
+    else:
+        pattern = re.escape(needle)
+    for match in re.finditer(pattern, lowered):
+        prefix = lowered[max(0, match.start() - 8):match.start()]
+        if not any(marker in prefix for marker in NEGATION_MARKERS):
+            return True
+    return False
+
+
+def infer_floor_gates(task: str) -> set[str]:
+    """安全底线 gate 的确定性触发：只使用 FLOOR_TERMS 精确词表，与 GATE_DEFS 宽泛词表解耦。"""
+    return {gate for gate, terms in FLOOR_TERMS.items() if any(floor_term_matches(task, term) for term in terms)}
 
 
 def classify_task_intents(
@@ -2219,6 +2450,30 @@ def infer_gates_from_paths(paths: Sequence[str], *, mutation_profile: str = "wor
         ):
             gates.add("testing-acceptance")
     return [gate for gate in GATE_ORDER if gate in gates]
+
+
+def expand_scope_paths_for_inference(paths: Sequence[str], target: Path) -> list[str]:
+    """将目录型 scope 路径展开为实际文件路径，供 Gate 推断使用。
+
+    若路径以 '/' 结尾或在磁盘上是目录，尝试遍历其下文件（有界）；
+    非目录路径原样保留。目录不存在或不可读时保留原路径。
+    """
+    expanded: list[str] = []
+    for path in paths:
+        normalized = path.replace("\\", "/")
+        candidate = target / normalized.rstrip("/")
+        if normalized.endswith("/") or candidate.is_dir():
+            try:
+                files = [p.relative_to(target).as_posix() for p in candidate.rglob("*") if p.is_file()]
+                if files:
+                    expanded.extend(files[:200])  # 有界，避免巨型目录
+                else:
+                    expanded.append(path)
+            except (OSError, PermissionError):
+                expanded.append(path)
+        else:
+            expanded.append(path)
+    return expanded
 
 
 def extract_task_paths(task: str, target: Path) -> list[str]:
@@ -2504,8 +2759,26 @@ def completion_manifest_valid(manifest: Any) -> bool:
     return isinstance(expected, str) and expected == sha256_text(canonical_json(unsigned))
 
 
+def parse_gate_assessment(facts: dict[str, Any]) -> tuple[list[str], str] | None:
+    """解析宿主权威 gate 声明；返回 (声明 gates, rationale)，未声明时返回 None。"""
+    raw = facts.get("gate_assessment")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise HarnessError("gate_assessment 必须是 JSON 对象", code="invalid_gate_assessment")
+    gates = normalize_string_list(raw.get("gates"), "gate_assessment.gates")
+    unknown = set(gates) - set(GATE_DEFS)
+    if unknown:
+        raise HarnessError(f"未知 Gate：{', '.join(sorted(unknown))}", code="invalid_gate")
+    rationale = raw.get("rationale")
+    if not isinstance(rationale, str) or not rationale.strip() or len(rationale) > 500:
+        raise HarnessError("gate_assessment.rationale 必须是 500 字符内的非空字符串", code="invalid_gate_assessment")
+    return list(dict.fromkeys(gates)), rationale.strip()
+
+
 def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.Namespace, task_id: str) -> tuple[dict[str, Any], list[str]]:
     declared_gates = normalize_string_list(facts.get("gates"), "gates")
+    gate_assessment = parse_gate_assessment(facts)
     work_packages = normalize_work_packages(facts.get("work_packages"))
     cli_scope = list(cli.scope or [])
     legacy_scope_raw = facts.get("allowed_scope", facts.get("target_paths"))
@@ -2582,12 +2855,40 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
             git_preflight_blockers.append("手工 write_scope 与 Git 预检变化清单不一致")
         write_scope = validate_scope(git_sync_scope, field="write_scope")
     scope = write_scope if write_scope else read_scope
-    path_gates = infer_gates_from_paths([*read_scope, *write_scope], mutation_profile=mutation_profile)
-    gates = infer_gates(
-        task,
-        list(dict.fromkeys(declared_gates + path_gates)),
-        mutation_profile=mutation_profile,
-    )
+    path_gates = infer_gates_from_paths(expand_scope_paths_for_inference([*read_scope, *write_scope], target), mutation_profile=mutation_profile)
+    floor_added: list[str] = []
+    if gate_assessment is not None:
+        # 权威模式：以宿主声明为准，代码只对安全底线 gate 做确定性兜底。
+        assessment_gates, assessment_rationale = gate_assessment
+        floor_from_text = [gate for gate in GATE_ORDER if gate in infer_floor_gates(task)]
+        floor_from_paths = [gate for gate in path_gates if gate in SAFETY_FLOOR_GATES]
+        floor_added = [
+            gate
+            for gate in GATE_ORDER
+            if gate in set(floor_from_text) | set(floor_from_paths)
+            and gate not in assessment_gates
+            and gate not in declared_gates
+        ]
+        gates = [
+            gate
+            for gate in GATE_ORDER
+            if gate in set(assessment_gates) | set(declared_gates) | set(floor_from_text) | set(floor_from_paths)
+        ]
+        if mutation_profile in {"read_only", "git_metadata_write"}:
+            gates = [gate for gate in gates if gate not in {"code-edit", "document-edit"}]
+        gate_decision: dict[str, Any] = {
+            "mode": "host_declared",
+            "declared_gates": assessment_gates,
+            "rationale": assessment_rationale,
+            "floor_added": floor_added,
+        }
+    else:
+        gates = infer_gates(
+            task,
+            list(dict.fromkeys(declared_gates + path_gates)),
+            mutation_profile=mutation_profile,
+        )
+        gate_decision = {"mode": "keyword_inferred", "declared_gates": [], "rationale": None, "floor_added": []}
     requested_route = facts.get("execution_route")
     if requested_route is not None and requested_route not in {"direct", "planned", "extended"}:
         raise HarnessError("execution_route 无效", code="invalid_route")
@@ -2680,6 +2981,7 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         gates,
         scope,
         mutation_profile=mutation_profile,
+        target=target,
     )
     completion_manifest = build_completion_manifest(
         task_intent=task_intent,
@@ -2723,6 +3025,12 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         "execution_route": route,
         "execution_topology": topology,
         "matched_gates": gates,
+        "gate_assessment": (
+            {"gates": gate_assessment[0], "rationale": gate_assessment[1]}
+            if gate_assessment is not None
+            else None
+        ),
+        "gate_decision": gate_decision,
         "matched_rules": matched_rules,
         "knowledge_context": knowledge_context,
         "context_quality": knowledge_context.get("context_quality", "complete"),
@@ -4276,6 +4584,7 @@ def facts_from_package(package: dict[str, Any]) -> dict[str, Any]:
         "intent_boundary_reason_codes": package.get("intent_boundary_reason_codes", []),
         "mutation_profile": package["mutation_profile"],
         "gates": package["matched_gates"],
+        "gate_assessment": package.get("gate_assessment"),
         "execution_route": package["execution_route"],
         "execution_topology": package["execution_topology"],
         "allowed_scope": package["allowed_scope"],
@@ -4343,6 +4652,7 @@ def first_run_payload(
         "intent_boundary_reason_codes": package.get("intent_boundary_reason_codes", []),
         "mutation_profile": package["mutation_profile"],
         "matched_gates": package["matched_gates"],
+        "gate_decision": package.get("gate_decision"),
         "matched_rules": package["matched_rules"],
         "rules": [item["rule_id"] for item in package["matched_rules"]],
         "allowed_scope": package["allowed_scope"],
@@ -4401,8 +4711,11 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         if not args.task or not args.task.strip():
             raise HarnessError("首次 run 必须提供原始任务", code="missing_task")
         task_text = args.task.strip()
-        key = active_task_key(target, task_text, facts)
-        if not getattr(args, "new_task", False):
+        # 幂等键包含全工作区快照，仅当存在历史任务目录时才值得计算；
+        # 无历史任务时延迟到落盘前再算（此时快照可被后续 create_task_state 复用）。
+        key: str | None = None
+        if not getattr(args, "new_task", False) and runtime_root(target).is_dir():
+            key = active_task_key(target, task_text, facts)
             existing = find_existing_active_task(target, key)
             if existing is not None:
                 package = read_json(existing / "task-package.json")
@@ -4410,7 +4723,7 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 return first_run_payload(target, existing, package, compiled, reused=True)
         task_id = generate_task_id()
         package, blockers = build_package(target, task_text, facts, args, task_id)
-        package["active_task_key"] = key
+        package["active_task_key"] = key if key is not None else active_task_key(target, task_text, facts)
         state = create_task_state(target, package, blockers)
         compiled = read_json(state / "compiled-task.json")
         return first_run_payload(target, state, package, compiled)
@@ -4422,11 +4735,54 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     if should_recompile:
         task = args.task or package["original_task"]
         recompile_facts = merge_recompile_facts(package, facts)
+        git_sync_readmission = package.get("git_operation") == "git_sync"
+        if git_sync_readmission:
+            # 预检会按当前 HEAD 与远端目标重新生成 write_scope；清空继承值避免“手工 write_scope 与预检清单不一致”误报
+            # （allowed_scope 会经 legacy_scope 重新并入 write_scope，必须一并清空）
+            recompile_facts["write_scope"] = []
+            recompile_facts["allowed_scope"] = []
         new_package, blockers = build_package(target, task, recompile_facts, args, package["task_id"])
         new_package["package_revision"] = package["package_revision"] + 1
         new_package["created_at"] = package["created_at"]
         new_package["recompiled_at"] = utc_now()
+        if git_sync_readmission:
+            old_head = str((package.get("git_state_snapshot") or {}).get("head") or "unborn")
+            new_head = str((new_package.get("git_state_snapshot") or {}).get("head") or "unborn")
+            landed: list[str] = []
+            if old_head != new_head and new_head != "unborn":
+                diff_base = EMPTY_TREE_HASH if old_head == "unborn" else old_head
+                diff_result = git_command(target, "diff", "--name-status", "-M", diff_base, new_head)
+                if diff_result.returncode == 0:
+                    landed = git_name_status_paths(diff_result.stdout)
+            new_package["git_sync_landed_scope"] = sorted(
+                set(package.get("git_sync_landed_scope", [])) | set(landed)
+            )
+            new_package["write_scope"] = sorted(
+                set(new_package["write_scope"]) | set(new_package["git_sync_landed_scope"])
+            )
         new_compiled = initial_compiled(new_package, blockers)
+        if git_sync_readmission and plan_is_current(compiled):
+            old_contract = plan_contract_payload(package)
+            new_contract = plan_contract_payload(new_package)
+            # git_sync 方案从不绑定范围；预检范围随远端漂移变化，不参与方案复用比较
+            for key in ("write_scope", "allowed_scope"):
+                old_contract.pop(key, None)
+                new_contract.pop(key, None)
+            if old_contract == new_contract:
+                new_compiled["plan_ref"] = compiled["plan_ref"]
+                new_compiled["plan_fingerprint"] = compiled["plan_fingerprint"]
+                new_compiled["plan_artifact"] = compiled.get("plan_artifact")
+        elif plan_is_current(compiled):
+            # 普通任务方案继承：合同除范围外未变时复用已冻结方案，避免重交 plan
+            old_contract = plan_contract_payload(package)
+            new_contract = plan_contract_payload(new_package)
+            for key in ("write_scope", "allowed_scope", "read_scope"):
+                old_contract.pop(key, None)
+                new_contract.pop(key, None)
+            if old_contract == new_contract:
+                new_compiled["plan_ref"] = compiled["plan_ref"]
+                new_compiled["plan_fingerprint"] = compiled["plan_fingerprint"]
+                new_compiled["plan_artifact"] = compiled.get("plan_artifact")
         new_freeze = dict(freeze)
         with state_lock(state):
             archive_and_rewrite_package(state, new_package, new_compiled, new_freeze, target)
@@ -4501,30 +4857,90 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             return 3, payload
         requested_scope = plan_scope(plan)
         if requested_scope is not None and package["allowed_scope"] and set(requested_scope) != set(package["allowed_scope"]):
-            compiled["scope_changed"] = True
-            compiled["control_status"] = "blocked"
-            compiled["verification_status"] = "needs_readmission"
-            compiled["blockers"] = ["正式方案执行范围与当前任务包不一致，必须重新准入"]
-            compiled["next_action"] = "rerun_harness_for_readmission"
-            atomic_write_json(state / "compiled-task.json", compiled)
-            payload = {
-                "task_id": args.task_id,
-                "result": "重新准入",
-                "task_scope": package["allowed_scope"],
-                "plan_scope": requested_scope,
-                "blockers": compiled["blockers"],
-            }
-            payload.update(
-                next_step_payload(
-                    target,
+            if set(requested_scope) >= set(package["allowed_scope"]):
+                # 严格超集：自动重编译而非要求全量重准入
+                package, compiled, freeze, blockers, scope_delta = recompile_package_from_plan_scope(
                     state,
                     package,
-                    compiled["next_action"],
-                    reason_code="plan_scope_mismatch",
-                    artifact_ref=plan_path,
+                    freeze,
+                    target,
+                    requested_scope,
+                    args,
+                    facts,
                 )
-            )
-            return 4, payload
+                if blockers:
+                    compiled["blockers"] = blockers
+                    atomic_write_json(state / "compiled-task.json", compiled)
+                    payload = {
+                        "task_id": args.task_id,
+                        "admission_status": compiled["control_status"],
+                        "package_revision": package["package_revision"],
+                        "matched_gates": package["matched_gates"],
+                        "blockers": blockers,
+                        "plan_contract": plan_contract_payload(package),
+                    }
+                    payload.update(
+                        next_step_payload(
+                            target,
+                            state,
+                            package,
+                            compiled["next_action"],
+                            reason_code="scope_superset_recompile_blocked",
+                        )
+                    )
+                    return 3, payload
+                missing_after_superset = validate_plan(plan, package["plan_fields"])
+                if missing_after_superset:
+                    managed = ingest_managed_plan(state, package, plan_path, kind="plan-draft")
+                    contract = plan_delta_contract(package, managed, scope_delta, missing_after_superset)
+                    compiled["control_status"] = "needs_plan"
+                    compiled["next_action"] = "complete_plan_delta"
+                    compiled["plan_delta_contract"] = contract
+                    compiled["blockers"] = ["范围扩展新增 Gate 只需补充计划字段：" + ", ".join(missing_after_superset)]
+                    atomic_write_json(state / "compiled-task.json", compiled)
+                    payload = {
+                        "task_id": args.task_id,
+                        "result": "补充计划",
+                        "missing_plan_fields": missing_after_superset,
+                        "plan_delta_contract": contract,
+                        "plan_regeneration_required": False,
+                    }
+                    payload.update(
+                        next_step_payload(
+                            target,
+                            state,
+                            package,
+                            compiled["next_action"],
+                            reason_code="scope_superset_plan_amendment",
+                            artifact_ref=plan_path,
+                        )
+                    )
+                    return 3, payload
+            else:
+                compiled["scope_changed"] = True
+                compiled["control_status"] = "blocked"
+                compiled["verification_status"] = "needs_readmission"
+                compiled["blockers"] = ["正式方案执行范围与当前任务包不一致，必须重新准入"]
+                compiled["next_action"] = "rerun_harness_for_readmission"
+                atomic_write_json(state / "compiled-task.json", compiled)
+                payload = {
+                    "task_id": args.task_id,
+                    "result": "重新准入",
+                    "task_scope": package["allowed_scope"],
+                    "plan_scope": requested_scope,
+                    "blockers": compiled["blockers"],
+                }
+                payload.update(
+                    next_step_payload(
+                        target,
+                        state,
+                        package,
+                        compiled["next_action"],
+                        reason_code="plan_scope_mismatch",
+                        artifact_ref=plan_path,
+                    )
+                )
+                return 4, payload
         freeze_reason = "plan_delta_merged" if pending_delta is not None else "plan_submitted"
         if not package["allowed_scope"] and plan_contract_payload(package)["scope_required"]:
             if requested_scope is None:
@@ -4759,6 +5175,7 @@ def parse_utc_timestamp(value: Any, field: str) -> dt.datetime:
 
 def known_evidence_types() -> set[str]:
     result = {
+        "workspace_attribution",
         "source_trace",
         "document_trace",
         "git_inspection_result",
@@ -4783,12 +5200,54 @@ def known_evidence_types() -> set[str]:
     return result
 
 
+def mint_evidence_receipt(
+    target: Path,
+    package: dict[str, Any],
+    declaration: dict[str, Any],
+    *,
+    producer: dict[str, str],
+) -> dict[str, Any]:
+    """控制器代铸：把证据声明正文装订成完整 evidence-receipt/v2，装订字段一律由控制器计算。"""
+    snapshot = workspace_snapshot(target)
+    now = utc_now()
+    read_set: list[dict[str, str | None]] = []
+    for item in declaration.get("read_set", []):
+        path = str(item.get("path") if isinstance(item, dict) else item)
+        read_set.append({"path": path, "fingerprint": snapshot.get(path)})
+    digest = sha256_text(canonical_json(declaration))
+    return {
+        "schema_version": EVIDENCE_RECEIPT_SCHEMA,
+        "type": declaration.get("type"),
+        "result": "passed",
+        "covers": [package["task_id"]],
+        "task_id": package["task_id"],
+        "conclusion": declaration.get("conclusion", ""),
+        "changed_paths": list(declaration.get("changed_paths", [])),
+        "write_set": list(declaration.get("write_set", [])),
+        "read_set": read_set,
+        "concurrent_drift": list(declaration.get("concurrent_drift", [])),
+        "producer": producer,
+        "target_identity": target_identity(target),
+        "package_fingerprint": package_fingerprint(package),
+        "content_set_fingerprint": None,
+        "cwd": str(target.resolve()),
+        "started_at": now,
+        "ended_at": now,
+        "ttl": 3600,
+        "exit_code": 0,
+        "command_argv_digest": digest,
+        "output_or_artifact_digest": digest,
+    }
+
+
 def load_evidence(
     path_value: str,
     *,
     expected_cover: str | None = None,
     package: dict[str, Any] | None = None,
     target: Path | None = None,
+    binding_package_fingerprint: str | None = None,
+    binding_target_identity: str | None = None,
 ) -> tuple[Path, dict[str, Any]]:
     path, value = load_json_object_file(
         path_value,
@@ -4796,6 +5255,15 @@ def load_evidence(
         max_bytes=1024 * 1024,
         error_code="invalid_evidence",
     )
+    if value.get("schema_version") == EVIDENCE_DECLARATION_SCHEMA:
+        if package is None or target is None:
+            raise HarnessError("证据声明草案缺少任务验证上下文", code="invalid_evidence_receipt")
+        value = mint_evidence_receipt(
+            target,
+            package,
+            value,
+            producer={"adapter": "docs-harness", "capability": "host_declaration"},
+        )
     is_v2 = value.get("schema_version") == EVIDENCE_RECEIPT_SCHEMA
     if package is not None and package.get("schema_version") == TASK_SCHEMA and not is_v2:
         raise HarnessError(
@@ -4870,9 +5338,13 @@ def load_evidence(
         missing = sorted(key for key in required if key not in value)
         if missing:
             raise HarnessError("v2 证据收据缺少字段：" + ", ".join(missing), code="invalid_evidence_receipt")
-        if value.get("task_id") != package["task_id"] or value.get("package_fingerprint") != package_fingerprint(package):
+        if binding_package_fingerprint is None:
+            binding_package_fingerprint = package_fingerprint(package)
+        if binding_target_identity is None:
+            binding_target_identity = target_identity(target)
+        if value.get("task_id") != package["task_id"] or value.get("package_fingerprint") != binding_package_fingerprint:
             raise HarnessError("v2 证据收据未绑定当前任务包", code="evidence_binding_mismatch")
-        if value.get("target_identity") != target_identity(target):
+        if value.get("target_identity") != binding_target_identity:
             raise HarnessError("v2 证据收据目标不匹配", code="evidence_binding_mismatch")
         adapter = producer.get("adapter")
         capability = producer.get("capability")
@@ -4938,7 +5410,8 @@ def workspace_change_attribution(
     *,
     git_result: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    changed = snapshot_changes(freeze["workspace_snapshot"], workspace_snapshot(target))
+    current_snapshot = workspace_snapshot(target)
+    changed = snapshot_changes(freeze["workspace_snapshot"], current_snapshot)
     changed_set = set(changed)
     reported_writes = {
         path
@@ -4948,6 +5421,7 @@ def workspace_change_attribution(
     }
     if git_result is not None and git_result.get("passed") and package.get("git_operation") == "git_sync":
         reported_writes.update(path for path in package.get("git_sync_scope", []) if path in changed_set)
+        reported_writes.update(path for path in package.get("git_sync_landed_scope", []) if path in changed_set)
     concurrent = {
         path
         for item in evidence
@@ -4960,7 +5434,6 @@ def workspace_change_attribution(
     read_paths = {str(item.get("path")) for item in read_items if isinstance(item, dict)}
     write_scope = package.get("write_scope", package.get("allowed_scope", []))
     read_scope = package.get("read_scope", [])
-    current_snapshot = workspace_snapshot(target)
     read_set_drift: list[str] = []
     refreshed_reads: set[str] = set()
     for item in read_items:
@@ -4986,7 +5459,7 @@ def workspace_change_attribution(
         if path not in drift_set
         and (scope_covers(path, write_scope) or scope_covers(path, read_scope) or path in read_paths)
     )
-    risk_gates = {"security-sensitive", "destructive-data", "release-external"}
+    risk_gates = SAFETY_FLOOR_GATES
     risky_concurrent = sorted(
         path
         for path in concurrent | unattributed
@@ -6042,6 +6515,8 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
             "git_postcheck": git_result,
             "next_action": compiled["next_action"],
         }
+    binding_target_identity = target_identity(target)
+    binding_package_fingerprint = package_fingerprint(package)
     supplied: list[dict[str, Any]] = []
     for raw in args.evidence or []:
         _, evidence = load_evidence(
@@ -6049,6 +6524,8 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
             expected_cover=package["task_id"],
             package=package,
             target=target,
+            binding_package_fingerprint=binding_package_fingerprint,
+            binding_target_identity=binding_target_identity,
         )
         supplied.append(evidence)
     telemetry["input_accepted"] = True
@@ -6065,8 +6542,8 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
         binding_valid = (
             item.get("schema_version") != EVIDENCE_RECEIPT_SCHEMA
             or (
-                item.get("package_fingerprint") == package_fingerprint(package)
-                and item.get("target_identity") == target_identity(target)
+                item.get("package_fingerprint") == binding_package_fingerprint
+                and item.get("target_identity") == binding_target_identity
             )
         )
         if evidence_source_current(item) and not expired and binding_valid:
@@ -6127,32 +6604,115 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
     )
     frozen_rules = {(item["rule_id"], item["content_fingerprint"]) for item in package["matched_rules"]}
     active_rules = {(item["rule_id"], item["content_fingerprint"]) for item in current_rules}
+    auto_attributed_paths: list[str] = []
     if attribution["blockers"] or rule_errors or active_rules != frozen_rules:
         stable_contract = not rule_errors and active_rules == frozen_rules
-        if stable_contract and blocker_codes == {"unattributed_drift_overlap"}:
+        if stable_contract and "unattributed_drift_overlap" in blocker_codes and blocker_codes <= {"unattributed_drift_overlap", "new_risk_gate"}:
             write_scope = package.get("write_scope", package.get("allowed_scope", []))
             overlap_paths = sorted(
-                {path for item in attribution["blockers"] for path in item.get("paths", [])}
+                {path for item in attribution["blockers"] if item.get("reason_code") == "unattributed_drift_overlap" for path in item.get("paths", [])}
             )
             if overlap_paths and all(scope_covers(path, write_scope) for path in overlap_paths):
+                if not auto_attribute_in_scope(target):
+                    compiled["verification_status"] = "needs_evidence"
+                    compiled["next_action"] = "provide_evidence"
+                    atomic_write_json(state / "compiled-task.json", compiled)
+                    return 3, {"task_id": package["task_id"], "result": "补充证据", "reason_code": "unattributed_drift_overlap", "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "missing_attribution_paths": overlap_paths, "auto_attributed_paths": [], "workspace_attribution": attribution, "next_action": compiled["next_action"]}
+                receipt = mint_evidence_receipt(
+                    target,
+                    package,
+                    {
+                        "schema_version": EVIDENCE_DECLARATION_SCHEMA,
+                        "type": "workspace_attribution",
+                        "write_set": overlap_paths,
+                        "conclusion": "write_scope 内未归因写入由控制器自动归因给当前任务",
+                    },
+                    producer={"adapter": "docs-harness", "capability": "auto_attribution"},
+                )
+                managed_receipt = store_managed_artifact(
+                    state,
+                    "evidence",
+                    f"auto-attribution.v{package['package_revision']}.json",
+                    json.dumps(receipt, ensure_ascii=False, indent=2) + "\n",
+                )
+                _, auto_evidence = load_evidence(
+                    str(managed_receipt),
+                    expected_cover=package["task_id"],
+                    package=package,
+                    target=target,
+                )
+                supplied.append(auto_evidence)
+                auto_attributed_paths = overlap_paths
+                with state_lock(state):
+                    append_task_event(
+                        state,
+                        package,
+                        event="auto_attribution",
+                        phase="verification",
+                        reason_code="workspace_attribution",
+                        paths=overlap_paths,
+                        evidence_id=str(auto_evidence.get("id", "unknown")),
+                    )
+                attribution = workspace_change_attribution(
+                    target,
+                    package,
+                    freeze,
+                    [*reusable_evidence, *supplied],
+                    git_result=git_result,
+                )
+                changed = attribution["changed_paths"]
+                outside = attribution["outside_scope"]
+                new_gates = attribution["new_gates"]
+                blocker_codes = {str(item.get("reason_code")) for item in attribution["blockers"]}
+                # 二次增量尝试：auto-attribution 消解 drift 后仅剩 new_risk_gate
+                if stable_contract and blocker_codes == {"new_risk_gate"}:
+                    incremental = incrementally_recompile_new_gates(
+                        state,
+                        target,
+                        package,
+                        compiled,
+                        freeze,
+                        new_gates,
+                        [*reusable_evidence, *supplied],
+                    )
+                    if incremental is not None:
+                        package, compiled, freeze, adopted_evidence, needs_context = incremental
+                        telemetry["package"] = package
+                        reusable_evidence = adopted_evidence
+                        supplied = []
+                        attribution = workspace_change_attribution(
+                            target,
+                            package,
+                            freeze,
+                            reusable_evidence,
+                            git_result=git_result,
+                        )
+                        changed = attribution["changed_paths"]
+                        outside = attribution["outside_scope"]
+                        new_gates = attribution["new_gates"]
+                        blocker_codes = {str(item.get("reason_code")) for item in attribution["blockers"]}
+        if attribution["blockers"] or rule_errors or active_rules != frozen_rules:
+            if stable_contract and blocker_codes == {"read_set_drift"}:
+                drift_paths = {path for item in attribution["blockers"] for path in item.get("paths", [])}
+                discarded_ids = discard_evidence_referencing_paths(state, drift_paths)
                 compiled["verification_status"] = "needs_evidence"
-                compiled["next_action"] = "provide_evidence"
+                compiled["next_action"] = "refresh_evidence"
                 atomic_write_json(state / "compiled-task.json", compiled)
-                return 3, {"task_id": package["task_id"], "result": "补充证据", "reason_code": "unattributed_drift_overlap", "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "missing_attribution_paths": overlap_paths, "workspace_attribution": attribution, "next_action": compiled["next_action"]}
-        if stable_contract and blocker_codes == {"read_set_drift"}:
-            drift_paths = {path for item in attribution["blockers"] for path in item.get("paths", [])}
-            discarded_ids = discard_evidence_referencing_paths(state, drift_paths)
-            compiled["verification_status"] = "needs_evidence"
-            compiled["next_action"] = "refresh_evidence"
+                return 3, {"task_id": package["task_id"], "result": "补充证据", "reason_code": "read_set_drift", "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "refresh_paths": sorted(drift_paths), "discarded_evidence_ids": discarded_ids, "auto_attributed_paths": auto_attributed_paths, "workspace_attribution": attribution, "next_action": compiled["next_action"]}
+            compiled["scope_changed"] = True
+            compiled["control_status"] = "blocked"
+            compiled["verification_status"] = "needs_readmission"
+            compiled["next_action"] = "rerun_harness_for_readmission"
             atomic_write_json(state / "compiled-task.json", compiled)
-            return 3, {"task_id": package["task_id"], "result": "补充证据", "reason_code": "read_set_drift", "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "refresh_paths": sorted(drift_paths), "discarded_evidence_ids": discarded_ids, "workspace_attribution": attribution, "next_action": compiled["next_action"]}
-        compiled["scope_changed"] = True
-        compiled["control_status"] = "blocked"
-        compiled["verification_status"] = "needs_readmission"
-        compiled["next_action"] = "rerun_harness_for_readmission"
-        atomic_write_json(state / "compiled-task.json", compiled)
-        reason_code = attribution["blockers"][0]["reason_code"] if attribution["blockers"] else "rule_drift"
-        return 4, {"task_id": package["task_id"], "result": "重新准入", "reason_code": reason_code, "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "rule_errors": rule_errors, "workspace_attribution": attribution, "next_action": compiled["next_action"]}
+            reason_code = attribution["blockers"][0]["reason_code"] if attribution["blockers"] else "rule_drift"
+            payload: dict[str, Any] = {"task_id": package["task_id"], "result": "重新准入", "reason_code": reason_code, "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "rule_errors": rule_errors, "auto_attributed_paths": auto_attributed_paths, "workspace_attribution": attribution, "next_action": compiled["next_action"]}
+            if "new_risk_gate" in blocker_codes and new_gates:
+                payload["readmission_hint"] = {
+                    "message": "可通过 --facts 声明 Gate 跳过关键词推断，避免反复循环",
+                    "facts_template": {"gates": list(new_gates)},
+                    "example_argv": harness_command_argv("run", target, "--task-id", package["task_id"], "--facts", "<facts.json>"),
+                }
+            return 4, payload
 
     with state_lock(state):
         for evidence in supplied:
@@ -6173,6 +6733,8 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
     all_evidence = index.get("evidence", [])
     fresh_evidence: list[dict[str, Any]] = []
     stale_evidence: list[str] = []
+    # 增量重编译后 package 可能已替换，重新计算一次绑定指纹供循环复用
+    binding_package_fingerprint = package_fingerprint(package)
     for item in all_evidence:
         evidence_writes = set(item.get("write_set", item.get("changed_paths", [])))
         task_paths_match = package["task_id"] not in item.get("covers", []) or evidence_writes <= set(changed)
@@ -6186,8 +6748,8 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
         binding_valid = (
             item.get("schema_version") != EVIDENCE_RECEIPT_SCHEMA
             or (
-                item.get("package_fingerprint") == package_fingerprint(package)
-                and item.get("target_identity") == target_identity(target)
+                item.get("package_fingerprint") == binding_package_fingerprint
+                and item.get("target_identity") == binding_target_identity
             )
         )
         if evidence_source_current(item) and task_paths_match and not expired and binding_valid:
@@ -6243,7 +6805,23 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
         compiled["verification_status"] = "needs_evidence"
         compiled["next_action"] = "provide_evidence"
         atomic_write_json(state / "compiled-task.json", compiled)
-        return 3, {"task_id": package["task_id"], "result": "补充证据", "changed_paths": changed, "workspace_attribution": attribution, "manifest_fingerprint": manifest["manifest_fingerprint"], "activated_conditions": activated_conditions, "missing_evidence_types": missing_types, "missing_receipts": missing_receipts, "missing_blocking_deliverables": missing_blocking_deliverables, "stale_evidence": stale_evidence, "verification_commands": command_results, "verification_receipts": command_receipts, "git_postcheck": git_result, "next_action": compiled["next_action"]}
+        skeleton_refs: list[str] = []
+        if missing_types:
+            templates_dir = state / "templates"
+            templates_dir.mkdir(exist_ok=True)
+            for etype in missing_types:
+                skeleton = {
+                    "schema_version": EVIDENCE_DECLARATION_SCHEMA,
+                    "type": etype,
+                    "write_set": [],
+                    "read_set": [],
+                    "concurrent_drift": [],
+                    "conclusion": "",
+                }
+                skeleton_path = templates_dir / f"evidence-{etype.replace('_', '-')}-skeleton.json"
+                atomic_write_json(skeleton_path, skeleton)
+                skeleton_refs.append(str(skeleton_path))
+        return 3, {"task_id": package["task_id"], "result": "补充证据", "changed_paths": changed, "auto_attributed_paths": auto_attributed_paths, "workspace_attribution": attribution, "manifest_fingerprint": manifest["manifest_fingerprint"], "activated_conditions": activated_conditions, "missing_evidence_types": missing_types, "missing_receipts": missing_receipts, "missing_blocking_deliverables": missing_blocking_deliverables, "stale_evidence": stale_evidence, "verification_commands": command_results, "verification_receipts": command_receipts, "git_postcheck": git_result, "evidence_skeletons": skeleton_refs, "next_action": compiled["next_action"]}
     if package.get("context_quality") == "degraded":
         fallback_refs = list(package.get("fallback_fact_refs", []))
         fallback_refs.extend(changed)
@@ -6336,6 +6914,7 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
             "verification_commands": command_results,
             "verification_receipts": command_receipts,
             "git_postcheck": git_result,
+            "auto_attributed_paths": auto_attributed_paths,
             "workspace_attribution": attribution,
             "post_completion": {
                 "action": "dispatch_knowledge_maintenance",
@@ -6354,6 +6933,7 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
         "verification_commands": command_results,
         "verification_receipts": command_receipts,
         "git_postcheck": git_result,
+        "auto_attributed_paths": auto_attributed_paths,
         "workspace_attribution": attribution,
         "post_completion": {
             **post_completion,
@@ -7094,6 +7674,13 @@ def create_post_completion_knowledge_job(
     changed_paths: Sequence[str],
 ) -> dict[str, Any]:
     job_id = generate_knowledge_job_id(package["task_id"])
+    if repowiki_knowledge_root(target) is not None:
+        return {
+            "created": False,
+            "task_kind": "knowledge_incremental_sync",
+            "status": "not_required",
+            "reason_code": "knowledge_external_consume_only",
+        }
     root = knowledge_job_dir(target, job_id)
     path = root / "job.json"
     if path.is_file():
@@ -7586,6 +8173,7 @@ def classify_document_deliverables(
     scope: Sequence[str],
     *,
     mutation_profile: str = "workspace_write",
+    target: Path | None = None,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
     blocking: list[dict[str, str]] = []
     background: list[dict[str, str]] = []
@@ -7604,7 +8192,9 @@ def classify_document_deliverables(
         and not path.casefold().startswith("docs/")
         for path in scope
     )
-    if not facts.get("suppress_post_completion_dispatch", False) and business_write:
+    # repowiki 只消费项目不回流任何知识/文档治理交付物
+    external_consume_only = target is not None and repowiki_knowledge_root(target) is not None
+    if not external_consume_only and not facts.get("suppress_post_completion_dispatch", False) and business_write:
         background.append({"deliverable": "feature_knowledge_incremental_sync", "reason_code": "business_write_governance"})
         if set(gates) & {"product-change", "architecture-contract", "code-edit", "release-external"}:
             background.append({"deliverable": "adr_changelog_todo_review", "reason_code": "default_non_blocking_governance"})
@@ -8593,6 +9183,12 @@ def command_knowledge(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         path = persist_workload_estimate(target, estimate)
         return 0, {"action": "estimate", **estimate, "estimate_ref": str(path)}
     if args.action == "bootstrap":
+        if repowiki_knowledge_root(target) is not None:
+            raise HarnessError(
+                "项目使用 .qoder/repowiki 外部知识源，知识库为只消费模式，禁止初始化或更新",
+                code="knowledge_external_consume_only",
+                exit_code=3,
+            )
         estimate = workload_estimate(target)
         feature_ids: list[str] = []
         allowed_scope: list[str] = ["docs/**"]
@@ -9092,7 +9688,8 @@ def apply_project_install(
     if docs_preexisted is None:
         docs_preexisted = (target / KNOWLEDGE_ROOT_RELATIVE).is_dir()
     existing_map = knowledge_map_path(target).is_file()
-    if not docs_preexisted or existing_map:
+    # repowiki 只消费项目不创建 docs/ 知识骨架
+    if (not docs_preexisted or existing_map) and repowiki_knowledge_root(target) is None:
         for relative, content in KNOWLEDGE_SCAFFOLD.items():
             path = target / relative
             if not path.exists():
@@ -9587,6 +10184,7 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         )
         delivery = project_delivery_summary(target, controller_paths)
         pending = delivery["delivery_status"] == "pending_commit"
+        knowledge_settled = knowledge_flow["mode"] in {"already_ready", "external_consume_only"}
         status = (
             "failed"
             if red
@@ -9596,12 +10194,12 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 else (
                     "needs_delivery"
                     if pending
-                    else "upgraded" if knowledge_flow["mode"] == "already_ready"
+                    else "upgraded" if knowledge_settled
                     else "upgraded_knowledge_pending"
                 )
             )
         )
-        code = 1 if red else (3 if manual_migration or pending or knowledge_flow["mode"] != "already_ready" else 0)
+        code = 1 if red else (3 if manual_migration or pending or not knowledge_settled else 0)
         return code, {
             "action": "upgrade",
             "mode": "apply",

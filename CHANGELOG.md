@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.6.6 - 2026-08-05
+
+- 支持 `.qoder/repowiki` 外部只消费知识源：项目存在 `.qoder/repowiki/knowledge/<locale>/` 知识卡时，`knowledge_status` 返回 `ready` 并带 `source="repowiki"`，知识交接 mode 为 `external_consume_only`；不创建 `docs/` 骨架与 `knowledge-map.json`，不再自动声明 `feature_knowledge_incremental_sync`/`adr_changelog_todo_review` 交付物，增量 Job 创建短路、`knowledge bootstrap` 以 `knowledge_external_consume_only` 失败关闭。任务准入按任务文本与 scope 命中知识卡 frontmatter 的 `name`/`scope` 选卡作为上下文（`knowledge_context.source="repowiki"`，纯标准库定向解析 frontmatter，上限 200 张）；命中即 `context_quality=complete`，未命中沿用 `unresolved` 降级语义。知识交付不参与 `clone_ready` 判定（`.qoder` 常被 gitignore）。
+
+## 1.6.5 - 2026-08-05
+
+- Gate 分类改由宿主语义判断：facts 新增 `gate_assessment`（`gates` + 500 字符内非空 `rationale`）权威声明，声明即全部，非安全 Gate 不再做任务关键词与 scope 路径推断，简单任务不再被宽泛关键词拖入重流程；`security-sensitive`、`destructive-data`、`release-external` 安全底线 Gate 仍由控制器确定性强制并入（文本触发使用底线专用精确词表并带否定守卫，「不要部署」「删除注释」不命中）并记入 `gate_decision.floor_added`；准入响应与 task-package 新增 `gate_decision` 审计字段（`mode`/`declared_gates`/`rationale`/`floor_added`）；未声明时回退关键词推断，行为与旧版一致；任务中途基于实际变更路径的 Gate 绊线与增量/完整重新准入不受影响。
+
+- write_scope 内未归因写入默认由控制器自动归因：合同稳定且唯一阻断是 `unattributed_drift_overlap` 时，控制器代铸 `workspace_attribution` 收据（producer `("docs-harness", "auto_attribution")`）索引留痕、记录 `auto_attribution` 事件并继续本次 verify，响应新增 `auto_attributed_paths`；项目配置 `verification.auto_attribute_in_scope=false` 恢复 `provide_evidence` 补证据行为。范围之外的写入、其他阻断与高风险 Gate 处理不变。
+- 新增 `docs-harness/evidence-declaration/v1` 证据声明草案：宿主只声明 `type`/`write_set`/`changed_paths`/`read_set`/`concurrent_drift`/`conclusion`，`task_id`、`target_identity`、`package_fingerprint`、`cwd`、起止时间、`ttl`、digest 与 `read_set` 指纹全部由控制器代铸（producer `("docs-harness", "host_declaration")`），代铸后按完整 v2 收据同等校验索引；完整 `evidence-receipt/v2` 继续接受，缺 `type`、未知 `type`、越界路径失败关闭。
+- git_sync 远端漂移重新准入继承已落盘同步范围：用 `git diff --name-status 旧HEAD 新HEAD`（unborn 时对空树）算出 pull 已落盘文件记入 `git_sync_landed_scope`（跨多次漂移累积）并并入 `write_scope`，归因时与 `git_sync_scope` 同等自动认领；diff 之外的杂散写入依旧阻断。
+- git 漂移重新准入在旧方案指纹有效且方案合同除范围字段外逐字段相等时直接继承已冻结方案，`run --task-id` 单命令回到 `ready_planned`，省掉 context 与 run --plan 两轮。
+- `controlled_refs_namespace` 自动包含 `.git:refs/remotes/<remote>/HEAD`，`origin/HEAD` 的创建或更新不再误判为 `git_ref_scope_violation`。
+- 安装交付判定改用 git 自身比较（`git diff --quiet HEAD`）：`core.autocrlf=true` 等行尾转换配置下仅行尾差异不再让 `project check` 永远停在 `pending_commit`。
+
 ## 1.6.4 - 2026-08-04
 
 - 关闭“增量 Gate + 授权收据 + delta context”下一轮 verify 再次失效的循环：授权合同指纹未变时通过 `authorization-adoption/v1` 记录受控继承，证据同轮复用；每次 verify（含失败）都写入有界 `verification_attempt` 事件，`readmission_count` 纳入增量 Gate 重新准入；`changed_paths=[]` 不再创建知识增量与治理 Job。

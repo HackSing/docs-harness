@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v1",
-  "version": "1.6.4",
+  "version": "1.6.5",
   "cases": [
     {
       "id": "v2-read-only-intent",

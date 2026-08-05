@@ -1,10 +1,10 @@
-# Docs Harness v1.6.4 合同
+# Docs Harness v1.6.6 合同
 
 ## 1. 产品边界
 
 Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、证据、验收、后台治理和 Git 交付检查。它不自动提交、推送、发布、安装下游项目或修改 `.gitignore`，也不把源码、本地 Runtime、当前 HEAD、远端、fresh clone、发布产物和真实 UI 合并为一个完成结论。
 
-项目配置继续使用 `docs-harness/project-config/v4`，版本值为 `1.6.4`。Harness Home 缺失、没有合法 active 规则、规则指纹漂移、来源版本不一致或配置无效均失败关闭。
+项目配置继续使用 `docs-harness/project-config/v4`，版本值为 `1.6.6`。Harness Home 缺失、没有合法 active 规则、规则指纹漂移、来源版本不一致或配置无效均失败关闭。
 
 ## 2. task-package/v2
 
@@ -40,6 +40,8 @@ Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、�
 | `external_write` | `external_write` | 至少 `planned` |
 
 混合意图保留全部 `candidate_intents`，未来子句进入 `deferred_intents`，完成体只作为审查上下文；Gate 编译取当前任务最高变更面和风险结果。显式 facts 只能升级，不能把 `audit+fix`、`if-needed-fix` 或 `fetch+sync` 降级。英文短词按单词边界、路径按完整段匹配，`Claude Code`、`reviews`、`rapid`、`latest`、`authors` 不得产生无关 Gate。
+
+宿主可在 facts 中提交 `gate_assessment`（`{"gates": [...], "rationale": "..."}`，rationale 为 500 字符内非空字符串）对 Gate 做权威语义判断：声明后跳过非安全 Gate 的关键词与 scope 路径推断，最终 Gate = `gate_assessment.gates` ∪ 旧 `gates` 字段 ∪ 安全底线兜底。`security-sensitive`、`destructive-data`、`release-external` 三个安全底线 Gate 仍由控制器按任务文本与路径确定性强制并入（宿主只能加不能减），文本触发使用底线专用精确词表并带否定守卫（「不要部署」「先不推送」「删除注释」不命中），被强制并入的 Gate 记录在 `gate_decision.floor_added`。未声明时回退关键词推断（`gate_decision.mode=keyword_inferred`，行为与此前版本一致）。准入响应与 task-package 记录 `gate_decision`（`mode`/`declared_gates`/`rationale`/`floor_added`）供审计；任务中途基于实际变更路径的 Gate 绊线与增量/完整重新准入不受声明影响。
 
 路径范围只接受项目内相对路径、glob 或受控 Git 资源。完整句子、否定说明和自然语言边界返回 `invalid_scope_description`。自然语言约束应放入任务约束，不得伪装成路径。
 
@@ -123,6 +125,9 @@ external_state
 - `git_inspect` 只读，不要求逐文件写入范围；
 - `git_fetch` 只允许声明的远端 refs/objects 变化，HEAD、索引和工作区必须不变；
 - `git_sync` 绑定单一预检 OID，自动生成新增、修改、删除和重命名范围；
+- `controlled_refs_namespace` 自动包含 `.git:refs/remotes/<remote>/HEAD`（由 `git_scope` 的远端引用推导），`origin/HEAD` 的创建或更新不再判为 ref 越界；
+- 远端漂移重新准入时，用 `git diff --name-status 旧HEAD 新HEAD`（旧 HEAD 为 unborn 时对空树 diff）算出 pull 已落盘文件，记入任务包 `git_sync_landed_scope`（跨多次漂移累积）并并入 `write_scope`；归因时与 `git_sync_scope` 同等待遇自动认领，diff 之外的杂散写入依旧阻断；
+- 远端漂移重新准入时，若旧方案受管副本指纹仍有效且新旧方案合同除范围字段外逐字段相等，新 compiled 直接继承已冻结的 `plan_ref`/`plan_fingerprint`/`plan_artifact`，单条 `run --task-id` 即回到 `ready_planned`；合同变化照旧重交方案；
 - 远端漂移、ref 越界、非 fast-forward、分支分歧、重叠脏改动、危险删除、LFS/Submodule 不可验证均失败关闭；
 - 通过只证明对应 Git 层，不扩大为构建、运行、远端交付或 UI 完成。
 
@@ -149,7 +154,7 @@ external_state
 
 | 处置 | 条件 | 退出码 |
 |---|---|---|
-| `provide_evidence` | 未归因写入全部在 `write_scope` 内，可补证据归因 | `3`，不增 package revision |
+| `provide_evidence` | 未归因写入全部在 `write_scope` 内，可补证据归因（默认由控制器代铸 `workspace_attribution` 收据自动认领，见第 6 节 `auto_attribute_in_scope`；开关关闭时才走此处置） | `3`，不增 package revision |
 | `refresh_evidence` | 读取基线漂移，只失效引用漂移路径的证据后重读 | `3`，不增 package revision |
 | `retry_verification` | 验证命令失败，输入不变 | `3` |
 | `incremental_admission` | 仅追加普通 Gate 且合同不变 | `3` |
@@ -194,6 +199,23 @@ external_state
 `produces` 只能使用证据白名单。命令退出 0、输出摘要和工作区无额外交付写入同时满足后，控制器生成并持久化 v2 收据；原始 stdout/stderr 不进入 Runtime。只容忍验证期间新建的已知临时副产物：`__pycache__`、`.pytest_cache`、`.mypy_cache`、`.ruff_cache`、`.tox`、`.nox`、`.hypothesis`、`.cache`、`.nyc_output`、`htmlcov` 等缓存目录，`.pyc|.pyo|.tmp|.temp|.swp|.bak|.log` 后缀，`.coverage`（含并行分片）、`.DS_Store`、`Thumbs.db`、`.eslintcache` 和编辑器临时文件；同名已有文件被修改或删除仍阻断。项目可在 `.docs-harness/config.json` 的 `verification.volatile_paths` 追加带固定根目录的 glob 白名单，`*|**`、越界、绝对路径和控制面路径失败关闭。被容忍的新建写入进入 `volatile_write_set` 保持可见，其余写入仍使命令失败并只列出阻断路径。
 
 宿主提交的证据文件在验收时复制进受管 artifact store（任务 Runtime 内），准入只依赖受管副本；原始文件事后删除或修改不影响已采纳证据，收据保留 `artifact_ref` 指回副本。
+
+证据可以简化为 `docs-harness/evidence-declaration/v1` 声明草案，宿主只提供声明正文：
+
+```json
+{
+  "schema_version": "docs-harness/evidence-declaration/v1",
+  "type": "test_result",
+  "write_set": ["src/core.py"],
+  "read_set": ["docs/architecture.md"],
+  "concurrent_drift": [],
+  "conclusion": "验收通过"
+}
+```
+
+`type`、`write_set`、`changed_paths`、`read_set`、`concurrent_drift`、`conclusion` 由宿主声明；`task_id`、`target_identity`、`package_fingerprint`、`cwd`、起止时间、`ttl=3600`、`exit_code=0`、两个 digest（对声明正文计算）以及 `read_set` 各路径的当前指纹全部由控制器代铸，producer 记 `("docs-harness", "host_declaration")`。代铸后按完整 v2 收据同等校验、索引并保存受管副本，信任等级与宿主自铸收据持平；缺 `type`、`type` 不在白名单、路径越界等按现有校验失败关闭。完整 `evidence-receipt/v2` 格式继续接受。
+
+合同稳定且唯一阻断是 `write_scope` 内未归因写入时，控制器默认代铸一张 `workspace_attribution` 收据（producer `("docs-harness", "auto_attribution")`，`write_set` 为这批路径）自动认领，索引后写入 `auto_attribution` 事件并继续本次 verify，响应新增 `auto_attributed_paths` 字段；项目可在 `.docs-harness/config.json` 设置 `verification.auto_attribute_in_scope=false` 恢复 `provide_evidence` 补证据行为。范围之外的写入、其他阻断与高风险 Gate 处理不变。
 
 验证命令使用 `docs-harness/verification-command-receipt/v1` 逐项收据：命令按 argv、声明 `produces` 与输入指纹（读取集与工作区相关写入）绑定。输入不变且上次通过的命令直接复用收据（`cache_hit=true`），不重复执行；输入变化、上次失败或 volatile 副产物改变输入时重跑。只重跑失败或输入变化的命令，其余沿用通过收据。项目可在 `.docs-harness/config.json` 设置 `verification.command_cache_enabled=false` 整体关闭复用；关闭时不读不写收据缓存，验证事件记录 `command_cache_enabled=false`。
 
@@ -317,7 +339,9 @@ contract_ready → background prepare → 宿主 Goal/Plan → dispatched → ru
 
 retry 只归档当前 attempt 工件、推进 attempt、清空准备引用并刷新基线，不生成新工件。后台事件仅保存有界状态、attempt、工作包 ID、原因码和指纹，不保存 Plan 正文、异常正文、任务正文、环境变量、宿主会话或调用者绝对临时路径；连续相同拒绝幂等去重。终态摘要以 `(job_id, attempt, status)` 为键。
 
-`project init|upgrade` 共享 `knowledge_flow`：`already_ready` 不创建初始化动作；`bootstrap_new` 幂等创建单一 bootstrap；`bootstrap_in_progress` 复用活动 Job；`audit_existing` 保持零知识内容写入并返回 audit/consent 下一步。任一非终态 bootstrap 都会阻塞增量 Job。只有 bootstrap `updated|no_change` 且控制器复算知识 ready 才释放等待者；其他结果进入 `needs_user_input`。所有知识 Job 的 `updated|no_change` 都要求最终 ready，候选地图在落盘前按实际功能文档纯读取复算。
+`project init|upgrade` 共享 `knowledge_flow`：`already_ready` 不创建初始化动作；`bootstrap_new` 幂等创建单一 bootstrap；`bootstrap_in_progress` 复用活动 Job；`audit_existing` 保持零知识内容写入并返回 audit/consent 下一步；`external_consume_only`（项目存在 `.qoder/repowiki` 外部知识库）不创建任何知识动作。任一非终态 bootstrap 都会阻塞增量 Job。只有 bootstrap `updated|no_change` 且控制器复算知识 ready 才释放等待者；其他结果进入 `needs_user_input`。所有知识 Job 的 `updated|no_change` 都要求最终 ready，候选地图在落盘前按实际功能文档纯读取复算。
+
+外部只消费知识源：项目存在 `.qoder/repowiki/knowledge/<locale>/`（含知识卡 `.md`）时，`knowledge_status` 直接返回 `ready` 且带 `source="repowiki"`，不再检查 `docs/` 与 `knowledge-map.json`；准入上下文按任务文本与 scope 命中知识卡 frontmatter 的 `name`/`scope` 选卡（`knowledge_context.source="repowiki"`），命中即 `context_quality=complete`，未命中沿用 `unresolved` 降级语义；知识卡数量上限 200。该模式下不创建 `docs/` 骨架、不自动声明 `feature_knowledge_incremental_sync`/`adr_changelog_todo_review` 交付物、增量 Job 创建短路返回 `knowledge_external_consume_only`，`knowledge bootstrap` 以同码失败关闭（退出码 3）；知识交付不参与 `clone_ready` 判定（`knowledge_delivery_status="external_repowiki"`）。
 
 知识审查与工作量估算共享过滤器。`.git`、`.docs-harness`、依赖/构建/缓存目录、`.playwright-cli`、`zbuddy-output`、敏感路径及图片、音视频、压缩包、DMG、Office/PPT 等资产默认排除；响应返回 `excluded_summary`。assessment、consent 与 decline cache 绑定实际返回库存生成的 `knowledge_inventory_fingerprint`。
 
