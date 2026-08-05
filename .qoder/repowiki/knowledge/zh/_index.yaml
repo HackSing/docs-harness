@@ -1,0 +1,31 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: zh-CN
+branch: main
+nodes_managed: true
+exported_at: "2026-08-05T10:51:13Z"
+modules:
+    "":
+        dir_name: Docs Harness 控制技能根包
+        title: Docs Harness 控制技能根包
+        scope:
+            - SKILL.md
+            - .gitignore
+            - package.json
+            - CHANGELOG.md
+            - README.md
+            - VERSION
+        source_files: []
+        children:
+            - documentation
+        depends_on: []
+        related_to: []
+    documentation:
+        dir_name: Docs Harness 项目文档与合同
+        title: Docs Harness 项目文档与合同
+        scope:
+            - docs/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
