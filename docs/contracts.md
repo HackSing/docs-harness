@@ -77,6 +77,21 @@ ready_extended
 
 合同与方案一次冻结：package revision 变化时控制器生成 `contract_delta`（新增证据类型、收据、条件项与阻断项）并归档到 `package-history`；新增 Gate 只缺方案字段时返回 `complete_plan_delta` 和 `plan_delta_contract`，宿主只补充缺失字段，不重做完整方案。上下文正文按 task、stage、compiler contract 与内容指纹跨阶段复用，不随 revision 重复加载。
 
+完成回执保留兼容字段，同时携带结构化 `delivery_layers`。每一层包含 `expectation`（`not_applicable|not_requested|required`）、`status`（`not_verified|verified`）与 `evidence_refs`；最小层级为：
+
+```text
+source
+local_verification
+git_head
+remote_delivery
+fresh_clone
+release_artifact
+ui
+external_state
+```
+
+`query|audit|git_inspect` 默认将 `remote_delivery` 与 `fresh_clone` 标记为 `not_applicable`；本地 `modify` 未声明 Git 或外部交付时标记为 `not_requested`；`git_sync|external_write` 或成功标准明确要求远端、发布、安装或 fresh clone 时标记为 `required`。`acceptance_layers` 只列出证据已验证的层，不再由完成函数固定生成；`known_limit_codes` 只从 `expectation=required` 且未验证的层派生，`remote_delivery_not_verified` 不再是无条件默认值。`not_applicable|not_requested` 不产生“未验证”告警，但必须在 `delivery_layers` 中可见。远端、fresh clone、发布产物与 UI 证据分别绑定独立证据类型（`remote_delivery`、`fresh_clone_verification`、`release_acceptance`、`ui_acceptance`），不得由一个 Git 后检统一推导。
+
 ## 4. Git 状态合同
 
 `git_fetch|git_sync` 绑定 `git_state_snapshot`：
@@ -209,6 +224,39 @@ harness task migrate --task-id <id> --apply
 迁移不静默执行。apply 在 `migration-v1-v2/` 创建 staging、全对象 backup、manifest 和 journal，再切换 task-package、compiled-task、freeze、evidence-index、context receipts 和 authorization receipts。任一步中断都按全对象备份回滚；首次 workspace 基线保持不变。旧 evidence 只读保存在 `legacy_evidence`，不满足 v2 任务。
 
 迁移后任务进入 `needs_readmission`。存在活动 v2 任务时 `project rollback-check` 返回 `active_v2_tasks`；没有活动任务时只表示回滚窗口可用。回滚后的 v2 对象只读保留，旧控制器遇到 v2 对象必须失败关闭。
+
+## 8.1 任务终结处置
+
+v2 任务取消：
+
+```bash
+harness task cancel --task-id <id> --reason-code <reason-code>
+harness task cancel --task-id <id> --reason-code <reason-code> --apply
+```
+
+缺省为预览，只有显式 `--apply` 才写入。受控原因码为 `host_task_closed|superseded|duplicate|invalid_admission|operator_abandoned`。取消前要求对象为有效 v2 任务、任务包与编译状态及 freeze 指纹一致、当前状态不是 `complete|cancelled|failed`、不存在活动状态锁。取消只把 `compiled-task.json.control_status` 置为 `cancelled`、清空 `next_action` 并记录 `cancelled_at` 与受控原因码，同时向 `events.jsonl` 追加不可变 `task_cancelled` 事件；任务包、freeze、既有证据与上下文收据不被改写。相同任务相同原因重复取消返回同一幂等结果，不同原因返回 `task_cancel_conflict`，不得覆盖首次处置事实。取消不可改回活动状态；需要继续原目标时创建新任务并引用原任务。
+
+v1 对象保持只读，通过 `task archive` 写入独立的 `docs-harness/task-disposition-index/v1` 处置索引：
+
+```text
+task_id
+source_schema
+source_object_fingerprint
+disposition=archived
+reason_code
+recorded_at
+```
+
+归档只影响任务列表和治理候选，不修改 v1 任务目录。`task list` 默认隐藏已归档对象，显式 `--include-archived` 才展示；源对象指纹漂移时归档失效并失败关闭（`archive_source_drift`）。归档不替代 v1→v2 显式迁移合同。
+
+终态清理：
+
+```bash
+harness task prune --target . --older-than 30 --dry-run
+harness task prune --target . --older-than 30 --apply
+```
+
+dry-run 把候选清单（含状态指纹）冻结到 `task-prune-candidates.json`；`--apply` 只删除冻结清单中指纹未变化且仍满足条件的对象，没有冻结清单时失败关闭。候选必须处于 `complete|cancelled|failed` 终态或已归档 v1、超过保留期、处置事件可追溯，且不存在锁、未终结子 Job、`completed_with_finding` 或 `critical_followup` 严重发现。物理 prune 一旦执行不承诺恢复。
 
 ## 9. 脱敏效率事件
 

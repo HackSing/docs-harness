@@ -127,7 +127,49 @@ KNOWN_LIMIT_CODES = {
     "ui_not_verified",
     "release_artifact_not_verified",
     "remote_delivery_not_verified",
+    "fresh_clone_not_verified",
     "external_state_not_verified",
+}
+TASK_DISPOSITION_REASON_CODES = {
+    "host_task_closed",
+    "superseded",
+    "duplicate",
+    "invalid_admission",
+    "operator_abandoned",
+}
+TASK_DISPOSITION_INDEX_SCHEMA = "docs-harness/task-disposition-index/v1"
+DELIVERY_LAYER_ORDER = (
+    "source",
+    "local_verification",
+    "git_head",
+    "remote_delivery",
+    "fresh_clone",
+    "release_artifact",
+    "ui",
+    "external_state",
+)
+DELIVERY_READ_ONLY_INTENTS = {"query", "audit", "git_inspect"}
+DELIVERY_REMOTE_REQUIRE_RE = re.compile(r"远端|远程|推送|部署|\bpush\b|\bdeploy\b", re.IGNORECASE)
+DELIVERY_FRESH_CLONE_RE = re.compile(r"fresh\s*clone|全新克隆|干净克隆", re.IGNORECASE)
+DELIVERY_RELEASE_RE = re.compile(r"发布|\brelease\b", re.IGNORECASE)
+DELIVERY_INSTALL_RE = re.compile(r"安装到|\binstall\b", re.IGNORECASE)
+DELIVERY_LAYER_LIMIT_CODES = {
+    "source": "source_not_verified",
+    "local_verification": "local_runtime_not_verified",
+    "remote_delivery": "remote_delivery_not_verified",
+    "fresh_clone": "fresh_clone_not_verified",
+    "release_artifact": "release_artifact_not_verified",
+    "ui": "ui_not_verified",
+    "external_state": "external_state_not_verified",
+}
+DELIVERY_LIMIT_DETAILS = {
+    "source_not_verified": "源码层证据未通过或已失效",
+    "local_runtime_not_verified": "本地验证被要求但尚未通过",
+    "ui_not_verified": "未取得真实界面验收证据",
+    "release_artifact_not_verified": "发布产物被要求但尚未验证",
+    "remote_delivery_not_verified": "远端交付被要求但尚未验证",
+    "fresh_clone_not_verified": "fresh clone 验收被要求但尚未验证",
+    "external_state_not_verified": "外部状态变更被要求但尚未验证",
 }
 QUALITY_REVIEW_MAX_BYTES = 64 * 1024
 QUALITY_TEXT_MAX_CHARS = 500
@@ -205,6 +247,9 @@ HIGH_RISK_EVIDENCE_TYPES = {
     "security_acceptance",
     "external_state",
     "recovery_acceptance",
+    "remote_delivery",
+    "fresh_clone_verification",
+    "release_acceptance",
 }
 
 
@@ -3141,8 +3186,402 @@ def migrate_v1_task_state(
     }
 
 
+def task_disposition_index_path(target: Path) -> Path:
+    return runtime_root(target) / "task-dispositions.json"
+
+
+@contextlib.contextmanager
+def disposition_index_lock(target: Path) -> Iterator[None]:
+    root = runtime_root(target)
+    root.mkdir(parents=True, exist_ok=True)
+    lock = root / "task-dispositions.lock"
+    try:
+        fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise HarnessError("任务处置索引正在被另一个进程更新", code="disposition_index_locked") from exc
+    try:
+        os.write(fd, f"pid={os.getpid()} at={utc_now()}\n".encode("utf-8"))
+        os.close(fd)
+        yield
+    finally:
+        with contextlib.suppress(FileNotFoundError):
+            lock.unlink()
+
+
+def read_task_disposition_index(target: Path) -> dict[str, Any]:
+    path = task_disposition_index_path(target)
+    if not path.is_file():
+        return {"schema_version": TASK_DISPOSITION_INDEX_SCHEMA, "dispositions": []}
+    value = read_json(path)
+    if not isinstance(value, dict) or value.get("schema_version") != TASK_DISPOSITION_INDEX_SCHEMA or not isinstance(value.get("dispositions"), list):
+        raise HarnessError("任务处置索引无效", code="invalid_disposition_index", exit_code=1)
+    return value
+
+
+def write_task_disposition_index(target: Path, index: dict[str, Any]) -> None:
+    task_disposition_index_path(target).parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_json(task_disposition_index_path(target), index)
+
+
+def archived_dispositions(target: Path) -> dict[str, dict[str, Any]]:
+    """已归档 v1 处置索引；源对象漂移或缺失时失败关闭。"""
+    result: dict[str, dict[str, Any]] = {}
+    for entry in read_task_disposition_index(target)["dispositions"]:
+        if not isinstance(entry, dict) or entry.get("disposition") != "archived":
+            continue
+        task_id = str(entry.get("task_id", ""))
+        validate_task_id(task_id)
+        package_path = runtime_root(target) / task_id / "task-package.json"
+        if not package_path.is_file() or file_fingerprint(package_path) != entry.get("source_object_fingerprint"):
+            raise HarnessError("归档源对象指纹已变化，归档失效", code="archive_source_drift", exit_code=1)
+        result[task_id] = entry
+    return result
+
+
+def task_lock_error(state: Path) -> HarnessError | None:
+    """取消/归档预检：区分活动锁与超过 5 分钟的陈旧锁，与 state_lock 语义一致。"""
+    lock = state / ".lock"
+    if not lock.exists():
+        return None
+    try:
+        age = time.time() - lock.stat().st_mtime
+    except FileNotFoundError:
+        return None
+    if age > 300:
+        return HarnessError("检测到超过 5 分钟的状态锁；需人工确认后清理", code="stale_lock")
+    return HarnessError("同一任务正在被另一个进程更新", code="state_locked")
+
+
+def task_cancel(target: Path, state: Path, task_id: str, reason_code: str | None, *, apply: bool) -> tuple[int, dict[str, Any]]:
+    if not reason_code:
+        raise HarnessError("task cancel 必须提供 --reason-code", code="missing_reason_code")
+    if reason_code not in TASK_DISPOSITION_REASON_CODES:
+        raise HarnessError("取消原因码不受支持", code="invalid_cancel_reason")
+    package = read_json(state / "task-package.json")
+    compiled = read_json(state / "compiled-task.json")
+    freeze = read_json(state / "freeze.json")
+    if isinstance(package, dict) and package.get("schema_version") == LEGACY_TASK_SCHEMA:
+        raise HarnessError("v1 任务不能取消，只能只读归档", code="legacy_task_not_cancellable")
+    if not isinstance(package, dict) or package.get("schema_version") != TASK_SCHEMA:
+        raise HarnessError("任务包 schema 无效", code="invalid_state")
+    if package_fingerprint(package) != compiled.get("package_fingerprint") or compiled.get("package_fingerprint") != freeze.get("package_fingerprint"):
+        raise HarnessError("任务包与编译状态指纹不一致", code="stale_state")
+    status = str(compiled.get("control_status"))
+    fingerprint = package_fingerprint(package)
+    if status == "cancelled":
+        if compiled.get("cancellation_reason_code") != reason_code:
+            raise HarnessError("任务已按其他原因取消，不得覆盖首次处置事实", code="task_cancel_conflict")
+        return 0, {
+            "action": "cancel",
+            "task_id": task_id,
+            "mode": "apply",
+            "previous_status": compiled.get("cancellation_previous_status", "cancelled"),
+            "new_status": "cancelled",
+            "reason_code": reason_code,
+            "task_fingerprint": fingerprint,
+            "event_ref": compiled.get("cancellation_event_ref"),
+            "idempotent": True,
+        }
+    if status in {"complete", "failed"}:
+        raise HarnessError("终态任务不能取消", code="task_already_terminal")
+    lock_error = task_lock_error(state)
+    if lock_error is not None:
+        raise lock_error
+    if not apply:
+        return 0, {
+            "action": "cancel",
+            "task_id": task_id,
+            "mode": "preview",
+            "previous_status": status,
+            "new_status": "cancelled",
+            "reason_code": reason_code,
+            "task_fingerprint": fingerprint,
+            "event_ref": None,
+            "idempotent": False,
+        }
+    with state_lock(state):
+        current = read_json(state / "compiled-task.json")
+        if current.get("control_status") != status:
+            raise HarnessError("取消期间任务状态已变化，拒绝覆盖", code="task_state_changed")
+        if current.get("package_fingerprint") != fingerprint:
+            raise HarnessError("任务包与编译状态指纹不一致", code="stale_state")
+        events = read_jsonl(state / "events.jsonl")
+        recorded = next(
+            (
+                index + 1
+                for index, item in enumerate(events)
+                if item.get("event") == "task_cancelled" and item.get("reason_code") == reason_code
+            ),
+            None,
+        )
+        if recorded is not None:
+            event_ref = f"events.jsonl#{recorded}"
+        else:
+            event_ref = f"events.jsonl#{len(events) + 1}"
+            append_task_event(
+                state,
+                package,
+                event="task_cancelled",
+                phase="lifecycle",
+                reason_code=reason_code,
+                previous_status=status,
+            )
+        cancelled_at = utc_now()
+        current.update(
+            {
+                "control_status": "cancelled",
+                "next_action": "none",
+                "cancelled_at": cancelled_at,
+                "cancellation_reason_code": reason_code,
+                "cancellation_previous_status": status,
+                "cancellation_event_ref": event_ref,
+                "updated_at": cancelled_at,
+            }
+        )
+        atomic_write_json(state / "compiled-task.json", current)
+    return 0, {
+        "action": "cancel",
+        "task_id": task_id,
+        "mode": "apply",
+        "previous_status": status,
+        "new_status": "cancelled",
+        "reason_code": reason_code,
+        "task_fingerprint": fingerprint,
+        "event_ref": event_ref,
+        "idempotent": False,
+    }
+
+
+def task_archive(target: Path, state: Path, task_id: str, reason_code: str | None, *, apply: bool) -> tuple[int, dict[str, Any]]:
+    if not reason_code:
+        raise HarnessError("task archive 必须提供 --reason-code", code="missing_reason_code")
+    if reason_code not in TASK_DISPOSITION_REASON_CODES:
+        raise HarnessError("归档原因码不受支持", code="invalid_archive_reason")
+    package = read_json(state / "task-package.json")
+    if not isinstance(package, dict) or package.get("schema_version") != LEGACY_TASK_SCHEMA:
+        raise HarnessError("只有 v1 只读任务可以归档；v2 任务使用 task cancel", code="invalid_archive_target")
+    source_fingerprint = file_fingerprint(state / "task-package.json")
+    if not apply:
+        index = read_task_disposition_index(target)
+        existing = next(
+            (item for item in index["dispositions"] if isinstance(item, dict) and item.get("task_id") == task_id),
+            None,
+        )
+        if existing is not None:
+            if existing.get("source_object_fingerprint") != source_fingerprint:
+                raise HarnessError("归档源对象指纹已变化，归档失效", code="archive_source_drift", exit_code=1)
+            if existing.get("reason_code") != reason_code:
+                raise HarnessError("任务已按其他原因归档，不得覆盖首次处置事实", code="task_archive_conflict")
+            return 0, {**existing, "action": "archive", "mode": "apply", "idempotent": True}
+        entry = {
+            "task_id": task_id,
+            "source_schema": package["schema_version"],
+            "source_object_fingerprint": source_fingerprint,
+            "disposition": "archived",
+            "reason_code": reason_code,
+            "recorded_at": utc_now(),
+        }
+        return 0, {**entry, "action": "archive", "mode": "preview", "idempotent": False}
+    with disposition_index_lock(target):
+        index = read_task_disposition_index(target)
+        existing = next(
+            (item for item in index["dispositions"] if isinstance(item, dict) and item.get("task_id") == task_id),
+            None,
+        )
+        if existing is not None:
+            if existing.get("source_object_fingerprint") != source_fingerprint:
+                raise HarnessError("归档源对象指纹已变化，归档失效", code="archive_source_drift", exit_code=1)
+            if existing.get("reason_code") != reason_code:
+                raise HarnessError("任务已按其他原因归档，不得覆盖首次处置事实", code="task_archive_conflict")
+            return 0, {**existing, "action": "archive", "mode": "apply", "idempotent": True}
+        entry = {
+            "task_id": task_id,
+            "source_schema": package["schema_version"],
+            "source_object_fingerprint": source_fingerprint,
+            "disposition": "archived",
+            "reason_code": reason_code,
+            "recorded_at": utc_now(),
+        }
+        index["dispositions"].append(entry)
+        write_task_disposition_index(target, index)
+    return 0, {**entry, "action": "archive", "mode": "apply", "idempotent": False}
+
+
+def task_list(target: Path, *, include_archived: bool) -> tuple[int, dict[str, Any]]:
+    archived = archived_dispositions(target)
+    tasks: list[dict[str, Any]] = []
+    root = runtime_root(target)
+    for state in sorted(path for path in root.iterdir() if path.is_dir()) if root.is_dir() else []:
+        package_path = state / "task-package.json"
+        compiled_path = state / "compiled-task.json"
+        if not package_path.is_file() or not compiled_path.is_file():
+            continue
+        with contextlib.suppress(HarnessError):
+            package = read_json(package_path)
+            compiled = read_json(compiled_path)
+            task_id = str(package.get("task_id") or state.name)
+            if task_id in archived and not include_archived:
+                continue
+            tasks.append(
+                {
+                    "task_id": task_id,
+                    "schema_version": package.get("schema_version"),
+                    "control_status": compiled.get("control_status"),
+                    "disposition": "archived" if task_id in archived else None,
+                }
+            )
+    return 0, {"action": "list", "tasks": tasks, "count": len(tasks), "archived_count": len(archived)}
+
+
+def task_state_fingerprint(state: Path) -> str:
+    parts: list[str] = []
+    for path in sorted(state.rglob("*")):
+        if path.is_file() and path.name != ".lock":
+            parts.append(f"{path.relative_to(state)}:{file_fingerprint(path)}")
+    return sha256_text("\n".join(parts))
+
+
+def task_prune_candidates_path(target: Path) -> Path:
+    return runtime_root(target) / "task-prune-candidates.json"
+
+
+def task_prune_candidate_for_state(
+    target: Path,
+    state: Path,
+    cutoff: dt.datetime,
+    archived: dict[str, dict[str, Any]],
+    jobs: Sequence[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if (state / ".lock").exists():
+        return None
+    package_path = state / "task-package.json"
+    compiled_path = state / "compiled-task.json"
+    if not package_path.is_file() or not compiled_path.is_file():
+        return None
+    try:
+        package = read_json(package_path)
+        compiled = read_json(compiled_path)
+    except HarnessError:
+        return None
+    task_id = str(package.get("task_id") or state.name)
+    if any(
+        str(job.get("parent_task_id")) == task_id
+        and (
+            job.get("status") not in BACKGROUND_TERMINAL_STATES
+            or job.get("status") == "completed_with_finding"
+            or job.get("task_kind") == "critical_followup"
+        )
+        for job in jobs
+    ):
+        return None
+    schema = package.get("schema_version")
+    terminal_at: Any = None
+    disposition: str | None = None
+    control_status: Any = compiled.get("control_status")
+    if schema == TASK_SCHEMA:
+        if control_status not in ACTIVE_TASK_TERMINAL_STATUSES:
+            return None
+        try:
+            freeze = read_json(state / "freeze.json")
+        except HarnessError:
+            return None
+        if (
+            package_fingerprint(package) != compiled.get("package_fingerprint")
+            or compiled.get("package_fingerprint") != freeze.get("package_fingerprint")
+        ):
+            return None
+        if not read_jsonl(state / "events.jsonl"):
+            return None
+        terminal_at = compiled.get("cancelled_at") or compiled.get("completed_at") or compiled.get("failed_at")
+    elif schema == LEGACY_TASK_SCHEMA:
+        entry = archived.get(task_id)
+        if entry is None:
+            return None
+        disposition = "archived"
+        terminal_at = entry.get("recorded_at")
+    else:
+        return None
+    if not terminal_at:
+        return None
+    try:
+        when = dt.datetime.fromisoformat(str(terminal_at).replace("Z", "+00:00"))
+    except (ValueError, TypeError):
+        return None
+    if when > cutoff:
+        return None
+    return {
+        "task_id": task_id,
+        "schema_version": schema,
+        "control_status": control_status,
+        "disposition": disposition,
+        "terminal_at": terminal_at,
+        "state_fingerprint": task_state_fingerprint(state),
+    }
+
+
+def task_prune(target: Path, *, older_than: int | None, apply: bool, dry_run: bool) -> tuple[int, dict[str, Any]]:
+    if apply and dry_run:
+        raise HarnessError("--apply 与 --dry-run 不能同时使用", code="invalid_prune_request")
+    if older_than is None or older_than < 0:
+        raise HarnessError("--older-than 必须是非负天数", code="invalid_prune_request")
+    cutoff = dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=older_than)
+    archived = archived_dispositions(target)
+    jobs = list_background_jobs(target)
+    root = runtime_root(target)
+    states = sorted(path for path in root.iterdir() if path.is_dir()) if root.is_dir() else []
+    if not apply:
+        candidates = [
+            candidate
+            for state in states
+            if (candidate := task_prune_candidate_for_state(target, state, cutoff, archived, jobs)) is not None
+        ]
+        atomic_write_json(
+            task_prune_candidates_path(target),
+            {
+                "schema_version": "docs-harness/task-prune-candidates/v1",
+                "older_than": older_than,
+                "generated_at": utc_now(),
+                "candidates": candidates,
+            },
+        )
+        return 0, {"action": "prune", "mode": "dry_run", "candidates": candidates, "removed": []}
+    frozen_path = task_prune_candidates_path(target)
+    if not frozen_path.is_file():
+        raise HarnessError("task prune --apply 需要先执行 dry-run 冻结候选清单", code="prune_candidates_missing", exit_code=3)
+    frozen = read_json(frozen_path)
+    if not isinstance(frozen, dict) or frozen.get("schema_version") != "docs-harness/task-prune-candidates/v1" or not isinstance(frozen.get("candidates"), list):
+        raise HarnessError("任务 prune 候选清单无效", code="invalid_prune_candidates", exit_code=1)
+    removed: list[str] = []
+    with disposition_index_lock(target):
+        index = read_task_disposition_index(target)
+        index_changed = False
+        for item in frozen["candidates"]:
+            state = root / str(item.get("task_id", ""))
+            if not state.is_dir() or state.parent != root:
+                continue
+            current = task_prune_candidate_for_state(target, state, cutoff, archived, jobs)
+            if current is None or current["state_fingerprint"] != item.get("state_fingerprint"):
+                continue
+            if (state / ".lock").exists():
+                continue
+            shutil.rmtree(state)
+            if current["disposition"] == "archived":
+                index["dispositions"] = [entry for entry in index["dispositions"] if entry.get("task_id") != current["task_id"]]
+                index_changed = True
+            removed.append(current["task_id"])
+        if index_changed:
+            write_task_disposition_index(target, index)
+    return 0, {"action": "prune", "mode": "apply", "candidates": frozen["candidates"], "removed": removed}
+
+
 def command_task(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
+    if args.action == "list":
+        return task_list(target, include_archived=bool(args.include_archived))
+    if args.action == "prune":
+        return task_prune(target, older_than=args.older_than, apply=bool(args.apply), dry_run=bool(args.dry_run))
+    if not args.task_id:
+        raise HarnessError(f"task {args.action} 必须提供 --task-id", code="missing_task_id")
     validate_task_id(args.task_id)
     state = task_state_dir(target, args.task_id)
     if args.action == "status":
@@ -3157,6 +3596,10 @@ def command_task(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "compatibility_mode": "v1_read_only" if legacy else "v2",
             "migration_required": legacy,
         }
+    if args.action == "cancel":
+        return task_cancel(target, state, args.task_id, args.reason_code, apply=bool(args.apply))
+    if args.action == "archive":
+        return task_archive(target, state, args.task_id, args.reason_code, apply=bool(args.apply))
     return 0, migrate_v1_task_state(target, args.task_id, apply=bool(args.apply))
 
 
@@ -4331,6 +4774,9 @@ def known_evidence_types() -> set[str]:
         "ui_acceptance",
         "diagnostic_replay",
         "recovery_acceptance",
+        "remote_delivery",
+        "fresh_clone_verification",
+        "release_acceptance",
     }
     for spec in GATE_DEFS.values():
         result.update(str(item) for item in spec.get("evidence", ()))
@@ -5307,6 +5753,90 @@ def authorization_adoption_record(
     }
 
 
+def delivery_layer_entry(expectation: str, verified: bool, evidence_refs: Sequence[str]) -> dict[str, Any]:
+    return {
+        "expectation": expectation,
+        "status": "verified" if verified else "not_verified",
+        "evidence_refs": sorted(str(item) for item in evidence_refs),
+    }
+
+
+def build_delivery_layers(package: dict[str, Any], evidence_types: Sequence[str]) -> dict[str, Any]:
+    """按任务意图与成功标准推导每层交付适用性，只把已验证证据绑定到对应层。"""
+    intent = str(package.get("task_intent") or "")
+    read_only = intent in DELIVERY_READ_ONLY_INTENTS
+    git_operation = package.get("git_operation")
+    criteria = " ".join(str(item) for item in package.get("success_criteria", []))
+    types = {str(item) for item in evidence_types}
+    manifest = package.get("completion_manifest") if isinstance(package.get("completion_manifest"), dict) else {}
+    required_types = {str(item) for item in manifest.get("required_evidence_types", [])}
+
+    layers: dict[str, Any] = {
+        "source": delivery_layer_entry("required", bool(types), sorted(types)),
+    }
+    if read_only:
+        local_expectation = "not_applicable"
+    elif "test_result" in required_types or package.get("verification_commands"):
+        local_expectation = "required"
+    else:
+        local_expectation = "not_requested"
+    layers["local_verification"] = delivery_layer_entry(
+        local_expectation, "test_result" in types, ["test_result"] if "test_result" in types else []
+    )
+    if git_operation in {"git_fetch", "git_sync"}:
+        git_result_type = f"{git_operation}_result"
+        layers["git_head"] = delivery_layer_entry(
+            "required", git_result_type in types, [git_result_type] if git_result_type in types else []
+        )
+    else:
+        layers["git_head"] = delivery_layer_entry("not_applicable", False, [])
+    if read_only:
+        remote_expectation = "not_applicable"
+    elif intent in {"git_sync", "external_write"} or DELIVERY_REMOTE_REQUIRE_RE.search(criteria):
+        remote_expectation = "required"
+    else:
+        remote_expectation = "not_requested"
+    layers["remote_delivery"] = delivery_layer_entry(
+        remote_expectation, "remote_delivery" in types, ["remote_delivery"] if "remote_delivery" in types else []
+    )
+    if read_only:
+        fresh_clone_expectation = "not_applicable"
+    elif DELIVERY_FRESH_CLONE_RE.search(criteria):
+        fresh_clone_expectation = "required"
+    else:
+        fresh_clone_expectation = "not_requested"
+    layers["fresh_clone"] = delivery_layer_entry(
+        fresh_clone_expectation,
+        "fresh_clone_verification" in types,
+        ["fresh_clone_verification"] if "fresh_clone_verification" in types else [],
+    )
+    if read_only:
+        release_expectation = "not_applicable"
+    elif DELIVERY_RELEASE_RE.search(criteria):
+        release_expectation = "required"
+    else:
+        release_expectation = "not_requested"
+    layers["release_artifact"] = delivery_layer_entry(
+        release_expectation,
+        "release_acceptance" in types,
+        ["release_acceptance"] if "release_acceptance" in types else [],
+    )
+    ui_expectation = "required" if "frontend-design" in package.get("matched_gates", []) else "not_applicable"
+    layers["ui"] = delivery_layer_entry(
+        ui_expectation, "ui_acceptance" in types, ["ui_acceptance"] if "ui_acceptance" in types else []
+    )
+    if intent == "external_write" or DELIVERY_INSTALL_RE.search(criteria):
+        external_expectation = "required"
+    elif read_only:
+        external_expectation = "not_applicable"
+    else:
+        external_expectation = "not_requested"
+    layers["external_state"] = delivery_layer_entry(
+        external_expectation, "external_state" in types, ["external_state"] if "external_state" in types else []
+    )
+    return layers
+
+
 def minimum_delivery_receipt(
     package: dict[str, Any],
     changed_paths: Sequence[str],
@@ -5314,17 +5844,22 @@ def minimum_delivery_receipt(
     jobs: Sequence[dict[str, Any]],
     background_status: str,
 ) -> dict[str, Any]:
-    limit_codes = ["remote_delivery_not_verified"]
-    limit_details = ["未验证提交 HEAD、远端接收和 fresh clone"]
-    if "frontend-design" in package.get("matched_gates", []) and "ui_acceptance" not in evidence_types:
-        limit_codes.append("ui_not_verified")
-        limit_details.append("未取得真实界面验收证据")
+    layers = build_delivery_layers(package, evidence_types)
+    limit_codes = [
+        DELIVERY_LAYER_LIMIT_CODES[name]
+        for name in DELIVERY_LAYER_ORDER
+        if name in DELIVERY_LAYER_LIMIT_CODES
+        and layers[name]["expectation"] == "required"
+        and layers[name]["status"] != "verified"
+    ]
+    limit_details = [DELIVERY_LIMIT_DETAILS[code] for code in limit_codes]
     return {
         "result": "完成",
         "control_status": "complete",
         "delivered_value": list(package.get("success_criteria", [])),
         "changed_paths": list(changed_paths),
-        "acceptance_layers": ["source", "local_verification"],
+        "acceptance_layers": [name for name in DELIVERY_LAYER_ORDER if layers[name]["status"] == "verified"],
+        "delivery_layers": layers,
         "minimum_evidence": [f"{item}:passed" for item in sorted(set(evidence_types))],
         "context_quality": package.get("context_quality", "complete"),
         "fallback_fact_refs": list(package.get("fallback_fact_refs", [])) or (list(changed_paths) if package.get("context_quality") == "degraded" else []),
@@ -8929,7 +9464,7 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 with contextlib.suppress(HarnessError):
                     package = read_json(package_path)
                     compiled = read_json(compiled_path)
-                    if package.get("schema_version") == TASK_SCHEMA and compiled.get("control_status") not in {"complete", "cancelled"}:
+                    if package.get("schema_version") == TASK_SCHEMA and compiled.get("control_status") not in ACTIVE_TASK_TERMINAL_STATUSES:
                         active.append(str(package.get("task_id") or state.name))
         route_blockers = [
             str(job.get("job_id")) for job in list_background_jobs(target)
@@ -9288,11 +9823,15 @@ def build_parser() -> argparse.ArgumentParser:
         help="结构化证据 JSON 文件路径，不接受内联内容，可重复",
     )
 
-    task = commands.add_parser("task", help="查询任务状态或显式迁移 v1 在途任务")
-    task.add_argument("action", choices=("status", "migrate"))
+    task = commands.add_parser("task", help="查询、取消、归档、清理任务或显式迁移 v1 在途任务")
+    task.add_argument("action", choices=("status", "migrate", "cancel", "archive", "list", "prune"))
     add_common_target(task)
-    task.add_argument("--task-id", required=True)
-    task.add_argument("--apply", action="store_true", help="显式应用 v1→v2 事务迁移")
+    task.add_argument("--task-id")
+    task.add_argument("--apply", action="store_true", help="显式应用迁移、取消、归档或清理；缺省仅预览")
+    task.add_argument("--reason-code", help="受控取消或归档原因码")
+    task.add_argument("--older-than", type=int, help="prune 候选的最小天数")
+    task.add_argument("--dry-run", action="store_true", help="显式声明仅生成 prune 候选")
+    task.add_argument("--include-archived", action="store_true", help="list 包含已归档 v1 对象")
 
     ledger = commands.add_parser("ledger", help="人工触发的个人本地质量账本")
     ledger.add_argument("action", choices=("add", "read"))

@@ -126,9 +126,10 @@ python3 scripts/harness.py verify \
 `result=完成` 的回执包含：
 
 - `delivered_value`；
-- `acceptance_layers`；
+- `acceptance_layers`：只列出证据已验证的交付层；
+- `delivery_layers`：每层交付的 `expectation`（`not_applicable|not_requested|required`）、`status` 与 `evidence_refs`；
 - `minimum_evidence`；
-- 受控 `known_limit_codes` 和人类说明；
+- 受控 `known_limit_codes` 和人类说明：只从“明确要求且尚未验证”的层派生，只读任务不再显示不适用的远端未验证提示；
 - `parent_completed_at`；
 - 后台 Job ID 与各自 `created_at`；没有声明后台交付物时返回 `post_completion.status=not_required`。
 
@@ -160,6 +161,23 @@ python3 scripts/harness.py project rollback-check --target . --json
 ```
 
 v1 任务默认只读兼容，不静默改写。显式迁移使用 staging、全对象备份、manifest 和 journal；中断自动回滚，迁移后必须按 v2 重新准入。存在活动 v2 任务时不允许项目回滚；v2 对象在回滚后只读保留，旧控制器遇到 v2 必须失败关闭。
+
+### 任务终结处置
+
+废弃的 v2 任务、v1 历史对象和超期终态对象有受支持的终结入口，不需要手工删除 Runtime 目录：
+
+```bash
+python3 scripts/harness.py task cancel --target . --task-id <task-id> --reason-code operator_abandoned --json
+python3 scripts/harness.py task cancel --target . --task-id <task-id> --reason-code operator_abandoned --apply --json
+python3 scripts/harness.py task archive --target . --task-id <task-id> --reason-code superseded --apply --json
+python3 scripts/harness.py task list --target . --json
+python3 scripts/harness.py task prune --target . --older-than 30 --dry-run --json
+python3 scripts/harness.py task prune --target . --older-than 30 --apply --json
+```
+
+- `cancel` 只把编译状态置为 `cancelled` 并追加不可变取消事件，不改写任务包、freeze 和既有证据；相同原因幂等，不同原因冲突失败；
+- `archive` 只写独立处置索引，v1 源对象保持只读；`task list` 默认隐藏已归档对象，源指纹漂移失败关闭；
+- `prune` 缺省 dry-run 并冻结候选清单，`--apply` 只删除清单中指纹未变化、已过保留期且无未终结子 Job 或严重发现的对象。
 
 ## 统一后台 Job
 
@@ -216,7 +234,7 @@ python3 scripts/harness.py knowledge update --target . --assessment <assessment.
 | Git | `<git-dir>/docs-harness/runs/` | `<git-dir>/docs-harness/background/` | `<git-dir>/docs-harness/quality-ledger/` |
 | 非 Git | `<project>/.docs-harness/runs/` | `<project>/.docs-harness/background/` | `<project>/.docs-harness/quality-ledger/` |
 
-Runtime、队列、锁、计划、进度和本地回执不进入 Git。真实知识、ADR、Changelog 和 TODO 按项目规则进入 Git 交付面。`background prune` 缺省只 dry-run；只有显式 `--apply` 才删除已终结、已索引且不含严重发现的 Job。
+Runtime、队列、锁、计划、进度和本地回执不进入 Git。真实知识、ADR、Changelog 和 TODO 按项目规则进入 Git 交付面。`background prune` 缺省只 dry-run；只有显式 `--apply` 才删除已终结、已索引且不含严重发现的 Job。`task prune` 同样缺省 dry-run 并冻结候选清单，`--apply` 只删除清单中指纹未变化的终态任务对象。
 
 ## 质量账本
 

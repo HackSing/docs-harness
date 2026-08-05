@@ -2322,7 +2322,8 @@ class DocsHarnessContractTest(unittest.TestCase):
         created = verified["background"]["job_created_at"]
         self.assertTrue(created)
         self.assertTrue(all(parent_time <= value for value in created.values()))
-        self.assertEqual(verified["known_limit_codes"], ["remote_delivery_not_verified"])
+        self.assertEqual(verified["known_limit_codes"], [])
+        self.assertEqual(verified["delivery_layers"]["remote_delivery"]["expectation"], "not_requested")
         self.assertEqual(verified["background"]["status"], "dispatch_required")
 
     def test_background_prune_is_dry_run_first_and_requires_terminal_summary(self) -> None:
@@ -4905,6 +4906,356 @@ class DocsHarnessContractTest(unittest.TestCase):
         missing = HARNESS_MODULE.resolve_document_routes(self.project, required_kinds=("architecture",))
         self.assertEqual(missing["status"], "unresolved")
         self.assertEqual(missing["reason_code"], "document_route_missing")
+
+    def downgrade_task_to_v1(self, task_id: str) -> Path:
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        for key in (
+            "task_intent", "candidate_intents", "mutation_profile", "read_scope", "write_scope",
+            "git_scope", "external_scope", "git_operation", "git_state_snapshot", "git_sync_scope",
+            "completion_manifest",
+        ):
+            package.pop(key, None)
+        package["schema_version"] = "docs-harness/task-package/v1"
+        package["package_revision"] = 1
+        fingerprint = HARNESS_MODULE.package_fingerprint(package)
+        compiled = json.loads((state / "compiled-task.json").read_text(encoding="utf-8"))
+        compiled.update({"schema_version": "docs-harness/compiled-task/v1", "package_revision": 1, "package_fingerprint": fingerprint})
+        freeze = json.loads((state / "freeze.json").read_text(encoding="utf-8"))
+        freeze.update({"schema_version": "docs-harness/freeze/v1", "package_revision": 1, "package_fingerprint": fingerprint})
+        (state / "task-package.json").write_text(json.dumps(package, ensure_ascii=False, indent=2), encoding="utf-8")
+        (state / "compiled-task.json").write_text(json.dumps(compiled, ensure_ascii=False, indent=2), encoding="utf-8")
+        (state / "freeze.json").write_text(json.dumps(freeze, ensure_ascii=False, indent=2), encoding="utf-8")
+        return state
+
+    def complete_query_task(self, task_text: str = "查询项目文档在哪") -> tuple[dict[str, Any], dict[str, Any]]:
+        _, routed = self.run_harness("run", "--target", str(self.project), "--task", task_text)
+        task_id = routed["task_id"]
+        source = self.project / "docs" / "INDEX.md"
+        evidence = self.evidence(
+            f"query-{task_id}",
+            evidence_type="source_trace",
+            covers=task_id,
+            changed_paths=[],
+            read_set=[{"path": "docs/INDEX.md", "fingerprint": HARNESS_MODULE.file_fingerprint(source)}],
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
+        )
+        return routed, verified
+
+    def test_v17_task_cancel_is_preview_first_idempotent_and_conflicting(self) -> None:
+        self.init_project()
+        _, routed = self.run_harness("run", "--target", str(self.project), "--task", "查询项目文档在哪")
+        task_id = routed["task_id"]
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        tracked = ("task-package.json", "freeze.json", "compiled-task.json")
+        before = {name: HARNESS_MODULE.file_fingerprint(state / name) for name in tracked}
+
+        _, invalid = self.run_harness(
+            "task", "cancel", "--target", str(self.project), "--task-id", task_id,
+            "--reason-code", "not_a_reason", expected=2,
+        )
+        self.assertEqual(invalid["code"], "invalid_cancel_reason")
+
+        _, preview = self.run_harness(
+            "task", "cancel", "--target", str(self.project), "--task-id", task_id, "--reason-code", "operator_abandoned"
+        )
+        self.assertEqual(preview["mode"], "preview")
+        self.assertEqual(preview["previous_status"], "ready_direct")
+        self.assertEqual(preview["new_status"], "cancelled")
+        self.assertFalse(preview["idempotent"])
+        self.assertEqual(before, {name: HARNESS_MODULE.file_fingerprint(state / name) for name in tracked})
+
+        _, applied = self.run_harness(
+            "task", "cancel", "--target", str(self.project), "--task-id", task_id,
+            "--reason-code", "operator_abandoned", "--apply",
+        )
+        self.assertEqual(applied["mode"], "apply")
+        self.assertEqual(applied["previous_status"], "ready_direct")
+        self.assertEqual(applied["new_status"], "cancelled")
+        self.assertEqual(applied["reason_code"], "operator_abandoned")
+        compiled = json.loads((state / "compiled-task.json").read_text(encoding="utf-8"))
+        self.assertEqual(compiled["control_status"], "cancelled")
+        self.assertEqual(compiled["next_action"], "none")
+        self.assertEqual(compiled["cancellation_reason_code"], "operator_abandoned")
+        self.assertTrue(compiled["cancelled_at"])
+        self.assertEqual(before["task-package.json"], HARNESS_MODULE.file_fingerprint(state / "task-package.json"))
+        self.assertEqual(before["freeze.json"], HARNESS_MODULE.file_fingerprint(state / "freeze.json"))
+        events = HARNESS_MODULE.read_jsonl(state / "events.jsonl")
+        cancel_events = [item for item in events if item.get("event") == "task_cancelled"]
+        self.assertEqual(len(cancel_events), 1)
+        self.assertEqual(cancel_events[0]["reason_code"], "operator_abandoned")
+
+        _, again = self.run_harness(
+            "task", "cancel", "--target", str(self.project), "--task-id", task_id,
+            "--reason-code", "operator_abandoned", "--apply",
+        )
+        self.assertTrue(again["idempotent"])
+        self.assertEqual(again["previous_status"], applied["previous_status"])
+        self.assertEqual(again["task_fingerprint"], applied["task_fingerprint"])
+        events = HARNESS_MODULE.read_jsonl(state / "events.jsonl")
+        self.assertEqual(sum(item.get("event") == "task_cancelled" for item in events), 1)
+
+        _, conflict = self.run_harness(
+            "task", "cancel", "--target", str(self.project), "--task-id", task_id,
+            "--reason-code", "duplicate", "--apply", expected=2,
+        )
+        self.assertEqual(conflict["code"], "task_cancel_conflict")
+        compiled = json.loads((state / "compiled-task.json").read_text(encoding="utf-8"))
+        self.assertEqual(compiled["cancellation_reason_code"], "operator_abandoned")
+
+        _, allowed = self.run_harness("project", "rollback-check", "--target", str(self.project))
+        self.assertTrue(allowed["rollback_allowed"])
+
+    def test_v17_task_cancel_protects_terminal_locked_and_legacy_tasks(self) -> None:
+        self.init_project()
+        routed, _ = self.complete_code_task("src/cancel-terminal.py")
+        _, terminal = self.run_harness(
+            "task", "cancel", "--target", str(self.project), "--task-id", routed["task_id"],
+            "--reason-code", "superseded", "--apply", expected=2,
+        )
+        self.assertEqual(terminal["code"], "task_already_terminal")
+
+        _, routed = self.run_harness("run", "--target", str(self.project), "--task", "查询项目文档在哪")
+        state = HARNESS_MODULE.task_state_dir(self.project, routed["task_id"])
+        (state / ".lock").write_text("pid=0\n", encoding="utf-8")
+        _, locked = self.run_harness(
+            "task", "cancel", "--target", str(self.project), "--task-id", routed["task_id"],
+            "--reason-code", "operator_abandoned", expected=2,
+        )
+        self.assertEqual(locked["code"], "state_locked")
+        (state / ".lock").unlink()
+
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "列出项目功能文档", "--new-task"
+        )
+        self.downgrade_task_to_v1(routed["task_id"])
+        _, legacy = self.run_harness(
+            "task", "cancel", "--target", str(self.project), "--task-id", routed["task_id"],
+            "--reason-code", "superseded", expected=2,
+        )
+        self.assertEqual(legacy["code"], "legacy_task_not_cancellable")
+
+    def test_v17_v1_archive_is_read_only_indexed_and_drift_fails_closed(self) -> None:
+        self.init_project()
+        _, routed = self.run_harness("run", "--target", str(self.project), "--task", "查询项目文档在哪")
+        task_id = routed["task_id"]
+        state = self.downgrade_task_to_v1(task_id)
+        before = self.snapshot_tree(state)
+        index_path = HARNESS_MODULE.runtime_root(self.project) / "task-dispositions.json"
+
+        _, preview = self.run_harness(
+            "task", "archive", "--target", str(self.project), "--task-id", task_id, "--reason-code", "superseded"
+        )
+        self.assertEqual(preview["mode"], "preview")
+        self.assertEqual(preview["disposition"], "archived")
+        self.assertEqual(self.snapshot_tree(state), before)
+        self.assertFalse(index_path.exists())
+
+        _, applied = self.run_harness(
+            "task", "archive", "--target", str(self.project), "--task-id", task_id,
+            "--reason-code", "superseded", "--apply",
+        )
+        self.assertEqual(applied["mode"], "apply")
+        self.assertEqual(applied["disposition"], "archived")
+        self.assertEqual(applied["source_object_fingerprint"], HARNESS_MODULE.file_fingerprint(state / "task-package.json"))
+        self.assertEqual(self.snapshot_tree(state), before)
+
+        _, again = self.run_harness(
+            "task", "archive", "--target", str(self.project), "--task-id", task_id,
+            "--reason-code", "superseded", "--apply",
+        )
+        self.assertTrue(again["idempotent"])
+        _, conflict = self.run_harness(
+            "task", "archive", "--target", str(self.project), "--task-id", task_id,
+            "--reason-code", "duplicate", "--apply", expected=2,
+        )
+        self.assertEqual(conflict["code"], "task_archive_conflict")
+
+        _, routed = self.run_harness("run", "--target", str(self.project), "--task", "列出项目功能文档")
+        _, rejected = self.run_harness(
+            "task", "archive", "--target", str(self.project), "--task-id", routed["task_id"],
+            "--reason-code", "superseded", expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_archive_target")
+
+        _, listing = self.run_harness("task", "list", "--target", str(self.project))
+        self.assertNotIn(task_id, [item["task_id"] for item in listing["tasks"]])
+        self.assertEqual(listing["archived_count"], 1)
+        _, full = self.run_harness("task", "list", "--target", str(self.project), "--include-archived")
+        entry = next(item for item in full["tasks"] if item["task_id"] == task_id)
+        self.assertEqual(entry["disposition"], "archived")
+
+        package_path = state / "task-package.json"
+        package = json.loads(package_path.read_text(encoding="utf-8"))
+        package["original_task"] = "被改写的历史任务"
+        package_path.write_text(json.dumps(package, ensure_ascii=False, indent=2), encoding="utf-8")
+        _, drifted = self.run_harness("task", "list", "--target", str(self.project), expected=1)
+        self.assertEqual(drifted["code"], "archive_source_drift")
+
+    def test_v17_task_prune_freezes_candidates_and_rechecks_fingerprints(self) -> None:
+        self.init_project()
+        completed_routed, _ = self.complete_query_task()
+        completed_id = completed_routed["task_id"]
+        _, routed = self.run_harness("run", "--target", str(self.project), "--task", "列出项目功能文档")
+        cancelled_id = routed["task_id"]
+        self.run_harness(
+            "task", "cancel", "--target", str(self.project), "--task-id", cancelled_id,
+            "--reason-code", "operator_abandoned", "--apply",
+        )
+        _, active = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修复项目核心模块代码", "--scope", "src/active.py"
+        )
+        active_id = active["task_id"]
+
+        _, combo = self.run_harness(
+            "task", "prune", "--target", str(self.project), "--older-than", "0",
+            "--dry-run", "--apply", expected=2,
+        )
+        self.assertEqual(combo["code"], "invalid_prune_request")
+        _, retained = self.run_harness(
+            "task", "prune", "--target", str(self.project), "--older-than", "30", "--dry-run"
+        )
+        self.assertEqual(retained["candidates"], [])
+
+        _, preview = self.run_harness(
+            "task", "prune", "--target", str(self.project), "--older-than", "0", "--dry-run"
+        )
+        self.assertEqual(preview["mode"], "dry_run")
+        candidate_ids = [item["task_id"] for item in preview["candidates"]]
+        self.assertIn(completed_id, candidate_ids)
+        self.assertIn(cancelled_id, candidate_ids)
+        self.assertNotIn(active_id, candidate_ids)
+        self.assertTrue(all(item["state_fingerprint"].startswith("sha256:") for item in preview["candidates"]))
+        self.assertTrue(HARNESS_MODULE.task_state_dir(self.project, completed_id).is_dir())
+
+        tampered = HARNESS_MODULE.task_state_dir(self.project, cancelled_id) / "post-preview-note.txt"
+        tampered.write_text("候选冻结后写入\n", encoding="utf-8")
+        _, applied = self.run_harness(
+            "task", "prune", "--target", str(self.project), "--older-than", "0", "--apply"
+        )
+        self.assertIn(completed_id, applied["removed"])
+        self.assertNotIn(cancelled_id, applied["removed"])
+        self.assertFalse(HARNESS_MODULE.task_state_dir(self.project, completed_id).exists())
+        self.assertTrue(HARNESS_MODULE.task_state_dir(self.project, cancelled_id).is_dir())
+        self.assertTrue(HARNESS_MODULE.task_state_dir(self.project, active_id).is_dir())
+
+    def test_v17_task_prune_blocks_on_open_child_jobs_and_findings(self) -> None:
+        self.init_project()
+        routed, verified = self.complete_code_task("src/prune-guard.py")
+        task_id = routed["task_id"]
+
+        _, preview = self.run_harness(
+            "task", "prune", "--target", str(self.project), "--older-than", "0", "--dry-run"
+        )
+        self.assertNotIn(task_id, [item["task_id"] for item in preview["candidates"]])
+
+        job_paths = {
+            job["job_id"]: HARNESS_MODULE.read_knowledge_job(self.project, job["job_id"])[0] / "job.json"
+            for job in verified["background_jobs"]
+        }
+
+        def set_job_status(job_id: str, status: str) -> None:
+            path = job_paths[job_id]
+            value = json.loads(path.read_text(encoding="utf-8"))
+            value["status"] = status
+            value["updated_at"] = HARNESS_MODULE.utc_now()
+            path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+
+        for job_id in job_paths:
+            set_job_status(job_id, "no_change")
+        _, preview = self.run_harness(
+            "task", "prune", "--target", str(self.project), "--older-than", "0", "--dry-run"
+        )
+        self.assertIn(task_id, [item["task_id"] for item in preview["candidates"]])
+
+        first_job = sorted(job_paths)[0]
+        set_job_status(first_job, "completed_with_finding")
+        _, preview = self.run_harness(
+            "task", "prune", "--target", str(self.project), "--older-than", "0", "--dry-run"
+        )
+        self.assertNotIn(task_id, [item["task_id"] for item in preview["candidates"]])
+
+        set_job_status(first_job, "running")
+        _, preview = self.run_harness(
+            "task", "prune", "--target", str(self.project), "--older-than", "0", "--dry-run"
+        )
+        self.assertNotIn(task_id, [item["task_id"] for item in preview["candidates"]])
+
+    def git_sync_task(self, name: str) -> str:
+        remote = self.temp_root / "remote.git"
+        if not (self.project / ".git").is_dir():
+            remote = self.init_git_remote()
+        other = self.temp_root / name
+        subprocess.run(["git", "clone", "-q", str(remote), str(other)], check=True)
+        (other / "synced.txt").write_text(f"from remote {name}\n", encoding="utf-8")
+        subprocess.run(["git", "add", "synced.txt"], cwd=other, check=True)
+        subprocess.run(
+            ["git", "-c", "user.name=Remote Test", "-c", "user.email=remote@example.invalid", "commit", "-q", "-m", "sync target"],
+            cwd=other,
+            check=True,
+        )
+        subprocess.run(["git", "push", "-q", "origin", "main"], cwd=other, check=True)
+        subprocess.run(["git", "fetch", "-q", "origin", "main"], cwd=self.project, check=True)
+        facts = self.write_json(
+            f"{name}-facts.json",
+            {"git_scope": [".git:refs/remotes/origin/main"]},
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "执行 git pull 同步远端", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan")
+        plan = self.plan_for()
+        self.run_harness("run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan))
+        subprocess.run(["git", "merge", "--ff-only", "origin/main"], cwd=self.project, check=True, capture_output=True)
+        return task_id
+
+    def test_v17_delivery_layers_distinguish_applicability_and_verification(self) -> None:
+        self.init_project()
+        _, query_verified = self.complete_query_task()
+        layers = query_verified["delivery_layers"]
+        self.assertEqual(layers["remote_delivery"]["expectation"], "not_applicable")
+        self.assertEqual(layers["fresh_clone"]["expectation"], "not_applicable")
+        self.assertEqual(layers["local_verification"]["expectation"], "not_applicable")
+        self.assertEqual(query_verified["acceptance_layers"], ["source"])
+        self.assertEqual(query_verified["known_limit_codes"], [])
+
+        _, modified = self.complete_code_task("src/layers.py")
+        layers = modified["delivery_layers"]
+        self.assertEqual(layers["remote_delivery"]["expectation"], "not_requested")
+        self.assertEqual(layers["fresh_clone"]["expectation"], "not_requested")
+        self.assertEqual(layers["local_verification"]["status"], "verified")
+        self.assertEqual(modified["acceptance_layers"], ["source", "local_verification"])
+        self.assertEqual(modified["known_limit_codes"], [])
+
+        task_id = self.git_sync_task("sync-unverified")
+        _, verified = self.run_harness("verify", "--target", str(self.project), "--task-id", task_id)
+        layers = verified["delivery_layers"]
+        self.assertEqual(layers["remote_delivery"], {"expectation": "required", "status": "not_verified", "evidence_refs": []})
+        self.assertEqual(layers["git_head"]["status"], "verified")
+        self.assertIn("remote_delivery_not_verified", verified["known_limit_codes"])
+        self.assertIn("git_head", verified["acceptance_layers"])
+        self.assertNotIn("remote_delivery", verified["acceptance_layers"])
+
+        task_id = self.git_sync_task("sync-verified")
+        proof = self.evidence(
+            "remote-delivery-proof",
+            evidence_type="remote_delivery",
+            covers=task_id,
+            changed_paths=["synced.txt"],
+            producer={"adapter": "codex-host", "capability": "command_receipt"},
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(proof)
+        )
+        layers = verified["delivery_layers"]
+        self.assertEqual(layers["remote_delivery"]["expectation"], "required")
+        self.assertEqual(layers["remote_delivery"]["status"], "verified")
+        self.assertEqual(layers["remote_delivery"]["evidence_refs"], ["remote_delivery"])
+        self.assertNotIn("remote_delivery_not_verified", verified["known_limit_codes"])
+        self.assertIn("remote_delivery", verified["acceptance_layers"])
 
 
 if __name__ == "__main__":
