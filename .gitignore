@@ -1,6 +1,7 @@
 __pycache__/
 *.pyc
 *.tgz
+test_output.log
 .DS_Store
 /.docs-harness/runs/
 /.docs-harness/background/
