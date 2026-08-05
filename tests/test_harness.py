@@ -3659,6 +3659,36 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertEqual(status["status"], "ready")
         self.assertEqual(status["source"], "repowiki")
         self.assertEqual(status["features"], 2)
+        self.assertEqual(status["total_cards"], 2)
+        self.assertFalse(status["truncated"])
+
+    def test_v167_repowiki_truncation_is_observable(self) -> None:
+        self.write_repowiki_fixture()
+        root = self.project / ".qoder" / "repowiki" / "knowledge" / "zh"
+        overflow = root / "溢出模块"
+        overflow.mkdir(parents=True, exist_ok=True)
+        for index in range(3):
+            (overflow / f"卡片{index}.md").write_text(
+                f"---\nkind: module\nname: 卡片{index}\ncategory: architecture\nscope:\n    - 'src/**'\n---\n\n### 1. 概述\n\n溢出卡片，已由测试项目确认的真实事实和当前边界。\n",
+                encoding="utf-8",
+            )
+        os.environ["DOCS_HARNESS_REPOWIKI_CARD_LIMIT"] = "2"
+        try:
+            status = HARNESS_MODULE.knowledge_status(self.project)
+            self.assertEqual(status["features"], 2)
+            self.assertEqual(status["total_cards"], 5)
+            self.assertTrue(status["truncated"])
+            self.init_project(bootstrap_knowledge=False)
+            _, routed = self.run_harness(
+                "run", "--target", str(self.project), "--task", "调整核心模块的处理逻辑", "--scope", "src/core.py"
+            )
+            package_path = self.project / ".docs-harness" / "runs" / routed["task_id"] / "task-package.json"
+            context = json.loads(package_path.read_text(encoding="utf-8"))["knowledge_context"]
+            self.assertTrue(context["truncated"])
+            self.assertEqual(context["total_cards"], 5)
+            self.assertEqual(context["context_quality"], "complete")
+        finally:
+            os.environ.pop("DOCS_HARNESS_REPOWIKI_CARD_LIMIT", None)
 
     def test_v166_repowiki_run_consumes_cards_without_governance_deliverables(self) -> None:
         self.write_repowiki_fixture()

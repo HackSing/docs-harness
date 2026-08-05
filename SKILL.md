@@ -2,7 +2,7 @@
 name: docs-harness
 description: "通过独立控制器完成 Gate、任务包、降级知识上下文、主任务验收和异步文档治理。"
 metadata:
-  version: 1.6.6
+  version: 1.6.7
   status: active
 ---
 

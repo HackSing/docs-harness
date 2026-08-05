@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.6.7 - 2026-08-05
+
+- repowiki 外部只消费知识源上限从 200 张提高到 1000 张，并可用环境变量 `DOCS_HARNESS_REPOWIKI_CARD_LIMIT` 覆盖为任意正整数；非法取值回退默认 1000。超限仍按排序截断，但不再静默：`knowledge_status` 与 `knowledge_context` 在 repowiki 模式下始终回传 `total_cards`（磁盘卡片总数）与 `truncated`（是否截断），准入降级可归因为候选集不完整而非知识缺失；未截断时 `truncated=false`、`total_cards` 等于 `features`，既有消费者只增字段不改语义。
+
 ## 1.6.6 - 2026-08-05
 
 - 支持 `.qoder/repowiki` 外部只消费知识源：项目存在 `.qoder/repowiki/knowledge/<locale>/` 知识卡时，`knowledge_status` 返回 `ready` 并带 `source="repowiki"`，知识交接 mode 为 `external_consume_only`；不创建 `docs/` 骨架与 `knowledge-map.json`，不再自动声明 `feature_knowledge_incremental_sync`/`adr_changelog_todo_review` 交付物，增量 Job 创建短路、`knowledge bootstrap` 以 `knowledge_external_consume_only` 失败关闭。任务准入按任务文本与 scope 命中知识卡 frontmatter 的 `name`/`scope` 选卡作为上下文（`knowledge_context.source="repowiki"`，纯标准库定向解析 frontmatter，上限 200 张）；命中即 `context_quality=complete`，未命中沿用 `unresolved` 降级语义。知识交付不参与 `clone_ready` 判定（`.qoder` 常被 gitignore）。

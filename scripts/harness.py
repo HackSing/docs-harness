@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 
-VERSION = "1.6.6"
+VERSION = "1.6.7"
 TASK_SCHEMA = "docs-harness/task-package/v2"
 LEGACY_TASK_SCHEMA = "docs-harness/task-package/v1"
 COMPILED_SCHEMA = "docs-harness/compiled-task/v2"
@@ -92,7 +92,7 @@ KNOWLEDGE_ROOT_RELATIVE = "docs"
 KNOWLEDGE_MAP_RELATIVE = "docs/knowledge-map.json"
 # 外部只消费知识源：项目存在该目录时，harness 不初始化/更新知识库，仅消费其文档。
 REPOWIKI_RELATIVE = ".qoder/repowiki"
-REPOWIKI_CARD_LIMIT = 200
+REPOWIKI_CARD_LIMIT = 1000
 KNOWLEDGE_CATEGORIES = ("product", "development", "testing", "design")
 FALLBACK_SNAPSHOT_FILE_LIMIT = 4096
 BACKGROUND_MAX_ATTEMPTS = 3
@@ -1598,6 +1598,14 @@ def read_knowledge_map(target: Path, *, require_files: bool = True) -> dict[str,
     return normalize_knowledge_map(target, read_json(path), require_files=require_files)
 
 
+def repowiki_card_limit() -> int:
+    """知识卡枚举上限：默认 1000，可用 DOCS_HARNESS_REPOWIKI_CARD_LIMIT 覆盖为正整数。"""
+    raw = os.environ.get("DOCS_HARNESS_REPOWIKI_CARD_LIMIT", "").strip()
+    if raw.isdigit() and int(raw) > 0:
+        return int(raw)
+    return REPOWIKI_CARD_LIMIT
+
+
 def repowiki_knowledge_root(target: Path) -> Path | None:
     """返回 .qoder/repowiki 的知识卡根目录（knowledge/<locale>/），不存在时返回 None。"""
     base = target / REPOWIKI_RELATIVE / "knowledge"
@@ -1644,13 +1652,17 @@ def parse_repowiki_frontmatter(path: Path) -> dict[str, Any]:
     return result
 
 
-def repowiki_cards(target: Path) -> list[dict[str, Any]]:
-    """枚举 repowiki 知识卡：相对路径 + frontmatter 的 name/scope/category。"""
+def repowiki_cards(target: Path) -> tuple[list[dict[str, Any]], bool, int]:
+    """枚举 repowiki 知识卡：返回（有界卡片列表, 是否截断, 磁盘卡片总数）。"""
     root = repowiki_knowledge_root(target)
     if root is None:
-        return []
+        return [], False, 0
     cards: list[dict[str, Any]] = []
-    for path in sorted(root.rglob("*.md"))[:REPOWIKI_CARD_LIMIT]:
+    paths = sorted(root.rglob("*.md"))
+    total = len(paths)
+    limit = repowiki_card_limit()
+    truncated = total > limit
+    for path in paths[:limit]:
         meta = parse_repowiki_frontmatter(path)
         scope = meta.get("scope")
         cards.append(
@@ -1661,7 +1673,7 @@ def repowiki_cards(target: Path) -> list[dict[str, Any]]:
                 "category": str(meta.get("category") or ""),
             }
         )
-    return cards
+    return cards, truncated, total
 
 
 def meaningful_knowledge_doc(target: Path, relative: str) -> bool:
@@ -1721,10 +1733,13 @@ def knowledge_dependency_outcome(bootstrap_job: dict[str, Any], target: Path) ->
 
 def knowledge_status(target: Path) -> dict[str, Any]:
     if repowiki_knowledge_root(target) is not None:
+        cards, truncated, total_cards = repowiki_cards(target)
         return {
             "status": "ready",
             "source": "repowiki",
-            "features": len(repowiki_cards(target)),
+            "features": len(cards),
+            "total_cards": total_cards,
+            "truncated": truncated,
             "gaps": [],
             "knowledge_root": REPOWIKI_RELATIVE,
         }
@@ -1879,7 +1894,7 @@ def resolve_repowiki_knowledge(
     requested: Sequence[str],
 ) -> tuple[dict[str, Any], list[str], list[str]]:
     """repowiki 只消费知识源：按任务文本与 scope 命中知识卡，绝不产生写动作。"""
-    cards = repowiki_cards(target)
+    cards, truncated, total_cards = repowiki_cards(target)
     selected: list[dict[str, Any]] = []
     if requested:
         for feature_id in requested:
@@ -1917,6 +1932,8 @@ def resolve_repowiki_knowledge(
             "category_refs": {},
             "shared_refs": [],
             "fallback_required": True,
+            "truncated": truncated,
+            "total_cards": total_cards,
         }, [], []
     refs = [card["ref"] for card in meaningful]
     return {
@@ -1933,6 +1950,8 @@ def resolve_repowiki_knowledge(
         "pending_update_jobs": [],
         "fallback_required": False,
         "fallback_fact_refs": [],
+        "truncated": truncated,
+        "total_cards": total_cards,
     }, refs, []
 
 

@@ -1,10 +1,10 @@
-# Docs Harness v1.6.6 合同
+# Docs Harness v1.6.7 合同
 
 ## 1. 产品边界
 
 Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、证据、验收、后台治理和 Git 交付检查。它不自动提交、推送、发布、安装下游项目或修改 `.gitignore`，也不把源码、本地 Runtime、当前 HEAD、远端、fresh clone、发布产物和真实 UI 合并为一个完成结论。
 
-项目配置继续使用 `docs-harness/project-config/v4`，版本值为 `1.6.6`。Harness Home 缺失、没有合法 active 规则、规则指纹漂移、来源版本不一致或配置无效均失败关闭。
+项目配置继续使用 `docs-harness/project-config/v4`，版本值为 `1.6.7`。Harness Home 缺失、没有合法 active 规则、规则指纹漂移、来源版本不一致或配置无效均失败关闭。
 
 ## 2. task-package/v2
 
@@ -341,7 +341,7 @@ retry 只归档当前 attempt 工件、推进 attempt、清空准备引用并刷
 
 `project init|upgrade` 共享 `knowledge_flow`：`already_ready` 不创建初始化动作；`bootstrap_new` 幂等创建单一 bootstrap；`bootstrap_in_progress` 复用活动 Job；`audit_existing` 保持零知识内容写入并返回 audit/consent 下一步；`external_consume_only`（项目存在 `.qoder/repowiki` 外部知识库）不创建任何知识动作。任一非终态 bootstrap 都会阻塞增量 Job。只有 bootstrap `updated|no_change` 且控制器复算知识 ready 才释放等待者；其他结果进入 `needs_user_input`。所有知识 Job 的 `updated|no_change` 都要求最终 ready，候选地图在落盘前按实际功能文档纯读取复算。
 
-外部只消费知识源：项目存在 `.qoder/repowiki/knowledge/<locale>/`（含知识卡 `.md`）时，`knowledge_status` 直接返回 `ready` 且带 `source="repowiki"`，不再检查 `docs/` 与 `knowledge-map.json`；准入上下文按任务文本与 scope 命中知识卡 frontmatter 的 `name`/`scope` 选卡（`knowledge_context.source="repowiki"`），命中即 `context_quality=complete`，未命中沿用 `unresolved` 降级语义；知识卡数量上限 200。该模式下不创建 `docs/` 骨架、不自动声明 `feature_knowledge_incremental_sync`/`adr_changelog_todo_review` 交付物、增量 Job 创建短路返回 `knowledge_external_consume_only`，`knowledge bootstrap` 以同码失败关闭（退出码 3）；知识交付不参与 `clone_ready` 判定（`knowledge_delivery_status="external_repowiki"`）。
+外部只消费知识源：项目存在 `.qoder/repowiki/knowledge/<locale>/`（含知识卡 `.md`）时，`knowledge_status` 直接返回 `ready` 且带 `source="repowiki"`，不再检查 `docs/` 与 `knowledge-map.json`；准入上下文按任务文本与 scope 命中知识卡 frontmatter 的 `name`/`scope` 选卡（`knowledge_context.source="repowiki"`），命中即 `context_quality=complete`，未命中沿用 `unresolved` 降级语义；知识卡枚举上限 1000（可用环境变量 `DOCS_HARNESS_REPOWIKI_CARD_LIMIT` 覆盖为正整数），超限按排序截断，`knowledge_status` 与 `knowledge_context` 始终回传 `total_cards` 与 `truncated` 暴露截断事实，不得静默丢弃。该模式下不创建 `docs/` 骨架、不自动声明 `feature_knowledge_incremental_sync`/`adr_changelog_todo_review` 交付物、增量 Job 创建短路返回 `knowledge_external_consume_only`，`knowledge bootstrap` 以同码失败关闭（退出码 3）；知识交付不参与 `clone_ready` 判定（`knowledge_delivery_status="external_repowiki"`）。
 
 知识审查与工作量估算共享过滤器。`.git`、`.docs-harness`、依赖/构建/缓存目录、`.playwright-cli`、`zbuddy-output`、敏感路径及图片、音视频、压缩包、DMG、Office/PPT 等资产默认排除；响应返回 `excluded_summary`。assessment、consent 与 decline cache 绑定实际返回库存生成的 `knowledge_inventory_fingerprint`。
 
