@@ -257,4 +257,4 @@ npm run pack:check
 
 这些命令只证明当前来源包的对应检查。发布还必须分别取得临时项目、真实 Git/fresh clone、直接后台路线、目标型后台路线、部分支持宿主和完全不支持宿主的证据。
 
-当前版本：`1.6.5`。详细 Schema 与状态机见 [docs/contracts.md](docs/contracts.md)，版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：`1.6.8`。详细 Schema 与状态机见 [docs/contracts.md](docs/contracts.md)，版本历史见 [CHANGELOG.md](CHANGELOG.md)。

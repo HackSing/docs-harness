@@ -5839,6 +5839,246 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertEqual(routed["matched_gates"], ["code-edit"])
         self.assertEqual(routed["gate_decision"]["floor_added"], [])
 
+    # --- v1.6.8 可用性缺口修复回归测试 ---
+
+    def test_authorization_mismatch_error_is_actionable(self) -> None:
+        """缺口三：授权范围未覆盖错误必须携带 missing_items 和 suggested_fix。"""
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        # 使用 release-external 任务，它有 external_write 授权要求
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "发布 release", "--scope", "dist/app.zip"
+        )
+        task_id = routed["task_id"]
+        # 先完成 plan 阶段
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan")
+        plan = self.plan_for({
+            "外部目标": "测试发布目标。",
+            "发布与回滚": "失败时撤回。",
+        })
+        self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan), expected=3
+        )
+        # 提交一个不完整的授权文件（缺少 external_write 动作）
+        auth = self.write_json(
+            "auth-incomplete.json",
+            {
+                "schema_version": "docs-harness/authorization-receipt/v2",
+                "task_id": task_id,
+                "approved": True,
+                "authorized_actions": ["write"],
+                "authorized_scope": ["dist/app.zip"],
+            },
+        )
+        result, payload = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--authorization", str(auth), expected=2
+        )
+        self.assertEqual(payload["code"], "authorization_mismatch")
+        self.assertIn("missing_items", payload)
+        self.assertIn("suggested_fix", payload)
+        missing_types = {item["scope_type"] for item in payload["missing_items"]}
+        self.assertIn("authorized_actions", missing_types)
+        # 验证 hint 内容
+        action_hint = next(item["hint"] for item in payload["missing_items"] if item["scope_type"] == "authorized_actions")
+        self.assertIn("authorized_actions", action_hint)
+
+    def test_stale_evidence_error_is_actionable(self) -> None:
+        """缺口三：stale_evidence 错误必须携带具体路径和修复建议。"""
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "审查 README.md 文档", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        # 先加载 action context
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        # 读取任务包获取正确的 package_fingerprint 和 target_identity
+        package = json.loads((self.project / ".docs-harness" / "runs" / task_id / "task-package.json").read_text())
+        target_identity = HARNESS_MODULE.target_identity(self.project)
+        # 创建一个包含未变化路径的 write_set 证据
+        evidence = self.write_json(
+            "evidence-stale.json",
+            {
+                "schema_version": "docs-harness/evidence-receipt/v2",
+                "task_id": task_id,
+                "target_identity": target_identity,
+                "package_fingerprint": HARNESS_MODULE.package_fingerprint(package),
+                "producer": {"adapter": "docs-harness", "capability": "host_declaration"},
+                "command_argv_digest": "sha256:" + "0" * 64,
+                "cwd": str(self.project.resolve()),
+                "started_at": HARNESS_MODULE.utc_now(),
+                "ended_at": HARNESS_MODULE.utc_now(),
+                "ttl": 3600,
+                "exit_code": 0,
+                "output_or_artifact_digest": "sha256:" + "0" * 64,
+                "read_set": [],
+                "write_set": ["README.md", "nonexistent/path.py"],
+                "type": "document_review",
+                "result": "passed",
+                "covers": [task_id],
+            },
+        )
+        _, payload = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=2
+        )
+        self.assertEqual(payload["code"], "stale_evidence")
+        self.assertIn("missing_items", payload)
+        self.assertIn("suggested_fix", payload)
+        stale_paths = [item["path"] for item in payload["missing_items"]]
+        self.assertIn("nonexistent/path.py", stale_paths)
+
+    def test_evidence_format_error_is_actionable(self) -> None:
+        """缺口三：证据格式错误必须携带 actual_vs_expected 和 suggested_fix。"""
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "审查 README.md 文档", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        # 先加载 action context
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        # 提交一个 JSON 数组而不是对象
+        evidence = self.write_json("evidence-array.json", [{"type": "test_result"}])
+        _, payload = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=2
+        )
+        self.assertEqual(payload["code"], "invalid_evidence")
+        self.assertIn("actual_vs_expected", payload)
+        self.assertIn("suggested_fix", payload)
+        self.assertIn("JSON list", payload["actual_vs_expected"]["actual"])
+        self.assertIn("single JSON object", payload["actual_vs_expected"]["expected"])
+
+    def test_authorization_template_command(self) -> None:
+        """缺口二：授权模板命令生成符合 schema 的模板。"""
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 并推送到 origin", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        _, payload = self.run_harness(
+            "authorization", "template", "--target", str(self.project), "--task-id", task_id
+        )
+        self.assertEqual(payload["action"], "template")
+        self.assertEqual(payload["task_id"], task_id)
+        template = payload["template"]
+        self.assertEqual(template["schema_version"], "docs-harness/authorization-receipt/v2")
+        self.assertEqual(template["task_id"], task_id)
+        self.assertIn("_template_hints", template)
+        self.assertIn(".git:refs/remotes/", template["_template_hints"]["git_scope_format"])
+        self.assertIn("not git-remote:", template["_template_hints"]["external_scope_format"])
+        # 验证模板可被直接消费（填充必需字段后）
+        template["authorized_at"] = "2026-08-06T00:00:00Z"
+        template["authorized_by"] = "test-user"
+        template["expires_at"] = "2026-08-07T00:00:00Z"
+        auth_file = self.write_json("auth-from-template.json", template)
+        # 先完成 plan 阶段
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan")
+        plan = self.plan_for({
+            "外部目标": "推送到 origin。",
+            "发布与回滚": "失败时撤回。",
+            "文档真源": "README.md",
+            "索引与残留": "无残留。",
+        })
+        self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan), expected=3
+        )
+        _, auth_payload = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--authorization", str(auth_file)
+        )
+        self.assertNotEqual(auth_payload.get("code"), "authorization_mismatch")
+
+    def test_cross_platform_task_detection(self) -> None:
+        """缺口一：跨平台任务被正确识别并提示。"""
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 Windows 启动脚本", "--scope", "scripts/windows/launch.ps1"
+        )
+        self.assertIn("cross_platform_notice", routed)
+        notice = routed["cross_platform_notice"]
+        self.assertTrue(notice["detected"])
+        self.assertIn("windows", notice["target_platforms"])
+        self.assertEqual(notice["current_platform"], "unix")
+        # 验证任务包中包含 platform_scope
+        package = json.loads((self.project / ".docs-harness" / "runs" / routed["task_id"] / "task-package.json").read_text())
+        self.assertIn("platform_scope", package)
+        self.assertTrue(package["platform_scope"]["cross_platform"])
+        self.assertIn("windows", package["platform_scope"]["detected_platforms"])
+
+    def test_non_cross_platform_task_no_notice(self) -> None:
+        """缺口一：非跨平台任务不显示跨平台提示。"""
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--scope", "README.md"
+        )
+        self.assertNotIn("cross_platform_notice", routed)
+        package = json.loads((self.project / ".docs-harness" / "runs" / routed["task_id"] / "task-package.json").read_text())
+        self.assertFalse(package["platform_scope"]["cross_platform"])
+
+    def test_task_adopt_external_completion(self) -> None:
+        """缺口四：外部完成的任务可被补录。"""
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        _, payload = self.run_harness(
+            "task", "adopt", "--target", str(self.project), "--task-id", task_id,
+            "--outcome", "代码修改完成并通过测试",
+            "--bypass-reason", "authorization_flow_too_complex",
+        )
+        self.assertEqual(payload["action"], "adopt")
+        self.assertEqual(payload["status"], "adopted")
+        self.assertEqual(payload["next_action"], "ledger_add")
+        self.assertIn("adoption_record", payload)
+        record = payload["adoption_record"]
+        self.assertEqual(record["schema_version"], "docs-harness/task-adoption/v1")
+        self.assertEqual(record["verification_status"], "adopted_external")
+        self.assertEqual(record["bypass_reason"], "authorization_flow_too_complex")
+        # 验证任务状态已转为 complete
+        _, status = self.run_harness("task", "status", "--target", str(self.project), "--task-id", task_id)
+        self.assertEqual(status["control_status"], "complete")
+
+    def test_task_adopt_terminal_task_rejected(self) -> None:
+        """缺口四：终态任务不可被补录。"""
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        # 先补录一次
+        self.run_harness(
+            "task", "adopt", "--target", str(self.project), "--task-id", task_id,
+            "--outcome", "第一次补录",
+        )
+        # 再次补录应被拒绝
+        _, payload = self.run_harness(
+            "task", "adopt", "--target", str(self.project), "--task-id", task_id,
+            "--outcome", "第二次补录",
+            expected=2,
+        )
+        self.assertEqual(payload["code"], "task_already_terminal")
+        self.assertIn("suggested_fix", payload)
+
+    def test_task_adopt_missing_outcome_rejected(self) -> None:
+        """缺口四：缺少 outcome 的补录被拒绝。"""
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        _, payload = self.run_harness(
+            "task", "adopt", "--target", str(self.project), "--task-id", task_id,
+            expected=2,
+        )
+        self.assertEqual(payload["code"], "missing_outcome")
+        self.assertIn("suggested_fix", payload)
+
 
 if __name__ == "__main__":
     unittest.main()

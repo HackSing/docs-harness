@@ -1,10 +1,10 @@
-# Docs Harness v1.6.7 合同
+# Docs Harness v1.6.8 合同
 
 ## 1. 产品边界
 
 Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、证据、验收、后台治理和 Git 交付检查。它不自动提交、推送、发布、安装下游项目或修改 `.gitignore`，也不把源码、本地 Runtime、当前 HEAD、远端、fresh clone、发布产物和真实 UI 合并为一个完成结论。
 
-项目配置继续使用 `docs-harness/project-config/v4`，版本值为 `1.6.7`。Harness Home 缺失、没有合法 active 规则、规则指纹漂移、来源版本不一致或配置无效均失败关闭。
+项目配置继续使用 `docs-harness/project-config/v4`，版本值为 `1.6.8`。Harness Home 缺失、没有合法 active 规则、规则指纹漂移、来源版本不一致或配置无效均失败关闭。
 
 ## 2. task-package/v2
 

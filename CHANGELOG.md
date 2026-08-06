@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.6.8 - 2026-08-06
+
+- 错误提示 actionable 化：`HarnessError` 新增 `suggested_fix`、`missing_items`、`actual_vs_expected` 结构化字段并随 JSON 错误输出序列化。`authorization_mismatch` 逐项列出缺失的授权动作与未覆盖的 write/git/external scope（含每项 `scope_type`、`required`、`authorized`、`hint`，git scope 给出 `.git:refs/remotes/<remote>/<branch>` 格式示例）；`stale_evidence` 列出 `declared_but_not_changed` 与 `changed_but_not_declared` 具体路径并提示 write_set 只写 git 可跟踪源码路径；证据 JSON 解析失败与非对象证据给出 `actual_vs_expected` 对比（如 "JSON list" vs "single JSON object per --evidence parameter"）。宿主可直接消费字段渲染修复指引，不再靠报错文本试错。
+- 新增 `harness authorization template --task-id <id> [--output <file>]`：从任务包提取 `authorization_requirements`、allowed/git/external scope 生成可编辑授权文件模板（含 `_template_hints` 说明每个字段来源与填法），生成后可直接作为 `--authorization` 输入消费，消除手写授权 schema 的试错循环。
+- 跨平台任务感知：按 write/read scope 文件后缀检测平台专属脚本（`.ps1/.bat/.cmd` → windows，`.sh/.bash/.zsh` → unix），任务包新增 `platform_scope`（`detected_platforms`、`current_platform`、`cross_platform`、`verification_layers`）；`first_run_payload` 对跨平台任务输出 `cross_platform_notice`，提示当前平台无法直接验证的目标平台及建议的分层验证策略，避免 macOS 上 PowerShell 脚本任务验证无法闭环时才发现。
+- 新增 `harness task adopt --task-id <id> --outcome <summary> [--external-evidence <file>...] [--bypass-reason <reason>]`：将绕过 harness 在外部完成的非终态任务补录进账本，外部证据摄取为受管副本，任务状态转为 `complete` 且 `verification_status=adopted_external`，写入 `task_adopted` 审计事件并提示补写质量账本；终态任务与缺 `--outcome` 失败关闭。绕过不再留下永久悬置的 in-flight 任务。
+
 ## 1.6.7 - 2026-08-05
 
 - repowiki 外部只消费知识源上限从 200 张提高到 1000 张，并可用环境变量 `DOCS_HARNESS_REPOWIKI_CARD_LIMIT` 覆盖为任意正整数；非法取值回退默认 1000。超限仍按排序截断，但不再静默：`knowledge_status` 与 `knowledge_context` 在 repowiki 模式下始终回传 `total_cards`（磁盘卡片总数）与 `truncated`（是否截断），准入降级可归因为候选集不完整而非知识缺失；未截断时 `truncated=false`、`total_cards` 等于 `features`，既有消费者只增字段不改语义。

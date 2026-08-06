@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Docs Harness v1.6.6 独立任务控制器。"""
+"""Docs Harness v1.6.8 独立任务控制器。"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 
-VERSION = "1.6.7"
+VERSION = "1.6.8"
 TASK_SCHEMA = "docs-harness/task-package/v2"
 LEGACY_TASK_SCHEMA = "docs-harness/task-package/v1"
 COMPILED_SCHEMA = "docs-harness/compiled-task/v2"
@@ -393,10 +393,22 @@ NEGATION_MARKERS = ("不要", "不用", "先不", "无需", "不许", "禁止", 
 
 
 class HarnessError(Exception):
-    def __init__(self, message: str, *, code: str = "invalid_request", exit_code: int = 2):
+    def __init__(
+        self,
+        message: str,
+        *,
+        code: str = "invalid_request",
+        exit_code: int = 2,
+        suggested_fix: str | None = None,
+        missing_items: list[dict[str, Any]] | None = None,
+        actual_vs_expected: dict[str, Any] | None = None,
+    ):
         super().__init__(message)
         self.code = code
         self.exit_code = exit_code
+        self.suggested_fix = suggested_fix
+        self.missing_items = missing_items
+        self.actual_vs_expected = actual_vs_expected
 
 
 def utc_now() -> str:
@@ -501,9 +513,25 @@ def load_json_object_file(
     try:
         value = json.loads(text)
     except json.JSONDecodeError as exc:
-        raise HarnessError(f"{argument} JSON 无效", code=error_code) from exc
+        raise HarnessError(
+            f"{argument} JSON 无效",
+            code=error_code,
+            actual_vs_expected={
+                "actual": f"invalid JSON: {exc}",
+                "expected": "valid JSON object",
+            },
+            suggested_fix=f"检查 {argument} 文件内容是否为合法 JSON；每个 --evidence 参数对应一个 JSON 对象文件",
+        ) from exc
     if not isinstance(value, dict):
-        raise HarnessError(f"{argument} 必须是 JSON 对象", code=error_code)
+        raise HarnessError(
+            f"{argument} 必须是 JSON 对象",
+            code=error_code,
+            actual_vs_expected={
+                "actual": f"JSON {type(value).__name__}",
+                "expected": "single JSON object per --evidence parameter",
+            },
+            suggested_fix="每个 --evidence 参数对应一个 JSON 对象文件；如需提交多个证据，使用多个 --evidence 参数",
+        )
     return path, value
 
 
@@ -2795,6 +2823,52 @@ def parse_gate_assessment(facts: dict[str, Any]) -> tuple[list[str], str] | None
     return list(dict.fromkeys(gates)), rationale.strip()
 
 
+PLATFORM_SPECIFIC_EXTENSIONS: dict[str, str] = {
+    ".ps1": "windows",
+    ".bat": "windows",
+    ".cmd": "windows",
+    ".sh": "unix",
+    ".bash": "unix",
+    ".zsh": "unix",
+}
+
+
+def current_platform() -> str:
+    if sys.platform == "win32":
+        return "windows"
+    return "unix"
+
+
+def detect_platform_scope(paths: list[str]) -> dict[str, Any]:
+    detected: set[str] = set()
+    for path in paths:
+        suffix = Path(path).suffix.lower()
+        if suffix in PLATFORM_SPECIFIC_EXTENSIONS:
+            detected.add(PLATFORM_SPECIFIC_EXTENSIONS[suffix])
+    current = current_platform()
+    cross_platform = bool(detected) and (detected != {current} or len(detected) > 1)
+    return {
+        "detected_platforms": sorted(detected),
+        "current_platform": current,
+        "cross_platform": cross_platform,
+        "verification_layers": build_verification_layers(detected, current),
+    }
+
+
+def build_verification_layers(detected: set[str], current: str) -> list[dict[str, Any]]:
+    layers: list[dict[str, Any]] = []
+    if not detected:
+        return layers
+    for platform in sorted(detected):
+        status = "executable" if platform == current else "pending_verification"
+        layers.append({
+            "layer": f"{'current' if platform == current else 'target'}_platform",
+            "platform": platform,
+            "status": status,
+        })
+    return layers
+
+
 def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.Namespace, task_id: str) -> tuple[dict[str, Any], list[str]]:
     declared_gates = normalize_string_list(facts.get("gates"), "gates")
     gate_assessment = parse_gate_assessment(facts)
@@ -3028,6 +3102,7 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         },
     }
     admission = "blocked" if blockers else ("ready_direct" if route == "direct" else "needs_plan")
+    platform_scope = detect_platform_scope(write_scope + read_scope)
     package = {
         "schema_version": TASK_SCHEMA,
         "package_revision": 1,
@@ -3090,6 +3165,7 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         "work_packages": work_packages,
         "dispatch_contracts": dispatch_contracts,
         "admission_status": admission,
+        "platform_scope": platform_scope,
     }
     return package, blockers
 
@@ -3901,6 +3977,80 @@ def task_prune(target: Path, *, older_than: int | None, apply: bool, dry_run: bo
     return 0, {"action": "prune", "mode": "apply", "candidates": frozen["candidates"], "removed": removed}
 
 
+def task_adopt(
+    target: Path,
+    state: Path,
+    task_id: str,
+    outcome: str | None,
+    external_evidence: str | None,
+    bypass_reason: str | None,
+) -> tuple[int, dict[str, Any]]:
+    package_path = state / "task-package.json"
+    compiled_path = state / "compiled-task.json"
+    if not package_path.is_file() or not compiled_path.is_file():
+        raise HarnessError(f"任务状态不完整：{task_id}", code="missing_task_state")
+    package = read_json(package_path)
+    compiled = read_json(compiled_path)
+    terminal_statuses = {"complete", "cancelled", "failed"}
+    if compiled.get("control_status") in terminal_statuses:
+        raise HarnessError(
+            f"任务已处于终态({compiled.get('control_status')})，不可补录",
+            code="task_already_terminal",
+            suggested_fix=f"harness task status --target . --task-id {task_id} 查看当前状态",
+        )
+    if not outcome or not outcome.strip():
+        raise HarnessError(
+            "task adopt 必须提供 --outcome 描述外部完成结果",
+            code="missing_outcome",
+            suggested_fix="harness task adopt --target . --task-id <id> --outcome '完成结果摘要'",
+        )
+    evidence_refs: list[str] = []
+    if external_evidence:
+        evidence_path = Path(external_evidence).expanduser().resolve()
+        if not evidence_path.is_file():
+            raise HarnessError(f"外部证据文件不存在：{evidence_path}", code="missing_evidence_file")
+        managed = store_managed_artifact(
+            state,
+            "evidence",
+            f"adoption-evidence.{utc_now().replace(':', '-')}.json",
+            evidence_path.read_text(encoding="utf-8"),
+        )
+        evidence_refs.append(str(managed))
+    adoption_record = {
+        "schema_version": "docs-harness/task-adoption/v1",
+        "task_id": task_id,
+        "adopted_at": utc_now(),
+        "adopted_by": "user",
+        "original_package_fingerprint": package_fingerprint(package),
+        "bypass_reason": bypass_reason or "not_specified",
+        "outcome_summary": outcome.strip(),
+        "external_evidence_refs": evidence_refs,
+        "verification_status": "adopted_external",
+    }
+    with state_lock(state):
+        compiled["control_status"] = "complete"
+        compiled["verification_status"] = "adopted_external"
+        compiled["adopted_externally"] = True
+        compiled["adoption_record"] = adoption_record
+        atomic_write_json(compiled_path, compiled)
+        append_task_event(
+            state,
+            package,
+            event="task_adopted",
+            phase="completion",
+            reason_code="external_adoption",
+            adoption_record=adoption_record,
+        )
+    return 0, {
+        "action": "adopt",
+        "task_id": task_id,
+        "status": "adopted",
+        "adoption_record": adoption_record,
+        "next_action": "ledger_add",
+        "message": f"任务已补录。建议将本次经验添加到质量账本：harness ledger add --target . --task-id {task_id} --review <review-file>",
+    }
+
+
 def command_task(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
     if args.action == "list":
@@ -3927,6 +4077,8 @@ def command_task(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         return task_cancel(target, state, args.task_id, args.reason_code, apply=bool(args.apply))
     if args.action == "archive":
         return task_archive(target, state, args.task_id, args.reason_code, apply=bool(args.apply))
+    if args.action == "adopt":
+        return task_adopt(target, state, args.task_id, args.outcome, args.external_evidence, args.bypass_reason)
     return 0, migrate_v1_task_state(target, args.task_id, apply=bool(args.apply))
 
 
@@ -4487,7 +4639,45 @@ def authorization_receipt(path: str, package: dict[str, Any]) -> dict[str, Any]:
     uncovered_external = [item for item in package.get("external_scope", []) if item not in authorized_external_scope]
     uncovered_git = [item for item in package.get("git_scope", []) if item not in authorized_git_scope] if package.get("authorization_requirements") and package.get("git_scope") else []
     if missing_actions or uncovered_scope or uncovered_external or uncovered_git:
-        raise HarnessError("授权动作或范围未覆盖任务包", code="authorization_mismatch")
+        missing_items: list[dict[str, Any]] = []
+        for action in sorted(missing_actions):
+            missing_items.append({
+                "scope_type": "authorized_actions",
+                "required": action,
+                "authorized": sorted(actions),
+                "hint": "authorized_actions 必须包含任务包要求的全部授权动作",
+            })
+        for item in uncovered_scope:
+            missing_items.append({
+                "scope_type": "write_scope",
+                "required": item,
+                "authorized": scope,
+                "hint": "write_scope 必须与任务包 allowed_scope 的路径形式逐字一致（含 glob）",
+            })
+        for item in uncovered_external:
+            missing_items.append({
+                "scope_type": "external_scope",
+                "required": item,
+                "authorized": authorized_external_scope,
+                "hint": "external_scope 格式为 <remote>，不是 git-remote:<remote>",
+            })
+        for item in uncovered_git:
+            missing_items.append({
+                "scope_type": "git_scope",
+                "required": item,
+                "authorized": authorized_git_scope,
+                "hint": "git_scope 格式为 .git:refs/remotes/<remote>/<branch>",
+            })
+        raise HarnessError(
+            "授权动作或范围未覆盖任务包",
+            code="authorization_mismatch",
+            missing_items=missing_items,
+            suggested_fix=(
+                f"harness authorization template --target . --task-id {package['task_id']} --output auth.json "
+                f"&& 编辑 auth.json 填充 authorized_by/expires_at "
+                f"&& harness run --authorization auth.json"
+            ),
+        )
     expires = value.get("expires_at")
     if expires:
         try:
@@ -4697,6 +4887,16 @@ def first_run_payload(
     }
     if reused:
         payload["active_task_reused"] = True
+    platform_scope = package.get("platform_scope", {})
+    if platform_scope.get("cross_platform"):
+        target_platforms = [p for p in platform_scope.get("detected_platforms", []) if p != platform_scope.get("current_platform")]
+        payload["cross_platform_notice"] = {
+            "detected": True,
+            "target_platforms": target_platforms,
+            "current_platform": platform_scope.get("current_platform"),
+            "message": f"检测到跨平台专属文件({', '.join(target_platforms)})，当前平台({platform_scope.get('current_platform')})可能无法执行完整验证。建议在目标平台补验。",
+            "verification_layers": platform_scope.get("verification_layers", []),
+        }
     payload["plan_contract"] = plan_contract_payload(package)
     reason_code = (
         "active_task_reused"
@@ -5822,7 +6022,28 @@ def command_progress(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     changed, outside, new_gates = actual_scope_change(target, package, work_freeze, work["scope"])
     declared_changed = evidence.get("changed_paths", [])
     if declared_changed and sorted(declared_changed) != sorted(changed):
-        raise HarnessError("证据 changed_paths 与实际工作区变化不一致", code="stale_evidence")
+        extra_paths = sorted(set(declared_changed) - set(changed))
+        missing_paths = sorted(set(changed) - set(declared_changed))
+        raise HarnessError(
+            "证据 changed_paths 与实际工作区变化不一致",
+            code="stale_evidence",
+            missing_items=[
+                {
+                    "path": path,
+                    "reason": "declared_but_not_changed",
+                    "hint": "write_set 只写 git 可跟踪的源码路径，构建产物路径不要写入",
+                }
+                for path in extra_paths
+            ] + [
+                {
+                    "path": path,
+                    "reason": "changed_but_not_declared",
+                    "hint": "实际工作区变化必须全部声明在 changed_paths 中",
+                }
+                for path in missing_paths
+            ],
+            suggested_fix="git status --short && git diff --name-only 核对实际变更，从 write_set 中移除未变化路径",
+        )
     if outside or new_gates:
         event = {"schema_version": EVENT_SCHEMA, "event": "block", "task_id": package["task_id"], "package_revision": package["package_revision"], "work_package_id": work_id, "reason": "范围或 Gate 变化，需要重新准入", "scope_changed": True, "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "at": utc_now()}
         with state_lock(state):
@@ -6735,8 +6956,21 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
 
     with state_lock(state):
         for evidence in supplied:
-            if any(path not in changed for path in evidence.get("write_set", [])):
-                raise HarnessError("任务证据 write_set 包含实际未变化路径", code="stale_evidence")
+            stale_write_paths = [path for path in evidence.get("write_set", []) if path not in changed]
+            if stale_write_paths:
+                raise HarnessError(
+                    "任务证据 write_set 包含实际未变化路径",
+                    code="stale_evidence",
+                    missing_items=[
+                        {
+                            "path": path,
+                            "reason": "git_untracked_or_unchanged",
+                            "hint": "write_set 只写 git 可跟踪的源码路径，构建产物路径不要写入",
+                        }
+                        for path in stale_write_paths
+                    ],
+                    suggested_fix="git status --short && git diff --name-only 核对实际变更，从 write_set 中移除未变化路径",
+                )
             source_path = Path(str(evidence.get("source_ref", "")))
             if source_path.is_file():
                 managed_evidence = store_managed_artifact(
@@ -10319,6 +10553,57 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     return 0, {"action": "uninstall", "mode": "apply", "target": str(target), "removed": removed, "project_docs_preserved": True, "harness_home_preserved": True}
 
 
+def command_authorization(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    target = safe_target(args.target)
+    if args.action != "template":
+        raise HarnessError(f"authorization {args.action} 暂不支持", code="invalid_authorization_action")
+    if not args.task_id:
+        raise HarnessError("authorization template 必须提供 --task-id", code="missing_task_id")
+    validate_task_id(args.task_id)
+    state = task_state_dir(target, args.task_id)
+    package_path = state / "task-package.json"
+    if not package_path.is_file():
+        raise HarnessError(f"任务包不存在：{args.task_id}", code="missing_task_package")
+    package = read_json(package_path)
+    template: dict[str, Any] = {
+        "schema_version": AUTH_SCHEMA,
+        "task_id": package["task_id"],
+        "package_fingerprint": package_fingerprint(package),
+        "approved": True,
+        "authorized_at": None,
+        "authorized_by": None,
+        "expires_at": None,
+        "authorized_actions": sorted(package.get("authorization_requirements", [])),
+        "authorized_scope": sorted(package.get("allowed_scope", [])),
+        "authorized_git_scope": sorted(package.get("git_scope", [])),
+        "authorized_external_scope": sorted(package.get("external_scope", [])),
+        "external_target": package.get("external_target"),
+        "constraints": [],
+        "_template_hints": {
+            "git_scope_format": ".git:refs/remotes/<remote>/<branch>",
+            "external_scope_format": "<remote> (not git-remote:<remote>)",
+            "write_scope_format": "project-relative path or glob, must match task package exactly",
+            "note": "authorized_at/authorized_by/expires_at 需手动填充；expires_at 为 ISO 8601 格式，如 2026-08-07T00:00:00Z",
+        },
+    }
+    output_path = args.output
+    if output_path:
+        path = Path(output_path).expanduser().resolve()
+        atomic_write_json(path, template)
+        return 0, {
+            "action": "template",
+            "task_id": args.task_id,
+            "output": str(path),
+            "message": "授权模板已生成，请编辑填充 authorized_at/authorized_by/expires_at 后使用",
+        }
+    return 0, {
+        "action": "template",
+        "task_id": args.task_id,
+        "template": template,
+        "message": "授权模板已生成，请编辑填充 authorized_at/authorized_by/expires_at 后使用",
+    }
+
+
 def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
     rules = rules_root_for(target)
@@ -10441,7 +10726,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     task = commands.add_parser("task", help="查询、取消、归档、清理任务或显式迁移 v1 在途任务")
-    task.add_argument("action", choices=("status", "migrate", "cancel", "archive", "list", "prune"))
+    task.add_argument("action", choices=("status", "migrate", "cancel", "archive", "list", "prune", "adopt"))
     add_common_target(task)
     task.add_argument("--task-id")
     task.add_argument("--apply", action="store_true", help="显式应用迁移、取消、归档或清理；缺省仅预览")
@@ -10449,6 +10734,9 @@ def build_parser() -> argparse.ArgumentParser:
     task.add_argument("--older-than", type=int, help="prune 候选的最小天数")
     task.add_argument("--dry-run", action="store_true", help="显式声明仅生成 prune 候选")
     task.add_argument("--include-archived", action="store_true", help="list 包含已归档 v1 对象")
+    task.add_argument("--outcome", help="adopt 时的外部完成结果摘要")
+    task.add_argument("--external-evidence", metavar="EVIDENCE_FILE", help="adopt 时的外部证据文件路径")
+    task.add_argument("--bypass-reason", help="adopt 时的绕过原因")
 
     ledger = commands.add_parser("ledger", help="人工触发的个人本地质量账本")
     ledger.add_argument("action", choices=("add", "read"))
@@ -10492,6 +10780,12 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_target(project)
     project.add_argument("--apply", action="store_true")
     project.add_argument("--purge-runtime", action="store_true")
+
+    authorization = commands.add_parser("authorization", help="授权文件模板生成与管理")
+    authorization.add_argument("action", choices=("template",), help="生成授权文件模板")
+    add_common_target(authorization)
+    authorization.add_argument("--task-id", help="要生成授权模板的任务编号")
+    authorization.add_argument("--output", metavar="OUTPUT_FILE", help="模板输出文件路径；缺省输出到 stdout")
 
     self_test = commands.add_parser("self-test", help="运行内置合同自检")
     add_common_target(self_test)
@@ -10564,13 +10858,22 @@ def main(argv: Sequence[str] | None = None) -> int:
             code, payload = command_background(args)
         elif args.command == "project":
             code, payload = command_project(args)
+        elif args.command == "authorization":
+            code, payload = command_authorization(args)
         else:
             code, payload = command_self_test(args)
         payload = enrich_next_step_response(args, payload)
         emit(payload, args.json)
         return code
     except HarnessError as exc:
-        emit({"status": "error", "code": exc.code, "message": str(exc)}, getattr(args, "json", False))
+        error_payload: dict[str, Any] = {"status": "error", "code": exc.code, "message": str(exc)}
+        if exc.suggested_fix is not None:
+            error_payload["suggested_fix"] = exc.suggested_fix
+        if exc.missing_items is not None:
+            error_payload["missing_items"] = exc.missing_items
+        if exc.actual_vs_expected is not None:
+            error_payload["actual_vs_expected"] = exc.actual_vs_expected
+        emit(error_payload, getattr(args, "json", False))
         return exc.exit_code
 
 
