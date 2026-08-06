@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: documentation
-title: Docs Harness 文档与契约中心
+title: Docs Harness 文档与契约权威库
 scope:
     - docs/
 source_files: []
