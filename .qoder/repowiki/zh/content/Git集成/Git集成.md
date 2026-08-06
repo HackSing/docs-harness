@@ -10,13 +10,6 @@
 - [.gitignore](file://.gitignore)
 </cite>
 
-## 更新摘要
-**所做更改**
-- 更新了Git操作的远程漂移处理机制，特别是在重新准入场景下的改进
-- 增强了基于`git diff --name-status -M`输出的路径跟踪功能
-- 改进了受控引用命名空间管理的精确性
-- 更新了分支管理和冲突解决的相关说明
-
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
@@ -80,7 +73,7 @@ H["本地Git仓库"] <- --> C
 - [docs/contracts.md:165-197](file://docs/contracts.md#L165-L197)
 
 ## 架构总览
-下图展示从用户输入到Git操作执行与校验的关键流程，以及"只读/元数据写入/工作区写入"三类合同的边界。
+下图展示从用户输入到Git操作执行与校验的关键流程，以及“只读/元数据写入/工作区写入”三类合同的边界。
 
 ```mermaid
 sequenceDiagram
@@ -148,7 +141,7 @@ PostSync --> End
 - [docs/contracts.md:97-133](file://docs/contracts.md#L97-L133)
 
 ### 分支管理策略（命名约定/合并策略/冲突解决）
-- 分支命名约定：git_scope采用".git:refs/remotes/<remote>/<branch>"，支持通配符用于fetch，但git_sync必须绑定单一远端分支。
+- 分支命名约定：git_scope采用“.git:refs/remotes/<remote>/<branch>”，支持通配符用于fetch，但git_sync必须绑定单一远端分支。
 - 合并策略：强制fast-forward；非fast-forward直接阻断；若存在分歧则失败关闭。
 - 冲突解决：脏工作区与同步范围重叠时阻断；删除数量超过阈值阻断；LFS/Submodule不可用时阻断。
 
@@ -173,14 +166,14 @@ BlockEnv --> End
 ```
 
 图表来源
-- [scripts/harness.py:661-675](file://scripts/harness.py#L661-675)
-- [scripts/harness.py:706-751](file://scripts/harness.py#L706-751)
-- [scripts/harness.py:793-875](file://scripts/harness.py#L793-875)
+- [scripts/harness.py:661-675](file://scripts/harness.py#L661-L675)
+- [scripts/harness.py:706-751](file://scripts/harness.py#L706-L751)
+- [scripts/harness.py:793-875](file://scripts/harness.py#L793-L875)
 
 章节来源
-- [scripts/harness.py:661-675](file://scripts/harness.py#L661-675)
-- [scripts/harness.py:706-751](file://scripts/harness.py#L706-751)
-- [scripts/harness.py:793-875](file://scripts/harness.py#L793-875)
+- [scripts/harness.py:661-675](file://scripts/harness.py#L661-L675)
+- [scripts/harness.py:706-751](file://scripts/harness.py#L706-L751)
+- [scripts/harness.py:793-875](file://scripts/harness.py#L793-L875)
 
 ### 版本控制集成的高级功能（提交钩子/标签管理/远程仓库同步）
 - 提交钩子：控制器不自动触发git hook；如需钩子参与，需在宿主侧编排并在证据中提供证明。
@@ -196,8 +189,6 @@ BlockEnv --> End
 - 差异检测：对HEAD与目标OID进行差异比对，统计新增/修改/删除/重命名路径；大文件使用大小+时间戳摘要降低IO成本。
 - 状态保持：首次任务基线freeze.json.workspace_snapshot固定，重新准入不刷新；verify输出task_write_set/read_set/concurrent_drift/unattributed_drift。
 
-**更新** 改进了路径跟踪算法，现在能够更准确地处理重命名文件和复杂的路径变更情况。
-
 ```mermaid
 flowchart TD
 A["获取旧HEAD与新HEAD"] --> Diff["git diff --name-status -M"]
@@ -209,13 +200,13 @@ Changes --> Output["输出task_write_set/read_set/drift"]
 ```
 
 图表来源
-- [scripts/harness.py:645-659](file://scripts/harness.py#L645-659)
+- [scripts/harness.py:645-659](file://scripts/harness.py#L645-L659)
 - [scripts/harness.py:1112-1136](file://scripts/harness.py#L1112-L1136)
 - [scripts/harness.py:1138-1139](file://scripts/harness.py#L1138-L1139)
 - [docs/contracts.md:134-163](file://docs/contracts.md#L134-L163)
 
 章节来源
-- [scripts/harness.py:645-659](file://scripts/harness.py#L645-659)
+- [scripts/harness.py:645-659](file://scripts/harness.py#L645-L659)
 - [scripts/harness.py:1112-1136](file://scripts/harness.py#L1112-L1136)
 - [scripts/harness.py:1138-1139](file://scripts/harness.py#L1138-L1139)
 - [docs/contracts.md:134-163](file://docs/contracts.md#L134-L163)
@@ -225,12 +216,10 @@ Changes --> Output["输出task_write_set/read_set/drift"]
 - 权限问题：git_preflight_failed、index不可读等导致失败关闭。
 - 冲突解决：dirty_overlap、non_fast_forward、deletion_threshold、lfs/submodule不可用均阻断并给出明确原因。
 
-**更新** 改进了远程漂移检测机制，在重新准入场景下提供更精确的错误处理和恢复建议。
-
 章节来源
-- [scripts/harness.py:625-643](file://scripts/harness.py#L625-643)
-- [scripts/harness.py:706-751](file://scripts/harness.py#L706-751)
-- [scripts/harness.py:793-875](file://scripts/harness.py#L793-875)
+- [scripts/harness.py:625-643](file://scripts/harness.py#L625-L643)
+- [scripts/harness.py:706-751](file://scripts/harness.py#L706-L751)
+- [scripts/harness.py:793-875](file://scripts/harness.py#L793-L875)
 
 ### 配置最佳实践（安全设置/性能优化/故障排除）
 - 安全设置：
@@ -245,41 +234,11 @@ Changes --> Output["输出task_write_set/read_set/drift"]
   - 检查.gitattributes/.gitmodules确认LFS/Submodule状态。
   - 使用git_ignored_install_paths判断安装文件是否被忽略。
 
-**更新** 改进了受控引用命名空间管理，现在能够更精确地跟踪和管理`.git:refs/remotes/<remote>/HEAD`等引用。
-
 章节来源
-- [scripts/harness.py:585-596](file://scripts/harness.py#L585-596)
-- [scripts/harness.py:1188-1214](file://scripts/harness.py#L1188-1214)
+- [scripts/harness.py:585-596](file://scripts/harness.py#L585-L596)
+- [scripts/harness.py:1188-1214](file://scripts/harness.py#L1188-L1214)
 - [scripts/harness.py:1112-1136](file://scripts/harness.py#L1112-L1136)
-- [scripts/harness.py:878-904](file://scripts/harness.py#L878-904)
-
-### 受控引用命名空间管理改进
-**新增** 改进了受控引用命名空间的管理机制，现在能够自动识别和跟踪相关的HEAD引用。
-
-- 自动HEAD引用跟踪：当git_scope包含`.git:refs/remotes/<remote>/<branch>`模式时，系统会自动添加对应的`.git:refs/remotes/<remote>/HEAD`到受控命名空间。
-- 分支引用保护：对于git_sync操作，当前分支引用也会被加入受控命名空间进行保护。
-- 精确的引用验证：在后检阶段，只有受控命名空间内的引用变更才被允许，其他引用变更会被拒绝。
-
-```mermaid
-flowchart TD
-A["git_scope解析"] --> B["提取remote名称"]
-B --> C["生成受控命名空间"]
-C --> D[".git:refs/remotes/<remote>/<branch>"]
-C --> E[".git:refs/remotes/<remote>/HEAD"]
-D --> F["git_sync操作"]
-E --> F
-F --> G["当前分支引用"]
-G --> H[".git:<current_branch>"]
-H --> I["所有引用纳入受控管理"]
-```
-
-图表来源
-- [scripts/harness.py:771-779](file://scripts/harness.py#L771-779)
-- [scripts/harness.py:823-830](file://scripts/harness.py#L823-830)
-
-章节来源
-- [scripts/harness.py:771-779](file://scripts/harness.py#L771-779)
-- [scripts/harness.py:823-830](file://scripts/harness.py#L823-830)
+- [scripts/harness.py:878-904](file://scripts/harness.py#L878-L904)
 
 ## 依赖关系分析
 - harness.py依赖Git命令行工具，通过subprocess调用，所有Git操作均经过封装与超时控制。
@@ -298,7 +257,7 @@ P --> GI[".gitignore"]
 
 图表来源
 - [scripts/harness.py:572-583](file://scripts/harness.py#L572-L583)
-- [tests/test_harness.py:503-576](file://tests/test_harness.py#L503-576)
+- [tests/test_harness.py:503-576](file://tests/test_harness.py#L503-L576)
 - [docs/contracts.md:97-133](file://docs/contracts.md#L97-L133)
 - [SKILL.md:53-56](file://SKILL.md#L53-L56)
 - [package.json:17-21](file://package.json#L17-L21)
@@ -306,7 +265,7 @@ P --> GI[".gitignore"]
 
 章节来源
 - [scripts/harness.py:572-583](file://scripts/harness.py#L572-L583)
-- [tests/test_harness.py:503-576](file://tests/test_harness.py#L503-576)
+- [tests/test_harness.py:503-576](file://tests/test_harness.py#L503-L576)
 - [docs/contracts.md:97-133](file://docs/contracts.md#L97-L133)
 
 ## 性能考量
@@ -316,7 +275,7 @@ P --> GI[".gitignore"]
 - 事件与遥测：每次verify写入结构化事件，便于复算与定位瓶颈。
 
 章节来源
-- [scripts/harness.py:1188-1214](file://scripts/harness.py#L1188-1214)
+- [scripts/harness.py:1188-1214](file://scripts/harness.py#L1188-L1214)
 - [scripts/harness.py:1112-1136](file://scripts/harness.py#L1112-L1136)
 - [docs/contracts.md:134-163](file://docs/contracts.md#L134-L163)
 
@@ -334,21 +293,17 @@ P --> GI[".gitignore"]
   - 查看events.jsonl定位verify轮次与失败原因。
   - 确认git_scope格式正确，git_sync绑定单一分支。
 
-**更新** 改进了git_remote_drift错误的处理，现在能够提供更详细的漂移信息和恢复建议。
-
 章节来源
-- [scripts/harness.py:625-643](file://scripts/harness.py#L625-643)
-- [scripts/harness.py:706-751](file://scripts/harness.py#L706-751)
-- [scripts/harness.py:793-875](file://scripts/harness.py#L793-875)
+- [scripts/harness.py:625-643](file://scripts/harness.py#L625-L643)
+- [scripts/harness.py:706-751](file://scripts/harness.py#L706-L751)
+- [scripts/harness.py:793-875](file://scripts/harness.py#L793-L875)
 
 ## 结论
 Docs Harness的Git集成以严格的合同分离与安全边界为核心，通过预检/后检机制确保只读、元数据写入与工作区写入的语义清晰。分支管理遵循fast-forward原则，冲突与危险操作被显式阻断。工作区同步采用增量差异与快照指纹，结合验证命令缓存与事件追踪，实现高效可审计的Git操作流。配置层面强调安全与性能平衡，提供完善的故障排查指引。
-
-**更新** 最新的改进包括更好的远程漂移处理、增强的路径跟踪功能和更精确的受控引用命名空间管理，进一步提升了系统的可靠性和安全性。
 
 ## 附录
 - 实际配置示例与集成场景请参考测试用例中的init_git_remote、git_fetch、git_sync、git_inspect等断言，以及契约文档中的Git状态合同与漂移归因规范。
 
 章节来源
-- [tests/test_harness.py:503-576](file://tests/test_harness.py#L503-576)
+- [tests/test_harness.py:503-576](file://tests/test_harness.py#L503-L576)
 - [docs/contracts.md:97-133](file://docs/contracts.md#L97-L133)

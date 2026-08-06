@@ -8,14 +8,7 @@
 - [harness-home/rules/INDEX.md](file://harness-home/rules/INDEX.md)
 - [package.json](file://package.json)
 - [tests/test_harness.py](file://tests/test_harness.py)
-- [evals/evals.json](file://evals/evals.json)
 </cite>
-
-## 更新摘要
-**已完成的变更**   
-- 版本从 v1.6.5 更新到 v1.6.6
-- 更新了所有相关文件中的版本号引用
-- 保持了完整的API功能和架构不变性
 
 ## 目录
 1. [简介](#简介)
@@ -30,47 +23,41 @@
 10. [附录](#附录)
 
 ## 简介
-本参考文档面向 Docs Harness v1.6.6，系统化梳理 CLI 命令、JSON 接口、事件系统、认证与授权机制、SDK/库使用方式、版本兼容与迁移策略。内容基于仓库中的控制器脚本、合同定义、规则索引与测试用例整理而成，确保可追溯与可验证。
-
-**更新** 版本已从 v1.6.5 升级到 v1.6.6，所有相关配置文件和文档已同步更新。
+本参考文档面向 Docs Harness v1.6.5，系统化梳理 CLI 命令、JSON 接口、事件系统、认证与授权机制、SDK/库使用方式、版本兼容与迁移策略。内容基于仓库中的控制器脚本、合同定义、规则索引与测试用例整理而成，确保可追溯与可验证。
 
 ## 项目结构
 Docs Harness 以独立 Python 脚本为核心，配合项目内契约文档、规则快照与测试套件构成完整控制面：
-- scripts/harness.py：CLI 入口、命令解析、状态机与业务逻辑实现（v1.6.6）
-- docs/contracts.md：任务包、证据、验收、Git 状态、后台治理等契约定义（v1.6.6）
+- scripts/harness.py：CLI 入口、命令解析、状态机与业务逻辑实现
+- docs/contracts.md：任务包、证据、验收、Git 状态、后台治理等契约定义
 - harness-home/rules/INDEX.md：激活的规则清单与加载约定
-- package.json：包元数据与脚本入口（self-test），版本 1.6.6
+- package.json：包元数据与脚本入口（self-test）
 - tests/test_harness.py：端到端与契约测试
-- SKILL.md：安装、任务入口、后台治理、质量账本等使用说明（版本 1.6.6）
-- evals/evals.json：评估配置，版本 1.6.5
+- SKILL.md：安装、任务入口、后台治理、质量账本等使用说明
 
 ```mermaid
 graph TB
-A["CLI 入口<br/>scripts/harness.py (v1.6.6)"] --> B["命令解析与分发<br/>build_parser / main"]
+A["CLI 入口<br/>scripts/harness.py"] --> B["命令解析与分发<br/>build_parser / main"]
 B --> C["run 命令<br/>任务路由与准入"]
 B --> D["verify 命令<br/>同源验收与处置分级"]
 B --> E["background 命令<br/>后台治理 Job 控制"]
 B --> F["project 命令<br/>项目生命周期"]
 B --> G["ledger 命令<br/>质量账本"]
 B --> H["task/knowledge/context/progress<br/>辅助能力"]
-I["契约与Schema<br/>docs/contracts.md (v1.6.6)"] --> C
+I["契约与Schema<br/>docs/contracts.md"] --> C
 I --> D
 I --> E
 J["规则索引<br/>harness-home/rules/INDEX.md"] --> C
 K["测试套件<br/>tests/test_harness.py"] --> A
-L["评估配置<br/>evals/evals.json (v1.6.5)"] --> K
-M["包元数据<br/>package.json (v1.6.6)"] --> A
 ```
 
 **图表来源** 
-- [scripts/harness.py:1-26](file://scripts/harness.py#L1-L26)
-- [docs/contracts.md:1-7](file://docs/contracts.md#L1-L7)
-- [package.json:1-3](file://package.json#L1-L3)
-- [SKILL.md:1-6](file://SKILL.md#L1-L6)
-- [evals/evals.json:1-3](file://evals/evals.json#L1-L3)
+- [scripts/harness.py:10150-10349](file://scripts/harness.py#L10150-L10349)
+- [docs/contracts.md:1-200](file://docs/contracts.md#L1-L200)
+- [harness-home/rules/INDEX.md:1-41](file://harness-home/rules/INDEX.md#L1-L41)
+- [tests/test_harness.py:1-200](file://tests/test_harness.py#L1-L200)
 
 **章节来源**
-- [scripts/harness.py:1-26](file://scripts/harness.py#L1-L26)
+- [scripts/harness.py:10150-10349](file://scripts/harness.py#L10150-L10349)
 - [package.json:1-23](file://package.json#L1-L23)
 
 ## 核心组件
@@ -80,15 +67,13 @@ M["包元数据<br/>package.json (v1.6.6)"] --> A
 - 验收流程：五级处置（provide_evidence、refresh_evidence、retry_verification、incremental_admission、full_readmission）
 - 后台治理：prepare/dispatch/progress/verify/retry/prune 全链路控制
 
-**更新** 所有组件保持向后兼容，版本升级不影响现有功能。
-
 **章节来源**
-- [scripts/harness.py:1-200](file://scripts/harness.py#L1-L200)
+- [scripts/harness.py:10150-10349](file://scripts/harness.py#L10150-L10349)
 - [docs/contracts.md:1-200](file://docs/contracts.md#L1-L200)
 - [harness-home/rules/INDEX.md:1-41](file://harness-home/rules/INDEX.md#L1-L41)
 
 ## 架构总览
-Docs Harness 采用"意图优先、证据可复用、失败关闭"的控制流：
+Docs Harness 采用“意图优先、证据可复用、失败关闭”的控制流：
 - run：编译意图、范围与 Gate，生成 completion_manifest，幂等复用活动任务
 - verify：按清单逐项验收，支持命令级缓存与受管副本，返回五级处置
 - background：统一后台 Job 控制器，严格状态机与工件校验
@@ -97,8 +82,8 @@ Docs Harness 采用"意图优先、证据可复用、失败关闭"的控制流�
 ```mermaid
 sequenceDiagram
 participant Host as "宿主"
-participant CLI as "CLI(harness.py v1.6.6)"
-participant Contract as "契约/Schema (v1.6.6)"
+participant CLI as "CLI(harness.py)"
+participant Contract as "契约/Schema"
 participant Rules as "规则索引"
 participant Store as "受管存储/工件"
 Host->>CLI : 调用 run/verify/background/project
@@ -109,7 +94,7 @@ CLI-->>Host : JSON 响应(含 next_action/处置码/回执)
 ```
 
 **图表来源** 
-- [scripts/harness.py:1-200](file://scripts/harness.py#L1-L200)
+- [scripts/harness.py:10150-10349](file://scripts/harness.py#L10150-L10349)
 - [docs/contracts.md:1-200](file://docs/contracts.md#L1-L200)
 - [harness-home/rules/INDEX.md:1-41](file://harness-home/rules/INDEX.md#L1-L41)
 
@@ -317,21 +302,21 @@ CLI-->>Host : JSON 响应(含 next_action/处置码/回执)
 
 ```mermaid
 graph LR
-CLI["CLI(harness.py v1.6.6)"] --> Contracts["契约/Schema(docs/contracts.md v1.6.6)"]
+CLI["CLI(harness.py)"] --> Contracts["契约/Schema(docs/contracts.md)"]
 CLI --> Rules["规则索引(harness-home/rules/INDEX.md)"]
 CLI --> Tests["测试(tests/test_harness.py)"]
-CLI --> Package["包元数据(package.json v1.6.6)"]
-Tests --> Evals["评估配置(evals/evals.json v1.6.5)"]
+CLI --> Package["包元数据(package.json)"]
 ```
 
 **图表来源** 
-- [scripts/harness.py:1-26](file://scripts/harness.py#L1-L26)
-- [docs/contracts.md:1-7](file://docs/contracts.md#L1-L7)
-- [package.json:1-3](file://package.json#L1-L3)
-- [evals/evals.json:1-3](file://evals/evals.json#L1-L3)
+- [scripts/harness.py:10150-10349](file://scripts/harness.py#L10150-L10349)
+- [docs/contracts.md:1-200](file://docs/contracts.md#L1-L200)
+- [harness-home/rules/INDEX.md:1-41](file://harness-home/rules/INDEX.md#L1-L41)
+- [tests/test_harness.py:1-200](file://tests/test_harness.py#L1-L200)
+- [package.json:1-23](file://package.json#L1-L23)
 
 **章节来源**
-- [scripts/harness.py:1-200](file://scripts/harness.py#L1-L200)
+- [scripts/harness.py:10150-10349](file://scripts/harness.py#L10150-L10349)
 
 ## 性能考量
 - 验证命令逐项快照与收据复用，避免重复执行昂贵命令
@@ -351,9 +336,7 @@ Tests --> Evals["评估配置(evals/evals.json v1.6.5)"]
 - [docs/plans/v1.6.4-minimal-systemic-flow-efficiency-plan.md:373-391](file://docs/plans/v1.6.4-minimal-systemic-flow-efficiency-plan.md#L373-L391)
 
 ## 结论
-Docs Harness v1.6.6 提供完整的 CLI 控制面、严格的契约与规则系统、高效的验收流程与后台治理能力。通过受管副本、内容寻址与五级处置，显著降低重复操作成本并提升安全性与可审计性。
-
-**更新** 版本升级到 v1.6.6 保持了所有现有功能的向后兼容性，同时提供了更稳定的版本标识和配置管理。
+Docs Harness v1.6.5 提供完整的 CLI 控制面、严格的契约与规则系统、高效的验收流程与后台治理能力。通过受管副本、内容寻址与五级处置，显著降低重复操作成本并提升安全性与可审计性。
 
 [本节为总结，无需特定文件来源]
 
@@ -364,20 +347,6 @@ Docs Harness v1.6.6 提供完整的 CLI 控制面、严格的契约与规则系�
 - background 别名 knowledge job-status|dispatch|verify|retry 保留兼容，但不允许跳过必要步骤
 - project upgrade preserve-and-merge 合法 document_routes，非法或缺失返回 needs_manual_migration
 
-**更新** v1.6.6 版本完全向后兼容 v1.6.4 和 v1.6.5 的功能，无需特殊迁移步骤。
-
 **章节来源**
 - [SKILL.md:57-58](file://SKILL.md#L57-L58)
 - [docs/contracts.md:334-335](file://docs/contracts.md#L334-L335)
-
-### 版本历史
-- **v1.6.6**：当前版本，保持功能稳定性，更新版本标识
-- **v1.6.5**：评估配置版本，功能特性稳定
-- **v1.6.4**：最小系统性流程效率优化方案实施版本
-
-**章节来源**
-- [package.json:3](file://package.json#L3)
-- [scripts/harness.py:26](file://scripts/harness.py#L26)
-- [docs/contracts.md:1](file://docs/contracts.md#L1)
-- [SKILL.md:5](file://SKILL.md#L5)
-- [evals/evals.json:3](file://evals/evals.json#L3)
