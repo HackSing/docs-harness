@@ -8,13 +8,6 @@
 - [docs/contracts.md](file://docs/contracts.md)
 </cite>
 
-## 更新摘要
-**已进行的更改**   
-- 新增 task adopt 命令支持外部任务补录功能
-- 新增 authorization template 命令用于生成授权文件模板
-- 更新了任务管理命令的完整规格说明
-- 增强了授权管理和任务生命周期管理的文档
-
 ## 目录
 1. [简介](#简介)
 2. [项目结构](#项目结构)
@@ -28,7 +21,7 @@
 10. [附录：JSON输出与结构化响应](#附录json输出与结构化响应)
 
 ## 简介
-本文件为 Docs Harness v1.6.8 的完整 CLI 命令参考，覆盖 run、verify、background、project、ledger、context、progress、task、knowledge、authorization、self-test 等全部命令。文档包含每个命令的语法、必需与可选参数、环境变量与配置项、错误码与退出码、常见工作流示例、命令间依赖与执行顺序指导，以及 JSON 输出格式说明与调试建议。所有规范以仓库内源码与契约文档为依据。
+本文件为 Docs Harness v1.6.5 的完整 CLI 命令参考，覆盖 run、verify、background、project、ledger、context、progress、task、knowledge、self-test 等全部命令。文档包含每个命令的语法、必需与可选参数、环境变量与配置项、错误码与退出码、常见工作流示例、命令间依赖与执行顺序指导，以及 JSON 输出格式说明与调试建议。所有规范以仓库内源码与契约文档为依据。
 
 ## 项目结构
 - 入口脚本：scripts/harness.py（Python 实现）
@@ -39,20 +32,20 @@
 ```mermaid
 graph TB
 A["CLI 入口<br/>scripts/harness.py"] --> B["子命令解析器<br/>build_parser()"]
-B --> C["run / context / progress / verify / task / ledger / knowledge / background / project / authorization / self-test"]
+B --> C["run / context / progress / verify / task / ledger / knowledge / background / project / self-test"]
 C --> D["运行时状态目录<br/>.docs-harness/runs/<task-id>"]
 C --> E["项目配置<br/>.docs-harness/config.json"]
 C --> F["Git 集成<br/>git_* 工具函数"]
 C --> G["规则与知识<br/>harness-home/rules/*<br/>docs/knowledge-map.json"]
 ```
 
-**图表来源** 
-- [scripts/harness.py:10664-10792](file://scripts/harness.py#L10664-L10792)
-- [package.json:1-23](file://package.json#L-L23)
+图表来源 
+- [scripts/harness.py:10160-10279](file://scripts/harness.py#L10160-L10279)
+- [package.json:1-23](file://package.json#L1-L23)
 
 章节来源
-- [scripts/harness.py:10664-10792](file://scripts/harness.py#L10664-L10792)
-- [package.json:1-23](file://package.json#L-L23)
+- [scripts/harness.py:10160-10279](file://scripts/harness.py#L10160-L10279)
+- [package.json:1-23](file://package.json#L1-L23)
 
 ## 核心组件
 - 命令行解析与分发：build_parser() 定义所有子命令与参数；main(argv) 路由到具体 command_* 函数并统一输出 emit()。
@@ -62,15 +55,21 @@ C --> G["规则与知识<br/>harness-home/rules/*<br/>docs/knowledge-map.json"]
 - 项目生命周期：command_project() 提供 init/upgrade/uninstall/check/diff/rollback-check。
 - 质量账本：command_ledger() 支持 add/read，按任务或关键词检索。
 - 上下文与进度：command_context() 按阶段加载上下文并写回执；command_progress() 推进 extended 工作包状态。
-- 任务管理：command_task() 支持 status/migrate/cancel/archive/list/prune/**adopt**，新增外部任务补录功能。
+- 任务管理：command_task() 支持 status/migrate/cancel/archive/list/prune。
 - 知识库：command_knowledge() 兼容 background 别名，支持 status/estimate/audit/bootstrap/update/verify/job-status/dispatch/retry。
-- 授权管理：command_authorization() 支持 **template** 操作，生成授权文件模板。
 - 自检：command_self_test() 运行内置合同自检。
 
-**章节来源**
-- [scripts/harness.py:10664-10792](file://scripts/harness.py#L10664-L10792)
-- [scripts/harness.py:4054-4082](file://scripts/harness.py#L4054-L4082)
-- [scripts/harness.py:10556-10604](file://scripts/harness.py#L10556-L10604)
+章节来源
+- [scripts/harness.py:10160-10279](file://scripts/harness.py#L10160-L10279)
+- [scripts/harness.py:4540-4739](file://scripts/harness.py#L4540-L4739)
+- [scripts/harness.py:6273-6472](file://scripts/harness.py#L6273-L6472)
+- [scripts/harness.py:8629-8828](file://scripts/harness.py#L8629-L8828)
+- [scripts/harness.py:9850-10153](file://scripts/harness.py#L9850-L10153)
+- [scripts/harness.py:6983-7200](file://scripts/harness.py#L6983-L7200)
+- [scripts/harness.py:4130-4539](file://scripts/harness.py#L4130-L4539)
+- [scripts/harness.py:5506-6272](file://scripts/harness.py#L5506-L6272)
+- [scripts/harness.py:3718-4129](file://scripts/harness.py#L3718-L4129)
+- [scripts/harness.py:8987-9849](file://scripts/harness.py#L8987-L9849)
 
 ## 架构总览
 下图展示 CLI 主流程与关键子系统交互：
@@ -88,7 +87,6 @@ participant PROJ as "command_project()"
 participant LED as "command_ledger()"
 participant TSK as "command_task()"
 participant KNO as "command_knowledge()"
-participant AUTH as "command_authorization()"
 participant FS as "文件系统/.docs-harness"
 participant GIT as "Git 工具"
 U->>CLI : 调用子命令 + 参数
@@ -111,18 +109,17 @@ U->>PROJ : project init/upgrade/...
 PROJ-->>U : 项目安装/升级/检查
 U->>LED : ledger add/read
 LED-->>U : 质量账本条目
-U->>TSK : task status/migrate/.../adopt
+U->>TSK : task status/migrate/...
 TSK-->>U : 任务管理结果
-U->>AUTH : authorization template
-AUTH-->>U : 授权模板生成
 U->>KNO : knowledge status/estimate/...
 KNO-->>U : 知识库/后台兼容操作
 ```
 
-**图表来源** 
-- [scripts/harness.py:10835-10877](file://scripts/harness.py#L10835-L10877)
-- [scripts/harness.py:4054-4082](file://scripts/harness.py#L4054-L4082)
-- [scripts/harness.py:10556-10604](file://scripts/harness.py#L10556-L10604)
+图表来源 
+- [scripts/harness.py:10322-10359](file://scripts/harness.py#L10322-L10359)
+- [scripts/harness.py:4540-4739](file://scripts/harness.py#L4540-L4739)
+- [scripts/harness.py:6273-6472](file://scripts/harness.py#L6273-L6472)
+- [scripts/harness.py:8629-8828](file://scripts/harness.py#L8629-L8828)
 
 ## 详细命令参考
 
@@ -130,8 +127,8 @@ KNO-->>U : 知识库/后台兼容操作
 - --target <路径>：目标项目根目录，默认当前目录。
 - --json：以 JSON 形式输出结构化响应。
 
-**章节来源**
-- [scripts/harness.py:10659-10661](file://scripts/harness.py#L10659-L10661)
+章节来源
+- [scripts/harness.py:10155-10158](file://scripts/harness.py#L10155-L10158)
 
 ### run 命令
 用途：任务路由、任务包编译与执行准入。
@@ -164,8 +161,11 @@ KNO-->>U : 知识库/后台兼容操作
 - 继续任务：python3 scripts/harness.py run --target . --task-id dh-YYYYMMDDTHHMMSS-xxxxxxxxxx --json
 - 提交计划：python3 scripts/harness.py run --target . --task-id <id> --plan plan.json --json
 
-**章节来源**
-- [scripts/harness.py:10669-10696](file://scripts/harness.py#L10669-L10696)
+章节来源
+- [scripts/harness.py:10165-10192](file://scripts/harness.py#L10165-L10192)
+- [scripts/harness.py:4540-4739](file://scripts/harness.py#L4540-L4739)
+- [SKILL.md:25-41](file://SKILL.md#L25-L41)
+- [docs/contracts.md:48-76](file://docs/contracts.md#L48-L76)
 
 ### context 命令
 用途：按阶段加载精确上下文并写回执。
@@ -185,8 +185,9 @@ KNO-->>U : 知识库/后台兼容操作
 示例
 - python3 scripts/harness.py context --target . --task-id <id> --stage plan --json
 
-**章节来源**
-- [scripts/harness.py:10698-10702](file://scripts/harness.py#L10698-L10702)
+章节来源
+- [scripts/harness.py:10194-10198](file://scripts/harness.py#L10194-L10198)
+- [docs/contracts.md:222-234](file://docs/contracts.md#L222-L234)
 
 ### progress 命令
 用途：推进 extended 工作包状态。
@@ -209,8 +210,9 @@ KNO-->>U : 知识库/后台兼容操作
 - python3 scripts/harness.py progress begin --target . --task-id <id> --work-package wp-1 --json
 - python3 scripts/harness.py progress submit --target . --task-id <id> --work-package wp-1 --evidence evidence.json --json
 
-**章节来源**
-- [scripts/harness.py:10704-10716](file://scripts/harness.py#L10704-L10716)
+章节来源
+- [scripts/harness.py:10200-10212](file://scripts/harness.py#L10200-L10212)
+- [docs/contracts.md:336-338](file://docs/contracts.md#L336-L338)
 
 ### verify 命令
 用途：同源验收、补证或重新准入。
@@ -231,65 +233,36 @@ KNO-->>U : 知识库/后台兼容操作
 示例
 - python3 scripts/harness.py verify --target . --task-id <id> --evidence evidence.json --json
 
-**章节来源**
-- [scripts/harness.py:10718-10726](file://scripts/harness.py#L10718-L10726)
+章节来源
+- [scripts/harness.py:10214-10222](file://scripts/harness.py#L10214-L10222)
+- [scripts/harness.py:6273-6472](file://scripts/harness.py#L6273-L6472)
+- [SKILL.md:43-57](file://SKILL.md#L43-L57)
+- [docs/contracts.md:199-221](file://docs/contracts.md#L199-L221)
 
 ### task 命令
-用途：查询、取消、归档、清理任务或显式迁移 v1 在途任务，**新增外部任务补录功能**。
+用途：查询、取消、归档、清理任务或显式迁移 v1 在途任务。
 
 语法
-- python3 scripts/harness.py task <status|migrate|cancel|archive|list|prune|**adopt**> --target <项目> [--task-id <id>] [--apply] [--reason-code <码>] [--older-than <天数>] [--dry-run] [--include-archived] --json
+- python3 scripts/harness.py task <status|migrate|cancel|archive|list|prune> --target <项目> [--task-id <id>] [--apply] [--reason-code <码>] [--older-than <天数>] [--dry-run] [--include-archived] --json
 
 参数
-- action：status/migrate/cancel/archive/list/prune/**adopt**
+- action：status/migrate/cancel/archive/list/prune
 - --task-id：按需提供
 - --apply：显式应用迁移/取消/归档/清理；缺省仅预览
 - --reason-code：受控原因码
 - --older-than/--dry-run/--include-archived：清理与列表控制
-- **--outcome**：**adopt** 时的外部完成结果摘要（必填）
-- **--external-evidence**：**adopt** 时的外部证据文件路径（可选）
-- **--bypass-reason**：**adopt** 时的绕过原因（可选）
 
 行为要点
 - v1 在途任务只允许 status；migrate --apply 在 staging/backup/journal 中切换并支持回滚。
 - list 支持 include-archived 查看已归档 v1 对象。
-- **adopt** 功能：用于外部系统已完成的任务补录，将任务状态设置为 complete，verification_status 设置为 adopted_external，记录 adoption_record 并建议添加到质量账本。
-- **adopt** 限制：终态任务（complete/cancelled/failed）不可补录，必须提供 --outcome 描述完成结果。
 
 示例
 - python3 scripts/harness.py task status --target . --task-id <id> --json
 - python3 scripts/harness.py task migrate --target . --task-id <id> --apply --json
-- **python3 scripts/harness.py task adopt --target . --task-id <id> --outcome "外部系统已完成部署" --json**
-- **python3 scripts/harness.py task adopt --target . --task-id <id> --outcome "已完成" --external-evidence external-proof.json --bypass-reason "紧急修复" --json**
 
-**章节来源**
-- [scripts/harness.py:10728-10739](file://scripts/harness.py#L10728-L10739)
-- [scripts/harness.py:3980-4051](file://scripts/harness.py#L3980-L4051)
-
-### authorization 命令
-用途：**新增** 授权文件模板生成与管理。
-
-语法
-- python3 scripts/harness.py authorization <**template**> --target <项目> --task-id <id> [--output <文件>] --json
-
-参数
-- action：**template**（唯一支持的选项）
-- --task-id：必填，要生成授权模板的任务编号
-- --output：模板输出文件路径；缺省输出到 stdout
-
-行为要点
-- 从任务包中提取授权要求信息，生成标准化的授权文件模板。
-- 模板包含 schema_version、task_id、package_fingerprint、approved、authorized_actions、authorized_scope、authorized_git_scope、authorized_external_scope、external_target、constraints 等字段。
-- 需要手动填充 authorized_at、authorized_by、expires_at 等时间戳和审批人信息。
-- 模板包含 _template_hints 字段，提供各字段的格式说明和注意事项。
-
-示例
-- **python3 scripts/harness.py authorization template --target . --task-id <id> --json**
-- **python3 scripts/harness.py authorization template --target . --task-id <id> --output auth.json --json**
-
-**章节来源**
-- [scripts/harness.py:10784-10788](file://scripts/harness.py#L10784-L10788)
-- [scripts/harness.py:10556-10604](file://scripts/harness.py#L10556-L10604)
+章节来源
+- [scripts/harness.py:10224-10232](file://scripts/harness.py#L10224-L10232)
+- [docs/contracts.md:236-246](file://docs/contracts.md#L236-L246)
 
 ### ledger 命令
 用途：人工触发的个人本地质量账本。
@@ -311,8 +284,9 @@ KNO-->>U : 知识库/后台兼容操作
 - python3 scripts/harness.py ledger add --target . --task-id <id> --review review.json --json
 - python3 scripts/harness.py ledger read --target . --query "安全边界" --limit 10 --json
 
-**章节来源**
-- [scripts/harness.py:10741-10751](file://scripts/harness.py#L10741-L10751)
+章节来源
+- [scripts/harness.py:10234-10244](file://scripts/harness.py#L10234-L10244)
+- [SKILL.md:91-99](file://SKILL.md#L91-L99)
 
 ### knowledge 命令
 用途：功能知识库审查、评估与兼容后台入口。
@@ -333,8 +307,9 @@ KNO-->>U : 知识库/后台兼容操作
 - python3 scripts/harness.py knowledge estimate --target . --candidate candidate.json --json
 - python3 scripts/harness.py knowledge dispatch --target . --job-id <id> --job-status dispatched --json
 
-**章节来源**
-- [scripts/harness.py:10753-10760](file://scripts/harness.py#L10753-L10760)
+章节来源
+- [scripts/harness.py:10246-10253](file://scripts/harness.py#L10246-L10253)
+- [docs/contracts.md:332-338](file://docs/contracts.md#L332-L338)
 
 ### background 命令
 用途：统一后台文档治理 Job 控制器。
@@ -366,8 +341,11 @@ KNO-->>U : 知识库/后台兼容操作
 - python3 scripts/harness.py background verify --target . --job-id <id> --assessment assessment.json --json
 - python3 scripts/harness.py background retry --target . --job-id <id> --json
 
-**章节来源**
-- [scripts/harness.py:10762-10776](file://scripts/harness.py#L10762-L10776)
+章节来源
+- [scripts/harness.py:10255-10269](file://scripts/harness.py#L10255-L10269)
+- [scripts/harness.py:8629-8828](file://scripts/harness.py#L8629-L8828)
+- [SKILL.md:59-88](file://SKILL.md#L59-L88)
+- [docs/contracts.md:332-338](file://docs/contracts.md#L332-L338)
 
 ### project 命令
 用途：项目安装生命周期。
@@ -389,8 +367,9 @@ KNO-->>U : 知识库/后台兼容操作
 - python3 scripts/harness.py project init --target . --json
 - python3 scripts/harness.py project upgrade --target . --apply --json
 
-**章节来源**
-- [scripts/harness.py:10778-10782](file://scripts/harness.py#L10778-L10782)
+章节来源
+- [scripts/harness.py:10271-10276](file://scripts/harness.py#L10271-L10276)
+- [SKILL.md:13-24](file://SKILL.md#L13-L24)
 
 ### self-test 命令
 用途：运行内置合同自检。
@@ -404,16 +383,15 @@ KNO-->>U : 知识库/后台兼容操作
 示例
 - python3 scripts/harness.py self-test --target . --json
 
-**章节来源**
-- [scripts/harness.py:10790-10791](file://scripts/harness.py#L10790-L10791)
+章节来源
+- [scripts/harness.py:10277-10278](file://scripts/harness.py#L10277-L10278)
+- [scripts/harness.py:10150-10153](file://scripts/harness.py#L10150-L10153)
 
 ## 依赖关系分析
 - 命令依赖
   - run → context（plan/action/acceptance）→ verify（证据与命令缓存）→ progress（extended 工作包）
   - background → prepare → dispatch → progress → verify → retry（必要时）
   - project init → knowledge estimate → background prepare（knowledge_bootstrap）
-  - **task adopt → 外部任务补录 → 建议 ledger_add**
-  - **authorization template → 任务包提取 → 模板生成**
 - 外部依赖
   - Git：git_root/git_command/git_preflight_contract/git_postcheck
   - 文件系统：.docs-harness/runs、quality-ledger、knowledge/background
@@ -430,29 +408,28 @@ Progress --> |否| End(["结束"])
 Prog --> End
 Run --> BG["background (estimate/list/status/prepare/...)"]
 BG --> End
-Run --> TaskAdopt["task adopt (外部补录)"]
-TaskAdopt --> LedgerAdd["建议 ledger_add"]
-Authorization["authorization template"] --> TemplateGen["模板生成"]
-TemplateGen --> End
 ```
 
-**图表来源** 
-- [scripts/harness.py:10835-10877](file://scripts/harness.py#L10835-L10877)
-- [scripts/harness.py:3980-4051](file://scripts/harness.py#L3980-L4051)
-- [scripts/harness.py:10556-10604](file://scripts/harness.py#L10556-L10604)
+图表来源 
+- [scripts/harness.py:10160-10279](file://scripts/harness.py#L10160-L10279)
+- [scripts/harness.py:4540-4739](file://scripts/harness.py#L4540-L4739)
+- [scripts/harness.py:6273-6472](file://scripts/harness.py#L6273-L6472)
+- [scripts/harness.py:8629-8828](file://scripts/harness.py#L8629-L8828)
 
-**章节来源**
-- [scripts/harness.py:10835-10877](file://scripts/harness.py#L10835-L10877)
+章节来源
+- [scripts/harness.py:10160-10279](file://scripts/harness.py#L10160-L10279)
 
 ## 性能与可观测性
 - 验证命令缓存：按 argv、produces 与输入指纹（读取集与工作区相关写入）绑定；输入不变且上次通过则复用收据，减少昂贵命令重跑。可通过 verification.command_cache_enabled=false 整体关闭。
 - 上下文内容寻址：按 stage、compiler_contract、content_set_fingerprint 复用正文，避免重复加载。
 - 事件记录：每次 verify 入口最终写入 events.jsonl，包含 duration_ms、command_executed_count、command_cache_hit_count、context_load_count、readmission_count 等指标。
 - 工作区快照：非 Git 工作区限制文件数量上限，避免截断基线导致误判。
-- **任务补录事件**：task_adopt 操作记录 task_adopted 事件，包含 adoption_record 详细信息。
 
-**章节来源**
-- [scripts/harness.py:3980-4051](file://scripts/harness.py#L3980-L4051)
+章节来源
+- [scripts/harness.py:1188-1213](file://scripts/harness.py#L1188-L1213)
+- [scripts/harness.py:1031-1071](file://scripts/harness.py#L1031-L1071)
+- [scripts/harness.py:1112-1135](file://scripts/harness.py#L1112-L1135)
+- [docs/contracts.md:199-221](file://docs/contracts.md#L199-L221)
 
 ## 故障排除指南
 - 常见错误码与退出码
@@ -467,20 +444,20 @@ TemplateGen --> End
   - 证据不足：按 reason_code 提示补充对应类型证据；必要时刷新过期证据
   - Git 漂移：postcheck 失败将触发 full_readmission；git_sync 场景需单命令重新准入并复用冻结方案
   - 后台 Job 状态非法：检查 transition 合法性与工件完整性，必要时 prepare --repair
-  - **任务补录失败**：检查任务是否处于终态，确保提供 --outcome 参数
-  - **授权模板生成失败**：确认 --task-id 有效且任务包存在
 - 调试建议
   - 始终使用 --json 获取结构化响应
   - 关注 next_action 与 next_command_argv，按指引执行下一步
   - 查看 events.jsonl 与 evidence-index.json 了解最近轮次与证据状态
   - 检查 .docs-harness/config.json 的 verification.* 开关是否符合预期
 
-**章节来源**
-- [scripts/harness.py:3980-4051](file://scripts/harness.py#L3980-L4051)
-- [scripts/harness.py:10556-10604](file://scripts/harness.py#L10556-L10604)
+章节来源
+- [docs/contracts.md:359-370](file://docs/contracts.md#L359-L370)
+- [scripts/harness.py:10322-10359](file://scripts/harness.py#L10322-L10359)
+- [scripts/harness.py:6273-6472](file://scripts/harness.py#L6273-L6472)
+- [scripts/harness.py:8629-8828](file://scripts/harness.py#L8629-L8828)
 
 ## 结论
-Docs Harness CLI 围绕"意图优先、证据可复用、失败关闭"的原则设计，通过严格的准入、范围绑定、Gate 编译、上下文与授权回执、逐命令验证与收据复用，确保任务执行的可审计性与稳定性。**v1.6.8 版本新增的 task adopt 命令和 authorization template 功能进一步增强了外部任务管理和授权管理能力**。掌握 run/context/verify/progress/background/project/ledger/task/authorization/knowledge/self-test 的命令规格与依赖关系，即可高效编排从任务准入到验收的全流程。
+Docs Harness CLI 围绕“意图优先、证据可复用、失败关闭”的原则设计，通过严格的准入、范围绑定、Gate 编译、上下文与授权回执、逐命令验证与收据复用，确保任务执行的可审计性与稳定性。掌握 run/context/verify/progress/background/project/ledger/task/knowledge/self-test 的命令规格与依赖关系，即可高效编排从任务准入到验收的全流程。
 
 ## 附录：JSON输出与结构化响应
 - 输出格式
@@ -491,13 +468,12 @@ Docs Harness CLI 围绕"意图优先、证据可复用、失败关闭"的原则�
   - completion_manifest、contract_delta、plan_contract、plan_delta_contract
   - evidence_index、auto_attributed_paths、workspace_attribution
   - background job 字段：job_id、status、execution_route、attempt、created_at、updated_at、completed_at
-  - **adoption_record**：**task adopt** 操作的补录记录，包含 schema_version、task_id、adopted_at、adopted_by、original_package_fingerprint、bypass_reason、outcome_summary、external_evidence_refs、verification_status
-  - **template**：**authorization template** 操作的授权模板，包含完整的授权字段和 _template_hints
 - 事件与指标
-  - events.jsonl 记录 verification_attempt、readmission、auto_attribution、**task_adopted** 等事件
+  - events.jsonl 记录 verification_attempt、readmission、auto_attribution 等事件
   - 指标包括 duration_ms、command_executed_count、command_cache_hit_count、context_load_count、readmission_count
 
-**章节来源**
-- [scripts/harness.py:3980-4051](file://scripts/harness.py#L3980-L4051)
-- [scripts/harness.py:10556-10604](file://scripts/harness.py#L10556-L10604)
-- [scripts/harness.py:10795-10801](file://scripts/harness.py#L10795-L10801)
+章节来源
+- [scripts/harness.py:10282-10288](file://scripts/harness.py#L10282-L10288)
+- [scripts/harness.py:1031-1071](file://scripts/harness.py#L1031-L1071)
+- [docs/contracts.md:199-221](file://docs/contracts.md#L199-L221)
+- [docs/contracts.md:359-370](file://docs/contracts.md#L359-L370)
