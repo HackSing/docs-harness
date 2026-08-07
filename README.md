@@ -111,7 +111,8 @@ python3 scripts/harness.py run \
 - `mutation_profile`：`read_only|git_metadata_write|workspace_write|external_write`；
 - `read_scope|write_scope|git_scope|external_scope` 分别承载读取、工作区写入、Git 元数据和外部目标；
 - 混合意图按最高变更面和最高风险 Gate 编译，显式 facts 只能升级；
-- 只读任务默认 `ready_direct + read_only + write_scope=[]`，自然语言范围返回 `invalid_scope_description`。
+- 只读任务默认 `ready_direct + read_only + write_scope=[]`，自然语言范围返回 `invalid_scope_description`；
+- 低风险任务可在 facts 声明 `fast_track: true` 走轻量通道：direct 路线、无 high gate、write_scope 全为文档/规则/测试路径且无 `work_packages` 时生效，`completion_manifest.evidence_profile="fast_track"` 证据收敛为 `code_diff`（+声明验证命令时 `test_run`）最小集；不满足条件静默降级并返回 `fast_track_denied_reason`；可用 `inline_note`（≤200 字）替代独立 plan 文档；fast_track 不豁免任何 Gate，运行期命中新风险 Gate 即单向降级。
 
 最终验收：
 
@@ -257,4 +258,11 @@ npm run pack:check
 
 这些命令只证明当前来源包的对应检查。发布还必须分别取得临时项目、真实 Git/fresh clone、直接后台路线、目标型后台路线、部分支持宿主和完全不支持宿主的证据。
 
-当前版本：`1.6.8`。详细 Schema 与状态机见 [docs/contracts.md](docs/contracts.md)，版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+发版版本同步用单命令完成（先改 `scripts/harness.py` 的 `VERSION` 常量，再执行）：
+
+```bash
+python3 scripts/harness.py release sync --target . --json          # 检查四源一致性
+python3 scripts/harness.py release sync --apply --target . --json  # 原子写入 VERSION/package.json/SKILL.md
+```
+
+当前版本：`1.7.1`。详细 Schema 与状态机见 [docs/contracts.md](docs/contracts.md)，版本历史见 [CHANGELOG.md](CHANGELOG.md)。

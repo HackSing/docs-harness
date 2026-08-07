@@ -1,5 +1,34 @@
 # Changelog
 
+## 1.7.2 - 2026-08-07
+
+- 后台治理合并快路径（声明制，不跳过任何既有校验闸门）：`background dispatch --job-status running --prepare-and-run` 单命令内顺序执行 prepare → contract_ready→dispatched 校验 → dispatched→running 校验（工件校验、绑定、attempt、工作包全集、指纹、路由合同复验原样保留），任一闸门失败停在该步并返回与分步执行相同的出口（prepare 闸门相同错误码；dispatch 闸门相同 `next_action`/`reason_code`，附加 `prepare_and_run` 与 `completed_steps`）；已 prepared 且指纹一致时复用 `already_prepared` 幂等语义跳过 prepare。资格限制：仅 `execution_route == "background_goal"` 且估算为 `change_scoped`、`raw_score < 60` 的 Job 可用，phased/oversized/direct/非 change_scoped/分数 ≥60 统一以 exit 3 `background_prepare_and_run_not_eligible` + 精确 `eligibility_reason_code`（`route_phased_oversized`/`route_not_complex_goal`/`workload_estimate_unavailable`/`estimate_not_change_scoped`/`score_not_below_60`）拒绝并记录 `transition_rejected` 事件。
+- `background progress --all completed`：一次把冻结 Plan 全部工作包从合法前置态推进到 completed（`pending → in_progress → completed` 逐包连续推进、事件逐包记录，复用逐包状态机校验）；任一工作包处于非法前置态（如 blocked）即整体拒绝、不部分提交（exit 3 `background_progress_all_blocked` + 阻断清单 + `partial_commit: false`）。`--all` 与单包参数混用失败关闭。
+- 实现上把 dispatch 执行体抽取为 `dispatch_background_job_status`，分步路径与合并路径共享同一份闸门代码；控制面不变量不变（Job 仍不能直写 `job.json`/`plan.json`/`progress.json`/`events.jsonl`），`knowledge` 兼容别名共享同路径同门禁，`background_direct` 行为不变。
+
+## 1.7.1 - 2026-08-07
+
+- 新增 `release sync [--apply] [--target-version X.Y.Z]` 单命令发版同步：检查模式（默认）扫描四处版本真源（`VERSION` 文件、`package.json` version、SKILL.md frontmatter `metadata.version`、`scripts/harness.py` 的 `VERSION` 常量，复用 `validate_project_source` 读取逻辑）并输出 JSON 差异报告（exit 0 一致 / 2 不一致 / 1 读取失败），CHANGELOG 顶部条目版本号仅作差异提示不自动生成；`--apply` 以 `VERSION` 常量为唯一真源原子写入三处受管文件（全部目标先写临时文件并校验，再统一替换，任一失败整体回滚、无部分写入），`--target-version` 与常量不一致时失败关闭（exit 2，`release_version_conflict`），一致时作为显式确认；归属不明内容（version 字段缺失/多重/frontmatter 不完整）失败关闭。
+- 验收层中间产物复用：`workspace_snapshot()` 与安装副本 SHA-256 比对按（路径， 清单/内容摘要， 合同版本， target_identity）键做单次 CLI 会话内进程级缓存，跨验收层复用确定性中间产物（快照指纹、文件 SHA-256）；清单摘要漂移、合同版本或目标变化即失效重算。四层验收判定结论保持独立，fresh clone 与远端网络 I/O 不跳过。verify 响应新增有界遥测字段 `layer_reuse`（`snapshot_hits`/`snapshot_misses`/`file_hash_hits`/`file_hash_misses` 计数，不含路径以外信息）。
+- self-test 的 `script_version` 检查从只查 VERSION 文件扩展为四源比对，`command_parser` 清单同步纳入 `release`。
+
+## 1.7.0 - 2026-08-07
+
+- 低风险任务轻量准入通道（fast_track，声明制）：facts 显式声明 `fast_track: true`（非布尔失败关闭），且路线为 direct、未命中 high gate 与安全底线 Gate、`write_scope` 全部落在文档/规则/测试路径（复用 `infer_gates_from_paths` 分类）、无 `work_packages` 时生效；任一条件不满足静默降级普通流程并在响应标注 `fast_track_denied_reason`（受控原因码 `route_not_direct`/`high_gate_present`/`scope_not_doc_like`/`has_work_packages`）。fast_track 不豁免任何 Gate 判定。
+- fast_track 证据裁剪显式化：`completion_manifest` 新增 `evidence_profile`，fast_track 任务 `required_evidence_types` 收敛为最小集（`code_diff` + 声明验证命令时的 `test_run`），语义规则累加不叠加；准入与 verify 响应显式携带 `evidence_profile: "fast_track"`，禁止静默裁剪；verify 按 profile 校验，缺证据骨架按 profile 生成。证据白名单新增 `code_diff`、`test_run`。
+- 运行期单向降级：verify 归因命中 `new_risk_gate` 或 `high_risk_drift` 时任务包 `fast_track` 写回 `false`、`completion_manifest` 重建为标准证据集、记录 `fast_track_downgraded` 事件与原因，响应标注 `fast_track_downgraded`；降级单向，重准入只继承任务包记录的生效值。
+- `inline_note` 内联通道：fast_track 任务可在 facts 携带 ≤200 字 `inline_note` 替代独立 plan 文档，落入任务包不写 `docs/plans/`；非 fast_track 提交返回 `inline_note_ignored` 提示；超长或非字符串失败关闭。
+- 耗时度量：admission（created/readmission/scope_bound_readmission）、planning（plan_frozen/plan_amendment_required）、business_action（begin/block/submit）事件补齐 `time.monotonic()` 真实 `duration_ms`（此前仅 context/verification 有真实计时）；`task status` 响应新增 `overhead_summary`（`harness_total_ms` 各阶段耗时求和、`wall_clock_ms` 首末事件墙钟、`harness_share` 占比，墙钟为 0 时 `null`），为「harness 开销 ≤ 任务总时长 1/10」提供复算口径。
+
+## 1.6.9 - 2026-08-06
+
+- 准入效率加固（ZBuddy 质量账本 `dh-20260806T173420-72df04e033` 复盘驱动，目标 harness 自身耗时 ≤ 任务总时长 1/4）：
+- scope 输入防呆：`--scope` 或 facts scope 字段中形似 JSON 的值（数组/对象整体作为单个字符串）直接报 `invalid_scope_json`，附 `actual_vs_expected` 与 `suggested_fix`，不再静默污染 `allowed_scope` 引发 write_scope_violation / plan_scope_mismatch 死循环。
+- 每步响应自描述：`next_step_payload` 统一携带 `contract_snapshot`（当前 `allowed_scope`/`read_scope`/`write_scope` 实际值、`plan_fields`、完成清单 `required_evidence_types`），重准入修 scope 可同时核对三字段、verify 前可一次性备齐证据，消除补证据与缺字段的额外轮次。
+- `--facts` 静默忽略显性化：非 blocked/scope_changed 状态下提交 facts 时响应返回 `facts_ignored=true` 与 `facts_effective_condition` 生效条件说明。
+- Windows 路径提示：`--facts` 等文件参数传入 Git Bash `/tmp` 等 POSIX 绝对路径导致文件缺失时，错误附带改用工作区相对路径的 `suggested_fix`。
+- 托管操作指引同步增补：scope 单值禁 JSON、文件参数工作区相对路径、重准入三字段核对、verify 前按 manifest 备证据、planned 改方案先 `context --stage plan`。
+
 ## 1.6.8 - 2026-08-06
 
 - 错误提示 actionable 化：`HarnessError` 新增 `suggested_fix`、`missing_items`、`actual_vs_expected` 结构化字段并随 JSON 错误输出序列化。`authorization_mismatch` 逐项列出缺失的授权动作与未覆盖的 write/git/external scope（含每项 `scope_type`、`required`、`authorized`、`hint`，git scope 给出 `.git:refs/remotes/<remote>/<branch>` 格式示例）；`stale_evidence` 列出 `declared_but_not_changed` 与 `changed_but_not_declared` 具体路径并提示 write_set 只写 git 可跟踪源码路径；证据 JSON 解析失败与非对象证据给出 `actual_vs_expected` 对比（如 "JSON list" vs "single JSON object per --evidence parameter"）。宿主可直接消费字段渲染修复指引，不再靠报错文本试错。

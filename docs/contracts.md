@@ -1,10 +1,10 @@
-# Docs Harness v1.6.8 合同
+# Docs Harness v1.7.1 合同
 
 ## 1. 产品边界
 
 Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、证据、验收、后台治理和 Git 交付检查。它不自动提交、推送、发布、安装下游项目或修改 `.gitignore`，也不把源码、本地 Runtime、当前 HEAD、远端、fresh clone、发布产物和真实 UI 合并为一个完成结论。
 
-项目配置继续使用 `docs-harness/project-config/v4`，版本值为 `1.6.8`。Harness Home 缺失、没有合法 active 规则、规则指纹漂移、来源版本不一致或配置无效均失败关闭。
+项目配置继续使用 `docs-harness/project-config/v4`，版本值为 `1.7.1`。Harness Home 缺失、没有合法 active 规则、规则指纹漂移、来源版本不一致或配置无效均失败关闭。
 
 ## 2. task-package/v2
 
@@ -43,7 +43,9 @@ Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、�
 
 宿主可在 facts 中提交 `gate_assessment`（`{"gates": [...], "rationale": "..."}`，rationale 为 500 字符内非空字符串）对 Gate 做权威语义判断：声明后跳过非安全 Gate 的关键词与 scope 路径推断，最终 Gate = `gate_assessment.gates` ∪ 旧 `gates` 字段 ∪ 安全底线兜底。`security-sensitive`、`destructive-data`、`release-external` 三个安全底线 Gate 仍由控制器按任务文本与路径确定性强制并入（宿主只能加不能减），文本触发使用底线专用精确词表并带否定守卫（「不要部署」「先不推送」「删除注释」不命中），被强制并入的 Gate 记录在 `gate_decision.floor_added`。未声明时回退关键词推断（`gate_decision.mode=keyword_inferred`，行为与此前版本一致）。准入响应与 task-package 记录 `gate_decision`（`mode`/`declared_gates`/`rationale`/`floor_added`）供审计；任务中途基于实际变更路径的 Gate 绊线与增量/完整重新准入不受声明影响。
 
-路径范围只接受项目内相对路径、glob 或受控 Git 资源。完整句子、否定说明和自然语言边界返回 `invalid_scope_description`。自然语言约束应放入任务约束，不得伪装成路径。
+路径范围只接受项目内相对路径、glob 或受控 Git 资源。完整句子、否定说明和自然语言边界返回 `invalid_scope_description`。形似 JSON 的值（数组或对象整体作为单个 scope 字符串）返回 `invalid_scope_json` 并附修复提示；`--scope` 是可重复单值参数，facts 中 scope 字段必须是字符串数组。自然语言约束应放入任务约束，不得伪装成路径。
+
+所有经 `next_step_payload` 的逐步响应统一携带 `contract_snapshot`：当前 `allowed_scope`/`read_scope`/`write_scope` 实际值、`plan_fields` 与完成清单所需证据类型（`required_evidence_types`）。快照只含合同字段，不含任务正文与原始环境信息。`--facts` 仅在 blocked 或 scope_changed 的重准入时生效；其他状态下提交 facts 不再静默忽略，响应返回 `facts_ignored=true` 与 `facts_effective_condition` 说明。Windows 上文件参数（`--facts`/`--plan`/`--evidence`/`--authorization` 等）传入 Git Bash `/tmp` 等 POSIX 绝对路径导致文件缺失时，错误附带改用工作区相对路径的 `suggested_fix`。
 
 `run` 按 active task key 幂等复用：同一 target、归一化任务文本、事实指纹与当前工作区快照命中活动任务时返回 `active_task_reused` 和原 task_id，不重复建立上下文与授权。任务文本、事实或初始工作区不同则新建；`--new-task` 强制新建；`complete|cancelled|failed|blocked` 状态的任务不复用，blocked 保证重新校验规则。
 
@@ -76,6 +78,8 @@ ready_extended
 ```
 
 `verify` 只按当前清单固定项及预声明条件验收，不得在收尾阶段静默增加隐藏要求。产品、架构、安全、数据破坏、外部发布、前端设计、extended 路线，以及任何改变执行路线、授权、范围、方案字段、工作包或阻断交付物的新 Gate，必须完整重新准入。仅追加且保持上述合同不变的普通 Gate 由控制器原子生成下一 package revision：保留首次冻结基线，把同轮已校验收据以 `origin_package_fingerprint|adopted_from_package_fingerprint|adoption_reason` 留痕后继承，并在需要时只要求加载新 action context；宿主不重新执行完整 `run`，也不重新生成相同证据。补证使用增量收据；父任务最终正文只生成一次。
+
+低风险任务可显式声明轻量准入：facts 携带 `fast_track: true`（必须是布尔值，其他类型失败关闭），且同时满足 ①路线为 `direct`、②未命中 high gate 与 `SAFETY_FLOOR_GATES`、③`write_scope` 全部落在文档/规则/测试路径（复用 `infer_gates_from_paths` 的路径分类，纯代码路径不算）、④无 `work_packages` 时生效。任一条件不满足即静默降级普通流程，响应标注 `fast_track_denied_reason`（受控原因码 `route_not_direct`/`high_gate_present`/`scope_not_doc_like`/`has_work_packages`）。fast_track 是声明制，不做自动推断，也不豁免任何 Gate 判定。生效时 `completion_manifest.evidence_profile="fast_track"`，`required_evidence_types` 收敛为最小集（`code_diff`，另加声明了验证命令时的 `test_run`），Gate/规则语义证据累加不叠加；准入与 verify 响应显式携带 `evidence_profile`，禁止静默裁剪。运行期 verify 归因命中 `new_risk_gate` 或 `high_risk_drift` 时单向降级：任务包 `fast_track` 写回 `false`、`completion_manifest` 重建为标准证据集、记录 `fast_track_downgraded` 事件与原因，后续 verify 按普通证据集校验；降级不可反向升级，重编译只继承任务包记录的生效值。fast_track 任务还可在 facts 携带 `inline_note`（200 字符内非空字符串）替代独立 plan 文档，落入任务包 `inline_note` 字段，不写 `docs/plans/`；非 fast_track 任务携带时按 `facts_ignored` 同类语义返回 `inline_note_ignored` 提示。
 
 合同与方案一次冻结：package revision 变化时控制器生成 `contract_delta`（新增证据类型、收据、条件项与阻断项）并归档到 `package-history`；新增 Gate 只缺方案字段时返回 `complete_plan_delta` 和 `plan_delta_contract`，宿主只补充缺失字段，不重做完整方案。上下文正文按 task、stage、compiler contract 与内容指纹跨阶段复用，不随 revision 重复加载。
 
@@ -300,6 +304,10 @@ business_action_count
 
 不得保存用户任务正文、原始工具输出、环境变量、凭证或完整日志。效率结论必须由这些字段和受控原因码复算。
 
+admission、planning、context、verification、business_action 各阶段事件均以 `time.monotonic()` 记录真实 `duration_ms`。`task status` 响应携带 `overhead_summary`：`harness_total_ms`（全部事件 `duration_ms` 求和）、`wall_clock_ms`（首末事件时间差）、`harness_share`（两者比值，`wall_clock_ms` 为 0 时 `null`），作为「harness 自身开销占任务总时长比例」的复算口径；不含任务正文与路径以外信息。
+
+verify 响应携带有界遥测字段 `layer_reuse`：`snapshot_hits`/`snapshot_misses`（工作区快照复用计数）与 `file_hash_hits`/`file_hash_misses`（文件 SHA-256 复用计数），只含计数，不含路径以外信息。
+
 ## 10. 双通道与后台治理
 
 主任务完成状态与后台治理状态保持独立。`verify` 先原子写入父任务 `complete`，再逐项消费任务包冻结的 `background_deliverables`。未声明交付物返回 `not_required`，`changed_paths=[]` 返回 `no_write_no_sync`。后台合同使用 `docs-harness/background-job/v2`；v1 只读兼容，并在 `project upgrade --apply` 中幂等迁移。后台队列、失败、重试或重大问题不能回滚父任务。
@@ -335,6 +343,11 @@ contract_ready → background prepare → 宿主 Goal/Plan → dispatched → ru
 
 `background progress` 只允许 running 的复杂 Job，工作包 ID 必须来自冻结 Plan。合法转换是 `pending → in_progress|blocked` 和 `in_progress → completed|blocked`；相同状态幂等，倒退、跳过执行、未知 ID 或自由文本原因失败关闭。完成与剩余列表由控制器派生。
 
+合并快路径（v1.7.2，声明制，不跳过任何上述闸门）：
+
+- `background dispatch --job-status running --prepare-and-run` 把 `prepare → dispatched → running` 合并为单命令，必须显式给出 `--job-status running`（缺失或其他值失败关闭），仅支持 `contract_ready` 起点。资格限制：仅 `execution_route == "background_goal"` 且 `workload_estimate_ref` 估算为 `change_scoped`、`raw_score < 60`；phased/oversized、direct、估算缺失、非 `change_scoped` 或分数 ≥60 统一以 exit 3 `background_prepare_and_run_not_eligible` 拒绝，携带精确 `eligibility_reason_code` 并记录 `transition_rejected` 事件，不执行任何步骤。合并执行复用与分步完全相同的闸门实现：已 prepared 且指纹一致时按 `already_prepared` 幂等跳过 prepare；任一闸门失败停在该步，prepare 闸门抛出与分步 prepare 相同错误码，dispatch 闸门返回与分步 dispatch 相同的 `next_action`/`next_command_argv`/`reason_code`，并附加 `prepare_and_run: true` 与 `completed_steps`。成功响应携带 `prepare_status` 与 `dispatch_sequence`。
+- `background progress --all completed` 把冻结 Plan 全部工作包一次推进到 completed：`pending → in_progress → completed` 逐包连续推进，事件逐包记录，与逐包分步执行逐条一致；已 completed 的包幂等跳过。先整体预检，任一工作包处于非法前置态（blocked 或未知状态）即整体拒绝、不写任何进度（exit 3 `background_progress_all_blocked` + `blocking_work_packages` 阻断清单 + `partial_commit: false`）。`--all` 与 `--work-package-id`/`--work-package-status` 混用失败关闭。
+
 `background verify` 对 `updated|no_change` 要求全部工作包 completed；`completed_with_finding` 只允许 completed 或 blocked，并返回 blocked ID。revision 2 工件漂移失败关闭；升级前已在 running 且有绑定指纹的旧工件仅当前 attempt 可走一次 legacy verify，retry 后必须重新 prepare。
 
 retry 只归档当前 attempt 工件、推进 attempt、清空准备引用并刷新基线，不生成新工件。后台事件仅保存有界状态、attempt、工作包 ID、原因码和指纹，不保存 Plan 正文、异常正文、任务正文、环境变量、宿主会话或调用者绝对临时路径；连续相同拒绝幂等去重。终态摘要以 `(job_id, attempt, status)` 为键。
@@ -369,3 +382,14 @@ Runtime、锁、迁移 journal、收据和本地质量账本不进入 Git。真�
 | `4` | 范围、漂移、Gate、远端、授权或规则变化，必须重新准入 |
 
 所有文件型参数只接受文件路径。文件大小、UTF-8、JSON 类型和文件系统错误必须转成结构化错误，不回显敏感输入。
+
+## 13. 发版同步与验收层中间产物复用
+
+`release sync` 是发版版本真源的单命令入口，`sync` 为默认（唯一）action：
+
+- 检查模式（默认）：扫描四处版本真源——`VERSION` 文件、`package.json` 的 `version`、SKILL.md frontmatter `metadata.version`、`scripts/harness.py` 的 `VERSION` 常量（与 `validate_project_source` 共用读取逻辑）——以 `VERSION` 常量（`controller`）为基准输出 JSON 差异报告（`sources`/`diffs`），退出码 0 一致（`consistent`）、2 不一致（`inconsistent`）、1 读取失败（`unreadable`，含缺失真源清单）。CHANGELOG.md 顶部条目版本号一并报告（`changelog_top_version`），不一致只给 `changelog_hint` 提示，不自动生成文案、不影响退出码。
+- `--apply`：以 `VERSION` 常量为唯一真源原子写入 `VERSION` 文件、`package.json`、SKILL.md frontmatter 三处 Docs Harness 受管文件。原子性：全部目标先写临时文件并逐一校验（JSON 可解析且版本生效、frontmatter 可解析且版本生效、字节回读一致），再统一 `os.replace`；任一失败整体回滚到原始字节，无部分写入。已一致时返回 `already_consistent` 且零写入。
+- `--target-version X.Y.Z`：与 `VERSION` 常量不一致时失败关闭（exit 2，`release_version_conflict`，附 `actual_vs_expected`）；一致时作为显式确认。非语义版本格式报 `invalid_target_version`。
+- 失败关闭边界：`VERSION` 常量不可读取报 `release_source_unreadable`（exit 1）；version 字段缺失、出现多次或 frontmatter 不完整等归属不明内容报 `release_managed_file_unrecognized`；写入或替换失败报 `release_write_failed`（exit 1）并保证无部分写入。只写受管文件，不触碰业务文档，不自动提交或推送 git。
+
+验收层中间产物复用：源码、安装副本、Git HEAD/远端、fresh clone 四层验收判定结论保持各自独立（第 11 节合同不变），只复用层间确定性中间产物。`workspace_snapshot()` 按（路径， 清单摘要， 合同版本， target_identity）键做进程级缓存，清单摘要为全部受跟踪文件（相对路径， 大小， mtime_ns）的 SHA-256；安装副本 SHA-256 比对按（路径， 大小， mtime_ns）键缓存。缓存仅在单次 CLI 会话内有效；清单摘要漂移、合同版本或目标变化即失效重算。fresh clone 与远端验证的网络 I/O 不跳过。复用命中/未命中通过 verify 响应的 `layer_reuse` 字段观测（第 9 节）。

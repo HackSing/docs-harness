@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import importlib.util
+import datetime
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -180,19 +182,40 @@ class DocsHarnessContractTest(unittest.TestCase):
                 "--work-package-id", item["id"], "--work-package-status", "completed",
             )
 
-    def force_complex_background_job(self, job_id: str, packages: list[str] | None = None) -> dict[str, Any]:
+    def force_complex_background_job(self, job_id: str, packages: list[str] | None = None, route: str = "background_goal") -> dict[str, Any]:
         job_path = self.project / ".docs-harness" / "background" / "jobs" / job_id / "job.json"
         job = json.loads(job_path.read_text(encoding="utf-8"))
-        job["execution_route"] = "background_goal"
+        job["execution_route"] = route
         job["goal_contract"] = HARNESS_MODULE.goal_contract_for_estimate(
-            {"execution_route": "background_goal"}, "验证后台 Goal 宿主桥接"
+            {"execution_route": route}, "验证后台 Goal 宿主桥接"
         )
         job["work_packages"] = packages or ["准备控制面", "完成业务验收"]
         job["host_dispatch_contract"] = HARNESS_MODULE.host_dispatch_contract(
-            self.project, job_id, "background_goal"
+            self.project, job_id, route
         )
         job_path.write_text(json.dumps(job, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return job
+
+    def background_event_sequence(self, job_id: str) -> list[dict[str, Any]]:
+        root = self.project / ".docs-harness" / "background" / "jobs" / job_id
+        return [
+            {key: value for key, value in item.items() if key not in {"at", "job_id", "attempt"}}
+            for item in HARNESS_MODULE.read_jsonl(root / "events.jsonl")
+        ]
+
+    def start_complex_background_job(self, job_id: str) -> None:
+        self.write_background_goal_artifacts(job_id)
+        self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", job_id, "--job-status", "dispatched"
+        )
+        self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", job_id, "--job-status", "running"
+        )
+
+    def cancel_background_job(self, job_id: str) -> None:
+        self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", job_id, "--job-status", "cancelled"
+        )
 
     def commit_project(self, message: str = "install docs harness") -> None:
         subprocess.run(["git", "add", "-A"], cwd=self.project, check=True)
@@ -499,6 +522,716 @@ class DocsHarnessContractTest(unittest.TestCase):
             expected=2,
         )
         self.assertEqual(rejected["code"], "invalid_scope_description")
+
+    def test_v169_scope_rejects_json_array_string(self) -> None:
+        self.init_project()
+        _, rejected = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改 `a.ts` 与 `b.ts`",
+            "--scope",
+            '["a.ts", "b.ts"]',
+            expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_scope_json")
+        self.assertIn("suggested_fix", rejected)
+        facts = self.write_json(
+            "json-scope-facts.json",
+            {"task_intent": "modify", "write_scope": ['["a.ts", "b.ts"]']},
+        )
+        _, rejected_facts = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改 `a.ts` 与 `b.ts`",
+            "--facts",
+            str(facts),
+            expected=2,
+        )
+        self.assertEqual(rejected_facts["code"], "invalid_scope_json")
+        self.assertIn("suggested_fix", rejected_facts)
+
+    def test_v169_windows_posix_path_hint_for_missing_facts_file(self) -> None:
+        with mock.patch.object(HARNESS_MODULE.sys, "platform", "win32"):
+            with self.assertRaises(HARNESS_MODULE.HarnessError) as ctx:
+                HARNESS_MODULE.load_input_file(
+                    "/tmp/dh-v169-nonexistent-facts.json",
+                    argument="--facts",
+                    max_bytes=1024,
+                    error_code="invalid_facts",
+                )
+        self.assertEqual(ctx.exception.code, "invalid_facts")
+        self.assertIsNotNone(ctx.exception.suggested_fix)
+        self.assertIn("工作区相对路径", ctx.exception.suggested_fix)
+
+    def test_v169_facts_ignored_warns_when_not_readmission(self) -> None:
+        self.init_project()
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 `README.md` 文档", "--scope", "README.md"
+        )
+        facts = self.write_json("late-facts.json", {"success_criteria": ["补充标准"]})
+        _, result = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task-id",
+            routed["task_id"],
+            "--facts",
+            str(facts),
+        )
+        self.assertTrue(result["facts_ignored"])
+        self.assertIn("facts_effective_condition", result)
+
+    def test_v169_blocked_readmission_response_includes_contract_snapshot(self) -> None:
+        self.init_project()
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 `README.md` 文档", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        (self.project / "README.md").write_text("ok\n", encoding="utf-8")
+        (self.project / "outside.txt").write_text("unexpected\n", encoding="utf-8")
+        evidence = self.evidence(
+            "scope169",
+            evidence_type="document_review",
+            covers=task_id,
+            changed_paths=["README.md", "outside.txt"],
+        )
+        self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
+        )
+        facts = self.write_json("readmission-facts.json", {"allowed_scope": ["README.md", "outside.txt"]})
+        _, result = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task-id",
+            task_id,
+            "--facts",
+            str(facts),
+            expected=None,
+        )
+        snapshot = result["contract_snapshot"]
+        self.assertEqual(snapshot["allowed_scope"], ["README.md", "outside.txt"])
+        self.assertIn("write_scope", snapshot)
+        self.assertIn("read_scope", snapshot)
+        self.assertIn("plan_fields", snapshot)
+        self.assertIn("evidence_types", snapshot)
+
+    def test_v170_fast_track_ready_direct_minimal_evidence(self) -> None:
+        self.init_project()
+        facts = self.write_json(
+            "fast-track.json",
+            {"fast_track": True, "write_scope": ["README.md"]},
+        )
+        _, routed = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改 `README.md` 文档",
+            "--facts",
+            str(facts),
+        )
+        self.assertEqual(routed["admission_status"], "ready_direct")
+        self.assertTrue(routed["fast_track"])
+        self.assertEqual(routed["evidence_profile"], "fast_track")
+        manifest = routed["completion_manifest"]
+        self.assertEqual(manifest["evidence_profile"], "fast_track")
+        self.assertEqual(manifest["required_evidence_types"], ["code_diff"])
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        (self.project / "README.md").write_text("updated\n", encoding="utf-8")
+        evidence = self.evidence(
+            "ft170", evidence_type="code_diff", covers=task_id, changed_paths=["README.md"]
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
+        )
+        self.assertEqual(verified["control_status"], "complete")
+        self.assertEqual(verified["evidence_profile"], "fast_track")
+
+    def test_v170_fast_track_with_verification_command_requires_test_run(self) -> None:
+        self.init_project()
+        facts = self.write_json(
+            "fast-track-verify.json",
+            {
+                "fast_track": True,
+                "write_scope": ["README.md"],
+                "verification_commands": [{"argv": ["python", "-m", "unittest"], "produces": ["test_run"]}],
+            },
+        )
+        _, routed = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改 `README.md` 文档",
+            "--facts",
+            str(facts),
+        )
+        self.assertEqual(routed["admission_status"], "ready_direct")
+        manifest = routed["completion_manifest"]
+        self.assertEqual(manifest["evidence_profile"], "fast_track")
+        self.assertEqual(manifest["required_evidence_types"], ["code_diff", "test_run"])
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        (self.project / "README.md").write_text("updated\n", encoding="utf-8")
+        evidence = self.evidence(
+            "ft170v", evidence_type="code_diff", covers=task_id, changed_paths=["README.md"]
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
+        )
+        self.assertEqual(verified["control_status"], "complete")
+
+    def test_v170_fast_track_high_gate_denied(self) -> None:
+        self.init_project()
+        facts = self.write_json(
+            "fast-track-denied.json",
+            {"fast_track": True, "write_scope": ["docs/api.md"]},
+        )
+        _, routed = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改 `docs/api.md` 接口文档",
+            "--facts",
+            str(facts),
+            expected=None,
+        )
+        self.assertFalse(routed["fast_track"])
+        self.assertEqual(routed["fast_track_denied_reason"], "high_gate_present")
+        self.assertNotEqual(routed.get("evidence_profile"), "fast_track")
+        self.assertNotEqual(routed["admission_status"], "ready_direct")
+        self.assertIn("contract_acceptance", routed["completion_manifest"]["required_evidence_types"])
+        bad_facts = self.write_json(
+            "fast-track-non-bool.json",
+            {"fast_track": "yes", "write_scope": ["README.md"]},
+        )
+        _, rejected = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改 `README.md` 文档",
+            "--facts",
+            str(bad_facts),
+            expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_facts")
+
+    def test_v170_fast_track_runtime_downgrade_on_new_risk_gate(self) -> None:
+        self.init_project()
+        (self.project / "guides").mkdir()
+        (self.project / "guides" / "intro.md").write_text("# intro\n", encoding="utf-8")
+        facts = self.write_json(
+            "fast-track-downgrade.json",
+            {"fast_track": True, "write_scope": ["guides/"]},
+        )
+        _, routed = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修订 `guides/` 文档",
+            "--facts",
+            str(facts),
+        )
+        self.assertTrue(routed["fast_track"])
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        risky = self.project / "guides" / "api"
+        risky.mkdir()
+        (risky / "reference.md").write_text("# api\n", encoding="utf-8")
+        evidence = self.evidence(
+            "ft170d", evidence_type="code_diff", covers=task_id, changed_paths=["guides/api/reference.md"]
+        )
+        _, rejected = self.run_harness(
+            "verify",
+            "--target",
+            str(self.project),
+            "--task-id",
+            task_id,
+            "--evidence",
+            str(evidence),
+            expected=4,
+        )
+        self.assertEqual(rejected["reason_code"], "new_risk_gate")
+        self.assertTrue(rejected["fast_track_downgraded"])
+        state = HARNESS_MODULE.runtime_root(self.project) / task_id
+        package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        self.assertFalse(package["fast_track"])
+        self.assertTrue(package["fast_track_downgraded"])
+        self.assertNotEqual(package["completion_manifest"]["required_evidence_types"], ["code_diff"])
+        events = [
+            json.loads(line)
+            for line in (state / "events.jsonl").read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        self.assertTrue(any(item.get("event") == "fast_track_downgraded" for item in events))
+        _, readmitted = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, expected=None
+        )
+        self.assertNotEqual(readmitted.get("evidence_profile"), "fast_track")
+        package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        self.assertFalse(package["fast_track"])
+        self.assertIn("document_review", package["completion_manifest"]["required_evidence_types"])
+
+    def test_v170_non_fast_track_behavior_unchanged(self) -> None:
+        self.init_project()
+        facts = self.write_json("no-fast-track.json", {"write_scope": ["README.md"]})
+        _, routed = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改 `README.md` 文档",
+            "--facts",
+            str(facts),
+        )
+        self.assertEqual(routed["admission_status"], "ready_direct")
+        self.assertNotIn("fast_track", routed)
+        self.assertNotIn("evidence_profile", routed)
+        self.assertNotIn("fast_track_denied_reason", routed)
+        self.assertIn("document_review", routed["completion_manifest"]["required_evidence_types"])
+        package = json.loads(Path(routed["task_package_ref"]).read_text(encoding="utf-8"))
+        self.assertFalse(package["fast_track"])
+
+    def test_v170_fast_track_inline_note(self) -> None:
+        self.init_project()
+        note = "修正 README 中过时的安装命令说明，仅文档措辞调整。"
+        facts = self.write_json(
+            "fast-track-note.json",
+            {"fast_track": True, "write_scope": ["README.md"], "inline_note": note},
+        )
+        _, routed = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改 `README.md` 文档",
+            "--facts",
+            str(facts),
+        )
+        self.assertTrue(routed["fast_track"])
+        self.assertEqual(routed["inline_note"], note)
+        package = json.loads(Path(routed["task_package_ref"]).read_text(encoding="utf-8"))
+        self.assertEqual(package["inline_note"], note)
+        self.assertFalse((self.project / "docs" / "plans").exists())
+        plain_facts = self.write_json(
+            "plain-note.json",
+            {"write_scope": ["CHANGELOG.md"], "inline_note": note},
+        )
+        _, plain = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改 `CHANGELOG.md` 文档",
+            "--facts",
+            str(plain_facts),
+        )
+        self.assertTrue(plain["inline_note_ignored"])
+        oversized = self.write_json(
+            "oversized-note.json",
+            {"fast_track": True, "write_scope": ["README.md"], "inline_note": "长" * 201},
+        )
+        _, rejected = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改 `README.md` 文档",
+            "--facts",
+            str(oversized),
+            expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_facts")
+
+    def test_v170_task_status_overhead_summary(self) -> None:
+        self.init_project()
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 `README.md` 文档", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        _, status = self.run_harness(
+            "task", "status", "--target", str(self.project), "--task-id", task_id
+        )
+        summary = status["overhead_summary"]
+        self.assertGreater(summary["harness_total_ms"], 0)
+        self.assertGreaterEqual(summary["wall_clock_ms"], 0)
+        self.assertIn("harness_share", summary)
+        if summary["wall_clock_ms"] > 0:
+            self.assertIsNotNone(summary["harness_share"])
+        else:
+            self.assertIsNone(summary["harness_share"])
+
+    def make_release_source(self, *, version: str = "9.9.9", name: str = "release-src") -> Path:
+        source = self.temp_root / name
+        (source / "scripts").mkdir(parents=True, exist_ok=True)
+        (source / "VERSION").write_text(f"{version}\n", encoding="utf-8")
+        (source / "package.json").write_text(
+            json.dumps({"name": "docs-harness", "version": version}, ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        (source / "SKILL.md").write_text(
+            f"---\nname: docs-harness\nmetadata:\n  version: {version}\n  status: active\n---\n\n# Docs Harness\n",
+            encoding="utf-8",
+        )
+        (source / "scripts" / "harness.py").write_text(
+            f'#!/usr/bin/env python3\nVERSION = "{version}"\n', encoding="utf-8"
+        )
+        (source / "CHANGELOG.md").write_text(
+            f"# Changelog\n\n## {version} - 2026-08-07\n\n- 条目\n", encoding="utf-8"
+        )
+        return source
+
+    def rewrite_release_source_version(self, source: Path, relative: str, version: str) -> None:
+        path = source / relative
+        text = path.read_text(encoding="utf-8")
+        updated = re.sub(r"[0-9]+\.[0-9]+\.[0-9]+", version, text, count=1)
+        self.assertNotEqual(updated, text)
+        path.write_text(updated, encoding="utf-8")
+
+    def test_v171_release_sync_check_consistent(self) -> None:
+        source = self.make_release_source()
+        _, payload = self.run_harness("release", "sync", "--target", str(source))
+        self.assertEqual(payload["status"], "consistent")
+        self.assertEqual(payload["version_truth"], "9.9.9")
+        self.assertEqual(payload["diffs"], [])
+        self.assertEqual(payload["changelog_top_version"], "9.9.9")
+        self.assertNotIn("changelog_hint", payload)
+
+    def test_v171_release_sync_check_inconsistent_package(self) -> None:
+        source = self.make_release_source()
+        self.rewrite_release_source_version(source, "package.json", "9.9.8")
+        _, payload = self.run_harness("release", "sync", "--target", str(source), expected=2)
+        self.assertEqual(payload["status"], "inconsistent")
+        self.assertEqual(
+            payload["diffs"],
+            [{"source": "package", "expected": "9.9.9", "actual": "9.9.8"}],
+        )
+        self.assertEqual(payload["version_truth"], "9.9.9")
+
+    def test_v171_release_sync_apply_atomic_write(self) -> None:
+        source = self.make_release_source()
+        self.rewrite_release_source_version(source, "VERSION", "9.9.8")
+        self.rewrite_release_source_version(source, "SKILL.md", "9.9.8")
+        _, payload = self.run_harness("release", "sync", "--apply", "--target", str(source))
+        self.assertEqual(payload["status"], "synced")
+        self.assertEqual(payload["version"], "9.9.9")
+        self.assertEqual(sorted(payload["changed"]), ["SKILL.md", "VERSION"])
+        _, check = self.run_harness("release", "sync", "--target", str(source))
+        self.assertEqual(check["status"], "consistent")
+        self.assertEqual((source / "VERSION").read_text(encoding="utf-8"), "9.9.9\n")
+        package = json.loads((source / "package.json").read_text(encoding="utf-8"))
+        self.assertEqual(package["version"], "9.9.9")
+        metadata, _ = HARNESS_MODULE.parse_frontmatter((source / "SKILL.md").read_text(encoding="utf-8"))
+        self.assertEqual(metadata.get("version"), "9.9.9")
+        _, again = self.run_harness("release", "sync", "--apply", "--target", str(source))
+        self.assertEqual(again["status"], "already_consistent")
+        self.assertEqual(again["changed"], [])
+
+    def test_v171_release_sync_apply_rollback_no_partial_write(self) -> None:
+        source = self.make_release_source(name="release-rollback")
+        self.rewrite_release_source_version(source, "VERSION", "9.9.8")
+        self.rewrite_release_source_version(source, "SKILL.md", "9.9.8")
+        originals = {
+            relative: (source / relative).read_bytes()
+            for relative in ("VERSION", "package.json", "SKILL.md")
+        }
+        os.chmod(source / "SKILL.md", 0o444)
+        try:
+            _, payload = self.run_harness(
+                "release", "sync", "--apply", "--target", str(source), expected=1
+            )
+            self.assertEqual(payload["code"], "release_write_failed")
+        finally:
+            os.chmod(source / "SKILL.md", 0o666)
+        for relative, content in originals.items():
+            self.assertEqual(
+                (source / relative).read_bytes(),
+                content,
+                f"{relative} 出现部分写入，原子性被破坏",
+            )
+        leftovers = [path.name for path in source.glob(".*.release-sync-*")]
+        self.assertEqual(leftovers, [])
+
+    def test_v171_release_sync_target_version_conflict(self) -> None:
+        source = self.make_release_source()
+        _, conflict = self.run_harness(
+            "release", "sync", "--target-version", "9.9.8", "--target", str(source), expected=2
+        )
+        self.assertEqual(conflict["code"], "release_version_conflict")
+        _, confirmed = self.run_harness(
+            "release", "sync", "--apply", "--target-version", "9.9.9", "--target", str(source)
+        )
+        self.assertEqual(confirmed["status"], "already_consistent")
+
+    def test_v171_layer_reuse_snapshot_cache(self) -> None:
+        HARNESS_MODULE.reset_layer_reuse_cache()
+        self.addCleanup(HARNESS_MODULE.reset_layer_reuse_cache)
+        self.init_project()
+        target_id = HARNESS_MODULE.target_identity(self.project)
+        kwargs = {"contract_version": HARNESS_MODULE.VERSION, "target_id": target_id}
+        first = HARNESS_MODULE.cached_workspace_snapshot(self.project, **kwargs)
+        second = HARNESS_MODULE.cached_workspace_snapshot(self.project, **kwargs)
+        self.assertEqual(first, second)
+        stats = HARNESS_MODULE.layer_reuse_stats()
+        self.assertEqual(stats["snapshot_hits"], 1)
+        self.assertEqual(stats["snapshot_misses"], 1)
+        # 合同版本变化 → 缓存失效重算
+        third = HARNESS_MODULE.cached_workspace_snapshot(
+            self.project, contract_version="0.0.0", target_id=target_id
+        )
+        self.assertEqual(third, first)
+        self.assertEqual(HARNESS_MODULE.layer_reuse_stats()["snapshot_misses"], 2)
+        # 工作区内容变化 → 清单摘要漂移，缓存失效重算
+        (self.project / "README.md").write_text("changed\n", encoding="utf-8")
+        fourth = HARNESS_MODULE.cached_workspace_snapshot(self.project, **kwargs)
+        self.assertNotEqual(fourth, first)
+        self.assertEqual(HARNESS_MODULE.layer_reuse_stats()["snapshot_misses"], 3)
+
+    def test_v171_verify_response_reports_layer_reuse(self) -> None:
+        self.init_project()
+        facts = self.write_json(
+            "ft171.json", {"fast_track": True, "write_scope": ["README.md"]}
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 `README.md` 文档", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        (self.project / "README.md").write_text("updated\n", encoding="utf-8")
+        evidence = self.evidence(
+            "ft171", evidence_type="code_diff", covers=task_id, changed_paths=["README.md"]
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
+        )
+        self.assertEqual(verified["control_status"], "complete")
+        reuse = verified["layer_reuse"]
+        self.assertGreaterEqual(reuse["snapshot_hits"], 1)
+        self.assertGreaterEqual(reuse["snapshot_misses"], 1)
+
+    def test_v172_prepare_and_run_matches_stepwise_event_sequence(self) -> None:
+        self.init_project()
+        _, verified_a = self.complete_code_task("src/v172-stepwise.py")
+        stepwise_id = verified_a["post_completion"]["job_id"]
+        self.force_complex_background_job(stepwise_id, ["包一", "包二"])
+        self.start_complex_background_job(stepwise_id)
+        stepwise_events = self.background_event_sequence(stepwise_id)
+        # 释放知识锁，避免后续 Job 的 running 闸门互斥
+        self.cancel_background_job(stepwise_id)
+
+        _, verified_b = self.complete_code_task("src/v172-merged.py")
+        merged_id = verified_b["post_completion"]["job_id"]
+        self.force_complex_background_job(merged_id, ["包一", "包二"])
+        _, merged = self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", merged_id,
+            "--job-status", "running", "--prepare-and-run",
+        )
+        self.assertEqual(merged["status"], "running")
+        self.assertTrue(merged["prepare_and_run"])
+        self.assertEqual(merged["prepare_status"], "prepared")
+        self.assertEqual(merged["dispatch_sequence"], ["prepare", "dispatched", "running"])
+        self.assertEqual(merged["completed_steps"], ["prepare", "dispatched", "running"])
+        self.assertEqual(self.background_event_sequence(merged_id), stepwise_events)
+        self.cancel_background_job(merged_id)
+
+        # 幂等：已分步 prepare 且指纹一致时合并命令复用 already_prepared，不重复写工件与事件
+        _, verified_c = self.complete_code_task("src/v172-idempotent.py")
+        idem_id = verified_c["post_completion"]["job_id"]
+        self.force_complex_background_job(idem_id, ["包一", "包二"])
+        self.write_background_goal_artifacts(idem_id)
+        _, reused = self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", idem_id,
+            "--job-status", "running", "--prepare-and-run",
+        )
+        self.assertEqual(reused["status"], "running")
+        self.assertEqual(reused["prepare_status"], "already_prepared")
+        self.assertEqual(self.background_event_sequence(idem_id), stepwise_events)
+
+    def test_v172_prepare_and_run_gate_failures_stop_at_matching_step(self) -> None:
+        self.init_project()
+        _, verified = self.complete_code_task("src/v172-gate.py")
+        job_id = verified["post_completion"]["job_id"]
+        self.force_complex_background_job(job_id, ["闸门包"])
+        self.write_background_goal_artifacts(job_id)
+        # prepare 闸门：工件指纹漂移时与分步 prepare 返回相同错误码
+        root = self.project / ".docs-harness" / "background" / "jobs" / job_id
+        plan_path = root / "plan.json"
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        plan["objective"] = "被篡改的目标"
+        plan_path.write_text(json.dumps(plan, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        _, stepwise_prepare = self.run_harness(
+            "background", "prepare", "--target", str(self.project), "--job-id", job_id, expected=3
+        )
+        _, merged = self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", job_id,
+            "--job-status", "running", "--prepare-and-run", expected=3,
+        )
+        self.assertEqual(merged["code"], stepwise_prepare["code"])
+        self.assertEqual(merged["code"], "invalid_background_goal_artifacts")
+        _, status = self.run_harness(
+            "background", "status", "--target", str(self.project), "--job-id", job_id
+        )
+        self.assertEqual(status["status"], "contract_ready")
+        self.assertNotIn(
+            "dispatched", [item["event"] for item in self.background_event_sequence(job_id)]
+        )
+
+        # running 闸门：知识基线漂移停在 running，与分步 dispatch running 返回相同结论
+        _, verified_a = self.complete_code_task("src/v172-drift-stepwise.py")
+        stepwise_id = verified_a["post_completion"]["job_id"]
+        self.force_complex_background_job(stepwise_id, ["漂移包"])
+        self.write_background_goal_artifacts(stepwise_id)
+        self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", stepwise_id,
+            "--job-status", "dispatched",
+        )
+        _, verified_b = self.complete_code_task("src/v172-drift-merged.py")
+        merged_id = verified_b["post_completion"]["job_id"]
+        self.force_complex_background_job(merged_id, ["漂移包"])
+        (self.project / "docs" / "todo.md").write_text("# TODO\n\n- 外部改动\n", encoding="utf-8")
+        _, stepwise_drift = self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", stepwise_id,
+            "--job-status", "running", expected=3,
+        )
+        _, merged_drift = self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", merged_id,
+            "--job-status", "running", "--prepare-and-run", expected=3,
+        )
+        self.assertEqual(merged_drift["status"], "needs_rebase")
+        self.assertEqual(merged_drift["reason_code"], stepwise_drift["reason_code"])
+        self.assertEqual(merged_drift["changed_paths"], stepwise_drift["changed_paths"])
+        self.assertTrue(merged_drift["prepare_and_run"])
+        self.assertEqual(merged_drift["completed_steps"], ["prepare", "dispatched"])
+        self.assertEqual(
+            [item["event"] for item in self.background_event_sequence(merged_id)],
+            ["created", "prepared", "dispatched", "needs_rebase"],
+        )
+
+    def test_v172_progress_all_completed_batch_and_no_partial_commit(self) -> None:
+        self.init_project()
+        _, verified_a = self.complete_code_task("src/v172-all-stepwise.py")
+        stepwise_id = verified_a["post_completion"]["job_id"]
+        self.force_complex_background_job(stepwise_id, ["包一", "包二", "包三"])
+        self.start_complex_background_job(stepwise_id)
+        self.complete_background_work_packages(stepwise_id)
+        stepwise_events = self.background_event_sequence(stepwise_id)
+        stepwise_progress = json.loads(
+            (self.project / ".docs-harness" / "background" / "jobs" / stepwise_id / "progress.json").read_text(encoding="utf-8")
+        )
+        # 释放知识锁，避免后续 Job 的 running 闸门互斥
+        self.cancel_background_job(stepwise_id)
+
+        _, verified_b = self.complete_code_task("src/v172-all-merged.py")
+        merged_id = verified_b["post_completion"]["job_id"]
+        self.force_complex_background_job(merged_id, ["包一", "包二", "包三"])
+        self.start_complex_background_job(merged_id)
+        _, batch = self.run_harness(
+            "background", "progress", "--target", str(self.project), "--job-id", merged_id,
+            "--all", "completed",
+        )
+        self.assertEqual(batch["remaining_work_packages"], [])
+        self.assertEqual(len(batch["updated_work_packages"]), 3)
+        self.assertEqual(batch["already_completed_work_packages"], [])
+        self.assertEqual(batch["completed_work_packages"], stepwise_progress["completed_work_packages"])
+        self.assertEqual(self.background_event_sequence(merged_id), stepwise_events)
+        self.cancel_background_job(merged_id)
+
+        # 非法前置态（blocked）→ 整体拒绝，不部分提交
+        _, verified_c = self.complete_code_task("src/v172-all-blocked.py")
+        blocked_id = verified_c["post_completion"]["job_id"]
+        self.force_complex_background_job(blocked_id, ["包一", "包二"])
+        self.start_complex_background_job(blocked_id)
+        progress_path = self.project / ".docs-harness" / "background" / "jobs" / blocked_id / "progress.json"
+        first = json.loads(progress_path.read_text(encoding="utf-8"))["work_package_states"][0]["id"]
+        self.run_harness(
+            "background", "progress", "--target", str(self.project), "--job-id", blocked_id,
+            "--work-package-id", first, "--work-package-status", "blocked",
+        )
+        _, rejected = self.run_harness(
+            "background", "progress", "--target", str(self.project), "--job-id", blocked_id,
+            "--all", "completed", expected=3,
+        )
+        self.assertEqual(rejected["code"], "background_progress_all_blocked")
+        self.assertEqual(rejected["blocking_work_packages"], [{"id": first, "status": "blocked"}])
+        self.assertFalse(rejected["partial_commit"])
+        states = {
+            item["id"]: item["status"]
+            for item in json.loads(progress_path.read_text(encoding="utf-8"))["work_package_states"]
+        }
+        self.assertEqual(states[first], "blocked")
+        self.assertEqual(set(states.values()), {"blocked", "pending"})
+        advanced = [
+            item for item in self.background_event_sequence(blocked_id)
+            if item.get("event") == "progress_updated" and item.get("work_package_status") != "blocked"
+        ]
+        self.assertEqual(advanced, [])
+
+    def test_v172_prepare_and_run_rejects_ineligible_routes(self) -> None:
+        self.init_project()
+        # phased 路线拒绝
+        _, verified_a = self.complete_code_task("src/v172-phased.py")
+        phased_id = verified_a["post_completion"]["job_id"]
+        self.force_complex_background_job(phased_id, ["阶段包"], route="background_goal_phased")
+        _, phased = self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", phased_id,
+            "--job-status", "running", "--prepare-and-run", expected=3,
+        )
+        self.assertEqual(phased["code"], "background_prepare_and_run_not_eligible")
+        self.assertEqual(phased["eligibility_reason_code"], "route_phased_oversized")
+        _, phased_status = self.run_harness(
+            "background", "status", "--target", str(self.project), "--job-id", phased_id
+        )
+        self.assertEqual(phased_status["status"], "contract_ready")
+        self.assertEqual(
+            [item["event"] for item in self.background_event_sequence(phased_id)],
+            ["created", "transition_rejected"],
+        )
+
+        # direct 路线拒绝（行为不变：本来就直达，不使用合并入口）
+        _, verified_b = self.complete_code_task("src/v172-direct.py")
+        direct_id = verified_b["post_completion"]["job_id"]
+        _, direct = self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", direct_id,
+            "--job-status", "running", "--prepare-and-run", expected=3,
+        )
+        self.assertEqual(direct["code"], "background_prepare_and_run_not_eligible")
+        self.assertEqual(direct["eligibility_reason_code"], "route_not_complex_goal")
+
+        # change_scoped 分数 ≥60 拒绝
+        _, verified_c = self.complete_code_task("src/v172-score.py")
+        score_id = verified_c["post_completion"]["job_id"]
+        self.force_complex_background_job(score_id, ["高分包"])
+        _, score_status = self.run_harness(
+            "background", "status", "--target", str(self.project), "--job-id", score_id
+        )
+        estimate_path = Path(score_status["workload_estimate_ref"])
+        estimate = json.loads(estimate_path.read_text(encoding="utf-8"))
+        estimate["raw_score"] = 75
+        estimate_path.write_text(json.dumps(estimate, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        _, scored = self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", score_id,
+            "--job-status", "running", "--prepare-and-run", expected=3,
+        )
+        self.assertEqual(scored["code"], "background_prepare_and_run_not_eligible")
+        self.assertEqual(scored["eligibility_reason_code"], "score_not_below_60")
+
+        # 声明制：未显式给出 --job-status running 失败关闭
+        _, missing = self.run_harness(
+            "background", "dispatch", "--target", str(self.project), "--job-id", score_id,
+            "--prepare-and-run", expected=2,
+        )
+        self.assertEqual(missing["code"], "invalid_background_job_status")
 
     def test_v15_git_fetch_has_independent_metadata_contract(self) -> None:
         self.init_project()
@@ -5967,10 +6700,11 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertIn("_template_hints", template)
         self.assertIn(".git:refs/remotes/", template["_template_hints"]["git_scope_format"])
         self.assertIn("not git-remote:", template["_template_hints"]["external_scope_format"])
-        # 验证模板可被直接消费（填充必需字段后）
-        template["authorized_at"] = "2026-08-06T00:00:00Z"
+        # 验证模板可被直接消费（填充必需字段后）；时间字段相对当前时间生成，避免绝对日期过期
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        template["authorized_at"] = now_utc.replace(microsecond=0).isoformat().replace("+00:00", "Z")
         template["authorized_by"] = "test-user"
-        template["expires_at"] = "2026-08-07T00:00:00Z"
+        template["expires_at"] = (now_utc + datetime.timedelta(days=1)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
         auth_file = self.write_json("auth-from-template.json", template)
         # 先完成 plan 阶段
         self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan")
@@ -5992,19 +6726,24 @@ class DocsHarnessContractTest(unittest.TestCase):
         """缺口一：跨平台任务被正确识别并提示。"""
         self.init_project()
         self.make_project_facts_meaningful("architecture.md")
+        # 按当前平台选择异平台脚本作为 scope，保证 Windows 与 unix 下都真实命中跨平台场景
+        current = HARNESS_MODULE.current_platform()
+        scope_path, other_platform = (
+            ("scripts/unix/launch.sh", "unix") if current == "windows" else ("scripts/windows/launch.ps1", "windows")
+        )
         _, routed = self.run_harness(
-            "run", "--target", str(self.project), "--task", "修改 Windows 启动脚本", "--scope", "scripts/windows/launch.ps1"
+            "run", "--target", str(self.project), "--task", f"修改 {other_platform} 启动脚本", "--scope", scope_path
         )
         self.assertIn("cross_platform_notice", routed)
         notice = routed["cross_platform_notice"]
         self.assertTrue(notice["detected"])
-        self.assertIn("windows", notice["target_platforms"])
-        self.assertEqual(notice["current_platform"], "unix")
+        self.assertIn(other_platform, notice["target_platforms"])
+        self.assertEqual(notice["current_platform"], current)
         # 验证任务包中包含 platform_scope
         package = json.loads((self.project / ".docs-harness" / "runs" / routed["task_id"] / "task-package.json").read_text())
         self.assertIn("platform_scope", package)
         self.assertTrue(package["platform_scope"]["cross_platform"])
-        self.assertIn("windows", package["platform_scope"]["detected_platforms"])
+        self.assertIn(other_platform, package["platform_scope"]["detected_platforms"])
 
     def test_non_cross_platform_task_no_notice(self) -> None:
         """缺口一：非跨平台任务不显示跨平台提示。"""

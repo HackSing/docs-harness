@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Docs Harness v1.6.8 独立任务控制器。"""
+"""Docs Harness v1.7.1 独立任务控制器。"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 
-VERSION = "1.6.8"
+VERSION = "1.7.2"
 TASK_SCHEMA = "docs-harness/task-package/v2"
 LEGACY_TASK_SCHEMA = "docs-harness/task-package/v1"
 COMPILED_SCHEMA = "docs-harness/compiled-task/v2"
@@ -483,7 +483,10 @@ def load_input_file(
     try:
         path = Path(path_value).expanduser().resolve()
         if not path.is_file():
-            raise HarnessError(f"{argument} 文件不存在", code=error_code)
+            suggested_fix = None
+            if sys.platform == "win32" and path_value.startswith("/"):
+                suggested_fix = "Git Bash 的 /tmp 等 POSIX 绝对路径对 Windows Python 不可解析；请改用工作区相对路径"
+            raise HarnessError(f"{argument} 文件不存在", code=error_code, suggested_fix=suggested_fix)
         if path.stat().st_size > max_bytes:
             raise HarnessError(f"{argument} 文件超过大小限制", code=error_code)
         text = path.read_text(encoding="utf-8")
@@ -1033,6 +1036,13 @@ def next_step_payload(
         "next_action": next_action,
         "next_command_argv": command,
         "artifact_ref": str(artifact) if artifact else None,
+        "contract_snapshot": {
+            "allowed_scope": package.get("allowed_scope", []),
+            "read_scope": package.get("read_scope", []),
+            "write_scope": package.get("write_scope", []),
+            "plan_fields": package.get("plan_fields", []),
+            "evidence_types": (package.get("completion_manifest") or {}).get("required_evidence_types", []),
+        },
     }
 
 
@@ -1140,6 +1150,72 @@ def git_workspace_paths(target: Path) -> list[Path] | None:
     return [target / relative for relative in sorted(set(relatives))]
 
 
+_LAYER_REUSE_LIMIT = 64
+_LAYER_REUSE_STATS = {"snapshot_hits": 0, "snapshot_misses": 0, "file_hash_hits": 0, "file_hash_misses": 0}
+_WORKSPACE_SNAPSHOT_CACHE: dict[tuple[str, str, str], tuple[str, dict[str, str]]] = {}
+_FILE_FINGERPRINT_CACHE: dict[tuple[str, int, int], str] = {}
+
+
+def layer_reuse_stats() -> dict[str, int]:
+    """单次 CLI 会话内验收层中间产物复用的有界遥测（只含计数，不含路径以外信息）。"""
+    return dict(_LAYER_REUSE_STATS)
+
+
+def reset_layer_reuse_cache() -> None:
+    _WORKSPACE_SNAPSHOT_CACHE.clear()
+    _FILE_FINGERPRINT_CACHE.clear()
+    for key in _LAYER_REUSE_STATS:
+        _LAYER_REUSE_STATS[key] = 0
+
+
+def cached_file_fingerprint(path: Path) -> str:
+    """按 (路径, 大小, mtime_ns) 复用进程内文件 SHA-256；文件变化即失效。"""
+    stat = path.stat()
+    key = (str(path.resolve()), stat.st_size, stat.st_mtime_ns)
+    cached = _FILE_FINGERPRINT_CACHE.get(key)
+    if cached is not None:
+        _LAYER_REUSE_STATS["file_hash_hits"] += 1
+        return cached
+    _LAYER_REUSE_STATS["file_hash_misses"] += 1
+    digest = file_fingerprint(path)
+    if len(_FILE_FINGERPRINT_CACHE) >= _LAYER_REUSE_LIMIT * 16:
+        _FILE_FINGERPRINT_CACHE.clear()
+    _FILE_FINGERPRINT_CACHE[key] = digest
+    return digest
+
+
+def cached_workspace_snapshot(target: Path, *, contract_version: str, target_id: str) -> dict[str, str]:
+    """按 (路径, 清单摘要, 合同版本, target_identity) 复用进程内工作区快照。
+
+    清单摘要是全部受跟踪文件 (相对路径, 大小, mtime_ns) 的 SHA-256：任何文件新建、
+    删除或内容变化都会改变摘要并触发重算；合同版本或目标变化同样失效。只复用确定性
+    中间产物，各验收层的判定结论仍各自独立产出。
+    """
+    git_paths = git_workspace_paths(target)
+    paths = git_paths if git_paths is not None else sorted(target.rglob("*"))
+    listing: list[list[Any]] = []
+    for path in paths:
+        if path.is_symlink() or not path.is_file():
+            continue
+        relative = path.relative_to(target).as_posix()
+        if excluded_workspace_path(relative):
+            continue
+        stat = path.stat()
+        listing.append([relative, stat.st_size, stat.st_mtime_ns])
+    digest = sha256_text(canonical_json(listing))
+    key = (str(target.resolve()), contract_version, target_id)
+    cached = _WORKSPACE_SNAPSHOT_CACHE.get(key)
+    if cached is not None and cached[0] == digest:
+        _LAYER_REUSE_STATS["snapshot_hits"] += 1
+        return dict(cached[1])
+    _LAYER_REUSE_STATS["snapshot_misses"] += 1
+    snapshot = workspace_snapshot(target)
+    if len(_WORKSPACE_SNAPSHOT_CACHE) >= _LAYER_REUSE_LIMIT:
+        _WORKSPACE_SNAPSHOT_CACHE.clear()
+    _WORKSPACE_SNAPSHOT_CACHE[key] = (digest, dict(snapshot))
+    return snapshot
+
+
 def workspace_snapshot(target: Path) -> dict[str, str]:
     snapshot: dict[str, str] = {}
     git_paths = git_workspace_paths(target)
@@ -1159,7 +1235,7 @@ def workspace_snapshot(target: Path) -> dict[str, str]:
             )
         stat = path.stat()
         if stat.st_size <= 2 * 1024 * 1024:
-            snapshot[relative] = file_fingerprint(path)
+            snapshot[relative] = cached_file_fingerprint(path)
         else:
             snapshot[relative] = sha256_text(f"{stat.st_size}:{stat.st_mtime_ns}")
         count += 1
@@ -2547,6 +2623,13 @@ def extract_task_paths(task: str, target: Path) -> list[str]:
 def validate_scope(scope: Sequence[str], *, field: str = "scope", allow_git_resources: bool = False) -> list[str]:
     result: list[str] = []
     for item in scope:
+        if looks_like_inline_input(item):
+            raise HarnessError(
+                f"{field} 不接受 JSON 或内联结构：{item}",
+                code="invalid_scope_json",
+                actual_vs_expected={"actual": item, "expected": "单个项目内相对路径"},
+                suggested_fix="--scope 是可重复单值参数，一次只传一个路径；facts 中 scope 字段必须是字符串数组，不要把 JSON 数组整体作为单个字符串传入",
+            )
         if allow_git_resources and CONTROLLED_GIT_SCOPE_RE.fullmatch(item):
             result.append(item)
             continue
@@ -2762,7 +2845,10 @@ def build_completion_manifest(
     gates: Sequence[str],
     evidence_types: Sequence[str],
     verification_commands: Sequence[Any],
+    evidence_profile: str = "standard",
 ) -> dict[str, Any]:
+    if evidence_profile not in {"standard", "fast_track"}:
+        raise HarnessError("evidence_profile 无效", code="invalid_evidence_profile")
     required_receipts = ["read_set"] if mutation_profile == "read_only" else ["write_set"]
     if task_intent in {"git_fetch", "git_sync"}:
         required_receipts.append("git_state_snapshot")
@@ -2776,7 +2862,7 @@ def build_completion_manifest(
             }
         )
     conditional_evidence: list[dict[str, str]] = []
-    if mutation_profile in {"workspace_write", "external_write"}:
+    if evidence_profile == "standard" and mutation_profile in {"workspace_write", "external_write"}:
         conditional_evidence.append(
             {
                 "evidence_type": "test_result",
@@ -2786,6 +2872,7 @@ def build_completion_manifest(
         )
     manifest: dict[str, Any] = {
         "schema_version": COMPLETION_MANIFEST_SCHEMA,
+        "evidence_profile": evidence_profile,
         "required_evidence_types": list(dict.fromkeys(evidence_types)),
         "required_receipts": list(dict.fromkeys(required_receipts)),
         "conditional_reviews": conditional_reviews,
@@ -2869,10 +2956,37 @@ def build_verification_layers(detected: set[str], current: str) -> list[dict[str
     return layers
 
 
+# fast_track 只允许文档/规则/测试类路径：分类完全复用 infer_gates_from_paths，不引入新真源。
+FAST_TRACK_DOC_LIKE_GATES = {"document-edit", "testing-acceptance", "code-edit"}
+
+
+def fast_track_scope_doc_like(write_scope: Sequence[str], mutation_profile: str, target: Path) -> bool:
+    """write_scope 全部落在文档/规则/测试路径才允许 fast_track。
+
+    纯 code-edit（非测试代码）或任何高风险/其他 Gate 命中都不算 doc-like；
+    空 write_scope 不允许（直接路线写任务必须显式声明范围）。
+    """
+    if not write_scope:
+        return False
+    for path in expand_scope_paths_for_inference(write_scope, target):
+        gates = set(infer_gates_from_paths([path], mutation_profile=mutation_profile))
+        if not gates or not gates <= FAST_TRACK_DOC_LIKE_GATES or gates == {"code-edit"}:
+            return False
+    return True
+
+
 def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.Namespace, task_id: str) -> tuple[dict[str, Any], list[str]]:
     declared_gates = normalize_string_list(facts.get("gates"), "gates")
     gate_assessment = parse_gate_assessment(facts)
     work_packages = normalize_work_packages(facts.get("work_packages"))
+    fast_track_declared = facts.get("fast_track", False)
+    if not isinstance(fast_track_declared, bool):
+        raise HarnessError("fast_track 必须是布尔值", code="invalid_facts")
+    inline_note = facts.get("inline_note")
+    if inline_note is not None:
+        if not isinstance(inline_note, str) or not inline_note.strip() or len(inline_note.strip()) > 200:
+            raise HarnessError("inline_note 必须是 200 字符内的非空字符串", code="invalid_facts")
+        inline_note = inline_note.strip()
     cli_scope = list(cli.scope or [])
     legacy_scope_raw = facts.get("allowed_scope", facts.get("target_paths"))
     has_declared_scope = any(
@@ -2993,6 +3107,22 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
     route = max((inferred_route, requested_route or "direct"), key=route_rank.get)
     if route == "extended" and not work_packages:
         route = "planned"
+    if route == "direct" and mutation_profile in {"workspace_write", "external_write"} and not write_scope:
+        route = "planned"
+
+    fast_track = False
+    fast_track_denied_reason: str | None = None
+    if fast_track_declared:
+        if work_packages:
+            fast_track_denied_reason = "has_work_packages"
+        elif set(gates) & (high_gates | SAFETY_FLOOR_GATES):
+            fast_track_denied_reason = "high_gate_present"
+        elif route != "direct":
+            fast_track_denied_reason = "route_not_direct"
+        elif not fast_track_scope_doc_like(write_scope, mutation_profile, target):
+            fast_track_denied_reason = "scope_not_doc_like"
+        else:
+            fast_track = True
 
     default_actions = {
         "read_only": ["read"],
@@ -3076,19 +3206,23 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         mutation_profile=mutation_profile,
         target=target,
     )
+    evidence_profile = "fast_track" if fast_track else "standard"
+    manifest_evidence = semantic_evidence
+    if fast_track:
+        # 最小证据集：code_diff + 声明了验证命令时的 test_run；语义规则累加不叠加。
+        manifest_evidence = ["code_diff"] + (["test_run"] if verification_commands else [])
     completion_manifest = build_completion_manifest(
         task_intent=task_intent,
         mutation_profile=mutation_profile,
         gates=gates,
-        evidence_types=semantic_evidence,
+        evidence_types=manifest_evidence,
         verification_commands=verification_commands,
+        evidence_profile=evidence_profile,
     )
 
     blockers = list(rule_errors) + knowledge_blockers + git_preflight_blockers
     if missing_facts:
         blockers.append("缺少必要项目事实：" + ", ".join(missing_facts))
-    if route == "direct" and mutation_profile in {"workspace_write", "external_write"} and not write_scope:
-        route = "planned"
     context_schedule: dict[str, Any] = {
         "plan": {"rule_ids": [item["rule_id"] for item in matched_rules], "project_fact_refs": fact_refs},
         "action": {"rule_ids": [item["rule_id"] for item in matched_rules], "project_fact_refs": fact_refs},
@@ -3166,7 +3300,14 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         "dispatch_contracts": dispatch_contracts,
         "admission_status": admission,
         "platform_scope": platform_scope,
+        "fast_track": fast_track,
     }
+    if fast_track_declared and fast_track_denied_reason is not None:
+        package["fast_track_denied_reason"] = fast_track_denied_reason
+    if fast_track and inline_note is not None:
+        package["inline_note"] = inline_note
+    elif inline_note is not None:
+        package["inline_note_ignored"] = True
     return package, blockers
 
 
@@ -3321,7 +3462,13 @@ def initial_compiled(package: dict[str, Any], blockers: Sequence[str]) -> dict[s
     }
 
 
-def create_task_state(target: Path, package: dict[str, Any], blockers: Sequence[str]) -> Path:
+def create_task_state(
+    target: Path,
+    package: dict[str, Any],
+    blockers: Sequence[str],
+    *,
+    timing_started: float | None = None,
+) -> Path:
     state = task_state_dir(target, package["task_id"])
     if state.exists():
         raise HarnessError("task-id 已存在", code="task_exists")
@@ -3353,6 +3500,7 @@ def create_task_state(target: Path, package: dict[str, Any], blockers: Sequence[
         event="created",
         phase="admission",
         reason_code=package["admission_status"],
+        duration_ms=int((time.monotonic() - timing_started) * 1000) if timing_started is not None else 0,
     )
     return state
 
@@ -4051,6 +4199,30 @@ def task_adopt(
     }
 
 
+def task_overhead_summary(state: Path) -> dict[str, Any]:
+    """harness 自身耗时复算口径：各阶段 duration_ms 求和 vs 首末事件墙钟。"""
+    events_path = state / "events.jsonl"
+    events = read_jsonl(events_path) if events_path.is_file() else []
+    harness_total_ms = sum(int(item.get("duration_ms", 0)) for item in events)
+    timestamps: list[dt.datetime] = []
+    for item in events:
+        raw = item.get("at") or item.get("started_at")
+        if not isinstance(raw, str):
+            continue
+        try:
+            timestamps.append(dt.datetime.fromisoformat(raw.replace("Z", "+00:00")))
+        except ValueError:
+            continue
+    wall_clock_ms = 0
+    if len(timestamps) >= 2:
+        wall_clock_ms = max(0, int((max(timestamps) - min(timestamps)).total_seconds() * 1000))
+    return {
+        "harness_total_ms": harness_total_ms,
+        "wall_clock_ms": wall_clock_ms,
+        "harness_share": (harness_total_ms / wall_clock_ms) if wall_clock_ms > 0 else None,
+    }
+
+
 def command_task(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
     if args.action == "list":
@@ -4072,6 +4244,7 @@ def command_task(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "control_status": compiled.get("control_status"),
             "compatibility_mode": "v1_read_only" if legacy else "v2",
             "migration_required": legacy,
+            "overhead_summary": task_overhead_summary(state),
         }
     if args.action == "cancel":
         return task_cancel(target, state, args.task_id, args.reason_code, apply=bool(args.apply))
@@ -4748,6 +4921,8 @@ def recompile_package_from_plan_scope(
     requested_scope: Sequence[str],
     cli: argparse.Namespace,
     supplied_facts: dict[str, Any],
+    *,
+    timing_started: float | None = None,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[str], dict[str, Any]]:
     recompile_facts = merge_recompile_facts(package, supplied_facts)
     recompile_facts["allowed_scope"] = list(requested_scope)
@@ -4777,6 +4952,7 @@ def recompile_package_from_plan_scope(
             event="scope_bound_readmission",
             phase="admission",
             reason_code="scope_bound_context_reload",
+            duration_ms=int((time.monotonic() - timing_started) * 1000) if timing_started is not None else 0,
             disposition=delta["disposition"],
             added_gates=delta["added_gates"],
             added_plan_fields=delta["added_plan_fields"],
@@ -4812,6 +4988,9 @@ def facts_from_package(package: dict[str, Any]) -> dict[str, Any]:
         "fallback_fact_refs": package.get("fallback_fact_refs", []),
         "blocking_deliverables": [item["deliverable"] for item in package.get("blocking_deliverables", [])],
         "background_deliverables": [item["deliverable"] for item in package.get("background_deliverables", [])],
+        # fast_track 是声明制：重编译只继承任务包记录的生效值；运行期降级为 false 后不可反向升级。
+        "fast_track": bool(package.get("fast_track", False)),
+        "inline_note": package.get("inline_note"),
     }
 
 
@@ -4885,6 +5064,17 @@ def first_run_payload(
         "blockers": compiled["blockers"],
         "next_action": compiled["next_action"],
     }
+    if package.get("fast_track"):
+        payload["fast_track"] = True
+        payload["evidence_profile"] = "fast_track"
+        if package.get("inline_note"):
+            payload["inline_note"] = package["inline_note"]
+    elif package.get("fast_track_denied_reason"):
+        payload["fast_track"] = False
+        payload["fast_track_denied_reason"] = package["fast_track_denied_reason"]
+    if package.get("inline_note_ignored"):
+        payload["inline_note_ignored"] = True
+        payload["inline_note_effective_condition"] = "inline_note 仅 fast_track 任务生效；本次未生效，已按普通流程处理"
     if reused:
         payload["active_task_reused"] = True
     platform_scope = package.get("platform_scope", {})
@@ -4924,6 +5114,7 @@ def first_run_payload(
 
 
 def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    started = time.monotonic()
     target = safe_target(args.target)
     facts = load_facts(args.facts)
     if not args.task_id:
@@ -4943,7 +5134,7 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         task_id = generate_task_id()
         package, blockers = build_package(target, task_text, facts, args, task_id)
         package["active_task_key"] = key if key is not None else active_task_key(target, task_text, facts)
-        state = create_task_state(target, package, blockers)
+        state = create_task_state(target, package, blockers, timing_started=started)
         compiled = read_json(state / "compiled-task.json")
         return first_run_payload(target, state, package, compiled)
 
@@ -5011,6 +5202,7 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 event="readmission",
                 phase="admission",
                 reason_code="task_contract_recompiled",
+                duration_ms=int((time.monotonic() - started) * 1000),
             )
         package, compiled, freeze = new_package, new_compiled, new_freeze
 
@@ -5086,6 +5278,7 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                     requested_scope,
                     args,
                     facts,
+                    timing_started=started,
                 )
                 if blockers:
                     compiled["blockers"] = blockers
@@ -5172,6 +5365,7 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 requested_scope,
                 args,
                 facts,
+                timing_started=started,
             )
             if blockers:
                 compiled["blockers"] = blockers
@@ -5209,6 +5403,7 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                     event="plan_amendment_required",
                     phase="planning",
                     reason_code="scope_gate_plan_amendment_required",
+                    duration_ms=int((time.monotonic() - started) * 1000),
                     added_gates=scope_delta["added_gates"],
                     added_plan_fields=scope_delta["added_plan_fields"],
                     missing_plan_field_count=len(missing_after_scope),
@@ -5249,6 +5444,7 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             event="plan_frozen",
             phase="planning",
             reason_code=freeze_reason,
+            duration_ms=int((time.monotonic() - started) * 1000),
             plan_artifact_fingerprint=managed_plan["artifact_fingerprint"],
             plan_regeneration_required=False,
         )
@@ -5301,6 +5497,21 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "dispatch_contracts": package["dispatch_contracts"],
         "blockers": compiled["blockers"],
     }
+    facts_ignored = bool(facts) and not should_recompile and not args.plan and not args.authorization
+    if facts_ignored:
+        payload["facts_ignored"] = True
+        payload["facts_effective_condition"] = "--facts 仅在 blocked 或 scope_changed 的重准入时生效；当前任务状态已忽略本次 facts"
+    if package.get("fast_track"):
+        payload["fast_track"] = True
+        payload["evidence_profile"] = "fast_track"
+        if package.get("inline_note"):
+            payload["inline_note"] = package["inline_note"]
+    elif package.get("fast_track_denied_reason"):
+        payload["fast_track"] = False
+        payload["fast_track_denied_reason"] = package["fast_track_denied_reason"]
+    if package.get("inline_note_ignored"):
+        payload["inline_note_ignored"] = True
+        payload["inline_note_effective_condition"] = "inline_note 仅 fast_track 任务生效；本次未生效，已按普通流程处理"
     work_package = None
     if compiled["next_action"] == "load_work_package_context":
         work_package = next(
@@ -5397,6 +5608,8 @@ def known_evidence_types() -> set[str]:
         "workspace_attribution",
         "source_trace",
         "document_trace",
+        "code_diff",
+        "test_run",
         "git_inspection_result",
         "git_fetch_result",
         "git_sync_result",
@@ -5629,7 +5842,7 @@ def workspace_change_attribution(
     *,
     git_result: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    current_snapshot = workspace_snapshot(target)
+    current_snapshot = cached_workspace_snapshot(target, contract_version=VERSION, target_id=target_identity(target))
     changed = snapshot_changes(freeze["workspace_snapshot"], current_snapshot)
     changed_set = set(changed)
     reported_writes = {
@@ -5899,6 +6112,7 @@ def incrementally_recompile_new_gates(
 
 
 def command_progress(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    started = time.monotonic()
     target = safe_target(args.target)
     state, package, compiled, freeze = load_state(target, args.task_id)
     if package["execution_route"] != "extended":
@@ -5965,6 +6179,7 @@ def command_progress(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 event="begin",
                 phase="business_action",
                 reason_code="work_package_started",
+                duration_ms=int((time.monotonic() - started) * 1000),
                 work_package_id=work_id,
                 owner=work["owner"],
                 workspace_snapshot=event["workspace_snapshot"],
@@ -5988,6 +6203,7 @@ def command_progress(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 event="block",
                 phase="business_action",
                 reason_code="scope_changed" if args.scope_changed else "reported_blocker",
+                duration_ms=int((time.monotonic() - started) * 1000),
                 work_package_id=work_id,
                 scope_changed=bool(args.scope_changed),
             )
@@ -6056,6 +6272,7 @@ def command_progress(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 event="block",
                 phase="business_action",
                 reason_code="write_scope_violation",
+                duration_ms=int((time.monotonic() - started) * 1000),
                 work_package_id=work_id,
                 scope_changed=True,
                 changed_paths=changed,
@@ -6081,6 +6298,7 @@ def command_progress(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             event="submit",
             phase="business_action",
             reason_code="work_package_evidence_accepted",
+            duration_ms=int((time.monotonic() - started) * 1000),
             work_package_id=work_id,
             accepted=True,
             evidence_refs=[str(evidence_path)],
@@ -6141,7 +6359,7 @@ def normalize_verification_spec(raw: Any) -> tuple[list[str], list[str]]:
 
 def verification_input_fingerprint(target: Path, volatile_patterns: Sequence[str]) -> str:
     """排除 Harness Runtime 与允许 volatile 项后的完整工作区快照指纹，作为验证命令输入缓存键。"""
-    snapshot = workspace_snapshot(target)
+    snapshot = cached_workspace_snapshot(target, contract_version=VERSION, target_id=target_identity(target))
     filtered = {
         path: digest
         for path, digest in snapshot.items()
@@ -6686,6 +6904,49 @@ def record_verification_attempt(
         )
 
 
+FAST_TRACK_DOWNGRADE_TRIGGERS = {"new_risk_gate", "high_risk_drift"}
+
+
+def downgrade_fast_track_package(
+    state: Path,
+    target: Path,
+    package: dict[str, Any],
+    compiled: dict[str, Any],
+    freeze: dict[str, Any],
+    *,
+    trigger: str,
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
+    """fast_track 运行期单向降级：写回普通证据集并留痕，不存在反向升级。"""
+    new_package = dict(package)
+    new_package["package_revision"] = package["package_revision"] + 1
+    new_package["fast_track"] = False
+    new_package["fast_track_downgraded"] = True
+    new_package["fast_track_downgrade_reason"] = trigger
+    new_package["completion_manifest"] = build_completion_manifest(
+        task_intent=package["task_intent"],
+        mutation_profile=package.get("mutation_profile", "workspace_write"),
+        gates=package["matched_gates"],
+        evidence_types=package.get("semantic_evidence_requirements", []),
+        verification_commands=package.get("verification_commands", []),
+        evidence_profile="standard",
+    )
+    new_compiled = dict(compiled)
+    new_compiled["package_revision"] = new_package["package_revision"]
+    new_compiled["package_fingerprint"] = package_fingerprint(new_package)
+    new_compiled["updated_at"] = utc_now()
+    with state_lock(state):
+        delta = archive_and_rewrite_package(state, new_package, new_compiled, dict(freeze), target)
+        append_task_event(
+            state,
+            new_package,
+            event="fast_track_downgraded",
+            phase="verification",
+            reason_code=trigger,
+            disposition=delta["disposition"],
+        )
+    return new_package, new_compiled, read_json(state / "freeze.json")
+
+
 def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     telemetry: dict[str, Any] = {"command_executed_count": 0, "command_cache_hit_count": 0}
     started = time.monotonic()
@@ -6701,6 +6962,7 @@ def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             )
         raise
     telemetry["duration_ms"] = int((time.monotonic() - started) * 1000)
+    payload["layer_reuse"] = layer_reuse_stats()
     record_verification_attempt(telemetry, exit_code=exit_code, payload=payload)
     return exit_code, payload
 
@@ -6799,6 +7061,31 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
     outside = attribution["outside_scope"]
     new_gates = attribution["new_gates"]
     blocker_codes = {str(item.get("reason_code")) for item in attribution["blockers"]}
+    fast_track_downgraded_trigger: str | None = None
+    if package.get("fast_track") and blocker_codes & FAST_TRACK_DOWNGRADE_TRIGGERS:
+        trigger = "new_risk_gate" if "new_risk_gate" in blocker_codes else sorted(blocker_codes & FAST_TRACK_DOWNGRADE_TRIGGERS)[0]
+        package, compiled, freeze = downgrade_fast_track_package(
+            state,
+            target,
+            package,
+            compiled,
+            freeze,
+            trigger=trigger,
+        )
+        telemetry["package"] = package
+        manifest = package["completion_manifest"]
+        fast_track_downgraded_trigger = trigger
+        # 降级后 package fingerprint 已变，只有重新绑定通过的证据才能复用
+        binding_package_fingerprint = package_fingerprint(package)
+        reusable_evidence = [
+            item
+            for item in reusable_evidence
+            if item.get("schema_version") != EVIDENCE_RECEIPT_SCHEMA
+            or (
+                item.get("package_fingerprint") == binding_package_fingerprint
+                and item.get("target_identity") == binding_target_identity
+            )
+        ]
     if blocker_codes == {"new_risk_gate"}:
         detected_new_gates = list(new_gates)
         incremental = incrementally_recompile_new_gates(
@@ -6946,6 +7233,9 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
             atomic_write_json(state / "compiled-task.json", compiled)
             reason_code = attribution["blockers"][0]["reason_code"] if attribution["blockers"] else "rule_drift"
             payload: dict[str, Any] = {"task_id": package["task_id"], "result": "重新准入", "reason_code": reason_code, "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "rule_errors": rule_errors, "auto_attributed_paths": auto_attributed_paths, "workspace_attribution": attribution, "next_action": compiled["next_action"]}
+            if fast_track_downgraded_trigger:
+                payload["fast_track_downgraded"] = True
+                payload["fast_track_downgrade_reason"] = fast_track_downgraded_trigger
             if "new_risk_gate" in blocker_codes and new_gates:
                 payload["readmission_hint"] = {
                     "message": "可通过 --facts 声明 Gate 跳过关键词推断，避免反复循环",
@@ -7074,7 +7364,10 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
                 skeleton_path = templates_dir / f"evidence-{etype.replace('_', '-')}-skeleton.json"
                 atomic_write_json(skeleton_path, skeleton)
                 skeleton_refs.append(str(skeleton_path))
-        return 3, {"task_id": package["task_id"], "result": "补充证据", "changed_paths": changed, "auto_attributed_paths": auto_attributed_paths, "workspace_attribution": attribution, "manifest_fingerprint": manifest["manifest_fingerprint"], "activated_conditions": activated_conditions, "missing_evidence_types": missing_types, "missing_receipts": missing_receipts, "missing_blocking_deliverables": missing_blocking_deliverables, "stale_evidence": stale_evidence, "verification_commands": command_results, "verification_receipts": command_receipts, "git_postcheck": git_result, "evidence_skeletons": skeleton_refs, "next_action": compiled["next_action"]}
+        missing_payload: dict[str, Any] = {"task_id": package["task_id"], "result": "补充证据", "changed_paths": changed, "auto_attributed_paths": auto_attributed_paths, "workspace_attribution": attribution, "manifest_fingerprint": manifest["manifest_fingerprint"], "activated_conditions": activated_conditions, "missing_evidence_types": missing_types, "missing_receipts": missing_receipts, "missing_blocking_deliverables": missing_blocking_deliverables, "stale_evidence": stale_evidence, "verification_commands": command_results, "verification_receipts": command_receipts, "git_postcheck": git_result, "evidence_skeletons": skeleton_refs, "next_action": compiled["next_action"]}
+        if package.get("fast_track"):
+            missing_payload["evidence_profile"] = "fast_track"
+        return 3, missing_payload
     if package.get("context_quality") == "degraded":
         fallback_refs = list(package.get("fallback_fact_refs", []))
         fallback_refs.extend(changed)
@@ -7178,7 +7471,7 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
     compiled["post_completion"] = post_completion
     atomic_write_json(state / "compiled-task.json", compiled)
     receipt = minimum_delivery_receipt(package, changed, sorted(str(item) for item in evidence_types), background_jobs, str(post_completion["status"]))
-    return 0, {
+    success_payload: dict[str, Any] = {
         **receipt,
         "task_id": package["task_id"],
         "parent_completed_at": compiled["completed_at"],
@@ -7194,6 +7487,9 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
         },
         "background_jobs": background_jobs,
     }
+    if package.get("fast_track"):
+        success_payload["evidence_profile"] = "fast_track"
+    return 0, success_payload
 
 
 def normalize_quality_text(value: Any, field: str) -> str:
@@ -8839,6 +9135,221 @@ def update_background_goal_progress(
     }
 
 
+def dispatch_background_job_status(
+    target: Path,
+    root: Path,
+    job: dict[str, Any],
+    requested: str,
+    *,
+    command_name: str | None,
+) -> tuple[int, dict[str, Any]]:
+    if requested not in set().union(*BACKGROUND_TRANSITIONS.values()):
+        raise HarnessError("--job-status 无效", code="invalid_background_job_status")
+    current = str(job.get("status"))
+    if current == requested:
+        return 0, {"action": "dispatch", "job_id": job["job_id"], "status": requested, "idempotent": True}
+    complex_route = job.get("execution_route") in BACKGROUND_COMPLEX_ROUTES
+    legacy_direct_start = (
+        command_name == "knowledge"
+        and job.get("execution_route") == "background_direct"
+        and current == "contract_ready"
+        and requested == "running"
+    )
+    if requested not in BACKGROUND_TRANSITIONS.get(current, set()) and not legacy_direct_start:
+        event_persisted = append_background_event(
+            root, job, "transition_rejected", from_status=current,
+            requested_status=requested, reason_code="invalid_background_job_transition",
+        )
+        payload: dict[str, Any] = {
+            "action": "dispatch", "job_id": job["job_id"], "status": current,
+            "code": "invalid_background_job_transition", "reason_code": "invalid_background_job_transition",
+            "event_persisted": event_persisted,
+        }
+        if complex_route and current == "contract_ready" and requested == "running":
+            payload.update({
+                "next_action": "prepare_background_goal",
+                "next_command_argv": harness_command_argv("background", target, "prepare", "--job-id", str(job["job_id"])),
+                "dispatch_sequence": ["prepare", "dispatched", "running"],
+            })
+        return 3, payload
+    if current == "waiting_for_dependency" and requested == "contract_ready":
+        dependency_states: dict[str, str] = {}
+        for dependency_id in job.get("dependency_job_ids", []):
+            _, dependency = read_knowledge_job(target, str(dependency_id))
+            dependency_states[str(dependency_id)] = str(dependency.get("status"))
+        if any(state in {"failed", "cancelled"} for state in dependency_states.values()):
+            raise HarnessError("后台 Job 依赖已失败", code="background_dependency_failed", exit_code=3)
+        if any(state not in {"updated", "no_change", "completed_with_finding"} for state in dependency_states.values()):
+            raise HarnessError("后台 Job 依赖尚未完成", code="background_dependency_pending", exit_code=3)
+    if requested in {"dispatched", "running"} and complex_route:
+        if not job.get("goal_contract"):
+            raise HarnessError("复杂后台 Job 缺少目标合同", code="invalid_background_job")
+        try:
+            validate_background_goal_artifacts(root, job)
+        except HarnessError as exc:
+            event_persisted = append_background_event(
+                root, job, "transition_rejected", from_status=current,
+                requested_status=requested, reason_code=exc.code,
+            )
+            return 3, {
+                "action": "dispatch", "job_id": job["job_id"], "status": current,
+                "code": exc.code, "reason_code": exc.code,
+                "next_action": "prepare_background_goal",
+                "next_command_argv": harness_command_argv("background", target, "prepare", "--job-id", str(job["job_id"])),
+                "event_persisted": event_persisted,
+            }
+    if requested == "running":
+        changed, _ = knowledge_job_scope_changes(target, job)
+        if changed:
+            reason = "knowledge_changed_before_dispatch" if command_name == "knowledge" else "background_changed_before_dispatch"
+            return mark_knowledge_job_needs_rebase(target, root, job, changed, reason)
+        acquire_knowledge_job_locks(target, job)
+        job["started_at"] = utc_now()
+    if requested == "dispatched":
+        job["dispatched_at"] = utc_now()
+    if requested in {"failed", "needs_user_input", "needs_rebase", "cancelled"}:
+        release_knowledge_job_locks(target, job)
+    job["status"] = requested
+    job["updated_at"] = utc_now()
+    write_background_job(target, root, job)
+    append_background_event(root, job, requested, status=requested)
+    if requested in BACKGROUND_TERMINAL_STATES:
+        job["completed_at"] = job.get("completed_at") or job["updated_at"]
+        write_background_job(target, root, job)
+        record_background_summary(target, job)
+    released = release_bootstrap_waiters(target, job) if job.get("task_kind") == "knowledge_bootstrap" and requested in {"failed", "cancelled", "needs_user_input", "needs_rebase"} else []
+    return 0, {"action": "dispatch", "job_id": job["job_id"], "status": requested, "released_waiting_jobs": released}
+
+
+def background_prepare_and_run_eligibility(target: Path, job: dict[str, Any]) -> str | None:
+    """--prepare-and-run 资格判定：合格返回 None，否则返回受控原因码。"""
+    route = str(job.get("execution_route"))
+    if route == "background_goal_phased":
+        return "route_phased_oversized"
+    if route != "background_goal":
+        return "route_not_complex_goal"
+    estimate: Any = None
+    estimate_ref = job.get("workload_estimate_ref")
+    if isinstance(estimate_ref, str) and estimate_ref:
+        with contextlib.suppress(HarnessError, OSError):
+            estimate = read_json(Path(estimate_ref))
+    if not isinstance(estimate, dict):
+        return "workload_estimate_unavailable"
+    if estimate.get("estimate_basis") != "change_scoped":
+        return "estimate_not_change_scoped"
+    raw_score = estimate.get("raw_score")
+    if not isinstance(raw_score, int) or isinstance(raw_score, bool) or raw_score >= 60:
+        return "score_not_below_60"
+    return None
+
+
+def background_prepare_and_run(
+    target: Path,
+    root: Path,
+    job: dict[str, Any],
+    requested: str | None,
+    *,
+    command_name: str | None,
+) -> tuple[int, dict[str, Any]]:
+    if requested != "running":
+        raise HarnessError("--prepare-and-run 必须显式声明 --job-status running", code="invalid_background_job_status")
+    current = str(job.get("status"))
+    if current != "contract_ready":
+        raise HarnessError(
+            "--prepare-and-run 仅支持 contract_ready 起点的复杂路线 Job",
+            code="invalid_background_job_transition", exit_code=3,
+        )
+    eligibility = background_prepare_and_run_eligibility(target, job)
+    if eligibility is not None:
+        event_persisted = append_background_event(
+            root, job, "transition_rejected", from_status=current,
+            requested_status="running", reason_code="background_prepare_and_run_not_eligible",
+        )
+        return 3, {
+            "action": "dispatch", "job_id": job["job_id"], "status": current,
+            "code": "background_prepare_and_run_not_eligible",
+            "reason_code": "background_prepare_and_run_not_eligible",
+            "eligibility_reason_code": eligibility,
+            "prepare_and_run": False,
+            "dispatch_sequence": ["prepare", "dispatched", "running"],
+            "event_persisted": event_persisted,
+        }
+    _, prepared = prepare_background_goal_artifacts(target, root, job, repair=False)
+    steps = ["prepare"]
+    payload: dict[str, Any] = {}
+    for step in ("dispatched", "running"):
+        code, payload = dispatch_background_job_status(target, root, job, step, command_name=command_name)
+        if code != 0:
+            payload["prepare_and_run"] = True
+            payload["completed_steps"] = steps
+            return code, payload
+        steps.append(step)
+    return 0, {
+        **payload,
+        "prepare_and_run": True,
+        "prepare_status": prepared["status"],
+        "dispatch_sequence": ["prepare", "dispatched", "running"],
+        "completed_steps": steps,
+    }
+
+
+def complete_all_background_work_packages(
+    target: Path,
+    root: Path,
+    job: dict[str, Any],
+    reason_code: str | None,
+) -> tuple[int, dict[str, Any]]:
+    assert_background_control_root(target, root, job)
+    if job.get("execution_route") not in BACKGROUND_COMPLEX_ROUTES:
+        raise HarnessError("direct 路线不使用 Goal 进度", code="background_progress_not_required")
+    if job.get("status") != "running":
+        raise HarnessError("只有 running Job 可以更新工作包进度", code="invalid_background_job_transition", exit_code=3)
+    if reason_code is not None and not BACKGROUND_REASON_CODE_RE.fullmatch(reason_code):
+        raise HarnessError("--reason-code 必须是长度有界的受控标识符", code="invalid_background_reason_code")
+    validate_background_goal_artifacts(root, job)
+    progress_path = root / "progress.json"
+    progress = read_json(progress_path)
+    states = progress["work_package_states"]
+    blocking = [
+        {"id": item["id"], "status": item["status"]}
+        for item in states
+        if item["status"] not in {"pending", "in_progress", "completed"}
+    ]
+    if blocking:
+        event_persisted = append_background_event(
+            root, job, "progress_rejected", reason_code="background_progress_all_blocked"
+        )
+        return 3, {
+            "action": "progress", "job_id": job["job_id"], "all": "completed",
+            "code": "background_progress_all_blocked",
+            "reason_code": "background_progress_all_blocked",
+            "blocking_work_packages": blocking,
+            "completed_work_packages": progress["completed_work_packages"],
+            "remaining_work_packages": progress["remaining_work_packages"],
+            "partial_commit": False,
+            "event_persisted": event_persisted,
+        }
+    updated: list[str] = []
+    already_completed: list[str] = []
+    for item in states:
+        if item["status"] == "completed":
+            already_completed.append(item["id"])
+            continue
+        if item["status"] == "pending":
+            update_background_goal_progress(target, root, job, item["id"], "in_progress", reason_code)
+        update_background_goal_progress(target, root, job, item["id"], "completed", reason_code)
+        updated.append(item["id"])
+    final = read_json(progress_path)
+    return 0, {
+        "action": "progress", "job_id": job["job_id"], "all": "completed",
+        "updated_work_packages": updated,
+        "already_completed_work_packages": already_completed,
+        "completed_work_packages": final["completed_work_packages"],
+        "remaining_work_packages": final["remaining_work_packages"],
+        "partial_commit": False,
+    }
+
+
 def scope_claims_background_control_plane(target: Path, scope: Sequence[str]) -> bool:
     probes = [".git", ".git/docs-harness", ".docs-harness", ".docs-harness/background"]
     runtime = background_runtime_root(target)
@@ -9149,6 +9660,10 @@ def command_background_unlocked(args: argparse.Namespace) -> tuple[int, dict[str
                         shutil.rmtree(root)
                 removed.append(item["job_id"])
         return 0, {"action": "prune", "mode": "apply", "candidates": candidates, "removed": removed}
+    if getattr(args, "prepare_and_run", False) and action != "dispatch":
+        raise HarnessError("--prepare-and-run 只能配合 background dispatch 使用", code="invalid_prepare_and_run_usage")
+    if getattr(args, "all_packages", None) and action != "progress":
+        raise HarnessError("--all 只能配合 background progress 使用", code="invalid_background_progress")
     if not args.job_id:
         raise HarnessError(f"background {action} 必须提供 --job-id", code="missing_background_job")
     root, job = read_knowledge_job(target, args.job_id)
@@ -9179,89 +9694,20 @@ def command_background_unlocked(args: argparse.Namespace) -> tuple[int, dict[str
     if action == "prepare":
         return prepare_background_goal_artifacts(target, root, job, repair=bool(args.repair))
     if action == "progress":
+        if getattr(args, "all_packages", None):
+            if args.work_package_id or args.work_package_status:
+                raise HarnessError("--all 不能与单包进度参数混用", code="invalid_background_progress")
+            return complete_all_background_work_packages(target, root, job, args.reason_code)
         if not args.work_package_id or not args.work_package_status:
             raise HarnessError("background progress 必须提供工作包 ID 和状态", code="missing_background_progress")
         return update_background_goal_progress(
             target, root, job, args.work_package_id, args.work_package_status, args.reason_code
         )
     if action == "dispatch":
-        requested = args.job_status
-        if requested not in set().union(*BACKGROUND_TRANSITIONS.values()):
-            raise HarnessError("--job-status 无效", code="invalid_background_job_status")
-        current = str(job.get("status"))
-        if current == requested:
-            return 0, {"action": "dispatch", "job_id": job["job_id"], "status": requested, "idempotent": True}
-        complex_route = job.get("execution_route") in BACKGROUND_COMPLEX_ROUTES
-        legacy_direct_start = (
-            getattr(args, "command", None) == "knowledge"
-            and job.get("execution_route") == "background_direct"
-            and current == "contract_ready"
-            and requested == "running"
-        )
-        if requested not in BACKGROUND_TRANSITIONS.get(current, set()) and not legacy_direct_start:
-            event_persisted = append_background_event(
-                root, job, "transition_rejected", from_status=current,
-                requested_status=requested, reason_code="invalid_background_job_transition",
-            )
-            payload: dict[str, Any] = {
-                "action": "dispatch", "job_id": job["job_id"], "status": current,
-                "code": "invalid_background_job_transition", "reason_code": "invalid_background_job_transition",
-                "event_persisted": event_persisted,
-            }
-            if complex_route and current == "contract_ready" and requested == "running":
-                payload.update({
-                    "next_action": "prepare_background_goal",
-                    "next_command_argv": harness_command_argv("background", target, "prepare", "--job-id", str(job["job_id"])),
-                    "dispatch_sequence": ["prepare", "dispatched", "running"],
-                })
-            return 3, payload
-        if current == "waiting_for_dependency" and requested == "contract_ready":
-            dependency_states: dict[str, str] = {}
-            for dependency_id in job.get("dependency_job_ids", []):
-                _, dependency = read_knowledge_job(target, str(dependency_id))
-                dependency_states[str(dependency_id)] = str(dependency.get("status"))
-            if any(state in {"failed", "cancelled"} for state in dependency_states.values()):
-                raise HarnessError("后台 Job 依赖已失败", code="background_dependency_failed", exit_code=3)
-            if any(state not in {"updated", "no_change", "completed_with_finding"} for state in dependency_states.values()):
-                raise HarnessError("后台 Job 依赖尚未完成", code="background_dependency_pending", exit_code=3)
-        if requested in {"dispatched", "running"} and complex_route:
-            if not job.get("goal_contract"):
-                raise HarnessError("复杂后台 Job 缺少目标合同", code="invalid_background_job")
-            try:
-                validate_background_goal_artifacts(root, job)
-            except HarnessError as exc:
-                event_persisted = append_background_event(
-                    root, job, "transition_rejected", from_status=current,
-                    requested_status=requested, reason_code=exc.code,
-                )
-                return 3, {
-                    "action": "dispatch", "job_id": job["job_id"], "status": current,
-                    "code": exc.code, "reason_code": exc.code,
-                    "next_action": "prepare_background_goal",
-                    "next_command_argv": harness_command_argv("background", target, "prepare", "--job-id", str(job["job_id"])),
-                    "event_persisted": event_persisted,
-                }
-        if requested == "running":
-            changed, _ = knowledge_job_scope_changes(target, job)
-            if changed:
-                reason = "knowledge_changed_before_dispatch" if getattr(args, "command", None) == "knowledge" else "background_changed_before_dispatch"
-                return mark_knowledge_job_needs_rebase(target, root, job, changed, reason)
-            acquire_knowledge_job_locks(target, job)
-            job["started_at"] = utc_now()
-        if requested == "dispatched":
-            job["dispatched_at"] = utc_now()
-        if requested in {"failed", "needs_user_input", "needs_rebase", "cancelled"}:
-            release_knowledge_job_locks(target, job)
-        job["status"] = requested
-        job["updated_at"] = utc_now()
-        write_background_job(target, root, job)
-        append_background_event(root, job, requested, status=requested)
-        if requested in BACKGROUND_TERMINAL_STATES:
-            job["completed_at"] = job.get("completed_at") or job["updated_at"]
-            write_background_job(target, root, job)
-            record_background_summary(target, job)
-        released = release_bootstrap_waiters(target, job) if job.get("task_kind") == "knowledge_bootstrap" and requested in {"failed", "cancelled", "needs_user_input", "needs_rebase"} else []
-        return 0, {"action": "dispatch", "job_id": job["job_id"], "status": requested, "released_waiting_jobs": released}
+        command_name = getattr(args, "command", None)
+        if getattr(args, "prepare_and_run", False):
+            return background_prepare_and_run(target, root, job, args.job_status, command_name=command_name)
+        return dispatch_background_job_status(target, root, job, args.job_status, command_name=command_name)
     if action == "retry":
         if (
             job.get("task_kind") == "delivery_governance"
@@ -9633,6 +10079,11 @@ python3 scripts/harness.py run --target . --task "<原始用户任务>" --json
 - 功能知识来自 `docs/knowledge-map.json` 和 `docs/features/`；任务无法唯一定位功能时使用 `run --feature <id>` 重新准入，不得全量加载 `docs/`。
 - 只有用户明确要求“添加到质量账本”或同义写入动作时，才整理脱敏复盘 JSON 并运行 `ledger add`；不得自动记录，也不得在每个任务结束后主动询问。
 - 后续任务需要复用历史经验时，按任务编号或关键词运行 `ledger read`；不得自动注入全部个人账本。
+- `--scope` 是可重复单值参数，一次只传一个项目内相对路径；禁止把 JSON 数组整体作为单个值传入（会报 `invalid_scope_json`）。`--facts`/`--plan`/`--evidence`/`--authorization` 等文件参数一律使用工作区相对路径，Windows 上不要传 Git Bash 的 `/tmp` 路径。
+- 每步响应的 `contract_snapshot` 是当前合同真源：重准入修 scope 时必须同时核对 `allowed_scope`/`read_scope`/`write_scope` 三个字段的实际值；verify 前先按 `contract_snapshot.evidence_types` 一次性备齐证据再跑。
+- `--facts` 仅在 blocked 或 scope_changed 的重准入时生效；响应出现 `facts_ignored=true` 即表示本次 facts 被忽略，需先使任务进入 blocked/scope_changed 状态再提交。
+- 低风险文档/规则/测试类小任务可在 facts 声明 `fast_track: true` 走轻量准入：生效时响应带 `evidence_profile: "fast_track"`，只需备 `code_diff`（声明验证命令时加 `test_run`）证据；返回 `fast_track_denied_reason` 即已降级普通流程。fast_track 不豁免任何 Gate；可用 `inline_note`（≤200 字）替代独立 plan 文档，非 fast_track 携带会被忽略（`inline_note_ignored`）。
+- planned 路线改方案后必须先 `context --stage plan` 再 `run --plan`，顺序错了会被 `plan_context_required` 挡回。
 {MANAGED_END}"""
 
 
@@ -9765,6 +10216,122 @@ def remove_managed_block(text: str, begin: str, end: str) -> str:
     return pattern.sub("\n", text).strip() + "\n"
 
 
+def read_version_sources(source_root: Path) -> dict[str, str | None]:
+    """读取四处版本真源；缺失或不可解析的项返回 None（validate_project_source 与 release sync 共用）。"""
+    sources: dict[str, str | None] = {
+        "VERSION": (source_root / "VERSION").read_text(encoding="utf-8").strip()
+        if (source_root / "VERSION").is_file()
+        else None,
+        "controller": None,
+        "skill": None,
+        "package": None,
+    }
+    source_script = source_root / "scripts" / "harness.py"
+    if source_script.is_file():
+        controller_match = re.search(
+            rf'(?m)^VERSION\s*=\s*["\']({SEMVER_PATTERN})["\']\s*$',
+            source_script.read_text(encoding="utf-8"),
+        )
+        sources["controller"] = controller_match.group(1) if controller_match else None
+    skill = source_root / "SKILL.md"
+    if skill.is_file():
+        metadata, _ = parse_frontmatter(skill.read_text(encoding="utf-8"))
+        sources["skill"] = metadata.get("version")
+    package = source_root / "package.json"
+    if package.is_file():
+        package_value = read_json(package)
+        if isinstance(package_value, dict) and isinstance(package_value.get("version"), str):
+            sources["package"] = package_value["version"]
+    return sources
+
+
+def changelog_top_version(source_root: Path) -> str | None:
+    """读取 CHANGELOG.md 顶部条目版本号；缺失或无版本条目返回 None。"""
+    path = source_root / "CHANGELOG.md"
+    if not path.is_file():
+        return None
+    match = re.search(rf"(?m)^##\s+\[?v?({SEMVER_PATTERN})\]?", path.read_text(encoding="utf-8"))
+    return match.group(1) if match else None
+
+
+def release_sync_package_content(raw: str, truth: str) -> str:
+    pattern = re.compile(r'(?m)^([ \t]*"version"[ \t]*:[ \t]*")' + SEMVER_PATTERN + r'(")')
+    if len(pattern.findall(raw)) != 1:
+        raise HarnessError(
+            "package.json 的 version 字段缺失或出现多次，归属不明，失败关闭",
+            code="release_managed_file_unrecognized",
+        )
+    updated = pattern.sub(rf"\g<1>{truth}\g<2>", raw, count=1)
+    parsed = json.loads(updated)
+    if not isinstance(parsed, dict) or parsed.get("version") != truth:
+        raise HarnessError("package.json 写入内容校验失败", code="release_managed_file_unrecognized")
+    return updated
+
+
+def release_sync_skill_content(raw: str, truth: str) -> str:
+    if not raw.startswith("---\n"):
+        raise HarnessError("SKILL.md 缺少 frontmatter，归属不明，失败关闭", code="release_managed_file_unrecognized")
+    end = raw.find("\n---\n", 4)
+    if end < 0:
+        raise HarnessError("SKILL.md frontmatter 不完整，归属不明，失败关闭", code="release_managed_file_unrecognized")
+    front = raw[4:end]
+    pattern = re.compile(rf"(?m)^([ \t]*version[ \t]*:[ \t]*)([\"']?){SEMVER_PATTERN}([\"']?)[ \t]*$")
+    matches = list(pattern.finditer(front))
+    if len(matches) != 1 or matches[0].group(2) != matches[0].group(3):
+        raise HarnessError(
+            "SKILL.md frontmatter 的 version 字段缺失或归属不明，失败关闭",
+            code="release_managed_file_unrecognized",
+        )
+    match = matches[0]
+    new_front = front[: match.start()] + f"{match.group(1)}{match.group(2)}{truth}{match.group(3)}" + front[match.end():]
+    updated = raw[:4] + new_front + raw[end:]
+    metadata, _ = parse_frontmatter(updated)
+    if metadata.get("version") != truth:
+        raise HarnessError("SKILL.md 写入内容校验失败", code="release_managed_file_unrecognized")
+    return updated
+
+
+def apply_release_sync_writes(target: Path, writes: list[tuple[str, str]]) -> None:
+    """全部目标先写临时文件并校验，再统一替换；任一失败整体回滚，无部分写入。"""
+    temps: list[tuple[Path, Path, bytes]] = []
+    try:
+        for relative, content in writes:
+            path = target / relative
+            original = path.read_bytes()
+            fd, raw = tempfile.mkstemp(prefix=f".{path.name}.", dir=path.parent)
+            temp = Path(raw)
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8", newline="\n") as handle:
+                    handle.write(content)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+            except BaseException:
+                with contextlib.suppress(FileNotFoundError):
+                    os.unlink(raw)
+                raise
+            if temp.read_bytes() != content.encode("utf-8"):
+                raise HarnessError(f"{relative} 临时文件校验失败", code="release_write_failed", exit_code=1)
+            temps.append((path, temp, original))
+        replaced: list[tuple[Path, bytes]] = []
+        try:
+            for path, temp, original in temps:
+                os.replace(temp, path)
+                replaced.append((path, original))
+        except OSError as exc:
+            for path, original in reversed(replaced):
+                with contextlib.suppress(OSError):
+                    path.write_bytes(original)
+            raise HarnessError(
+                "release sync 写入失败，已整体回滚，无部分写入",
+                code="release_write_failed",
+                exit_code=1,
+            ) from exc
+    finally:
+        for _, temp, _ in temps:
+            with contextlib.suppress(FileNotFoundError):
+                os.unlink(temp)
+
+
 def validate_project_source(source_root: Path) -> tuple[Path, Path]:
     source_script = source_root / "scripts" / "harness.py"
     source_rules = source_root / "harness-home" / "rules"
@@ -9773,29 +10340,7 @@ def validate_project_source(source_root: Path) -> tuple[Path, Path]:
             "project init/upgrade/diff 必须从包含 harness-home/rules 的 Docs Harness 来源包执行",
             code="invalid_source",
         )
-    version_sources: dict[str, str | None] = {
-        "VERSION": (source_root / "VERSION").read_text(encoding="utf-8").strip()
-        if (source_root / "VERSION").is_file()
-        else None,
-        "controller": None,
-        "skill": None,
-        "package": None,
-    }
-    controller_match = re.search(
-        rf'(?m)^VERSION\s*=\s*["\']({SEMVER_PATTERN})["\']\s*$',
-        source_script.read_text(encoding="utf-8"),
-    )
-    version_sources["controller"] = controller_match.group(1) if controller_match else None
-    skill = source_root / "SKILL.md"
-    if skill.is_file():
-        metadata, _ = parse_frontmatter(skill.read_text(encoding="utf-8"))
-        version_sources["skill"] = metadata.get("version")
-    package = source_root / "package.json"
-    if package.is_file():
-        package_value = read_json(package)
-        if isinstance(package_value, dict) and isinstance(package_value.get("version"), str):
-            version_sources["package"] = package_value["version"]
-    if any(value != VERSION for value in version_sources.values()):
+    if any(value != VERSION for value in read_version_sources(source_root).values()):
         raise HarnessError(
             "Docs Harness 来源包版本真源不一致",
             code="source_version_inconsistent",
@@ -9814,7 +10359,7 @@ def project_changes(
     source_script, source_rules = validate_project_source(source_root)
     if not script.is_file():
         changes.append({"path": "scripts/harness.py", "action": "create"})
-    elif file_fingerprint(script) != file_fingerprint(source_script):
+    elif cached_file_fingerprint(script) != cached_file_fingerprint(source_script):
         changes.append({"path": "scripts/harness.py", "action": "update"})
     managed_entries = (
         ("AGENTS.md", MANAGED_BEGIN, MANAGED_END, managed_agent_block()),
@@ -10604,6 +11149,87 @@ def command_authorization(args: argparse.Namespace) -> tuple[int, dict[str, Any]
     }
 
 
+def command_release_sync(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    target = safe_target(args.target)
+    if args.action != "sync":
+        raise HarnessError(f"release {args.action} 暂不支持", code="invalid_release_action")
+    sources = read_version_sources(target)
+    truth = sources["controller"]
+    if truth is None:
+        raise HarnessError(
+            "无法从 scripts/harness.py 读取 VERSION 常量，release sync 失败关闭",
+            code="release_source_unreadable",
+            exit_code=1,
+        )
+    if args.target_version is not None:
+        if not re.fullmatch(SEMVER_PATTERN, args.target_version):
+            raise HarnessError("--target-version 必须是 X.Y.Z 语义版本", code="invalid_target_version")
+        if args.target_version != truth:
+            raise HarnessError(
+                "--target-version 与 scripts/harness.py 的 VERSION 常量不一致，失败关闭",
+                code="release_version_conflict",
+                actual_vs_expected={"expected": truth, "actual": args.target_version},
+            )
+    missing = [name for name, value in sources.items() if value is None]
+    diffs = [
+        {"source": name, "expected": truth, "actual": value}
+        for name, value in sources.items()
+        if value is not None and value != truth
+    ]
+    changelog = changelog_top_version(target)
+    payload: dict[str, Any] = {
+        "action": "sync",
+        "target": str(target),
+        "version_truth": truth,
+        "sources": sources,
+        "diffs": diffs,
+        "changelog_top_version": changelog,
+    }
+    if changelog is None:
+        payload["changelog_hint"] = "CHANGELOG.md 缺失或无版本条目，请人工确认"
+    elif changelog != truth:
+        payload["changelog_hint"] = "CHANGELOG 顶部条目版本号与 VERSION 常量不一致，请人工同步"
+    if not args.apply:
+        payload["mode"] = "check"
+        if missing:
+            payload["status"] = "unreadable"
+            payload["missing_sources"] = missing
+            return 1, payload
+        payload["status"] = "inconsistent" if diffs else "consistent"
+        return (2 if diffs else 0), payload
+    payload["mode"] = "apply"
+    if missing:
+        raise HarnessError(
+            "版本真源缺失或不可解析，--apply 失败关闭：" + ", ".join(missing),
+            code="release_source_unreadable",
+            exit_code=1,
+        )
+    builders = (
+        ("VERSION", "VERSION", lambda raw, version: f"{version}\n"),
+        ("package", "package.json", release_sync_package_content),
+        ("skill", "SKILL.md", release_sync_skill_content),
+    )
+    writes: list[tuple[str, str]] = []
+    changed: list[str] = []
+    for source_name, relative, builder in builders:
+        if sources[source_name] == truth:
+            continue
+        raw = (target / relative).read_text(encoding="utf-8")
+        content = builder(raw, truth)
+        if content != raw:
+            writes.append((relative, content))
+            changed.append(relative)
+    if not writes:
+        payload["status"] = "already_consistent"
+        payload["changed"] = []
+        return 0, payload
+    apply_release_sync_writes(target, writes)
+    payload["status"] = "synced"
+    payload["version"] = truth
+    payload["changed"] = changed
+    return 0, payload
+
+
 def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
     rules = rules_root_for(target)
@@ -10613,12 +11239,12 @@ def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     version_truth = (
         config.get("version") == VERSION and config.get("schema_version") == CONFIG_SCHEMA
         if config
-        else (SCRIPT_ROOT / "VERSION").is_file() and (SCRIPT_ROOT / "VERSION").read_text(encoding="utf-8").strip() == VERSION
+        else all(value == VERSION for value in read_version_sources(SCRIPT_ROOT).values())
     )
     bridge_contract = host_dispatch_contract(target, "bg-20000101T000000-0000000000", "background_goal")
     checks = {
         "script_version": version_truth,
-        "command_parser": all(name in parser_help for name in ("run", "context", "progress", "verify", "task", "ledger", "knowledge", "background", "project", "self-test")),
+        "command_parser": all(name in parser_help for name in ("run", "context", "progress", "verify", "task", "ledger", "knowledge", "background", "project", "release", "self-test")),
         "rules_root": rules.is_dir(),
         "active_rules_valid": bool(active_rules) and not rule_errors,
         "independent_runtime_name": runtime_root(target).parent.name in {"docs-harness", ".docs-harness"},
@@ -10769,6 +11395,17 @@ def build_parser() -> argparse.ArgumentParser:
     background.add_argument("--work-package-status", choices=("in_progress", "completed", "blocked"), help="工作包目标状态")
     background.add_argument("--reason-code", help="有界、受控的工作包原因码")
     background.add_argument("--repair", action="store_true", help="显式归档并修复无效 Goal 工件")
+    background.add_argument(
+        "--prepare-and-run",
+        action="store_true",
+        help="声明制合并：单命令顺序执行 prepare→dispatched→running（仅 change_scoped 估算且分数 <60 的复杂路线，需同时给出 --job-status running）",
+    )
+    background.add_argument(
+        "--all",
+        dest="all_packages",
+        choices=("completed",),
+        help="声明制批量推进冻结 Plan 全部工作包到 completed；任一非法前置态整体拒绝不部分提交",
+    )
     background.add_argument("--assessment", metavar="ASSESSMENT_FILE", help="知识或重大发现验收报告文件")
     background.add_argument("--result", choices=("updated", "no_change", "completed_with_finding"), default="updated")
     background.add_argument("--older-than", type=int, help="prune 候选的最小天数")
@@ -10786,6 +11423,19 @@ def build_parser() -> argparse.ArgumentParser:
     add_common_target(authorization)
     authorization.add_argument("--task-id", help="要生成授权模板的任务编号")
     authorization.add_argument("--output", metavar="OUTPUT_FILE", help="模板输出文件路径；缺省输出到 stdout")
+
+    release = commands.add_parser("release", help="发版版本真源一致性检查与原子同步")
+    release.add_argument("action", choices=("sync",), nargs="?", default="sync")
+    add_common_target(release)
+    release.add_argument(
+        "--apply",
+        action="store_true",
+        help="以 scripts/harness.py 的 VERSION 常量为唯一真源，原子写入 VERSION 文件、package.json、SKILL.md",
+    )
+    release.add_argument(
+        "--target-version",
+        help="显式确认目标版本；与 VERSION 常量不一致时失败关闭（release_version_conflict）",
+    )
 
     self_test = commands.add_parser("self-test", help="运行内置合同自检")
     add_common_target(self_test)
@@ -10860,6 +11510,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             code, payload = command_project(args)
         elif args.command == "authorization":
             code, payload = command_authorization(args)
+        elif args.command == "release":
+            code, payload = command_release_sync(args)
         else:
             code, payload = command_self_test(args)
         payload = enrich_next_step_response(args, payload)

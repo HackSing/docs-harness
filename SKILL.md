@@ -2,7 +2,7 @@
 name: docs-harness
 description: "通过独立控制器完成 Gate、任务包、降级知识上下文、主任务验收和异步文档治理。"
 metadata:
-  version: 1.6.8
+  version: 1.7.2
   status: active
 ---
 
@@ -57,6 +57,12 @@ write_scope 内的写入由控制器自动归因：代铸 `workspace_attribution
 
 v1 在途任务只允许 `task status` 读取；必须显式执行 `task migrate --apply` 后重新准入。存在活动 v2 任务时，`project rollback-check` 必须阻断回滚。
 
+v1.6.9 准入效率加固：scope 值形似 JSON（数组/对象整体作为单值）直接报 `invalid_scope_json` 并给出修复提示；`--facts` 等文件参数在 Windows 上传入 Git Bash `/tmp` 等 POSIX 绝对路径时，缺失文件错误附带改用工作区相对路径的提示；非 blocked/scope_changed 状态下提交 `--facts` 不再静默忽略，响应返回 `facts_ignored` 与生效条件；所有 `next_step_payload` 响应统一携带 `contract_snapshot`（当前 `allowed_scope`/`read_scope`/`write_scope`、`plan_fields`、所需证据类型），每步即可自查合同，无需额外探查。
+
+v1.7.0 低风险轻量准入：低风险文档/规则/测试类小任务可在 `--facts` 显式声明 `fast_track: true`（声明制，不做自动推断）；仅在 direct 路线、无 high gate、write_scope 全为文档/规则/测试路径、无 `work_packages` 时生效，否则静默降级普通流程并返回 `fast_track_denied_reason`。生效后响应携带 `evidence_profile: "fast_track"`，所需证据收敛为 `code_diff`（声明验证命令时加 `test_run`）最小集；fast_track 不豁免任何 Gate，运行期命中新风险 Gate 或高风险漂移即单向降级回普通证据集（`fast_track_downgraded`）。fast_track 任务可用 `inline_note`（≤200 字）替代独立 plan 文档，非 fast_track 携带会返回 `inline_note_ignored`。`task status` 新增 `overhead_summary`（`harness_total_ms`/`wall_clock_ms`/`harness_share`），可复算 harness 自身开销占比。
+
+v1.7.1 发版同步与验收提效：`release sync` 单命令核对四处版本真源（VERSION 文件、package.json、SKILL.md frontmatter、`scripts/harness.py` 的 `VERSION` 常量），检查模式输出差异报告（exit 0/2/1），`--apply` 以 `VERSION` 常量为唯一真源原子写入三处受管文件（任一失败整体回滚），`--target-version` 冲突失败关闭（`release_version_conflict`）；CHANGELOG 顶部条目仅提示不自动生成。验收层间按（路径, 清单/内容摘要, 合同版本, target_identity）键复用工作区快照与文件 SHA-256 中间产物（单次 CLI 会话内进程级缓存），verify 响应新增 `layer_reuse` 计数遥测；四层验收判定结论保持独立，fresh clone 与远端网络 I/O 不跳过。
+
 ## 后台治理
 
 按 `execution_route` 执行：
@@ -69,14 +75,18 @@ v1 在途任务只允许 `task status` 读取；必须显式执行 `task migrate
 
 宿主能力不足时将 Job 置为 `queued_manual`，保留原路线，不静默降级。
 
+中小型复杂 Job（`change_scoped` 估算且分数 <60 的 `background_goal`）可用 v1.7.2 声明制合并快路径减少往返，所有校验闸门与分步执行完全相同：`background dispatch --job-status running --prepare-and-run` 单命令完成 prepare→dispatched→running（已 prepared 且指纹一致时幂等跳过 prepare；phased/oversized/direct/非 change_scoped/分数 ≥60 拒绝并返回 `background_prepare_and_run_not_eligible`）；`background progress --all completed` 一次把全部工作包推进到 completed（任一非法前置态整体拒绝、不部分提交）。
+
 ```bash
 python3 scripts/harness.py background list --target . --json
 python3 scripts/harness.py background status --target . --job-id <job-id> --json
 python3 scripts/harness.py background prepare --target . --job-id <job-id> --json
 python3 scripts/harness.py background dispatch --target . --job-id <job-id> --job-status dispatched --json
 python3 scripts/harness.py background dispatch --target . --job-id <job-id> --job-status running --json
+python3 scripts/harness.py background dispatch --target . --job-id <job-id> --job-status running --prepare-and-run --json
 python3 scripts/harness.py background progress --target . --job-id <job-id> --work-package-id <wp-id> --work-package-status in_progress --json
 python3 scripts/harness.py background progress --target . --job-id <job-id> --work-package-id <wp-id> --work-package-status completed --json
+python3 scripts/harness.py background progress --target . --job-id <job-id> --all completed --json
 python3 scripts/harness.py background verify --target . --job-id <job-id> --assessment <file> --json
 python3 scripts/harness.py background retry --target . --job-id <job-id> --json
 ```
