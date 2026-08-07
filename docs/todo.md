@@ -1,5 +1,14 @@
 # TODO
 
+## v1.7.3 验收循环修复：五原因码全治理
+
+- 状态：方案已定稿（经 Kimi CLI 两轮源码级交叉评审，12 条修正设计全部采纳），待实施。
+- 方案：[v1.7.3 验收循环修复方案](plans/v1.7.3-verify-loop-fix-plan.md)
+- 背景：ZBuddy v1.7.2 真实运行数据（08-07）显示 verify 平均 2.0 轮、一次通过率仅约 28%，五类非完成原因（`missing_evidence_types` 18、`write_scope_violation` 17、`stale_evidence` 5、`missing_receipts` 4、`concurrent_drift_overlap` 4）全部纳入治理。
+- 目标（分级承诺）：A. verify 内 write_scope 严格超集增量扩展（纯越界、合同稳定、无新 Gate、无授权约束、非 extended、非 git_sync、上限 3 次、candidate scope 硬断言，失败关闭回退现行为）；B. 三处响应携带 evidence_checklist 四段并预生成骨架（消灭 missing_evidence_types/missing_receipts）；C. 越界全量重准入携带精确扩围 facts 模板；D. `task changes-preview` 只读 action + stale_evidence 精确载荷；E. concurrent_drift_overlap 双选项重准入提示（只保证失败后一次重准入即过）；F. pending_context_receipts 状态位前置。
+- 安全边界：不改 Gate/授权/证据装订语义；授权任务扩围必然改变授权合同指纹强制全量重准入；changes-preview 零状态变更；不自动提交推送 git。
+- 下一步：按方案合并必改清单 10 步实施（先写 T1–T17 失败测试），版本升 1.7.3 自举发布，ZBuddy 升级后用账本数据复核轮次目标（平均 verify 轮次 2.0 → ~1.2，一次通过率 28% → ~70%）。
+
 ## v1.7.2 后台治理合并快路径
 
 - 状态：已完成源码实施与测试，文档与 evals 已同步。

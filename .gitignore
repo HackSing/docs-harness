@@ -3,6 +3,7 @@ __pycache__/
 *.tgz
 test_output.log
 .DS_Store
+.tmp-*
 /.docs-harness/runs/
 /.docs-harness/background/
 /.docs-harness/knowledge-jobs/
