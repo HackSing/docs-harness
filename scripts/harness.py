@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Docs Harness v1.7.4 独立任务控制器。"""
+"""Docs Harness v1.7.6 独立任务控制器。"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 
-VERSION = "1.7.4"
+VERSION = "1.7.6"
 TASK_SCHEMA = "docs-harness/task-package/v2"
 LEGACY_TASK_SCHEMA = "docs-harness/task-package/v1"
 COMPILED_SCHEMA = "docs-harness/compiled-task/v2"
@@ -203,6 +203,7 @@ TASK_INTENTS = (
     "git_inspect",
     "git_fetch",
     "git_sync",
+    "git_commit",
     "modify",
     "external_write",
 )
@@ -219,11 +220,13 @@ INTENT_MUTATION = {
     "git_inspect": "read_only",
     "git_fetch": "git_metadata_write",
     "git_sync": "workspace_write",
+    "git_commit": "git_metadata_write",
     "modify": "workspace_write",
     "external_write": "external_write",
 }
 INTENT_PATTERNS: dict[str, tuple[str, ...]] = {
     "external_write": ("发布", "上线", "部署", "推送", "发送", "publish", "deploy", "release", "git push"),
+    "git_commit": ("git commit", "commit", "本地提交", "提交改动", "提交代码", "提交当前", "提交工作区", "提交暂存"),
     "git_sync": ("git pull", "git merge", "git rebase", "fast-forward", "fast forward", "同步分支", "同步远端"),
     "git_fetch": ("git fetch", "获取远端引用", "获取远端对象", "抓取远端"),
     "git_inspect": ("git status", "git log", "git show", "git diff", "ls-remote", "检查分支", "查看分支", "分支是否可删除"),
@@ -275,69 +278,58 @@ GATE_ORDER = (
 )
 GATE_DEFS: dict[str, dict[str, Any]] = {
     "product-change": {
-        "terms": ("产品", "需求", "用户流程", "交互逻辑", "product", "requirement"),
         "facts": ("docs/product.md",),
         "plan_fields": ("产品边界", "用户结果"),
         "evidence": ("product_acceptance",),
     },
     "architecture-contract": {
-        "terms": ("架构", "api", "接口", "schema", "协议", "数据库", "architecture"),
         "facts": ("docs/architecture.md",),
         "plan_fields": ("兼容策略", "迁移与回滚"),
         "evidence": ("contract_acceptance",),
     },
     "security-sensitive": {
-        "terms": ("安全", "鉴权", "权限", "密钥", "隐私", "security", "auth", "token"),
         "facts": ("docs/security.md",),
         "plan_fields": ("安全边界", "负向路径"),
         "evidence": ("security_acceptance",),
     },
     "destructive-data": {
-        "terms": ("删除", "清空", "覆盖", "迁移数据", "drop", "truncate", "delete data"),
         "facts": ("docs/architecture.md", "docs/security.md"),
         "plan_fields": ("影响范围", "备份与恢复"),
         "authorization": ("destructive_write",),
         "evidence": ("recovery_acceptance",),
     },
     "release-external": {
-        "terms": ("发布", "上线", "部署", "推送", "发送", "publish", "deploy", "release", "push"),
         "facts": ("docs/architecture.md", "docs/testing.md"),
         "plan_fields": ("外部目标", "发布与回滚"),
         "authorization": ("external_write",),
         "evidence": ("external_state",),
     },
     "frontend-design": {
-        "terms": ("ui", "界面", "页面", "组件", "视觉", "交互", "frontend", "swiftui"),
         "facts": ("docs/product.md", "docs/design.md"),
         "plan_fields": ("设计状态", "真实页面验收"),
         "evidence": ("ui_acceptance",),
     },
     "diagnosis-fix": {
-        "terms": ("诊断", "故障", "报错", "异常", "修复 bug", "debug", "incident", "root cause"),
         "facts": ("docs/architecture.md", "docs/testing.md"),
         "plan_fields": ("首次偏离", "根因证据"),
         "evidence": ("diagnostic_replay",),
     },
     "testing-acceptance": {
-        "terms": ("测试", "验收", "回归", "test", "verify", "acceptance"),
         "facts": ("docs/testing.md",),
         "plan_fields": (),
         "evidence": ("test_result",),
     },
     "review-audit": {
-        "terms": ("审查", "审计", "review", "audit"),
         "facts": (),
         "plan_fields": (),
         "evidence": ("review_result",),
     },
     "code-edit": {
-        "terms": ("代码", "实现", "重构", "函数", "模块", "code", "implement", "refactor"),
         "facts": ("docs/architecture.md",),
         "plan_fields": (),
         "evidence": ("test_result",),
     },
     "document-edit": {
-        "terms": ("文档", "说明", "readme", "docs", "markdown"),
         "facts": (),
         "plan_fields": (),
         "evidence": ("document_review",),
@@ -381,14 +373,7 @@ GATE_KNOWLEDGE_CATEGORIES = {
     "code-edit": ("development",),
 }
 
-# 宿主权威声明 gate 时仍由代码强制兜底的安全底线集合：模型只能加不能减。
-SAFETY_FLOOR_GATES = {"security-sensitive", "destructive-data", "release-external"}
-# 底线触发不复用宽泛的 GATE_DEFS 词表：专用精确词表 + 否定守卫，只修剪明显误报。
-FLOOR_TERMS: dict[str, tuple[str, ...]] = {
-    "security-sensitive": ("安全", "鉴权", "权限", "密钥", "隐私", "security", "auth", "token"),
-    "destructive-data": ("清空", "覆盖", "删除数据", "迁移数据", "删库", "drop", "truncate", "delete data"),
-    "release-external": ("发布", "上线", "部署", "推送到远端", "推送远端", "git push", "publish", "deploy", "release"),
-}
+HIGH_RISK_GATE_NAMES = {"security-sensitive", "destructive-data", "release-external"}
 NEGATION_MARKERS = ("不要", "不用", "先不", "无需", "不许", "禁止", "别", "非", "不", "without", "don't", "do not", "no ")
 
 
@@ -2501,7 +2486,8 @@ def load_active_rules(
             mutation_profile in {"read_only", "git_metadata_write"}
             and gate_terms.intersection({"code-edit", "document-edit"})
         )
-        if match_all or (gate_terms and gate_terms.intersection(gates)) or (keyword_match_allowed and keywords and any(word in lowered_task for word in keywords)):
+        keyword_hit = any(_keyword_not_negated(lowered_task, word) for word in keywords)
+        if match_all or (gate_terms and gate_terms.intersection(gates)) or (keyword_match_allowed and keywords and keyword_hit):
             matched.append(
                 {
                     "rule_id": rule_id,
@@ -2517,32 +2503,28 @@ def load_active_rules(
     return matched, errors
 
 
-def phrase_matches(text: str, term: str) -> bool:
-    lowered = text.casefold()
-    needle = term.casefold()
-    if re.search(r"[a-z0-9]", needle):
-        return bool(re.search(rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])", lowered))
-    return needle in lowered
 
 
-def floor_term_matches(text: str, term: str) -> bool:
-    """带否定守卫的底线词匹配：命中词前紧邻否定标记（「不要」「无需」等）时视为未命中。"""
+def _keyword_not_negated(text: str, word: str) -> bool:
+    pos = 0
+    while True:
+        pos = text.find(word, pos)
+        if pos < 0:
+            return False
+        prefix = text[max(0, pos - 8):pos]
+        if not any(marker in prefix for marker in NEGATION_MARKERS):
+            return True
+        pos += len(word)
+
+
+def delivery_requirement_matches(text: str, pattern: re.Pattern[str]) -> bool:
+    """带否定守卫的交付层需求匹配：命中点前紧邻否定标记（「不推送」「无需部署」等）时视为未命中。"""
     lowered = text.casefold()
-    needle = term.casefold()
-    if re.search(r"[a-z0-9]", needle):
-        pattern = rf"(?<![a-z0-9]){re.escape(needle)}(?![a-z0-9])"
-    else:
-        pattern = re.escape(needle)
-    for match in re.finditer(pattern, lowered):
+    for match in pattern.finditer(lowered):
         prefix = lowered[max(0, match.start() - 8):match.start()]
         if not any(marker in prefix for marker in NEGATION_MARKERS):
             return True
     return False
-
-
-def infer_floor_gates(task: str) -> set[str]:
-    """安全底线 gate 的确定性触发：只使用 FLOOR_TERMS 精确词表，与 GATE_DEFS 宽泛词表解耦。"""
-    return {gate for gate, terms in FLOOR_TERMS.items() if any(floor_term_matches(task, term) for term in terms)}
 
 
 def classify_task_intents(
@@ -2577,8 +2559,8 @@ def classify_task_intents(
                 negated = re.search(r"(?:不|不要|禁止|不会|无需|不得|不进行|不执行|不允许|do not|don't)\s*$", prefix)
                 clause_start = max(lowered.rfind(mark, 0, position) for mark in ("。", "！", "？", ";", "；", "\n")) + 1
                 clause_prefix = lowered[clause_start:position]
-                is_deferred = intent in {"modify", "external_write", "git_sync"} and any(marker in clause_prefix for marker in future_markers)
-                is_completed = intent in {"modify", "external_write", "git_sync"} and any(marker in clause_prefix for marker in completed_markers)
+                is_deferred = intent in {"modify", "external_write", "git_sync", "git_commit"} and any(marker in clause_prefix for marker in future_markers)
+                is_completed = intent in {"modify", "external_write", "git_sync", "git_commit"} and any(marker in clause_prefix for marker in completed_markers)
                 if is_deferred:
                     deferred.append((position, intent))
                     reason_codes.append("future_clause_deferred")
@@ -2637,17 +2619,11 @@ def compile_mutation_profile(candidates: Sequence[dict[str, str]], declared: Any
 
 
 def infer_gates(task: str, declared: Sequence[str] = (), *, mutation_profile: str = "workspace_write") -> list[str]:
-    gate_text = re.sub(r"\b(?:claude|vs|visual studio)\s+code\b", "", task, flags=re.IGNORECASE)
     gates = set(declared)
     unknown = gates - set(GATE_DEFS)
     if unknown:
         raise HarnessError(f"未知 Gate：{', '.join(sorted(unknown))}", code="invalid_gate")
-    for gate, spec in GATE_DEFS.items():
-        if any(phrase_matches(gate_text, term) for term in spec["terms"]):
-            gates.add(gate)
-    if mutation_profile == "read_only":
-        gates.difference_update({"code-edit", "document-edit"})
-    if mutation_profile == "git_metadata_write":
+    if mutation_profile in {"read_only", "git_metadata_write"}:
         gates.difference_update({"code-edit", "document-edit"})
     return [gate for gate in GATE_ORDER if gate in gates]
 
@@ -3251,23 +3227,12 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         write_scope = validate_scope(git_sync_scope, field="write_scope")
     scope = write_scope if write_scope else read_scope
     path_gates = infer_gates_from_paths(expand_scope_paths_for_inference([*read_scope, *write_scope], target), mutation_profile=mutation_profile)
-    floor_added: list[str] = []
     if gate_assessment is not None:
-        # 权威模式：以宿主声明为准，代码只对安全底线 gate 做确定性兜底。
         assessment_gates, assessment_rationale = gate_assessment
-        floor_from_text = [gate for gate in GATE_ORDER if gate in infer_floor_gates(task)]
-        floor_from_paths = [gate for gate in path_gates if gate in SAFETY_FLOOR_GATES]
-        floor_added = [
-            gate
-            for gate in GATE_ORDER
-            if gate in set(floor_from_text) | set(floor_from_paths)
-            and gate not in assessment_gates
-            and gate not in declared_gates
-        ]
         gates = [
             gate
             for gate in GATE_ORDER
-            if gate in set(assessment_gates) | set(declared_gates) | set(floor_from_text) | set(floor_from_paths)
+            if gate in set(assessment_gates) | set(declared_gates)
         ]
         if mutation_profile in {"read_only", "git_metadata_write"}:
             gates = [gate for gate in gates if gate not in {"code-edit", "document-edit"}]
@@ -3275,7 +3240,6 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
             "mode": "host_declared",
             "declared_gates": assessment_gates,
             "rationale": assessment_rationale,
-            "floor_added": floor_added,
         }
     else:
         gates = infer_gates(
@@ -3283,7 +3247,7 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
             list(dict.fromkeys(declared_gates + path_gates)),
             mutation_profile=mutation_profile,
         )
-        gate_decision = {"mode": "keyword_inferred", "declared_gates": [], "rationale": None, "floor_added": []}
+        gate_decision = {"mode": "path_inferred", "declared_gates": [], "rationale": None}
     requested_route = facts.get("execution_route")
     if requested_route is not None and requested_route not in {"direct", "planned", "extended"}:
         raise HarnessError("execution_route 无效", code="invalid_route")
@@ -3303,7 +3267,7 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
     if fast_track_declared:
         if work_packages:
             fast_track_denied_reason = "has_work_packages"
-        elif set(gates) & (high_gates | SAFETY_FLOOR_GATES):
+        elif set(gates) & high_gates:
             fast_track_denied_reason = "high_gate_present"
         elif route != "direct":
             fast_track_denied_reason = "route_not_direct"
@@ -3322,8 +3286,14 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         "git_inspect": ["git_inspect"],
         "git_fetch": ["git_fetch"],
         "git_sync": ["git_fetch", "git_sync"],
+        "git_commit": ["git_commit"],
     }.get(task_intent, [])
-    actions = list(dict.fromkeys([*default_actions[mutation_profile], *intent_actions, *requested_actions]))
+    if task_intent == "git_commit" and "git_fetch" not in candidate_names and "git_fetch" not in requested_actions:
+        # 纯本地提交任务不附带 git_fetch 授权
+        base_actions = ["read"]
+    else:
+        base_actions = default_actions[mutation_profile]
+    actions = list(dict.fromkeys([*base_actions, *intent_actions, *requested_actions]))
     criteria = normalize_string_list(facts.get("success_criteria"), "success_criteria") + list(cli.success or [])
     criteria = list(dict.fromkeys(criteria or [task.strip()]))
     declared_refs = normalize_string_list(facts.get("required_fact_refs"), "required_fact_refs")
@@ -3360,6 +3330,7 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         "git_inspect": ["git_inspection_result"],
         "git_fetch": ["git_fetch_result"],
         "git_sync": ["git_sync_result"],
+        "git_commit": [],
         "modify": [],
         "external_write": [],
     }
@@ -6134,7 +6105,7 @@ def workspace_change_attribution(
         if path not in drift_set
         and (scope_covers(path, write_scope) or scope_covers(path, read_scope) or path in read_paths)
     )
-    risk_gates = SAFETY_FLOOR_GATES
+    risk_gates = HIGH_RISK_GATE_NAMES
     risky_concurrent = sorted(
         path
         for path in concurrent | unattributed
@@ -7171,7 +7142,7 @@ def build_delivery_layers(package: dict[str, Any], evidence_types: Sequence[str]
         layers["git_head"] = delivery_layer_entry("not_applicable", False, [])
     if read_only:
         remote_expectation = "not_applicable"
-    elif intent in {"git_sync", "external_write"} or DELIVERY_REMOTE_REQUIRE_RE.search(criteria):
+    elif intent in {"git_sync", "external_write"} or delivery_requirement_matches(criteria, DELIVERY_REMOTE_REQUIRE_RE):
         remote_expectation = "required"
     else:
         remote_expectation = "not_requested"
@@ -7180,7 +7151,7 @@ def build_delivery_layers(package: dict[str, Any], evidence_types: Sequence[str]
     )
     if read_only:
         fresh_clone_expectation = "not_applicable"
-    elif DELIVERY_FRESH_CLONE_RE.search(criteria):
+    elif delivery_requirement_matches(criteria, DELIVERY_FRESH_CLONE_RE):
         fresh_clone_expectation = "required"
     else:
         fresh_clone_expectation = "not_requested"
@@ -7191,7 +7162,7 @@ def build_delivery_layers(package: dict[str, Any], evidence_types: Sequence[str]
     )
     if read_only:
         release_expectation = "not_applicable"
-    elif DELIVERY_RELEASE_RE.search(criteria):
+    elif delivery_requirement_matches(criteria, DELIVERY_RELEASE_RE):
         release_expectation = "required"
     else:
         release_expectation = "not_requested"
@@ -7204,7 +7175,7 @@ def build_delivery_layers(package: dict[str, Any], evidence_types: Sequence[str]
     layers["ui"] = delivery_layer_entry(
         ui_expectation, "ui_acceptance" in types, ["ui_acceptance"] if "ui_acceptance" in types else []
     )
-    if intent == "external_write" or DELIVERY_INSTALL_RE.search(criteria):
+    if intent == "external_write" or delivery_requirement_matches(criteria, DELIVERY_INSTALL_RE):
         external_expectation = "required"
     elif read_only:
         external_expectation = "not_applicable"
@@ -10625,6 +10596,7 @@ python3 scripts/harness.py run --target . --task "<原始用户任务>" --json
 - 后续任务需要复用历史经验时，按任务编号或关键词运行 `ledger read`；不得自动注入全部个人账本。
 - `--scope` 是可重复单值参数，一次只传一个项目内相对路径；禁止把 JSON 数组整体作为单个值传入（会报 `invalid_scope_json`）。`--facts`/`--plan`/`--evidence`/`--authorization` 等文件参数一律使用工作区相对路径，Windows 上不要传 Git Bash 的 `/tmp` 路径。
 - 每步响应的 `contract_snapshot` 是当前合同真源：重准入修 scope 时必须同时核对 `allowed_scope`/`read_scope`/`write_scope` 三个字段的实际值；verify 前先按 `contract_snapshot.evidence_types` 一次性备齐证据再跑。
+- 验证按实际变更面分层：行为代码、依赖或公共夹具变化时先跑目标测试，稳定后同一行为快照最多一次完整回归；仅版本、README、CHANGELOG 或元数据变化时只做版本一致性、自检、编译和打包检查；下游同步只验 preview/apply/diff/check 与受管文件摘要。已有完整回归且行为快照未变时必须复用证据，长测试默认安静输出。
 - `--facts` 仅在 blocked 或 scope_changed 的重准入时生效；响应出现 `facts_ignored=true` 即表示本次 facts 被忽略，需先使任务进入 blocked/scope_changed 状态再提交。
 - 低风险文档/规则/测试类小任务可在 facts 声明 `fast_track: true` 走轻量准入：生效时响应带 `evidence_profile: "fast_track"`，只需备 `code_diff`（声明验证命令时加 `test_run`）证据；返回 `fast_track_denied_reason` 即已降级普通流程。fast_track 不豁免任何 Gate；可用 `inline_note`（≤200 字）替代独立 plan 文档，非 fast_track 携带会被忽略（`inline_note_ignored`）。
 - planned 路线改方案后必须先 `context --stage plan` 再 `run --plan`，顺序错了会被 `plan_context_required` 挡回。

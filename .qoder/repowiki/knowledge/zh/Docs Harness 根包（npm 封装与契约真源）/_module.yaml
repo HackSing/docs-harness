@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: Docs Harness 根包（npm 包装层）
+title: Docs Harness 根包（npm 封装与契约真源）
 scope:
     - SKILL.md
     - .gitignore

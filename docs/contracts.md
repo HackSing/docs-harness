@@ -36,12 +36,15 @@ Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、�
 | `git_inspect` | `read_only` | `direct` |
 | `git_fetch` | `git_metadata_write` | `direct` |
 | `git_sync` | `workspace_write` | `planned` |
+| `git_commit` | `git_metadata_write` | `direct` |
 | `modify` | `workspace_write` | 按 Gate 决定 |
 | `external_write` | `external_write` | 至少 `planned` |
 
-混合意图保留全部 `candidate_intents`，未来子句进入 `deferred_intents`，完成体只作为审查上下文；Gate 编译取当前任务最高变更面和风险结果。显式 facts 只能升级，不能把 `audit+fix`、`if-needed-fix` 或 `fetch+sync` 降级。英文短词按单词边界、路径按完整段匹配，`Claude Code`、`reviews`、`rapid`、`latest`、`authors` 不得产生无关 Gate。
+`git_commit` 覆盖本地提交层（写 `.git` 对象/索引/分支引用，不改工作区、不触远端）：默认动作 `read` + `git_commit`，不附带 `git_fetch` 授权，也不触发远端交付层；触发词为「git commit」「commit」「本地提交」「提交改动」「提交代码」「提交当前」「提交工作区」「提交暂存」，裸「提交」刻意不收（避免「提交证据/提交方案」误判）。任务文本关键词不参与 Gate 分类；规则 keywords 匹配与交付层需求判定仍各自使用否定守卫，因此「不推送」「无需部署」「不要发布」不会误匹配 `DH-RELEASE-AUTHORIZATION-ROLLBACK` 规则，也不会把 `remote_delivery` 层标为 `required`。
 
-宿主可在 facts 中提交 `gate_assessment`（`{"gates": [...], "rationale": "..."}`，rationale 为 500 字符内非空字符串）对 Gate 做权威语义判断：声明后跳过非安全 Gate 的关键词与 scope 路径推断，最终 Gate = `gate_assessment.gates` ∪ 旧 `gates` 字段 ∪ 安全底线兜底。`security-sensitive`、`destructive-data`、`release-external` 三个安全底线 Gate 仍由控制器按任务文本与路径确定性强制并入（宿主只能加不能减），文本触发使用底线专用精确词表并带否定守卫（「不要部署」「先不推送」「删除注释」不命中），被强制并入的 Gate 记录在 `gate_decision.floor_added`。未声明时回退关键词推断（`gate_decision.mode=keyword_inferred`，行为与此前版本一致）。准入响应与 task-package 记录 `gate_decision`（`mode`/`declared_gates`/`rationale`/`floor_added`）供审计；任务中途基于实际变更路径的 Gate 绊线与增量/完整重新准入不受声明影响。
+混合意图保留全部 `candidate_intents`，未来子句进入 `deferred_intents`，完成体只作为审查上下文；Gate 编译取当前任务最高变更面和风险结果。显式 facts 只能升级，不能把 `audit+fix`、`if-needed-fix` 或 `fetch+sync` 降级。任务意图的英文短词仍按单词边界识别，Gate 路径推断按完整路径段匹配；`Claude Code`、`reviews`、`rapid`、`latest`、`authors` 不得产生无关意图或 Gate。
+
+宿主应在 facts 中提交 `gate_assessment`（`{"gates": [...], "rationale": "..."}`，rationale 为 500 字符内非空字符串）对 Gate 做权威语义判断。声明后最终 Gate = `gate_assessment.gates` ∪ 兼容字段 `gates`，不再由任务文本关键词或初始 scope 路径增补；未声明时最终 Gate = 兼容字段 `gates` ∪ `read_scope`/`write_scope` 路径推断，并记录 `gate_decision.mode=path_inferred`。准入响应与 task-package 的 `gate_decision` 只记录 `mode`/`declared_gates`/`rationale`。高风险 Gate 一旦声明，方案、授权与证据门槛继续失败关闭；任务中途基于实际变更路径的 Gate 绊线与增量/完整重新准入不受初始声明影响。
 
 路径范围只接受项目内相对路径、glob 或受控 Git 资源。完整句子、否定说明和自然语言边界返回 `invalid_scope_description`。形似 JSON 的值（数组或对象整体作为单个 scope 字符串）返回 `invalid_scope_json` 并附修复提示；`--scope` 是可重复单值参数，facts 中 scope 字段必须是字符串数组。自然语言约束应放入任务约束，不得伪装成路径。
 
@@ -79,7 +82,7 @@ ready_extended
 
 `verify` 只按当前清单固定项及预声明条件验收，不得在收尾阶段静默增加隐藏要求。产品、架构、安全、数据破坏、外部发布、前端设计、extended 路线，以及任何改变执行路线、授权、范围、方案字段、工作包或阻断交付物的新 Gate，必须完整重新准入。仅追加且保持上述合同不变的普通 Gate 由控制器原子生成下一 package revision：保留首次冻结基线，把同轮已校验收据以 `origin_package_fingerprint|adopted_from_package_fingerprint|adoption_reason` 留痕后继承，并在需要时只要求加载新 action context；宿主不重新执行完整 `run`，也不重新生成相同证据。补证使用增量收据；父任务最终正文只生成一次。
 
-低风险任务可显式声明轻量准入：facts 携带 `fast_track: true`（必须是布尔值，其他类型失败关闭），且同时满足 ①路线为 `direct`、②未命中 high gate 与 `SAFETY_FLOOR_GATES`、③`write_scope` 全部落在文档/规则/测试路径（复用 `infer_gates_from_paths` 的路径分类，纯代码路径不算）、④无 `work_packages` 时生效。任一条件不满足即静默降级普通流程，响应标注 `fast_track_denied_reason`（受控原因码 `route_not_direct`/`high_gate_present`/`scope_not_doc_like`/`has_work_packages`）。fast_track 是声明制，不做自动推断，也不豁免任何 Gate 判定。生效时 `completion_manifest.evidence_profile="fast_track"`，`required_evidence_types` 收敛为最小集（`code_diff`，另加声明了验证命令时的 `test_run`），Gate/规则语义证据累加不叠加；准入与 verify 响应显式携带 `evidence_profile`，禁止静默裁剪。运行期 verify 归因命中 `new_risk_gate` 或 `high_risk_drift` 时单向降级：任务包 `fast_track` 写回 `false`、`completion_manifest` 重建为标准证据集、记录 `fast_track_downgraded` 事件与原因，后续 verify 按普通证据集校验；降级不可反向升级，重编译只继承任务包记录的生效值。fast_track 任务还可在 facts 携带 `inline_note`（200 字符内非空字符串）替代独立 plan 文档，落入任务包 `inline_note` 字段，不写 `docs/plans/`；非 fast_track 任务携带时按 `facts_ignored` 同类语义返回 `inline_note_ignored` 提示。
+低风险任务可显式声明轻量准入：facts 携带 `fast_track: true`（必须是布尔值，其他类型失败关闭），且同时满足 ①路线为 `direct`、②未命中 high gate、③`write_scope` 全部落在文档/规则/测试路径（复用 `infer_gates_from_paths` 的路径分类，纯代码路径不算）、④无 `work_packages` 时生效。任一条件不满足即静默降级普通流程，响应标注 `fast_track_denied_reason`（受控原因码 `route_not_direct`/`high_gate_present`/`scope_not_doc_like`/`has_work_packages`）。fast_track 是声明制，不做自动推断，也不豁免任何 Gate 判定。生效时 `completion_manifest.evidence_profile="fast_track"`，`required_evidence_types` 收敛为最小集（`code_diff`，另加声明了验证命令时的 `test_run`），Gate/规则语义证据累加不叠加；准入与 verify 响应显式携带 `evidence_profile`，禁止静默裁剪。运行期 verify 归因命中 `new_risk_gate` 或 `high_risk_drift` 时单向降级：任务包 `fast_track` 写回 `false`、`completion_manifest` 重建为标准证据集、记录 `fast_track_downgraded` 事件与原因，后续 verify 按普通证据集校验；降级不可反向升级，重编译只继承任务包记录的生效值。fast_track 任务还可在 facts 携带 `inline_note`（200 字符内非空字符串）替代独立 plan 文档，落入任务包 `inline_note` 字段，不写 `docs/plans/`；非 fast_track 任务携带时按 `facts_ignored` 同类语义返回 `inline_note_ignored` 提示。
 
 合同与方案一次冻结：package revision 变化时控制器生成 `contract_delta`（新增证据类型、收据、条件项与阻断项）并归档到 `package-history`；新增 Gate 只缺方案字段时返回 `complete_plan_delta` 和 `plan_delta_contract`，宿主只补充缺失字段，不重做完整方案。上下文正文按 task、stage、compiler contract 与内容指纹跨阶段复用，不随 revision 重复加载。
 

@@ -21,7 +21,7 @@
 
 ## 版本演进
 
-Docs Harness v1.6.5 把 Gate 分类交给宿主语义判断：facts 提交 `gate_assessment` 后声明即全部，简单任务不再被宽泛关键词拖入重流程；`security-sensitive`、`destructive-data`、`release-external` 安全底线仍由控制器代码强制并入，未声明时回退旧的关键词推断。同时消除 verify 收尾卡顿：write_scope 内写入由控制器自动归因，证据声明简化为 `docs-harness/evidence-declaration/v1` 草案（装订字段由控制器代铸），git_sync 远端漂移重新准入单条 `run --task-id` 完成并自动认领已落盘文件，`origin/HEAD` 更新不再误判 ref 越界。v1.6.4 把重复协作成本降下来：同一任务重复 `run` 幂等复用活动任务；合同与方案一次冻结，新增 Gate 只补差异字段；证据采用受管副本，已通过的验证命令带逐项收据复用，只重跑失败或输入变化的命令。合同稳定时 `verify` 按五级处置返回（补证据/重读/重试/增量准入/完整重新准入），不再把可补救问题一律升级为重新准入。v1.6.3 让 `verify` 的本地验证命令对验证期间新建的已知临时副产物（缓存、测试中间产物、日志和系统垃圾，如 `__pycache__`、`.pytest_cache`、`.coverage`）不再误判为额外写入；同名已有文件被修改或删除仍失败关闭。项目可通过 `.docs-harness/config.json` 的 `verification.volatile_paths` 追加带固定根目录的 glob 白名单，全局或越界模式拒绝。v1.6.2 为后台文档治理增加失败关闭的真源路由合同：显式配置优先，未配置时只接受根目录或 `docs/` 下的唯一可信候选；缺失、多候选、非法配置或运行时漂移都不会获得写权限。研发任务仍拆成两条状态独立的通道：
+Docs Harness v1.7.6 移除任务文本关键词 Gate 路由：宿主通过 `gate_assessment` 提交完整语义判断，未提交时只使用既有显式 Gate 与 scope 路径推断；实际变更路径仍会在执行中触发增量绊线。规则关键词和交付层需求判断保持独立，不参与 Gate 分类。v1.6.5 曾引入宿主语义判断与控制器安全底线兜底，并同时消除 verify 收尾卡顿：write_scope 内写入由控制器自动归因，证据声明简化为 `docs-harness/evidence-declaration/v1` 草案（装订字段由控制器代铸），git_sync 远端漂移重新准入单条 `run --task-id` 完成并自动认领已落盘文件，`origin/HEAD` 更新不再误判 ref 越界。v1.6.4 把重复协作成本降下来：同一任务重复 `run` 幂等复用活动任务；合同与方案一次冻结，新增 Gate 只补差异字段；证据采用受管副本，已通过的验证命令带逐项收据复用，只重跑失败或输入变化的命令。合同稳定时 `verify` 按五级处置返回（补证据/重读/重试/增量准入/完整重新准入），不再把可补救问题一律升级为重新准入。v1.6.3 让 `verify` 的本地验证命令对验证期间新建的已知临时副产物（缓存、测试中间产物、日志和系统垃圾，如 `__pycache__`、`.pytest_cache`、`.coverage`）不再误判为额外写入；同名已有文件被修改或删除仍失败关闭。项目可通过 `.docs-harness/config.json` 的 `verification.volatile_paths` 追加带固定根目录的 glob 白名单，全局或越界模式拒绝。v1.6.2 为后台文档治理增加失败关闭的真源路由合同：显式配置优先，未配置时只接受根目录或 `docs/` 下的唯一可信候选；缺失、多候选、非法配置或运行时漂移都不会获得写权限。研发任务仍拆成两条状态独立的通道：
 
 - 主任务通道完成用户价值、用户明确要求的交付物和必要验收；
 - 后台治理通道处理知识初始化、知识增量、ADR、Changelog、TODO 和非阻塞证据整理。
@@ -125,7 +125,7 @@ python3 scripts/harness.py run \
 
 任务包使用 `docs-harness/task-package/v2`：
 
-- `task_intent`：`query|audit|git_inspect|git_fetch|git_sync|modify|external_write`；
+- `task_intent`：`query|audit|git_inspect|git_fetch|git_sync|git_commit|modify|external_write`；
 - `candidate_intents|deferred_intents|intent_boundary_reason_codes`：区分当前动作、未来动作和完成体上下文；
 - `mutation_profile`：`read_only|git_metadata_write|workspace_write|external_write`；
 - `read_scope|write_scope|git_scope|external_scope` 分别承载读取、工作区写入、Git 元数据和外部目标；

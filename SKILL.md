@@ -2,7 +2,7 @@
 name: docs-harness
 description: "通过独立控制器完成 Gate、任务包、降级知识上下文、主任务验收和异步文档治理。"
 metadata:
-  version: 1.7.4
+  version: 1.7.6
   status: active
 ---
 
@@ -37,9 +37,9 @@ python3 scripts/harness.py run --target . --task "<原始用户任务>" --json
 
 规则、授权、安全、范围、用户指定交付物和必要证据异常继续失败关闭。
 
-`run` 先编译 `task_intent`、`candidate_intents` 和 `deferred_intents`，再取当前任务最高 `mutation_profile` 和风险 Gate。未来任务子句与完成体只进入可审计边界字段，不授权当前写入。只读查询使用 `read_only + write_scope=[]`；Git inspect、fetch、sync 分别使用读取、Git 元数据写入和工作区写入合同。
+`run` 先编译 `task_intent`、`candidate_intents` 和 `deferred_intents`，再取当前任务最高 `mutation_profile` 和风险 Gate。未来任务子句与完成体只进入可审计边界字段，不授权当前写入。只读查询使用 `read_only + write_scope=[]`；Git inspect、fetch、commit、sync 分别使用读取、Git 元数据写入、Git 元数据写入（本地提交层，不附带 fetch/远端授权）和工作区写入合同。任务文本关键词不参与 Gate 分类；Harness Home 规则匹配与交付层需求判断仍使用各自的受控关键词和否定守卫，因此「不推送」「无需部署」等紧邻否定语境不会误匹配发布规则或远端交付要求。
 
-宿主必须基于任务语义判断风险 Gate，并在 `--facts` 中提交 `gate_assessment`（`{"gates": [...], "rationale": "<一句话依据>"}`）：声明即全部，宽泛关键词不再叠加非安全 Gate，简单任务不会被拖入重流程。`security-sensitive`、`destructive-data`、`release-external` 是控制器代码强制的安全底线，声明不可豁免（漏判会记入 `gate_decision.floor_added` 并强制并入；文本触发用精确词表并带否定守卫，「不要部署」「删除注释」不命中）；不提交 `gate_assessment` 时回退旧的关键词推断。任务中途实际变更命中新路径 Gate 时绊线与重新准入不受声明影响。
+宿主必须基于任务语义判断风险 Gate，并在 `--facts` 中提交 `gate_assessment`（`{"gates": [...], "rationale": "<一句话依据>"}`）。提交后以模型声明为准（同时兼容既有 `facts.gates` 显式声明），控制器不再用任务文本关键词增补或覆盖；未提交时只合并既有 `facts.gates` 与 `read_scope`/`write_scope` 路径推断。`security-sensitive`、`destructive-data`、`release-external` 等高风险 Gate 一旦声明，方案、授权与证据门槛仍失败关闭；任务中途实际变更命中新路径 Gate 时，绊线与重新准入同样不受初始声明影响。
 
 准入响应中的 `completion_manifest` 是收尾真源。新任务证据必须使用 `docs-harness/evidence-receipt/v2`，绑定当前 task、target、package fingerprint、可信 producer、时效和读写集合；验证命令只有显式声明白名单 `produces` 才能产生语义证据。验证命令期间新建的已知临时副产物（`__pycache__`、`.pytest_cache`、`.coverage` 等缓存、测试中间产物、日志和系统垃圾）不计入工作区额外写入，只进入 `volatile_write_set` 保持可见；同名已有文件的修改或删除仍失败关闭。项目可在 `.docs-harness/config.json` 的 `verification.volatile_paths` 追加带固定根目录的 glob 白名单，全局或越界模式拒绝。最终验收晚发现仅追加、且不改变路线、授权、范围、方案字段或阻断交付物的普通 Gate 时，控制器原子增量准入并继承同轮已验证收据，宿主只加载新增上下文；高风险或合同变化继续完整重新准入。
 
@@ -52,6 +52,8 @@ python3 scripts/harness.py verify --target . --task-id <task-id> --evidence <evi
 只有 `verify.result=完成` 表示父任务完成。父任务先落盘，再逐项消费冻结的 `background_deliverables`；未声明后台交付物时不得创建 Job，也不得等待 Job 终态才报告父任务结果。
 
 合同稳定时 verify 支持五级处置：可补证据的未归因写入返回 `provide_evidence`，读取基线漂移返回 `refresh_evidence`（只失效引用漂移路径的证据），验证命令失败返回 `retry_verification`，追加上下文走 `incremental_admission`；只有范围或高风险合同变化才 `full_readmission`。证据采用受管副本保存，原始文件事后删除不影响准入。已通过的验证命令带逐项收据复用，不重复执行；仅失败或输入变化的命令重跑，`verification.command_cache_enabled=false` 可整体关闭。
+
+宿主验证必须按实际变更面分层，详细真源见 `docs/testing.md`：行为代码、依赖或公共夹具变化时先跑目标测试，行为稳定后同一行为快照最多一次完整回归；仅版本、README、CHANGELOG 或元数据变化时只做版本一致性、自检、编译和打包检查；下游同步只做 preview/apply/diff/check 与受管文件摘要，不重复上游完整回归。已有完整回归证据在行为快照未变时必须复用，长测试默认安静输出。
 
 write_scope 内的写入由控制器自动归因：代铸 `workspace_attribution` 收据、记录 `auto_attribution` 事件，响应含 `auto_attributed_paths`，`verification.auto_attribute_in_scope=false` 可恢复补证据流程。需要声明证据类型时只提交 `docs-harness/evidence-declaration/v1` 草案（`type`/`write_set`/`read_set`/`concurrent_drift`/`conclusion`），装订字段与 `read_set` 指纹由控制器代铸，完整 v2 收据继续接受。git_sync 遇远端漂移时 `run --task-id` 单命令完成重新准入并复用已冻结方案，pull 已落盘文件经 `git_sync_landed_scope` 自动归因，`origin/HEAD` 更新不再误判 ref 越界。
 

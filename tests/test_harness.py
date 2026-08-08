@@ -93,6 +93,13 @@ class DocsHarnessContractTest(unittest.TestCase):
         path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
         return path
 
+    def write_gate_facts(self, name: str, gates: list[str], **facts: Any) -> Path:
+        facts["gate_assessment"] = {
+            "gates": gates,
+            "rationale": "测试显式声明任务所需 Gate",
+        }
+        return self.write_json(name, facts)
+
     def snapshot_tree(self, root: Path) -> dict[str, str]:
         snapshot: dict[str, str] = {}
         if not root.exists():
@@ -1558,12 +1565,15 @@ class DocsHarnessContractTest(unittest.TestCase):
 
     def test_v15_read_only_security_audit_keeps_risk_gate(self) -> None:
         self.init_project()
+        facts = self.write_gate_facts("read-only-security.json", ["security-sensitive"])
         _, routed = self.run_harness(
             "run",
             "--target",
             str(self.project),
             "--task",
             "审计安全权限配置",
+            "--facts",
+            str(facts),
         )
         self.assertEqual(routed["mutation_profile"], "read_only")
         self.assertIn("security-sensitive", routed["matched_gates"])
@@ -2162,6 +2172,8 @@ class DocsHarnessContractTest(unittest.TestCase):
         agents = (self.project / "AGENTS.md").read_text(encoding="utf-8")
         self.assertIn("用户自己的规则", agents)
         self.assertIn("docs-harness:managed-entry:start", agents)
+        self.assertIn("同一行为快照最多一次完整回归", agents)
+        self.assertIn("已有完整回归且行为快照未变时必须复用证据", agents)
         self.assertTrue((self.project / "scripts" / "harness.py").is_file())
         _, checked = self.run_harness("project", "check", "--target", str(self.project))
         self.assertEqual(checked["status"], "passed")
@@ -3221,7 +3233,11 @@ class DocsHarnessContractTest(unittest.TestCase):
     def test_release_requires_structured_authorization(self) -> None:
         self.init_project()
         self.make_project_facts_meaningful("architecture.md", "testing.md")
-        facts = self.write_json("facts-release.json", {"allowed_scope": ["dist/app.zip"]})
+        facts = self.write_gate_facts(
+            "facts-release.json",
+            ["release-external"],
+            allowed_scope=["dist/app.zip"],
+        )
         _, routed = self.run_harness(
             "run", "--target", str(self.project), "--task", "发布 release", "--facts", str(facts)
         )
@@ -3917,8 +3933,10 @@ class DocsHarnessContractTest(unittest.TestCase):
     def test_v164_authorization_contract_survives_incremental_gate_admission(self) -> None:
         self.init_project()
         self.make_project_facts_meaningful("architecture.md", "testing.md", "security.md")
-        facts = self.write_json(
-            "auth-incremental.json", {"allowed_scope": ["dist/**", "src/**"]}
+        facts = self.write_gate_facts(
+            "auth-incremental.json",
+            ["release-external"],
+            allowed_scope=["dist/**", "src/**"],
         )
         _, routed = self.run_harness(
             "run", "--target", str(self.project), "--task", "发布 release", "--facts", str(facts)
@@ -4662,7 +4680,11 @@ class DocsHarnessContractTest(unittest.TestCase):
             "plan",
         )
 
-        facts = self.write_json("release-facts.json", {"allowed_scope": ["dist/app.zip"]})
+        facts = self.write_gate_facts(
+            "release-facts.json",
+            ["release-external"],
+            allowed_scope=["dist/app.zip"],
+        )
         _, release_task = self.run_harness(
             "run",
             "--target",
@@ -6439,13 +6461,13 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertEqual(routed["matched_gates"], ["code-edit"])
         self.assertEqual(routed["gate_decision"]["mode"], "host_declared")
         self.assertEqual(routed["gate_decision"]["declared_gates"], ["code-edit"])
-        self.assertEqual(routed["gate_decision"]["floor_added"], [])
 
-    def test_gate_assessment_floor_gate_enforced_from_text(self) -> None:
+    def test_gate_assessment_trusts_host_without_keyword_override(self) -> None:
+        """模型声明 gate 后，文本关键词不再覆盖模型判断。"""
         self.init_project()
         self.make_project_facts_meaningful("architecture.md", "testing.md")
         facts = self.write_json(
-            "gate-assessment-floor.json",
+            "gate-assessment-trust.json",
             {
                 "allowed_scope": ["src/**"],
                 "gate_assessment": {
@@ -6457,29 +6479,9 @@ class DocsHarnessContractTest(unittest.TestCase):
         _, routed = self.run_harness(
             "run", "--target", str(self.project), "--task", "修复缓存逻辑并推送到远端", "--facts", str(facts)
         )
-        self.assertIn("code-edit", routed["matched_gates"])
-        self.assertIn("release-external", routed["matched_gates"])
-        self.assertEqual(routed["gate_decision"]["floor_added"], ["release-external"])
-
-    def test_gate_assessment_floor_gate_enforced_from_paths(self) -> None:
-        self.init_project()
-        self.make_project_facts_meaningful("architecture.md", "security.md")
-        facts = self.write_json(
-            "gate-assessment-path-floor.json",
-            {
-                "write_scope": ["src/auth/**"],
-                "gate_assessment": {
-                    "gates": ["code-edit"],
-                    "rationale": "调整登录页展示逻辑",
-                },
-            },
-        )
-        _, routed = self.run_harness(
-            "run", "--target", str(self.project), "--task", "调整登录页展示逻辑", "--facts", str(facts)
-        )
-        self.assertIn("code-edit", routed["matched_gates"])
-        self.assertIn("security-sensitive", routed["matched_gates"])
-        self.assertEqual(routed["gate_decision"]["floor_added"], ["security-sensitive"])
+        self.assertEqual(routed["matched_gates"], ["code-edit"])
+        self.assertEqual(routed["gate_decision"]["mode"], "host_declared")
+        self.assertNotIn("floor_added", routed["gate_decision"])
 
     def test_gate_assessment_invalid_declarations_rejected(self) -> None:
         self.init_project()
@@ -6500,16 +6502,19 @@ class DocsHarnessContractTest(unittest.TestCase):
         )
         self.assertEqual(rejected["code"], "invalid_gate_assessment")
 
-    def test_gate_assessment_absent_keeps_keyword_fallback(self) -> None:
+    def test_gate_assessment_absent_uses_path_inference(self) -> None:
         self.init_project()
         self.make_project_facts_meaningful("architecture.md", "testing.md")
-        facts = self.write_json("gate-fallback.json", {"allowed_scope": ["src/**"]})
+        source = self.project / "src" / "cache.py"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("# cache\n", encoding="utf-8")
+        facts = self.write_json("gate-fallback.json", {"write_scope": ["src/cache.py"]})
         _, routed = self.run_harness(
             "run", "--target", str(self.project), "--task", "实现接口的缓存逻辑", "--facts", str(facts)
         )
-        self.assertIn("architecture-contract", routed["matched_gates"])
         self.assertIn("code-edit", routed["matched_gates"])
-        self.assertEqual(routed["gate_decision"]["mode"], "keyword_inferred")
+        self.assertNotIn("architecture-contract", routed["matched_gates"])
+        self.assertEqual(routed["gate_decision"]["mode"], "path_inferred")
 
     def test_gate_assessment_does_not_disable_mid_task_path_tripwire(self) -> None:
         self.init_project()
@@ -6549,69 +6554,16 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertEqual(pending["reason_code"], "incremental_gate_context_required")
         self.assertEqual(pending["added_gates"], ["code-edit"])
 
-    def test_floor_terms_unit_precision(self) -> None:
-        infer = HARNESS_MODULE.infer_floor_gates
-        self.assertEqual(infer("修复缓存逻辑并推送到远端"), {"release-external"})
-        self.assertEqual(infer("需要部署到生产环境"), {"release-external"})
-        self.assertEqual(infer("讨论推送通知的展示样式"), set())
-        self.assertEqual(infer("删除冗余注释和死代码"), set())
-        self.assertEqual(infer("清空缓存目录并重建"), {"destructive-data"})
-        self.assertEqual(infer("改造鉴权流程"), {"security-sensitive"})
-
-    def test_floor_negation_guard(self) -> None:
-        infer = HARNESS_MODULE.infer_floor_gates
-        self.assertEqual(infer("修改文案，先不部署"), set())
-        self.assertEqual(infer("修复样式，不要推送到远端"), set())
-        self.assertEqual(infer("update docs, don't deploy"), set())
-        self.assertEqual(infer("确认无需清空数据后再调整"), set())
-
-    def test_gate_assessment_floor_relaxed_with_negation(self) -> None:
-        self.init_project()
-        self.make_project_facts_meaningful("architecture.md")
-        facts = self.write_json(
-            "gate-assessment-negation.json",
-            {
-                "allowed_scope": ["src/**"],
-                "gate_assessment": {
-                    "gates": ["code-edit"],
-                    "rationale": "仅修改展示文案，明确不部署",
-                },
-            },
-        )
-        _, routed = self.run_harness(
-            "run", "--target", str(self.project), "--task", "修改展示文案，先不部署", "--facts", str(facts)
-        )
-        self.assertEqual(routed["matched_gates"], ["code-edit"])
-        self.assertEqual(routed["gate_decision"]["floor_added"], [])
-
-    def test_gate_assessment_floor_relaxed_for_broad_terms(self) -> None:
-        self.init_project()
-        self.make_project_facts_meaningful("architecture.md")
-        facts = self.write_json(
-            "gate-assessment-broad.json",
-            {
-                "allowed_scope": ["src/**"],
-                "gate_assessment": {
-                    "gates": ["code-edit"],
-                    "rationale": "删除注释与死代码，无数据变更",
-                },
-            },
-        )
-        _, routed = self.run_harness(
-            "run", "--target", str(self.project), "--task", "删除冗余注释和死代码", "--facts", str(facts)
-        )
-        self.assertEqual(routed["matched_gates"], ["code-edit"])
-        self.assertEqual(routed["gate_decision"]["floor_added"], [])
-
     # --- v1.6.8 可用性缺口修复回归测试 ---
 
     def test_authorization_mismatch_error_is_actionable(self) -> None:
         """缺口三：授权范围未覆盖错误必须携带 missing_items 和 suggested_fix。"""
         self.init_project()
         self.make_project_facts_meaningful("architecture.md")
-        # 使用 release-external 任务，它有 external_write 授权要求
+        facts = self.write_gate_facts("authorization-mismatch.json", ["release-external"])
         _, routed = self.run_harness(
-            "run", "--target", str(self.project), "--task", "发布 release", "--scope", "dist/app.zip"
+            "run", "--target", str(self.project), "--task", "发布 release",
+            "--scope", "dist/app.zip", "--facts", str(facts)
         )
         task_id = routed["task_id"]
         # 先完成 plan 阶段
@@ -6716,8 +6668,13 @@ class DocsHarnessContractTest(unittest.TestCase):
         """缺口二：授权模板命令生成符合 schema 的模板。"""
         self.init_project()
         self.make_project_facts_meaningful("architecture.md")
+        facts = self.write_gate_facts(
+            "authorization-template.json",
+            ["release-external", "document-edit"],
+        )
         _, routed = self.run_harness(
-            "run", "--target", str(self.project), "--task", "修改 README 并推送到 origin", "--scope", "README.md"
+            "run", "--target", str(self.project), "--task", "修改 README 并推送到 origin",
+            "--scope", "README.md", "--facts", str(facts)
         )
         task_id = routed["task_id"]
         _, payload = self.run_harness(
@@ -6866,8 +6823,10 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         """准入一个 direct 路线、需要 test_result + review_result 两类证据的任务。"""
         self.init_project()
         self.make_project_facts_meaningful("architecture.md")
+        facts = self.write_gate_facts("review-task.json", ["code-edit", "review-audit"])
         _, routed = self.run_harness(
-            "run", "--target", str(self.project), "--task", "实现项目核心代码并完成审查", "--scope", "src/core.py"
+            "run", "--target", str(self.project), "--task", "实现项目核心代码并完成审查",
+            "--scope", "src/core.py", "--facts", str(facts)
         )
         task_id = routed["task_id"]
         self.assertEqual(routed["execution_route"], "direct")
@@ -6951,8 +6910,13 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
     def test_v173_t3_authorized_task_gets_readmission_hint_instead_of_extension(self) -> None:
         self.init_project()
         self.make_project_facts_meaningful("architecture.md")
+        facts = self.write_gate_facts(
+            "authorized-scope-extension.json",
+            ["release-external", "document-edit"],
+        )
         _, routed = self.run_harness(
-            "run", "--target", str(self.project), "--task", "修改 README 并推送到 origin", "--scope", "README.md"
+            "run", "--target", str(self.project), "--task", "修改 README 并推送到 origin",
+            "--scope", "README.md", "--facts", str(facts)
         )
         task_id = routed["task_id"]
         self.assertTrue(routed["authorization_requirements"])
@@ -7722,6 +7686,74 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
             )
         self.assertIsNone(result)
         self.assertEqual(HARNESS_MODULE.package_fingerprint(self.read_package(task_id)), fingerprint_before)
+
+    # ---------- v1.7.5：本地提交意图 + 安全底线否定守卫 ----------
+    def test_v175_git_commit_intent_admits_local_commit_layer(self) -> None:
+        self.init_project()
+        _, routed = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "先提交当前的用户改动，然后继续（只本地提交，不推送）",
+        )
+        self.assertEqual(routed["task_intent"], "git_commit")
+        self.assertEqual(routed["mutation_profile"], "git_metadata_write")
+        self.assertIn("git_commit", routed["allowed_actions"])
+        self.assertNotIn("git_fetch", routed["allowed_actions"])
+        self.assertNotIn("external_write", routed["allowed_actions"])
+        self.assertNotIn("release-external", routed["matched_gates"])
+
+    def test_v175_negated_push_does_not_trip_release_gate_or_rule(self) -> None:
+        self.init_project()
+        _, routed = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "查询远端状态，不推送，也不要修改文件",
+        )
+        self.assertNotIn("release-external", routed["matched_gates"])
+        package = self.read_package(routed["task_id"])
+        self.assertNotIn(
+            "DH-RELEASE-AUTHORIZATION-ROLLBACK",
+            {rule["rule_id"] for rule in package["matched_rules"]},
+        )
+
+    def test_v175_text_keywords_no_longer_infer_gates(self) -> None:
+        gates = HARNESS_MODULE.infer_gates("把代码推送到远端", [], mutation_profile="workspace_write")
+        self.assertEqual(gates, [])
+        gates = HARNESS_MODULE.infer_gates("发布上线新版本", [], mutation_profile="workspace_write")
+        self.assertEqual(gates, [])
+
+    def test_v175_delivery_layer_negation_guard(self) -> None:
+        base = {"task_intent": "modify", "matched_gates": []}
+        negated = HARNESS_MODULE.build_delivery_layers(
+            {**base, "success_criteria": ["只本地提交，不推送"]},
+            ["code_diff"],
+        )
+        self.assertNotEqual(negated["remote_delivery"]["expectation"], "required")
+        required = HARNESS_MODULE.build_delivery_layers(
+            {**base, "success_criteria": ["需要推送到远端"]},
+            ["code_diff"],
+        )
+        self.assertEqual(required["remote_delivery"]["expectation"], "required")
+
+    def test_v175_git_commit_intent_boundaries(self) -> None:
+        current, _, _ = HARNESS_MODULE.classify_task_intents(
+            "提交证据清单", {}, has_declared_scope=False
+        )
+        self.assertNotIn("git_commit", {item["intent"] for item in current})
+        current, deferred, reason_codes = HARNESS_MODULE.classify_task_intents(
+            "后续再提交改动", {}, has_declared_scope=False
+        )
+        self.assertNotIn("git_commit", {item["intent"] for item in current})
+        self.assertIn("git_commit", {item["intent"] for item in deferred})
+        self.assertIn("future_clause_deferred", reason_codes)
+        current, _, _ = HARNESS_MODULE.classify_task_intents(
+            "已经提交了改动", {}, has_declared_scope=False
+        )
+        self.assertNotIn("git_commit", {item["intent"] for item in current})
 
 
 if __name__ == "__main__":

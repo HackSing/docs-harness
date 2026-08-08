@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v1",
-  "version": "1.7.4",
+  "version": "1.7.6",
   "cases": [
     {
       "id": "v2-read-only-intent",
@@ -491,6 +491,18 @@
         "option2-wait_and_refresh-full-readmission",
         "one-readmission-after-failure-guarantee",
         "attribution_quality-verified-required"
+      ]
+    },
+    {
+      "id": "v175-git-commit-intent-and-negation-guard",
+      "expected": [
+        "git_commit-git_metadata_write-local-only",
+        "no-bare-提交-false-positive",
+        "future-deferred-completed-context",
+        "floor-gate-negation-guard-keyword-mode",
+        "rule-keywords-negation-guard",
+        "delivery-layer-negation-guard",
+        "positive-push-release-still-trips"
       ]
     }
   ]

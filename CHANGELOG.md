@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.7.6 - 2026-08-08
+
+- 新增按实际变更面选择验证强度的测试策略：同一行为快照最多一次完整回归，行为代码、依赖和公共夹具未变时复用已有全量证据；版本、说明和元数据变更只做轻量发布检查；下游同步只验 preview/apply/diff/check 与受管文件摘要。策略写入 `docs/testing.md` 真源、`SKILL.md` 操作规则和下游 `AGENTS.md` 受管模板，长测试默认安静输出，避免重复回归和无效上下文消耗。
+- 新增 `git_commit` 受控意图（本地提交层）：触发词「git commit」「commit」「本地提交」「提交改动」「提交代码」「提交当前」「提交工作区」「提交暂存」（裸「提交」刻意不收，避免「提交证据/提交方案」误判），变更面 `git_metadata_write`（写 `.git` 对象/索引/分支引用，不改工作区、不触远端），默认动作 `read` + `git_commit`，不附带 `git_fetch` 授权；未来子句（「后续再提交」）进 `deferred_intents`，完成体（「已经提交」）只作上下文。修复「先提交当前的用户改动」被回退为 `query` 只读合同、宿主无法据合同执行本地提交的准入误判。
+- 移除任务文本关键词 Gate 路由：`infer_gates` 只校验和规范化显式 Gate；提交 `gate_assessment` 时信任宿主模型的语义判断，未提交时只合并既有 `facts.gates` 与 scope 路径推断。删除安全底线词表、floor 推断函数、`gate_decision.floor_added` 和 `GATE_DEFS.terms` 死配置，避免「权限是被谁阻断的」等纯查询被裸词误判为高风险任务；任务中途的实际变更路径绊线继续生效。
+- 非 Gate 文本判断保持独立：`load_active_rules` 的规则关键词与交付层需求判定继续使用否定守卫，「不推送」「无需部署」「不要发布」不会误匹配发布规则或派生 `remote_delivery_not_verified`；这两条链路不再参与 Gate 分类。
+- 新增或改写 `test_v175_*` 与 `gate_assessment` 合同测试，并把需要指定 Gate 的历史用例统一改为通过 `--facts` 提交正式 `gate_assessment`，不新增第二套 `run --gate` CLI；全量 453 项合同测试通过。
+
 ## 1.7.4 - 2026-08-08
 
 - `validate_scope` 增加多路径拼接检测：条目含 `;` `,` `|` `\t` 或连续空格时拒绝并返回 `invalid_scope_concatenated`（附 `suggested_fix`），防止用分隔符拼接的多路径字符串静默进入 `allowed_scope` 导致准入死循环。覆盖 `--scope` CLI 和方案 `执行范围` 两条注入路径。
