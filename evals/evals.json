@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v1",
-  "version": "1.7.2",
+  "version": "1.7.4",
   "cases": [
     {
       "id": "v2-read-only-intent",
@@ -435,6 +435,62 @@
         "phased-oversized-rejected",
         "progress-all-completed-atomic",
         "blocked-no-partial-commit"
+      ]
+    },
+    {
+      "id": "v173-write-scope-incremental-extension",
+      "expected": [
+        "pure-write_scope_violation-only",
+        "stable_contract-precondition",
+        "direct-and-planned-routes",
+        "authorized-and-git_sync-excluded",
+        "STABLE_FIELDS_MINUS_SCOPE-equality",
+        "candidate-write_scope-hard-assertion",
+        "scope_extension_readmission-event",
+        "extension-limit-3-scope_extension_limit_exceeded",
+        "evidence-adoption-full-audit-fields",
+        "scope_extended+extended_paths"
+      ]
+    },
+    {
+      "id": "v173-evidence-checklist-frontloading",
+      "expected": [
+        "missing_evidence_types-eliminated",
+        "missing_receipts-eliminated",
+        "evidence_checklist-required/conditional/required_receipts/skeletons",
+        "write_set-conditional-annotation",
+        "first_run+second_run+task_status-three-carriers",
+        "ensure_evidence_skeletons-shared-helper",
+        "skeleton-_instructions",
+        "pending_context_receipts-action_context_missing"
+      ]
+    },
+    {
+      "id": "v173-stale-evidence-changes-preview",
+      "expected": [
+        "task-changes-preview-action",
+        "zero-state-change-byte-identical",
+        "in_scope/outside_scope/read_set_drift-preview",
+        "stale_evidence-stale_write_paths+actual_changed_paths"
+      ]
+    },
+    {
+      "id": "v173-out-of-scope-readmission-hint",
+      "expected": [
+        "readmission_hint-facts_template-write_scope-only",
+        "example_argv-with---facts",
+        "authorized-task-no-extension",
+        "extension-limit-exceeded-hint"
+      ]
+    },
+    {
+      "id": "v173-concurrent-drift-dual-options",
+      "expected": [
+        "concurrent_drift_overlap-readmission_hint",
+        "option1-narrow_scope-facts_template",
+        "option2-wait_and_refresh-full-readmission",
+        "one-readmission-after-failure-guarantee",
+        "attribution_quality-verified-required"
       ]
     }
   ]

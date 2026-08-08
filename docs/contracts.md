@@ -83,6 +83,8 @@ ready_extended
 
 合同与方案一次冻结：package revision 变化时控制器生成 `contract_delta`（新增证据类型、收据、条件项与阻断项）并归档到 `package-history`；新增 Gate 只缺方案字段时返回 `complete_plan_delta` 和 `plan_delta_contract`，宿主只补充缺失字段，不重做完整方案。上下文正文按 task、stage、compiler contract 与内容指纹跨阶段复用，不随 revision 重复加载。
 
+准入三处响应（首次 run、二次 run 的 ready 响应、`task status`）携带 `evidence_checklist` 四段：`required`（完成清单要求的证据类型）、`conditional`（预声明条件项及激活条件）、`required_receipts`（每项附条件性文字，如 `write_set` 仅在任务产生实际写入时要求）、`skeletons`（准入时预生成的证据骨架路径，骨架含 `_instructions` 填写说明）。verify 缺证失败路径与准入预生成使用同一助手与同一批骨架文件。同三处响应另携带 `pending_context_receipts`：列出尚未加载的上下文阶段（action/plan）与工作包（`work_package:<id>` 形式，已 verified 的工作包不再列出），宿主执行前自查，消灭 `action_context_missing`。失败即前置：`action_context_missing` 与缺证（exit 3）失败载荷同样携带 `pending_context_receipts` 与完整 `evidence_checklist`（骨架与清单同批），宿主即使未读准入指引也能照失败载荷补齐，不依赖指令遵守。推荐备证流程：准入读清单 → 执行中随手铸 `evidence-declaration/v1` 草案（绑定在 verify 时刻代铸，铸后再改同路径不致 stale）→ verify 一次提交全齐。
+
 完成回执保留兼容字段，同时携带结构化 `delivery_layers`。每一层包含 `expectation`（`not_applicable|not_requested|required`）、`status`（`not_verified|verified`）与 `evidence_refs`；最小层级为：
 
 ```text
@@ -165,6 +167,10 @@ external_state
 | `full_readmission` | 范围、高风险合同或规则变化 | `4` |
 
 重读漂移路径后其指纹与当前快照一致即视为已解释，不再阻断。
+
+write_scope 增量扩展例外：合同稳定、唯一阻断为 `write_scope_violation`、无新增 Gate、路线为 `direct|planned`（planned 额外要求候选 `plan_fields` 不变）、无授权要求、非 `git_sync`、扩展次数 ≤3 时，控制器在同一次 verify 内以 `write_scope = 原范围 ∪ 越界路径` 重编译候选包：除 scope 外全部稳定字段（`STABLE_FIELDS_MINUS_SCOPE`）逐字段一致、blockers 为空、`matched_gates` 不新增，且候选 `write_scope` 必须覆盖原范围与越界路径的并集（硬断言，不满足失败关闭）。成功时 `package_revision + 1`、保留 `created_at`、写入 `recompiled_at`，既有索引收据与本轮提交证据按新指纹重绑（`adoption_reason="scope_superset_extension"` 全审计字段，索引按 source_fingerprint 替换不双写，supplied 来源收据同步补齐受管 artifact 审计字段），扩围前先对同轮 supplied 证据执行与常规 verify 同一标准的 `write_set ⊆ 实际变化路径` 硬校验（虚报失败关闭抛 `stale_evidence`，不扩围），写入 `scope_extension_readmission` 事件并在同一 verify 内继续证据评估，响应携带 `scope_extended: true` 与 `extended_paths`。任一前置不满足失败关闭回退 `full_readmission`；授权任务扩围必改授权合同指纹，一律走 `full_readmission`；扩展上限 3 次（事件扫描计数，跨任务包持久），超限 exit 4 `scope_extension_limit_exceeded`。
+
+verify 因 `write_scope_violation`、`concurrent_drift_overlap` 或 `scope_extension_limit_exceeded` 走全量重准入时，响应携带 `readmission_hint`：越界场景的 `facts_template` 只含 `write_scope`（原范围 ∪ 越界路径，不给 allowed_scope）；`concurrent_drift_overlap` 给出两个选项——收窄 scope 剔除重叠路径（`facts_template` 同时给出剔除后的 `write_scope` 与受影响时的 `read_scope`；重叠若来自证据 read_set 则只能选后项），或等并发变更落定后不带 scope 变更全量重准入（重冻基线自然消解 drift），该码只保证失败后一次重准入即过、不承诺首轮必过；提示均附可执行 `example_argv`。`stale_evidence` 硬错误载荷携带 `stale_write_paths` 与 `actual_changed_paths` 双清单，宿主可用 `task changes-preview` 在 verify 前零试探对齐。
 
 ## 6. evidence-receipt/v2
 
@@ -283,6 +289,14 @@ harness task prune --target . --older-than 30 --apply
 ```
 
 dry-run 把候选清单（含状态指纹）冻结到 `task-prune-candidates.json`；`--apply` 只删除冻结清单中指纹未变化且仍满足条件的对象，没有冻结清单时失败关闭。候选必须处于 `complete|cancelled|failed` 终态或已归档 v1、超过保留期、处置事件可追溯，且不存在锁、未终结子 Job、`completed_with_finding` 或 `critical_followup` 严重发现。物理 prune 一旦执行不承诺恢复。
+
+变更预览（只读合同）：
+
+```bash
+harness task changes-preview --target . --task-id <id>
+```
+
+恒只读、无 `--apply`：以冻结基线对当前工作区做纯函数 diff，返回 `action`、`changed_paths`、`in_scope`、`outside_scope` 与 `read_set_drift`，与 verify 时刻归因同源；不写 compiled、freeze、事件与任何状态文件，执行前后任务 state 目录逐字节一致。
 
 ## 9. 脱敏效率事件
 

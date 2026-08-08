@@ -51,7 +51,7 @@ class DocsHarnessContractTest(unittest.TestCase):
 
     def setUp(self) -> None:
         self.temp = tempfile.TemporaryDirectory()
-        self.temp_root = Path(self.temp.name)
+        self.temp_root = Path(self.temp.name).resolve()
         self.project = self.temp_root / "project"
         self.project.mkdir()
 
@@ -278,6 +278,7 @@ class DocsHarnessContractTest(unittest.TestCase):
         read_set: list[dict[str, str]] | None = None,
         concurrent_drift: list[str] | None = None,
         producer: dict[str, str] | None = None,
+        write_set: list[str] | None = None,
     ) -> Path:
         runs = HARNESS_MODULE.runtime_root(self.project)
         state: Path | None = None
@@ -320,7 +321,7 @@ class DocsHarnessContractTest(unittest.TestCase):
                 "output_or_artifact_digest": HARNESS_MODULE.sha256_text(name),
                 "changed_paths": changed_paths,
                 "read_set": read_set or [],
-                "write_set": changed_paths,
+                "write_set": write_set if write_set is not None else changed_paths,
                 "concurrent_drift": concurrent_drift or [],
                 "conclusion": "验收通过",
             },
@@ -554,6 +555,35 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertEqual(rejected_facts["code"], "invalid_scope_json")
         self.assertIn("suggested_fix", rejected_facts)
 
+    def test_v173_scope_rejects_semicolon_concatenated(self) -> None:
+        self.init_project()
+        _, rejected = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改多文件",
+            "--scope",
+            "src/a.ts; src/b.ts; src/c.ts",
+            expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_scope_concatenated")
+        self.assertIn("suggested_fix", rejected)
+
+    def test_v173_scope_rejects_comma_concatenated(self) -> None:
+        self.init_project()
+        _, rejected = self.run_harness(
+            "run",
+            "--target",
+            str(self.project),
+            "--task",
+            "修改多文件",
+            "--scope",
+            "src/a.ts, src/b.ts",
+            expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_scope_concatenated")
+
     def test_v169_windows_posix_path_hint_for_missing_facts_file(self) -> None:
         with mock.patch.object(HARNESS_MODULE.sys, "platform", "win32"):
             with self.assertRaises(HARNESS_MODULE.HarnessError) as ctx:
@@ -661,7 +691,7 @@ class DocsHarnessContractTest(unittest.TestCase):
             {
                 "fast_track": True,
                 "write_scope": ["README.md"],
-                "verification_commands": [{"argv": ["python", "-m", "unittest"], "produces": ["test_run"]}],
+                "verification_commands": [{"argv": [sys.executable, "-m", "unittest"], "produces": ["test_run"]}],
             },
         )
         _, routed = self.run_harness(
@@ -946,14 +976,15 @@ class DocsHarnessContractTest(unittest.TestCase):
             relative: (source / relative).read_bytes()
             for relative in ("VERSION", "package.json", "SKILL.md")
         }
-        os.chmod(source / "SKILL.md", 0o444)
+        # 注入：破坏 SKILL.md 版本源可读性（macOS 上 chmod 无法阻止 os.replace，故改用内容破坏）
+        (source / "SKILL.md").write_text("not a valid skill document\n", encoding="utf-8")
         try:
             _, payload = self.run_harness(
                 "release", "sync", "--apply", "--target", str(source), expected=1
             )
-            self.assertEqual(payload["code"], "release_write_failed")
+            self.assertEqual(payload["code"], "release_source_unreadable")
         finally:
-            os.chmod(source / "SKILL.md", 0o666)
+            (source / "SKILL.md").write_bytes(originals["SKILL.md"])
         for relative, content in originals.items():
             self.assertEqual(
                 (source / relative).read_bytes(),
@@ -6817,6 +6848,880 @@ class DocsHarnessContractTest(unittest.TestCase):
         )
         self.assertEqual(payload["code"], "missing_outcome")
         self.assertIn("suggested_fix", payload)
+
+
+class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
+    """v1.7.3 验收循环修复：T1–T17 合同测试 + V1 回放复现 + V2 交互/失败关闭矩阵。"""
+
+    def state_dir(self, task_id: str) -> Path:
+        return self.project / ".docs-harness" / "runs" / task_id
+
+    def read_package(self, task_id: str) -> dict[str, Any]:
+        return json.loads((self.state_dir(task_id) / "task-package.json").read_text(encoding="utf-8"))
+
+    def read_events(self, task_id: str) -> list[dict[str, Any]]:
+        return HARNESS_MODULE.read_jsonl(self.state_dir(task_id) / "events.jsonl")
+
+    def admit_review_task(self) -> str:
+        """准入一个 direct 路线、需要 test_result + review_result 两类证据的任务。"""
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "实现项目核心代码并完成审查", "--scope", "src/core.py"
+        )
+        task_id = routed["task_id"]
+        self.assertEqual(routed["execution_route"], "direct")
+        required = routed["completion_manifest"]["required_evidence_types"]
+        self.assertIn("test_result", required)
+        self.assertIn("review_result", required)
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        return task_id
+
+    def write_file(self, relative: str, content: str = "VALUE = 1\n") -> None:
+        path = self.project / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(content, encoding="utf-8")
+
+    # ---------- T1：direct 纯越界一次 verify 内扩展并完成 ----------
+    def test_v173_t1_write_scope_extension_completes_in_one_verify(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "实现项目核心代码", "--scope", "src/core.py"
+        )
+        task_id = routed["task_id"]
+        self.assertEqual(routed["execution_route"], "direct")
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("src/core.py")
+        self.write_file("src/extra.py")
+        evidence = self.evidence(
+            "t1-extension", evidence_type="test_result", covers=task_id,
+            changed_paths=["src/core.py", "src/extra.py"],
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
+        )
+        self.assertEqual(verified["control_status"], "complete")
+        self.assertTrue(verified["scope_extended"])
+        self.assertEqual(verified["extended_paths"], ["src/extra.py"])
+        package = self.read_package(task_id)
+        self.assertEqual(package["package_revision"], 2)
+        self.assertEqual(set(package["write_scope"]), {"src/core.py", "src/extra.py"})
+        self.assertIn("recompiled_at", package)
+        extensions = [item for item in self.read_events(task_id) if item["event"] == "scope_extension_readmission"]
+        self.assertEqual(len(extensions), 1)
+        self.assertEqual(extensions[0]["extended_paths"], ["src/extra.py"])
+        self.assertNotIn("readmission", [item["event"] for item in self.read_events(task_id)])
+
+    # ---------- T2：既有收据继承（全审计字段 + 新指纹） ----------
+    def test_v173_t2_indexed_receipts_are_adopted_with_full_audit_fields(self) -> None:
+        task_id = self.admit_review_task()
+        self.write_file("src/core.py")
+        first = self.evidence(
+            "t2-round1", evidence_type="test_result", covers=task_id, changed_paths=["src/core.py"]
+        )
+        old_fingerprint = HARNESS_MODULE.package_fingerprint(self.read_package(task_id))
+        _, pending = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(first), expected=3
+        )
+        self.assertEqual(pending["missing_evidence_types"], ["review_result"])
+        self.write_file("src/extra.py")
+        second = self.evidence(
+            "t2-round2", evidence_type="review_result", covers=task_id, changed_paths=["src/extra.py"]
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(second)
+        )
+        self.assertEqual(verified["control_status"], "complete")
+        self.assertTrue(verified["scope_extended"])
+        new_fingerprint = HARNESS_MODULE.package_fingerprint(self.read_package(task_id))
+        self.assertNotEqual(old_fingerprint, new_fingerprint)
+        index = json.loads((self.state_dir(task_id) / "evidence-index.json").read_text(encoding="utf-8"))
+        items = index["evidence"]
+        source_fps = [item["source_fingerprint"] for item in items]
+        self.assertEqual(len(source_fps), len(set(source_fps)), "同源证据不得双写")
+        for item in items:
+            self.assertEqual(item["package_fingerprint"], new_fingerprint)
+            self.assertEqual(item["adoption_reason"], "scope_superset_extension")
+            self.assertEqual(item["origin_package_fingerprint"], old_fingerprint)
+            self.assertEqual(item["adopted_from_package_fingerprint"], old_fingerprint)
+            self.assertIn("adopted_at", item)
+
+    # ---------- T3：授权任务越界不扩展，携带 readmission_hint ----------
+    def test_v173_t3_authorized_task_gets_readmission_hint_instead_of_extension(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 并推送到 origin", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        self.assertTrue(routed["authorization_requirements"])
+        _, template_payload = self.run_harness(
+            "authorization", "template", "--target", str(self.project), "--task-id", task_id
+        )
+        template = template_payload["template"]
+        now_utc = datetime.datetime.now(datetime.timezone.utc)
+        template["authorized_at"] = now_utc.replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        template["authorized_by"] = "test-user"
+        template["expires_at"] = (now_utc + datetime.timedelta(days=1)).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+        auth_file = self.write_json("t3-auth.json", template)
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan")
+        plan_extra = {field: "已覆盖" for field in routed["plan_fields"] if field != "执行范围"}
+        if "执行范围" in routed["plan_fields"]:
+            plan_extra["执行范围"] = ["README.md"]
+        plan = self.plan_for(plan_extra)
+        self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan), expected=3
+        )
+        _, ready = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--authorization", str(auth_file)
+        )
+        self.assertEqual(ready["admission_status"], "ready_planned")
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("README.md", "# README\n")
+        self.write_file("notes/extra.md", "# extra\n")
+        evidence = self.evidence(
+            "t3-authorized", evidence_type="external_state", covers=task_id,
+            changed_paths=["README.md", "notes/extra.md"],
+        )
+        _, blocked = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
+        )
+        self.assertEqual(blocked["reason_code"], "write_scope_violation")
+        hint = blocked["readmission_hint"]
+        self.assertEqual(hint["facts_template"], {"write_scope": ["README.md", "notes/extra.md"]})
+        self.assertIn("--facts", hint["example_argv"])
+        package = self.read_package(task_id)
+        self.assertEqual(package["write_scope"], ["README.md"])
+        self.assertNotIn("scope_extension_readmission", [item["event"] for item in self.read_events(task_id)])
+
+    # ---------- T4：越界与 new_risk_gate 共存走既有路径 ----------
+    def test_v173_t4_mixed_blockers_do_not_trigger_extension(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md", "security.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "实现项目核心代码", "--scope", "src/core.py"
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("src/core.py")
+        self.write_file("src/security/extra.py")
+        evidence = self.evidence(
+            "t4-mixed", evidence_type="test_result", covers=task_id,
+            changed_paths=["src/core.py", "src/security/extra.py"],
+        )
+        _, blocked = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
+        )
+        self.assertIn("security-sensitive", blocked["new_gates"])
+        self.assertIn("readmission_hint", blocked)
+        self.assertNotIn("scope_extended", blocked)
+        self.assertEqual(self.read_package(task_id)["package_revision"], 1)
+        self.assertNotIn("scope_extension_readmission", [item["event"] for item in self.read_events(task_id)])
+
+    # ---------- T5/T12：扩展上限 3 次，第 4 次失败关闭；计数跨任务包持久 ----------
+    def test_v173_t5_extension_limit_is_enforced_by_event_scan(self) -> None:
+        task_id = self.admit_review_task()
+        self.write_file("src/core.py")
+        for round_index in (1, 2, 3):
+            extra = f"src/extra{round_index}.py"
+            self.write_file(extra)
+            evidence = self.evidence(
+                f"t5-round{round_index}", evidence_type="test_result", covers=task_id,
+                changed_paths=["src/core.py", extra],
+            )
+            _, pending = self.run_harness(
+                "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=3
+            )
+            self.assertTrue(pending["scope_extended"], pending)
+            self.assertEqual(pending["extended_paths"], [extra])
+            self.assertEqual(pending["missing_evidence_types"], ["review_result"])
+        extensions = [item for item in self.read_events(task_id) if item["event"] == "scope_extension_readmission"]
+        self.assertEqual(len(extensions), 3)
+        self.assertEqual(self.read_package(task_id)["package_revision"], 4)
+        self.write_file("src/extra4.py")
+        final = self.evidence(
+            "t5-round4", evidence_type="review_result", covers=task_id,
+            changed_paths=["src/extra4.py"],
+        )
+        _, blocked = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(final), expected=4
+        )
+        self.assertEqual(blocked["reason_code"], "scope_extension_limit_exceeded")
+        self.assertEqual(len([item for item in self.read_events(task_id) if item["event"] == "scope_extension_readmission"]), 3)
+
+    # ---------- T6：planned 路线 plan_fields 不变则扩展成功；变化则回退 ----------
+    def test_v173_t6_planned_route_extension_succeeds_when_plan_fields_unchanged(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("product.md", "design.md", "architecture.md")
+        facts = self.write_json("t6-facts.json", {"allowed_scope": ["src/view.tsx"]})
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "实现 UI 页面", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.assertEqual(routed["execution_route"], "planned")
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan")
+        plan_extra = {field: "已覆盖" for field in routed["plan_fields"]}
+        plan_extra["执行范围"] = ["src/view.tsx"]
+        plan = self.plan_for(plan_extra)
+        _, ready = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan)
+        )
+        self.assertEqual(ready["admission_status"], "ready_planned")
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("src/view.tsx", "export {}\n")
+        self.write_file("src/extra.tsx", "export {}\n")
+        evidence = self.evidence(
+            "t6-planned", evidence_type="ui_acceptance", covers=task_id,
+            changed_paths=["src/view.tsx", "src/extra.tsx"],
+        )
+        extra_evidence = self.evidence(
+            "t6-planned-test", evidence_type="test_result", covers=task_id,
+            changed_paths=["src/view.tsx", "src/extra.tsx"],
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id,
+            "--evidence", str(evidence), "--evidence", str(extra_evidence),
+        )
+        self.assertEqual(verified["control_status"], "complete")
+        self.assertTrue(verified["scope_extended"])
+        self.assertEqual(verified["extended_paths"], ["src/extra.tsx"])
+
+    def test_v173_t6_planned_route_plan_fields_change_falls_back(self) -> None:
+        task_id = self.admit_review_task()
+        package = self.read_package(task_id)
+        state = self.state_dir(task_id)
+        compiled = json.loads((state / "compiled-task.json").read_text(encoding="utf-8"))
+        freeze = json.loads((state / "freeze.json").read_text(encoding="utf-8"))
+        original_build = HARNESS_MODULE.build_package
+
+        def corrupted_build(*args, **kwargs):
+            candidate, blockers = original_build(*args, **kwargs)
+            candidate["plan_fields"] = [*candidate["plan_fields"], "额外字段"]
+            return candidate, blockers
+
+        with mock.patch.object(HARNESS_MODULE, "build_package", side_effect=corrupted_build):
+            result = HARNESS_MODULE.incrementally_extend_write_scope(
+                state, self.project, package, compiled, freeze, ["src/extra.py"], [], []
+            )
+        self.assertIsNone(result)
+        self.assertEqual(self.read_package(task_id)["package_revision"], package["package_revision"])
+
+    # ---------- T7：三处响应 evidence_checklist 齐全且骨架同一助手 ----------
+    def test_v173_t7_evidence_checklist_in_three_responses(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "实现项目核心代码", "--scope", "src/core.py"
+        )
+        task_id = routed["task_id"]
+        for payload in (routed,):
+            checklist = payload["evidence_checklist"]
+            self.assertEqual(set(checklist), {"required", "conditional", "required_receipts", "skeletons"})
+            self.assertIn("test_result", checklist["required"])
+            receipt_names = [item["receipt"] for item in checklist["required_receipts"]]
+            self.assertIn("write_set", receipt_names)
+            write_set_entry = next(item for item in checklist["required_receipts"] if item["receipt"] == "write_set")
+            self.assertIn("无写入时不要求", write_set_entry["condition"])
+            for skeleton_ref in checklist["skeletons"]:
+                skeleton = json.loads(Path(skeleton_ref).read_text(encoding="utf-8"))
+                self.assertIn("_instructions", skeleton)
+        _, second = self.run_harness("run", "--target", str(self.project), "--task-id", task_id)
+        self.assertIn("evidence_checklist", second)
+        _, status = self.run_harness("task", "status", "--target", str(self.project), "--task-id", task_id)
+        self.assertIn("evidence_checklist", status)
+        # verify 失败路径与准入预生成骨架一致（同一助手、同一批文件）
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("src/core.py")
+        _, missing = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
+        )
+        self.assertEqual(set(missing["evidence_skeletons"]), set(routed["evidence_checklist"]["skeletons"]))
+
+    # ---------- T8：extended 路线不扩展 ----------
+    def test_v173_t8_extended_route_is_never_extended(self) -> None:
+        state = self.temp_root / "unused-state"
+        state.mkdir()
+        result = HARNESS_MODULE.incrementally_extend_write_scope(
+            state, self.project,
+            {"execution_route": "extended", "git_operation": None},
+            {}, {}, ["src/extra.py"], [], []
+        )
+        self.assertIsNone(result)
+
+    # ---------- T9：auto-attribution / new_risk_gate 增量 / read_set_drift 不回归 ----------
+    def test_v173_t9_auto_attribution_not_hijacked_by_extension(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("README.md", "# README\n")
+        _, pending = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
+        )
+        self.assertEqual(pending["auto_attributed_paths"], ["README.md"])
+        self.assertNotIn("scope_extended", pending)
+        self.assertNotIn("scope_extension_readmission", [item["event"] for item in self.read_events(task_id)])
+
+    # ---------- T10：write_scope 原为空的任务扩展失败关闭 ----------
+    def test_v173_t10_read_only_task_extension_fails_closed(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "查询 README 文档状态", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        package = self.read_package(task_id)
+        self.assertEqual(package["mutation_profile"], "read_only")
+        self.assertEqual(package["write_scope"], [])
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("extra.txt")
+        evidence = self.evidence(
+            "t10-readonly", evidence_type="source_trace", covers=task_id, changed_paths=["extra.txt"]
+        )
+        _, blocked = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
+        )
+        self.assertEqual(blocked["reason_code"], "write_scope_violation")
+        self.assertIn("readmission_hint", blocked)
+        after = self.read_package(task_id)
+        self.assertEqual(after["mutation_profile"], "read_only")
+        self.assertEqual(after["write_scope"], [])
+        self.assertEqual(after["read_scope"], ["README.md"])
+
+    # ---------- T13：fast_track checklist 含 test_run；read_only 无 conditional ----------
+    def test_v173_t13_fast_track_and_read_only_checklists(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        facts = self.write_json("t13-fast-track.json", {
+            "fast_track": True,
+            "verification_commands": [{"argv": ["python3", "-m", "unittest"], "produces": ["test_run"]}],
+        })
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--scope", "README.md",
+            "--facts", str(facts)
+        )
+        self.assertTrue(routed["fast_track"])
+        checklist = routed["evidence_checklist"]
+        self.assertIn("code_diff", checklist["required"])
+        self.assertIn("test_run", checklist["required"])
+        self.assertEqual(checklist["conditional"], [])
+        _, read_only = self.run_harness(
+            "run", "--target", str(self.project), "--task", "查询 README 文档状态", "--scope", "README.md"
+        )
+        self.assertEqual(read_only["evidence_checklist"]["conditional"], [])
+
+    # ---------- T14：二次 run ready 响应含 evidence_checklist ----------
+    def test_v173_t14_second_run_ready_response_carries_checklist(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "实现项目核心代码", "--scope", "src/core.py"
+        )
+        _, second = self.run_harness("run", "--target", str(self.project), "--task-id", routed["task_id"])
+        self.assertEqual(second["admission_status"], "ready_direct")
+        self.assertEqual(second["evidence_checklist"], routed["evidence_checklist"])
+        self.assertIn("pending_context_receipts", second)
+
+    # ---------- T15：changes-preview 零状态变更 + stale_evidence 双清单 ----------
+    def test_v173_t15_changes_preview_is_read_only_and_stale_payload_lists(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("README.md", "# README\n")
+        self.write_file("notes/extra.md", "# extra\n")
+        before = self.snapshot_tree(self.state_dir(task_id))
+        _, preview = self.run_harness(
+            "task", "changes-preview", "--target", str(self.project), "--task-id", task_id
+        )
+        self.assertEqual(preview["action"], "changes-preview")
+        self.assertEqual(preview["changed_paths"], ["README.md", "notes/extra.md"])
+        self.assertEqual(preview["in_scope"], ["README.md"])
+        self.assertEqual(preview["outside_scope"], ["notes/extra.md"])
+        self.assertEqual(preview["read_set_drift"], [])
+        self.assertEqual(self.snapshot_tree(self.state_dir(task_id)), before)
+        stale = self.evidence(
+            "t15-stale", evidence_type="document_review", covers=task_id,
+            changed_paths=["README.md", "ghost.md"],
+        )
+        _, error = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(stale), expected=2
+        )
+        self.assertEqual(error["code"], "stale_evidence")
+        self.assertEqual(error["stale_write_paths"], ["ghost.md"])
+        self.assertEqual(error["actual_changed_paths"], ["README.md", "notes/extra.md"])
+        self.assertIn("missing_items", error)
+
+    # ---------- T16：git_sync 不扩展；规则漂移时纯越界也失败关闭 ----------
+    def test_v173_t16_git_sync_and_rule_drift_fail_closed(self) -> None:
+        state = self.temp_root / "unused-state-2"
+        state.mkdir()
+        result = HARNESS_MODULE.incrementally_extend_write_scope(
+            state, self.project,
+            {"execution_route": "direct", "git_operation": "git_sync"},
+            {}, {}, ["src/extra.py"], [], []
+        )
+        self.assertIsNone(result)
+        task_id = self.admit_review_task()
+        routed = self.read_package(task_id)
+        self.assertTrue(routed["matched_rules"], "需要命中规则的任务才能构造规则漂移场景")
+        rule_file = self.project / ".docs-harness" / "harness-home" / "rules" / "scope-change-readmission.md"
+        tampered = re.sub(r"content_fingerprint: sha256:[0-9a-f]{64}", "content_fingerprint: sha256:" + "0" * 64, rule_file.read_text(encoding="utf-8"))
+        rule_file.write_text(tampered, encoding="utf-8")
+        self.write_file("src/core.py")
+        self.write_file("src/extra.py")
+        evidence = self.evidence(
+            "t16-rule-drift", evidence_type="test_result", covers=task_id,
+            changed_paths=["src/core.py", "src/extra.py"],
+        )
+        _, blocked = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
+        )
+        self.assertEqual(blocked["reason_code"], "write_scope_violation")
+        self.assertNotIn("scope_extended", blocked)
+        self.assertNotIn("scope_extension_readmission", [item["event"] for item in self.read_events(task_id)])
+
+    # ---------- T17：pending_context_receipts 三处置位 ----------
+    def test_v173_t17_pending_context_receipts_in_three_responses(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "实现项目核心代码", "--scope", "src/core.py"
+        )
+        task_id = routed["task_id"]
+        self.assertIn("action", routed["pending_context_receipts"])
+        _, second = self.run_harness("run", "--target", str(self.project), "--task-id", task_id)
+        self.assertIn("action", second["pending_context_receipts"])
+        _, status = self.run_harness("task", "status", "--target", str(self.project), "--task-id", task_id)
+        self.assertIn("action", status["pending_context_receipts"])
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("src/core.py")
+        evidence = self.evidence(
+            "t17-telemetry", evidence_type="test_result", covers=task_id, changed_paths=["src/core.py"]
+        )
+        self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
+        )
+        attempts = [item for item in self.read_events(task_id) if item["event"] == "verification_attempt"]
+        self.assertTrue(attempts)
+        self.assertIn("evidence_round_count", attempts[-1])
+
+    # ---------- T18：宿主不看清单也不加载上下文 → 缺证失败载荷自身携带清单（失败即前置） ----------
+    def test_v173_t18_missing_evidence_failure_carries_checklist(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "实现项目核心代码", "--scope", "src/core.py"
+        )
+        task_id = routed["task_id"]
+        # 宿主完全不遵守指引：不加载上下文、不带任何证据直接 verify
+        _, blocked = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
+        )
+        # 第一级兜底：action_context_missing 失败载荷自身携带 pending 与清单
+        self.assertEqual(blocked["reason_code"], "action_context_missing")
+        self.assertIn("action", blocked["pending_context_receipts"])
+        self.assertEqual(blocked["evidence_checklist"], routed["evidence_checklist"])
+        for stage in blocked["pending_context_receipts"]:
+            self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", stage)
+        # 第二级兜底：缺证失败载荷仍携带完整清单，且骨架与清单一致
+        _, missing = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
+        )
+        self.assertEqual(missing["result"], "补充证据")
+        self.assertEqual(missing["evidence_checklist"], routed["evidence_checklist"])
+        self.assertEqual(missing["pending_context_receipts"], [])
+        self.assertEqual(set(missing["evidence_checklist"]["skeletons"]), set(missing["evidence_skeletons"]))
+        # 宿主照失败载荷补证后一次过
+        self.write_file("src/core.py")
+        evidence = self.evidence(
+            "t18-recovery", evidence_type="test_result", covers=task_id, changed_paths=["src/core.py"]
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
+        )
+        self.assertEqual(verified["result"], "完成")
+
+    # ---------- T19：扩展轮 supplied 证据 write_set 虚报同样被 stale_evidence 硬拦（不扩围） ----------
+    def test_v173_t19_extension_round_overstated_write_set_fails_closed(self) -> None:
+        self.init_project()
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "实现项目核心代码", "--scope", "src/core.py"
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("src/core.py")
+        self.write_file("src/extra.py")
+        revision_before = self.read_package(task_id)["package_revision"]
+        overstated = self.evidence(
+            "t19-overstated", evidence_type="test_result", covers=task_id,
+            changed_paths=["src/core.py", "src/extra.py"],
+            write_set=["src/core.py", "src/extra.py", "src/ghost-never-touched.py"],
+        )
+        _, failed = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(overstated),
+            expected=2,
+        )
+        self.assertEqual(failed["code"], "stale_evidence")
+        self.assertEqual(failed["stale_write_paths"], ["src/ghost-never-touched.py"])
+        package = self.read_package(task_id)
+        self.assertEqual(package["package_revision"], revision_before)
+        self.assertEqual(package["write_scope"], ["src/core.py"])
+        index = json.loads((self.state_dir(task_id) / "evidence-index.json").read_text(encoding="utf-8"))
+        self.assertFalse(
+            any(item.get("id") == "t19-overstated" for item in index["evidence"]),
+            "虚报证据不得入索引",
+        )
+        # 按真实写入重铸后，扩展轮正常完成且收据带受管 artifact 审计字段
+        fresh = self.evidence(
+            "t19-fresh", evidence_type="test_result", covers=task_id,
+            changed_paths=["src/core.py", "src/extra.py"],
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(fresh)
+        )
+        self.assertEqual(verified["control_status"], "complete")
+        self.assertTrue(verified.get("scope_extended"))
+        index = json.loads((self.state_dir(task_id) / "evidence-index.json").read_text(encoding="utf-8"))
+        minted = [item for item in index["evidence"] if item.get("id") == "t19-fresh"]
+        self.assertEqual(len(minted), 1)
+        self.assertTrue(minted[0].get("artifact_ref"), "扩展轮收据必须带受管 artifact 审计字段")
+        self.assertTrue(minted[0].get("artifact_fingerprint"))
+
+    # ---------- T20：pending_context_receipts 覆盖 work_packages ----------
+    def test_v173_t20_pending_context_receipts_cover_work_packages(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        facts = self.write_json(
+            "t20-facts.json",
+            {
+                "execution_route": "extended",
+                "allowed_scope": ["docs/a.md", "docs/b.md"],
+                "work_packages": [
+                    {
+                        "id": "wp-a", "goal": "交付 A", "scope": ["docs/a.md"], "dependencies": [],
+                        "owner": "owner-a", "success_criteria": ["A 完成"], "acceptance": ["A 有证据"],
+                    },
+                    {
+                        "id": "wp-b", "goal": "交付 B", "scope": ["docs/b.md"], "dependencies": ["wp-a"],
+                        "owner": "owner-b", "success_criteria": ["B 完成"], "acceptance": ["B 有证据"],
+                    },
+                ],
+            },
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "实现多工作包文档", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "plan")
+        plan = self.plan_for({"文档真源": "根项目文档地图。", "索引与残留": "同步索引并清除旧引用。"})
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        _, admitted = self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--plan", str(plan)
+        )
+        self.assertEqual(admitted["admission_status"], "ready_extended")
+        self.assertEqual(
+            sorted(admitted["pending_context_receipts"]), ["work_package:wp-a", "work_package:wp-b"]
+        )
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--work-package", "wp-a")
+        _, status = self.run_harness("task", "status", "--target", str(self.project), "--task-id", task_id)
+        self.assertEqual(status["pending_context_receipts"], ["work_package:wp-b"])
+
+    # ---------- T21：concurrent 重叠源自 read_scope 时选项 1 同步剔除 read_scope ----------
+    def test_v173_t21_concurrent_hint_narrows_read_scope(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        facts = self.write_json(
+            "t21-facts.json",
+            {"allowed_scope": ["docs/a.md", "docs/b.md"], "write_scope": ["docs/a.md"], "read_scope": ["docs/b.md"]},
+        )
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改文档 a 并审阅 b", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("docs/a.md", "# A\n")
+        self.write_file("docs/b.md", "# B\n")
+        evidence = self.evidence(
+            "t21-drift", evidence_type="document_review", covers=task_id,
+            changed_paths=["docs/a.md"], concurrent_drift=["docs/b.md"],
+        )
+        _, blocked = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
+        )
+        self.assertEqual(blocked["reason_code"], "concurrent_drift_overlap")
+        narrow = next(
+            item for item in blocked["readmission_hint"]["options"] if item["option"] == "narrow_scope"
+        )
+        template = narrow["facts_template"]
+        self.assertNotIn("docs/b.md", template["write_scope"])
+        self.assertIn("read_scope", template, "read_scope 来源的重叠必须在选项 1 中给出剔除项")
+        self.assertNotIn("docs/b.md", template["read_scope"])
+        # 照选项 1 一次重准入后，照刷新基线备证即过
+        narrow_facts = self.write_json("t21-narrow-facts.json", template)
+        self.run_harness(
+            "run", "--target", str(self.project), "--task-id", task_id, "--facts", str(narrow_facts)
+        )
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        refreshed = self.evidence(
+            "t21-refreshed", evidence_type="document_review", covers=task_id,
+            changed_paths=["docs/a.md", "docs/b.md"],
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(refreshed)
+        )
+        self.assertEqual(verified["control_status"], "complete")
+
+    # ---------- T22：行尾宽容指纹在 1MiB chunk 边界的 CRLF 归一化 ----------
+    def test_v173_t22_tolerant_fingerprint_crlf_chunk_boundary(self) -> None:
+        boundary = 1024 * 1024
+        body = b"x" * (boundary - 1)
+        lf = self.project / "lf.txt"
+        crlf = self.project / "crlf.txt"
+        lf.write_bytes(body + b"\n" + b"y" * 16)
+        crlf.write_bytes(body + b"\r\n" + b"y" * 16)
+        self.assertEqual(
+            HARNESS_MODULE.script_fingerprint_tolerant(lf),
+            HARNESS_MODULE.script_fingerprint_tolerant(crlf),
+            "跨 chunk 边界的 CRLF 必须与 LF 指纹一致",
+        )
+        standalone = self.project / "cr.txt"
+        standalone.write_bytes(body + b"\r" + b"y" * 16)
+        self.assertNotEqual(
+            HARNESS_MODULE.script_fingerprint_tolerant(standalone),
+            HARNESS_MODULE.script_fingerprint_tolerant(lf),
+        )
+
+    # ---------- T23：legacy v1 任务 changes-preview 结构化失败关闭 + manifest 守卫一致 ----------
+    def test_v173_t23_changes_preview_legacy_guard_and_manifest_guard_consistency(self) -> None:
+        self.init_project()
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "查询项目文档在哪"
+        )
+        task_id = routed["task_id"]
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        package["schema_version"] = "docs-harness/task-package/v1"
+        (state / "task-package.json").write_text(json.dumps(package, ensure_ascii=False, indent=2), encoding="utf-8")
+        with self.assertRaises(HARNESS_MODULE.HarnessError) as raised:
+            HARNESS_MODULE.task_changes_preview(self.project, state, task_id)
+        self.assertEqual(raised.exception.code, "legacy_task_requires_migration")
+        # completion_manifest 缺失/无效时不抛 KeyError，与二次 run / task status 的守卫一致
+        package.pop("completion_manifest", None)
+        (state / "task-package.json").write_text(json.dumps(package, ensure_ascii=False, indent=2), encoding="utf-8")
+        compiled = json.loads((state / "compiled-task.json").read_text(encoding="utf-8"))
+        code, payload = HARNESS_MODULE.first_run_payload(self.project, state, package, compiled)
+        self.assertEqual(code, 0)
+        self.assertNotIn("evidence_checklist", payload)
+        self.assertNotIn("pending_context_receipts", payload)
+
+    # ---------- V1 回放：write_scope 循环样例（连续越界不再产生全量重准入） ----------
+    def test_v173_replay_write_scope_loop_never_full_readmission(self) -> None:
+        task_id = self.admit_review_task()
+        self.write_file("src/core.py")
+        verify_rounds = 0
+        for round_index in (1, 2):
+            extra = f"src/loop{round_index}.py"
+            self.write_file(extra)
+            evidence = self.evidence(
+                f"replay-loop{round_index}", evidence_type="test_result", covers=task_id,
+                changed_paths=["src/core.py", extra],
+            )
+            _, payload = self.run_harness(
+                "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence),
+                expected=None,
+            )
+            verify_rounds += 1
+            self.assertNotEqual(payload.get("reason_code"), "write_scope_violation", payload)
+        review = self.evidence(
+            "replay-review", evidence_type="review_result", covers=task_id,
+            changed_paths=["src/core.py", "src/loop1.py", "src/loop2.py"],
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(review)
+        )
+        verify_rounds += 1
+        self.assertEqual(verified["control_status"], "complete")
+        events = [item["event"] for item in self.read_events(task_id)]
+        self.assertNotIn("readmission", events)
+        self.assertLessEqual(verify_rounds, 3)
+
+    # ---------- V1 回放：checklist 一次备齐消灭首轮补证 ----------
+    def test_v173_replay_checklist_eliminates_first_round_evidence_chase(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "实现项目核心代码", "--scope", "src/core.py"
+        )
+        task_id = routed["task_id"]
+        checklist = routed["evidence_checklist"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("src/core.py")
+        evidence_args: list[str] = []
+        for evidence_type in checklist["required"]:
+            evidence_args.extend([
+                "--evidence",
+                str(self.evidence(f"replay-{evidence_type}", evidence_type=evidence_type, covers=task_id, changed_paths=["src/core.py"])),
+            ])
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, *evidence_args
+        )
+        self.assertEqual(verified["control_status"], "complete")
+        self.assertEqual(
+            sum(1 for item in self.read_events(task_id) if item["event"] == "verification_attempt"), 1
+        )
+
+    # ---------- V1 回放：stale_evidence 预览后一次修正 ----------
+    def test_v173_replay_stale_evidence_fixed_after_preview(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改 README 文档", "--scope", "README.md"
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("README.md", "# README\n")
+        _, preview = self.run_harness(
+            "task", "changes-preview", "--target", str(self.project), "--task-id", task_id
+        )
+        evidence = self.evidence(
+            "replay-stale-fixed", evidence_type="document_review", covers=task_id,
+            changed_paths=list(preview["in_scope"]),
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
+        )
+        self.assertEqual(verified["control_status"], "complete")
+
+    # ---------- V1 回放：concurrent_drift_overlap 双选项与一次重准入即过 ----------
+    def test_v173_replay_concurrent_drift_hint_and_one_readmission(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        facts = self.write_json("replay-drift-facts.json", {"allowed_scope": ["docs/a.md", "docs/b.md"]})
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "修改文档 a 与 b", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("docs/a.md", "# A\n")
+        self.write_file("docs/b.md", "# B\n")
+        evidence = self.evidence(
+            "replay-drift", evidence_type="document_review", covers=task_id,
+            changed_paths=["docs/a.md"], concurrent_drift=["docs/b.md"],
+        )
+        _, blocked = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
+        )
+        self.assertEqual(blocked["reason_code"], "concurrent_drift_overlap")
+        hint = blocked["readmission_hint"]
+        options = {item["option"] for item in hint["options"]}
+        self.assertEqual(options, {"narrow_scope", "wait_and_refresh"})
+        narrow = next(item for item in hint["options"] if item["option"] == "narrow_scope")
+        self.assertNotIn("docs/b.md", narrow["facts_template"]["write_scope"])
+        # 选项 2：等并发落定后全量重准入刷新基线，一次即过
+        self.run_harness("run", "--target", str(self.project), "--task-id", task_id)
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        refreshed = self.evidence(
+            "replay-drift-refreshed", evidence_type="document_review", covers=task_id,
+            changed_paths=["docs/a.md", "docs/b.md"],
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(refreshed)
+        )
+        self.assertEqual(verified["control_status"], "complete")
+
+    # ---------- V2 矩阵：扩展后重 verify 幂等 ----------
+    def test_v173_matrix_reverify_after_extension_is_idempotent(self) -> None:
+        task_id = self.admit_review_task()
+        self.write_file("src/core.py")
+        self.write_file("src/extra1.py")
+        evidence = self.evidence(
+            "matrix-idem", evidence_type="test_result", covers=task_id,
+            changed_paths=["src/core.py", "src/extra1.py"],
+        )
+        _, pending = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=3
+        )
+        self.assertTrue(pending["scope_extended"])
+        _, again = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
+        )
+        self.assertNotIn("scope_extended", again)
+        self.assertEqual(
+            len([item for item in self.read_events(task_id) if item["event"] == "scope_extension_readmission"]), 1
+        )
+
+    # ---------- V2 矩阵：同源证据不双写 ----------
+    def test_v173_matrix_duplicate_source_fingerprint_not_double_indexed(self) -> None:
+        self.init_project()
+        self.make_project_facts_meaningful("architecture.md")
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "实现项目核心代码", "--scope", "src/core.py"
+        )
+        task_id = routed["task_id"]
+        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        self.write_file("src/core.py")
+        evidence = self.evidence(
+            "matrix-dup", evidence_type="test_result", covers=task_id, changed_paths=["src/core.py"]
+        )
+        self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id,
+            "--evidence", str(evidence), "--evidence", str(evidence)
+        )
+        index = json.loads((self.state_dir(task_id) / "evidence-index.json").read_text(encoding="utf-8"))
+        fingerprints = [item["source_fingerprint"] for item in index["evidence"]]
+        self.assertEqual(len(fingerprints), len(set(fingerprints)))
+
+    # ---------- V2 矩阵：归档完整性 ----------
+    def test_v173_matrix_archive_integrity_after_extension(self) -> None:
+        task_id = self.admit_review_task()
+        created_at = self.read_package(task_id)["created_at"]
+        self.write_file("src/core.py")
+        self.write_file("src/extra1.py")
+        evidence = self.evidence(
+            "matrix-archive", evidence_type="test_result", covers=task_id,
+            changed_paths=["src/core.py", "src/extra1.py"],
+        )
+        _, pending = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=3
+        )
+        self.assertTrue(pending["scope_extended"])
+        history = self.state_dir(task_id) / "package-history"
+        self.assertTrue((history / "task-package.v1.json").is_file())
+        self.assertTrue((history / "freeze.v1.json").is_file())
+        self.assertTrue((history / "contract-delta.v1.json").is_file())
+        after = self.read_package(task_id)
+        self.assertEqual(after["created_at"], created_at)
+        self.assertEqual(after["package_revision"], 2)
+
+    # ---------- V2 矩阵：候选包覆写注入失败关闭 ----------
+    def test_v173_matrix_corrupted_candidate_fails_closed(self) -> None:
+        task_id = self.admit_review_task()
+        package = self.read_package(task_id)
+        state = self.state_dir(task_id)
+        compiled = json.loads((state / "compiled-task.json").read_text(encoding="utf-8"))
+        freeze = json.loads((state / "freeze.json").read_text(encoding="utf-8"))
+        original_build = HARNESS_MODULE.build_package
+
+        def overwritten_build(*args, **kwargs):
+            candidate, blockers = original_build(*args, **kwargs)
+            candidate["write_scope"] = [path for path in candidate["write_scope"] if path != "src/extra.py"]
+            return candidate, blockers
+
+        fingerprint_before = HARNESS_MODULE.package_fingerprint(package)
+        with mock.patch.object(HARNESS_MODULE, "build_package", side_effect=overwritten_build):
+            result = HARNESS_MODULE.incrementally_extend_write_scope(
+                state, self.project, package, compiled, freeze, ["src/extra.py"], [], []
+            )
+        self.assertIsNone(result)
+        self.assertEqual(HARNESS_MODULE.package_fingerprint(self.read_package(task_id)), fingerprint_before)
 
 
 if __name__ == "__main__":

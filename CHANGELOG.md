@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.7.4 - 2026-08-08
+
+- `validate_scope` 增加多路径拼接检测：条目含 `;` `,` `|` `\t` 或连续空格时拒绝并返回 `invalid_scope_concatenated`（附 `suggested_fix`），防止用分隔符拼接的多路径字符串静默进入 `allowed_scope` 导致准入死循环。覆盖 `--scope` CLI 和方案 `执行范围` 两条注入路径。
+- `plan_scope_mismatch` 报错 payload 新增 `scope_diff`（`only_in_task` / `only_in_plan` 两个有序列表），将范围不一致的诊断成本从手动比对降为直接读 diff。
+- 新增 `test_v173_scope_rejects_semicolon_concatenated` 和 `test_v173_scope_rejects_comma_concatenated` 两个合同测试。
+
+## 1.7.3 - 2026-08-07
+
+- 验收循环五原因码全治理（ZBuddy 08-06/08-07 质量账本驱动：verify 平均 2.0 轮、一次通过率仅约 28%，非完成原因 `missing_evidence_types` 18、`write_scope_violation` 17、`stale_evidence` 5、`missing_receipts` 4、`concurrent_drift_overlap` 4）：
+- write_scope 严格超集增量扩展：合同稳定、唯一阻断为 `write_scope_violation`、无新 Gate、`direct|planned` 路线、无授权要求、非 `git_sync` 时，verify 在同一次调用内以 `write_scope = 原范围 ∪ 越界路径` 重编译任务包（除 scope 外 `STABLE_FIELDS_MINUS_SCOPE` 稳定字段逐字段一致、blockers 为空、`matched_gates` 不新增、planned 额外要求 `plan_fields` 不变，候选 scope 覆盖并集硬断言兜底），`package_revision + 1` 保留 `created_at` 写 `recompiled_at`，既有索引收据与本轮证据按新指纹重绑（`adoption_reason="scope_superset_extension"` 全审计字段，按 source_fingerprint 替换不双写），写 `scope_extension_readmission` 事件后继续同轮证据评估，响应携带 `scope_extended`/`extended_paths`。单任务上限 3 次（事件扫描计数跨包持久），超限 exit 4 `scope_extension_limit_exceeded`；任一前置不满足失败关闭回退全量重准入（授权任务扩围必改授权合同指纹，一律走重准入，无授权绕过）。
+- 证据清单前置：准入三处响应（首次 run、二次 run ready、`task status`）携带 `evidence_checklist` 四段（`required`/`conditional`/`required_receipts` 含 `write_set` 条件性标注/`skeletons`，三处均受 `completion_manifest_valid` 守卫）；证据骨架准入时经 `ensure_evidence_skeletons` 统一预生成（含 `_instructions` 填写说明），verify 缺证路径与准入共用同一批骨架。同三处响应携带 `pending_context_receipts` 待加载上下文阶段与工作包（`work_package:<id>`）状态位，消灭 `action_context_missing`。失败即前置：`action_context_missing` 与缺证（exit 3）失败载荷自身携带 `pending_context_receipts` 与完整 `evidence_checklist`（骨架与清单同批），宿主未照准入指引执行时照失败载荷补齐即过，不依赖指令遵守。
+- 越界重准入提示：verify 因 `write_scope_violation` 走全量重准入时响应携带 `readmission_hint`（`facts_template` 只含 `write_scope` 并集 + 可执行 `example_argv`），宿主一次重准入即过。
+- `task changes-preview`：新增恒只读 action（无 `--apply`），以冻结基线对当前工作区纯函数 diff，返回 `changed_paths`/`in_scope`/`outside_scope`/`read_set_drift`，与 verify 时刻归因同源，执行前后任务 state 目录逐字节一致；`stale_evidence` 硬错误载荷新增 `stale_write_paths` 与 `actual_changed_paths` 双清单，把基线漂移压到零试探。
+- `concurrent_drift_overlap` 双选项 `readmission_hint`：收窄 scope 剔除重叠路径（同时给出剔除后的 `write_scope` 与受影响时的 `read_scope`；重叠来自证据 read_set 时只能选后项），或等并发落定后不带 scope 变更全量重准入；该码只保证失败后一次重准入即过，不承诺首轮必过（唯一无确定性承诺的码，如实声明）。
+- 外部审查（kimi CLI，报告 `docs/reviews/v1.7.3-verify-loop-fix-kimi-code-review.md`）发现修复：扩围前对同轮 supplied 证据先执行与常规 verify 同一标准的 `write_set ⊆ 实际变化路径` 硬校验（虚报失败关闭抛 `stale_evidence`、不扩围），扩展函数对 supplied 来源收据补齐受管 artifact 审计字段；`pending_context_receipts` 覆盖工作包（`work_package:<id>`）；concurrent 选项 1 补 `read_scope` 剔除；行尾宽容指纹修复 1MiB chunk 边界 CRLF 归一化；`task changes-preview` 对 legacy v1 任务与缺 `workspace_snapshot` 基线结构化失败关闭；`first_run_payload` 补 `completion_manifest_valid` 守卫，三处清单置位防护一致。
+- 验收层环境宽容修复：验证命令缺失（`FileNotFoundError`）不再崩溃，失败关闭为 failed 收据 + `verification_command_unavailable` 原因码；`core.autocrlf` 等行尾转换不再触发安装副本 script_drift 红线（行尾宽容指纹）；`release sync --apply` 目标非普通文件时以 `release_write_failed` 整体拒绝，无部分写入。
+- 全量测试 455 项无豁免全绿（含 V4 修复的 `test_cross_platform_task_detection`、`test_authorization_template_command` 等历史失败）；新增 30 个 `test_v173_*` 合同测试（T1–T23 + V1 回放复现 + V2 失败关闭矩阵，T19–T23 为外部审查发现修复的回归守护）；V3 影子验收脚本 `docs/plans/v1.7.3-v3-shadow-acceptance.py` 安装副本全链路 25 项断言通过；最小宿主流程验证脚本 `docs/plans/v1.7.3-minimal-host-flow-verify.py` 15 项断言通过（实证：前置清单 + declaration 实时铸证一次过 verify，声明绑定 verify 时代铸、铸后再改同路径不致 stale，write_set 虚报被 stale_evidence 精确拦下，扩展轮同一标准）。预期效果：平均 verify 轮次 2.0 → ~1.2，一次通过率 28% → ~70%，实际以 ZBuddy 升级后账本复核。
+
 ## 1.7.2 - 2026-08-07
 
 - 后台治理合并快路径（声明制，不跳过任何既有校验闸门）：`background dispatch --job-status running --prepare-and-run` 单命令内顺序执行 prepare → contract_ready→dispatched 校验 → dispatched→running 校验（工件校验、绑定、attempt、工作包全集、指纹、路由合同复验原样保留），任一闸门失败停在该步并返回与分步执行相同的出口（prepare 闸门相同错误码；dispatch 闸门相同 `next_action`/`reason_code`，附加 `prepare_and_run` 与 `completed_steps`）；已 prepared 且指纹一致时复用 `already_prepared` 幂等语义跳过 prepare。资格限制：仅 `execution_route == "background_goal"` 且估算为 `change_scoped`、`raw_score < 60` 的 Job 可用，phased/oversized/direct/非 change_scoped/分数 ≥60 统一以 exit 3 `background_prepare_and_run_not_eligible` + 精确 `eligibility_reason_code`（`route_phased_oversized`/`route_not_complex_goal`/`workload_estimate_unavailable`/`estimate_not_change_scoped`/`score_not_below_60`）拒绝并记录 `transition_rejected` 事件。

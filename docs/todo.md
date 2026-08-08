@@ -2,12 +2,13 @@
 
 ## v1.7.3 验收循环修复：五原因码全治理
 
-- 状态：方案已定稿（经 Kimi CLI 两轮源码级交叉评审，12 条修正设计全部采纳），待实施。
+- 状态：已完成源码实施与测试，文档与 evals 已同步。
 - 方案：[v1.7.3 验收循环修复方案](plans/v1.7.3-verify-loop-fix-plan.md)
 - 背景：ZBuddy v1.7.2 真实运行数据（08-07）显示 verify 平均 2.0 轮、一次通过率仅约 28%，五类非完成原因（`missing_evidence_types` 18、`write_scope_violation` 17、`stale_evidence` 5、`missing_receipts` 4、`concurrent_drift_overlap` 4）全部纳入治理。
-- 目标（分级承诺）：A. verify 内 write_scope 严格超集增量扩展（纯越界、合同稳定、无新 Gate、无授权约束、非 extended、非 git_sync、上限 3 次、candidate scope 硬断言，失败关闭回退现行为）；B. 三处响应携带 evidence_checklist 四段并预生成骨架（消灭 missing_evidence_types/missing_receipts）；C. 越界全量重准入携带精确扩围 facts 模板；D. `task changes-preview` 只读 action + stale_evidence 精确载荷；E. concurrent_drift_overlap 双选项重准入提示（只保证失败后一次重准入即过）；F. pending_context_receipts 状态位前置。
+- 结果：A. `incrementally_extend_write_scope`：合同稳定、纯越界、无新 Gate、direct/planned、无授权、非 git_sync、上限 3 次（事件扫描计数）时 verify 同一次调用内以 write_scope 严格超集重编译任务包（`STABLE_FIELDS_MINUS_SCOPE` 逐字段一致 + 候选 scope 覆盖并集硬断言），证据按新指纹重绑（`scope_superset_extension` 全审计字段），写 `scope_extension_readmission` 事件，响应含 `scope_extended`/`extended_paths`；任一前置不满足失败关闭回退全量重准入。B. 准入三处响应携带 `evidence_checklist` 四段与 `ensure_evidence_skeletons` 预生成骨架（含 `_instructions`），消灭 missing_evidence_types/missing_receipts 首轮必现。C. 越界全量重准入携带 `readmission_hint`（facts_template 只含 write_scope + example_argv）。D. `task changes-preview` 只读 action（零状态变更，state 目录逐字节一致）+ stale_evidence 双清单载荷。E. concurrent_drift_overlap 双选项 readmission_hint（只保证失败后一次重准入即过）。F. 三处响应 `pending_context_receipts` 状态位前置。附带环境宽容修复：验证命令缺失失败关闭（`verification_command_unavailable`）不崩溃、autocrlf 行尾宽容指纹不触发 script_drift、release sync 目标非文件整体拒绝。
+- 验收摘要：新增 30 个 `test_v173_*` 测试（T1–T23 合同 + V1 回放复现 + V2 失败关闭矩阵，T19–T23 为外部审查发现修复的回归守护）全部通过；V4 修复全部历史失败后全量 455 项**无豁免全绿**；V3 影子验收脚本 [v1.7.3-v3-shadow-acceptance.py](plans/v1.7.3-v3-shadow-acceptance.py) 安装副本全链路 25 项断言通过（含 changes-preview 前后 state 逐字节一致）；V5 evals 新增五原因码用例；版本升 1.7.3，以自身 `release sync --apply --target-version 1.7.3` 自举完成四源同步。V6 自托管门禁闭环（任务 `dh-20260807T234649-c9ff62760f`）：准入响应实际携带 evidence_checklist 四段与 pending_context_receipts；越界写入（`tests/test_release_version_sync.py` + `package.json` 登记）经 `task changes-preview` 零试探检出（state 目录逐字节不变）；verify 一次调用内增量扩围并完成（`scope_extended`/`extended_paths` 真实命中），新增发版门禁回归测试守护四源与 evals 版本一致；self-test、release sync 检查模式、`npm run pack:check` 全部通过。V7 外部审查闭环：claude code 卡住后按预案切 kimi CLI 审查（报告 [v1.7.3-verify-loop-fix-kimi-code-review.md](reviews/v1.7.3-verify-loop-fix-kimi-code-review.md)，无 P0），4 个 P1 + 选定 P2 全部修复并补回归守护：扩围前 supplied 证据 write_set 硬校验与 artifact 审计补齐、pending_context_receipts 覆盖工作包、concurrent 选项 1 补 read_scope 剔除、行尾宽容指纹 1MiB chunk 边界 CRLF 修正、changes-preview legacy/缺基线防护与 first_run_payload manifest 守卫一致。
 - 安全边界：不改 Gate/授权/证据装订语义；授权任务扩围必然改变授权合同指纹强制全量重准入；changes-preview 零状态变更；不自动提交推送 git。
-- 下一步：按方案合并必改清单 10 步实施（先写 T1–T17 失败测试），版本升 1.7.3 自举发布，ZBuddy 升级后用账本数据复核轮次目标（平均 verify 轮次 2.0 → ~1.2，一次通过率 28% → ~70%）。
+- 下一步：ZBuddy 升级 v1.7.3 后用账本数据复核轮次目标（平均 verify 轮次 2.0 → ~1.2，一次通过率 28% → ~70%）；`concurrent_drift_overlap` 受环境制约不计入承诺。
 
 ## v1.7.2 后台治理合并快路径
 

@@ -2,7 +2,7 @@
 name: docs-harness
 description: "通过独立控制器完成 Gate、任务包、降级知识上下文、主任务验收和异步文档治理。"
 metadata:
-  version: 1.7.2
+  version: 1.7.4
   status: active
 ---
 
@@ -62,6 +62,8 @@ v1.6.9 准入效率加固：scope 值形似 JSON（数组/对象整体作为单�
 v1.7.0 低风险轻量准入：低风险文档/规则/测试类小任务可在 `--facts` 显式声明 `fast_track: true`（声明制，不做自动推断）；仅在 direct 路线、无 high gate、write_scope 全为文档/规则/测试路径、无 `work_packages` 时生效，否则静默降级普通流程并返回 `fast_track_denied_reason`。生效后响应携带 `evidence_profile: "fast_track"`，所需证据收敛为 `code_diff`（声明验证命令时加 `test_run`）最小集；fast_track 不豁免任何 Gate，运行期命中新风险 Gate 或高风险漂移即单向降级回普通证据集（`fast_track_downgraded`）。fast_track 任务可用 `inline_note`（≤200 字）替代独立 plan 文档，非 fast_track 携带会返回 `inline_note_ignored`。`task status` 新增 `overhead_summary`（`harness_total_ms`/`wall_clock_ms`/`harness_share`），可复算 harness 自身开销占比。
 
 v1.7.1 发版同步与验收提效：`release sync` 单命令核对四处版本真源（VERSION 文件、package.json、SKILL.md frontmatter、`scripts/harness.py` 的 `VERSION` 常量），检查模式输出差异报告（exit 0/2/1），`--apply` 以 `VERSION` 常量为唯一真源原子写入三处受管文件（任一失败整体回滚），`--target-version` 冲突失败关闭（`release_version_conflict`）；CHANGELOG 顶部条目仅提示不自动生成。验收层间按（路径, 清单/内容摘要, 合同版本, target_identity）键复用工作区快照与文件 SHA-256 中间产物（单次 CLI 会话内进程级缓存），verify 响应新增 `layer_reuse` 计数遥测；四层验收判定结论保持独立，fresh clone 与远端网络 I/O 不跳过。
+
+v1.7.3 验收循环提效：准入三处响应（首次 run、二次 run、`task status`）携带 `evidence_checklist`（required/conditional/required_receipts/skeletons，含 write_set 条件性标注）与预生成证据骨架（含 `_instructions` 填写说明），verify 前按清单一次备齐即可消除缺证往返；同三处响应携带 `pending_context_receipts`，执行前自查未加载的上下文阶段与工作包（`work_package:<id>`）。无授权、非 git_sync 的 direct/planned 任务纯越界写入（唯一阻断为 `write_scope_violation`）由 verify 在同一次调用内增量扩展 write_scope 并继续验收（响应含 `scope_extended`/`extended_paths`，单任务上限 3 次；扩围前同轮证据先过与常规 verify 同一标准的 stale_evidence 硬校验，虚报不扩围）；授权任务、git_sync、混合阻断或超限时 exit 4 并携带 `readmission_hint`（精确扩围 `facts_template` + 可执行 `example_argv`），一次重准入即过。`concurrent_drift_overlap` 的 hint 给出收窄 scope（同时剔除 write_scope 与受影响时的 read_scope）与等并发落定重准入两个选项（重叠来自证据 read_set 时只能选后者；只保证失败后一次重准入即过）。verify 前可用恒只读的 `task changes-preview --task-id <id>` 预览 in_scope/outside_scope/read_set_drift（零状态变更），避免 stale_evidence 试探；stale_evidence 错误载荷含 `stale_write_paths`/`actual_changed_paths` 双清单。推荐备证流程：准入读 `evidence_checklist` 知道备什么 → 执行中按清单随手铸 `docs-harness/evidence-declaration/v1` 草案（绑定字段在 verify 时刻代铸，铸证后再改同路径不致 stale，write_set 照实写即可）→ verify 一次提交全齐。宿主未照准入指引执行时仍有兜底：`action_context_missing` 与缺证的 exit 3 失败载荷自身携带 `pending_context_receipts` 与完整 `evidence_checklist`（骨架与清单同批），照失败载荷补齐即过，不依赖指令遵守。
 
 ## 后台治理
 
