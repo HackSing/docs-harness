@@ -92,6 +92,11 @@ KNOWLEDGE_ROOT_RELATIVE = "docs"
 KNOWLEDGE_MAP_RELATIVE = "docs/knowledge-map.json"
 # 外部只消费知识源：项目存在该目录时，harness 不初始化/更新知识库，仅消费其文档。
 REPOWIKI_RELATIVE = ".qoder/repowiki"
+REPOWIKI_ARCHITECTURE_INSTRUCTION = (
+    "了解项目架构和模块知识时，优先阅读 "
+    "`.qoder/repowiki/zh/content/` 下的 Wiki 文档和 "
+    "`.qoder/repowiki/knowledge/zh/` 下的知识卡片。"
+)
 REPOWIKI_CARD_LIMIT = 1000
 KNOWLEDGE_CATEGORIES = ("product", "development", "testing", "design")
 FALLBACK_SNAPSHOT_FILE_LIMIT = 4096
@@ -243,7 +248,7 @@ SCOPE_DESCRIPTION_MARKERS = (
     "只进行",
     "不要修改",
 )
-TRUSTED_EVIDENCE_PRODUCERS = {
+RECOGNIZED_EVIDENCE_PRODUCERS = {
     ("docs-harness", "git_postcheck"),
     ("docs-harness", "verification_command"),
     ("docs-harness", "auto_attribution"),
@@ -252,6 +257,11 @@ TRUSTED_EVIDENCE_PRODUCERS = {
     ("codex-host", "command_receipt"),
     ("codex-host", "review_receipt"),
     ("independent-reviewer", "review_receipt"),
+}
+CONTROLLER_VERIFIED_PRODUCERS = {
+    ("docs-harness", "git_postcheck"),
+    ("docs-harness", "verification_command"),
+    ("docs-harness", "auto_attribution"),
 }
 HIGH_RISK_EVIDENCE_TYPES = {
     "security_acceptance",
@@ -1418,6 +1428,42 @@ def project_config(target: Path) -> dict[str, Any] | None:
     return value if isinstance(value, dict) else None
 
 
+def configured_gate_path_rules(target: Path) -> list[dict[str, Any]]:
+    """读取项目显式声明的路径 Gate 映射；控制器不从路径名称猜测风险语义。"""
+    config = project_config(target) or {}
+    raw = config.get("gate_path_rules", [])
+    if not isinstance(raw, list):
+        raise HarnessError("gate_path_rules 必须是数组", code="invalid_project_config")
+    rules: list[dict[str, Any]] = []
+    for index, item in enumerate(raw):
+        if not isinstance(item, dict):
+            raise HarnessError(f"gate_path_rules[{index}] 必须是对象", code="invalid_project_config")
+        pattern = item.get("pattern")
+        if not isinstance(pattern, str):
+            raise HarnessError(f"gate_path_rules[{index}].pattern 必须是字符串", code="invalid_project_config")
+        normalized_pattern = validate_scope([pattern], field=f"gate_path_rules[{index}].pattern")[0]
+        gates = normalize_string_list(item.get("gates"), f"gate_path_rules[{index}].gates")
+        unknown = set(gates) - set(GATE_DEFS)
+        if unknown or not gates:
+            raise HarnessError(f"gate_path_rules[{index}].gates 无效", code="invalid_project_config")
+        rules.append({"pattern": normalized_pattern, "gates": gates})
+    return rules
+
+
+def gates_for_paths(
+    target: Path,
+    paths: Sequence[str],
+    *,
+    mutation_profile: str = "workspace_write",
+) -> list[str]:
+    structural = infer_gates_from_paths(paths, mutation_profile=mutation_profile)
+    configured: set[str] = set()
+    for rule in configured_gate_path_rules(target):
+        if any(scope_covers(path, [rule["pattern"]]) for path in paths):
+            configured.update(rule["gates"])
+    return [gate for gate in GATE_ORDER if gate in set(structural) | configured]
+
+
 def document_route_config(target: Path) -> tuple[dict[str, str], list[dict[str, Any]]]:
     """读取并完整校验显式文档路由；配置存在但非法时绝不回退。"""
     config = project_config(target) or {}
@@ -1758,6 +1804,52 @@ def repowiki_knowledge_root(target: Path) -> Path | None:
     return None
 
 
+def repowiki_context_guidance(target: Path) -> dict[str, Any]:
+    """目标项目存在 .qoder/repowiki 时，给宿主明确的架构/模块知识阅读顺序。"""
+    if not (target / REPOWIKI_RELATIVE).is_dir():
+        return {}
+    return {
+        "repowiki_detected": True,
+        "instructions": [REPOWIKI_ARCHITECTURE_INSTRUCTION],
+        "preferred_read_roots": [
+            ".qoder/repowiki/zh/content/",
+            ".qoder/repowiki/knowledge/zh/",
+        ],
+    }
+
+
+def attach_repowiki_context_guidance(target: Path, knowledge_context: dict[str, Any]) -> dict[str, Any]:
+    guidance = repowiki_context_guidance(target)
+    if not guidance:
+        return knowledge_context
+    merged = dict(knowledge_context)
+    existing_instructions = merged.get("instructions", [])
+    instructions = [
+        item
+        for item in existing_instructions
+        if isinstance(item, str) and item.strip()
+    ] if isinstance(existing_instructions, list) else []
+    for instruction in guidance["instructions"]:
+        if instruction not in instructions:
+            instructions.append(instruction)
+    merged.update(
+        {
+            "repowiki_detected": guidance["repowiki_detected"],
+            "preferred_read_roots": guidance["preferred_read_roots"],
+            "instructions": instructions,
+        }
+    )
+    return merged
+
+
+def package_context_instructions(package: dict[str, Any]) -> list[str]:
+    context = package.get("knowledge_context", {})
+    if not isinstance(context, dict):
+        return []
+    raw = context.get("instructions", [])
+    return [item for item in raw if isinstance(item, str) and item.strip()] if isinstance(raw, list) else []
+
+
 def parse_repowiki_frontmatter(path: Path) -> dict[str, Any]:
     """定向解析知识卡 frontmatter 的标量与列表字段（纯标准库，仅支持机器生成的简单形态）。"""
     try:
@@ -1881,6 +1973,7 @@ def knowledge_status(target: Path) -> dict[str, Any]:
             "truncated": truncated,
             "gaps": [],
             "knowledge_root": REPOWIKI_RELATIVE,
+            "context_instructions": [REPOWIKI_ARCHITECTURE_INSTRUCTION],
         }
     docs = target / KNOWLEDGE_ROOT_RELATIVE
     if not docs.is_dir():
@@ -1930,6 +2023,7 @@ def knowledge_handoff(target: Path, operation: str, docs_preexisted: bool) -> di
             "knowledge_next_action": "none",
             "knowledge_next_command_argv": [],
             "assessment_artifact_ref": str(knowledge_runtime_root(target) / "assessment.json"),
+            "context_instructions": [REPOWIKI_ARCHITECTURE_INSTRUCTION],
         }
     active = active_knowledge_bootstrap(target)
     current = str(status.get("status"))
@@ -2343,7 +2437,7 @@ def install_delivery_status(target: Path, relative_paths: Sequence[str]) -> dict
         if relative == "AGENTS.md":
             text = blob.decode("utf-8", errors="replace")
             expected = replace_managed_block(
-                text, MANAGED_BEGIN, MANAGED_END, managed_agent_block()
+                text, MANAGED_BEGIN, MANAGED_END, managed_agent_block(target)
             )
             if text != expected:
                 pending.append(relative)
@@ -2527,12 +2621,64 @@ def delivery_requirement_matches(text: str, pattern: re.Pattern[str]) -> bool:
     return False
 
 
+def parse_intent_assessment(facts: dict[str, Any]) -> tuple[list[str], str] | None:
+    """解析宿主权威意图声明；自然语言分类不能覆盖这份声明。"""
+    raw = facts.get("intent_assessment")
+    if raw is None:
+        return None
+    if not isinstance(raw, dict):
+        raise HarnessError("intent_assessment 必须是 JSON 对象", code="invalid_intent_assessment")
+    intents = normalize_string_list(raw.get("intents"), "intent_assessment.intents")
+    if not intents:
+        raise HarnessError("intent_assessment.intents 不能为空", code="invalid_intent_assessment")
+    unknown = set(intents) - set(TASK_INTENTS)
+    if unknown:
+        raise HarnessError(f"未知任务意图：{', '.join(sorted(unknown))}", code="invalid_task_intent")
+    rationale = raw.get("rationale")
+    if not isinstance(rationale, str) or not rationale.strip() or len(rationale) > 500:
+        raise HarnessError("intent_assessment.rationale 必须是 500 字符内的非空字符串", code="invalid_intent_assessment")
+    return list(dict.fromkeys(intents)), rationale.strip()
+
+
 def classify_task_intents(
     task: str,
     facts: dict[str, Any],
     *,
     has_declared_scope: bool,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
+    assessment = parse_intent_assessment(facts)
+    if assessment is not None:
+        intents, _rationale = assessment
+        return (
+            [{"intent": intent, "mutation_profile": INTENT_MUTATION[intent]} for intent in intents],
+            [],
+            ["host_declared_intent"],
+        )
+
+    # 兼容既有显式字段：一旦宿主声明，文本启发式不得再增补或覆盖。
+    legacy_explicit: list[str] = []
+    explicit_candidates = facts.get("candidate_intents")
+    if explicit_candidates is not None:
+        if not isinstance(explicit_candidates, list):
+            raise HarnessError("candidate_intents 必须是数组", code="invalid_task_intent")
+        for item in explicit_candidates:
+            intent = item.get("intent") if isinstance(item, dict) else item
+            if not isinstance(intent, str) or intent not in TASK_INTENTS:
+                raise HarnessError(f"未知任务意图：{intent}", code="invalid_task_intent")
+            legacy_explicit.append(intent)
+    primary = facts.get("task_intent")
+    if primary is not None:
+        if not isinstance(primary, str) or primary not in TASK_INTENTS:
+            raise HarnessError(f"未知任务意图：{primary}", code="invalid_task_intent")
+        legacy_explicit.insert(0, primary)
+    if legacy_explicit:
+        unique = list(dict.fromkeys(legacy_explicit))
+        return (
+            [{"intent": intent, "mutation_profile": INTENT_MUTATION[intent]} for intent in unique],
+            [],
+            ["explicit_intent_authoritative"],
+        )
+
     lowered = task.casefold()
     detected: list[tuple[int, str]] = []
     deferred: list[tuple[int, str]] = []
@@ -2576,23 +2722,7 @@ def classify_task_intents(
     if read_only_question and not explicit_followup_write:
         detected = [item for item in detected if item[1] != "modify"]
 
-    explicit_candidates = facts.get("candidate_intents")
-    explicit: list[str] = []
-    if explicit_candidates is not None:
-        if not isinstance(explicit_candidates, list):
-            raise HarnessError("candidate_intents 必须是数组", code="invalid_task_intent")
-        for item in explicit_candidates:
-            intent = item.get("intent") if isinstance(item, dict) else item
-            if not isinstance(intent, str) or intent not in TASK_INTENTS:
-                raise HarnessError(f"未知任务意图：{intent}", code="invalid_task_intent")
-            explicit.append(intent)
-    primary = facts.get("task_intent")
-    if primary is not None:
-        if not isinstance(primary, str) or primary not in TASK_INTENTS:
-            raise HarnessError(f"未知任务意图：{primary}", code="invalid_task_intent")
-        explicit.insert(0, primary)
-
-    ordered = explicit + [intent for _, intent in sorted(detected)]
+    ordered = [intent for _, intent in sorted(detected)]
     if not ordered:
         ordered = ["modify" if has_declared_scope else "query"]
     unique = list(dict.fromkeys(ordered))
@@ -2629,6 +2759,7 @@ def infer_gates(task: str, declared: Sequence[str] = (), *, mutation_profile: st
 
 
 def infer_gates_from_paths(paths: Sequence[str], *, mutation_profile: str = "workspace_write") -> list[str]:
+    """只从可机器复核的文件类型推导结构 Gate，不再用路径名称猜测安全或架构语义。"""
     gates: set[str] = set()
     for path in paths:
         lowered = path.casefold().replace("\\", "/")
@@ -2638,13 +2769,6 @@ def infer_gates_from_paths(paths: Sequence[str], *, mutation_profile: str = "wor
         filename = parts[-1] if parts else ""
         if mutation_profile in {"workspace_write", "external_write"} and (lowered.endswith(".md") or lowered.startswith("docs/") or lowered in {"agents.md", "claude.md"}):
             gates.add("document-edit")
-        if mutation_profile in {"workspace_write", "external_write"}:
-            if ({"security", "auth", "secret", "permission"} & (set(parts) | stems)):
-                gates.add("security-sensitive")
-            if ({"api", "schema", "migration", "database"} & (set(parts) | stems)):
-                gates.add("architecture-contract")
-            if suffix in {".tsx", ".jsx", ".css", ".scss", ".swift"} or {"ui", "views", "components"} & set(parts):
-                gates.add("frontend-design")
         if mutation_profile in {"workspace_write", "external_write"} and suffix in {".py", ".js", ".ts", ".go", ".rs", ".swift", ".java", ".kt"}:
             gates.add("code-edit")
         if mutation_profile in {"workspace_write", "external_write"} and (
@@ -2991,6 +3115,9 @@ def ensure_evidence_skeletons(state: Path, evidence_types: Sequence[str]) -> lis
     templates_dir = state / "templates"
     templates_dir.mkdir(exist_ok=True)
     for etype in evidence_types:
+        if etype in HIGH_RISK_EVIDENCE_TYPES:
+            # 高风险证据不能由宿主声明草案自证，只能来自控制器受控验证入口。
+            continue
         skeleton = {
             "schema_version": EVIDENCE_DECLARATION_SCHEMA,
             "type": etype,
@@ -2998,7 +3125,7 @@ def ensure_evidence_skeletons(state: Path, evidence_types: Sequence[str]) -> lis
             "read_set": [],
             "concurrent_drift": [],
             "conclusion": "",
-            "_instructions": "填充 write_set/read_set/concurrent_drift/conclusion 后提交；write_set 只写 git status/diff 中实际变化的路径，不要写入未变化路径",
+            "_instructions": "填充 write_set/read_set/conclusion 后提交；该声明属于 reported 语义判断，不会升级为 verified；concurrent_drift 只能由控制器可信入口证明",
         }
         skeleton_path = evidence_skeleton_path(state, etype)
         atomic_write_json(skeleton_path, skeleton)
@@ -3020,7 +3147,21 @@ def evidence_checklist_payload(state: Path, package: dict[str, Any]) -> dict[str
             }
             for name in manifest.get("required_receipts", [])
         ],
-        "skeletons": [str(evidence_skeleton_path(state, etype)) for etype in required],
+        "trust_requirements": [
+            {
+                "evidence_type": etype,
+                "minimum_trust": "controller_verified",
+                "accepted_ingress": ["verification_command"],
+                "condition": "宿主 declaration 或外部 JSON 只能是 reported，不能满足该类型",
+            }
+            for etype in required
+            if etype in HIGH_RISK_EVIDENCE_TYPES
+        ],
+        "skeletons": [
+            str(evidence_skeleton_path(state, etype))
+            for etype in required
+            if etype not in HIGH_RISK_EVIDENCE_TYPES
+        ],
     }
 
 
@@ -3142,6 +3283,7 @@ def fast_track_scope_doc_like(write_scope: Sequence[str], mutation_profile: str,
 def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.Namespace, task_id: str) -> tuple[dict[str, Any], list[str]]:
     declared_gates = normalize_string_list(facts.get("gates"), "gates")
     gate_assessment = parse_gate_assessment(facts)
+    intent_assessment = parse_intent_assessment(facts)
     work_packages = normalize_work_packages(facts.get("work_packages"))
     fast_track_declared = facts.get("fast_track", False)
     if not isinstance(fast_track_declared, bool):
@@ -3168,7 +3310,7 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         facts,
         has_declared_scope=has_declared_scope,
     )
-    task_intent = str(facts.get("task_intent") or candidate_intents[0]["intent"])
+    task_intent = str(candidate_intents[0]["intent"])
     mutation_profile = compile_mutation_profile(candidate_intents, facts.get("mutation_profile"))
     requested_actions = normalize_string_list(facts.get("allowed_actions"), "allowed_actions") + list(cli.action or [])
     if any(action == "external_write" for action in requested_actions):
@@ -3226,7 +3368,11 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
             git_preflight_blockers.append("手工 write_scope 与 Git 预检变化清单不一致")
         write_scope = validate_scope(git_sync_scope, field="write_scope")
     scope = write_scope if write_scope else read_scope
-    path_gates = infer_gates_from_paths(expand_scope_paths_for_inference([*read_scope, *write_scope], target), mutation_profile=mutation_profile)
+    path_gates = gates_for_paths(
+        target,
+        expand_scope_paths_for_inference([*read_scope, *write_scope], target),
+        mutation_profile=mutation_profile,
+    )
     if gate_assessment is not None:
         assessment_gates, assessment_rationale = gate_assessment
         gates = [
@@ -3312,10 +3458,13 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         knowledge_context = {"status": "legacy", "selected_features": [], "category_refs": {}, "shared_refs": []}
         knowledge_blockers = []
         fact_refs = required_fact_refs(gates, declared_refs)
+    knowledge_context = attach_repowiki_context_guidance(target, knowledge_context)
     missing_facts = [ref for ref in fact_refs if not meaningful_project_fact(target, ref)]
 
     auth_requirements: list[str] = normalize_string_list(facts.get("authorization_requirements"), "authorization_requirements")
     semantic_evidence = normalize_string_list(facts.get("semantic_evidence_requirements"), "semantic_evidence_requirements")
+    if mutation_profile == "external_write":
+        semantic_evidence.append("external_state")
     fc_features: list[dict[str, Any]] = []
     if mutation_profile in {"workspace_write", "external_write"}:
         fc_features = resolve_functional_confirmation(target, knowledge_context, write_scope)
@@ -3355,6 +3504,10 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
     )
     for rule in matched_rules:
         semantic_evidence.extend(rule["evidence_types"])
+    # 归因收据只能证明“写过什么”，不能证明“结果是否正确”。
+    # 如果 Gate、规则、意图和显式合同都没有提供语义验收项，写任务至少要有一份 change_review。
+    if mutation_profile in {"workspace_write", "external_write"} and not semantic_evidence:
+        semantic_evidence.append("change_review")
     plan_fields, plan_skeleton = compile_plan_contract(
         gates,
         matched_rules,
@@ -3373,8 +3526,8 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
     evidence_profile = "fast_track" if fast_track else "standard"
     manifest_evidence = semantic_evidence
     if fast_track:
-        # 最小证据集：code_diff + 声明了验证命令时的 test_run；语义规则累加不叠加。
-        manifest_evidence = ["code_diff"] + (["test_run"] if verification_commands else [])
+        # 轻量路线仍必须把事实差异与语义审查分开；自动归因不能替代 change_review。
+        manifest_evidence = ["code_diff", "change_review"] + (["test_run"] if verification_commands else [])
     completion_manifest = build_completion_manifest(
         task_intent=task_intent,
         mutation_profile=mutation_profile,
@@ -3385,6 +3538,11 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
     )
 
     blockers = list(rule_errors) + knowledge_blockers + git_preflight_blockers
+    intent_declared = intent_assessment is not None or facts.get("task_intent") is not None or facts.get("candidate_intents") is not None
+    if mutation_profile in {"workspace_write", "external_write"} and not intent_declared:
+        blockers.append("写任务缺少 intent_assessment；自然语言关键词不能授予写权限")
+    if mutation_profile in {"workspace_write", "external_write"} and gate_assessment is None:
+        blockers.append("写任务缺少 gate_assessment；路径推断不能替代语义 Gate 声明")
     if missing_facts:
         blockers.append("缺少必要项目事实：" + ", ".join(missing_facts))
     context_schedule: dict[str, Any] = {
@@ -3411,6 +3569,18 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         "task_type": str(facts.get("task_type") or (gates[0] if gates else "general")),
         "task_intent": task_intent,
         "candidate_intents": candidate_intents,
+        "intent_assessment": (
+            {"intents": intent_assessment[0], "rationale": intent_assessment[1]}
+            if intent_assessment is not None
+            else None
+        ),
+        "intent_decision": {
+            "mode": "host_declared" if intent_assessment is not None else (
+                "legacy_explicit" if intent_declared else "heuristic_advisory"
+            ),
+            "declared_intents": intent_assessment[0] if intent_assessment is not None else [],
+            "rationale": intent_assessment[1] if intent_assessment is not None else None,
+        },
         "deferred_intents": deferred_intents,
         "intent_boundary_reason_codes": intent_boundary_reason_codes,
         "mutation_profile": mutation_profile,
@@ -4393,7 +4563,7 @@ def task_overhead_summary(state: Path) -> dict[str, Any]:
 
 
 def task_changes_preview(target: Path, state: Path, task_id: str) -> tuple[int, dict[str, Any]]:
-    """只读预览当前工作区相对冻结基线的变化，供证据 write_set 零试探对齐。"""
+    """只读预览工作区变化分区；没有证据时不冒充 verify 的任务归因结果。"""
     package = read_json(state / "task-package.json")
     if package.get("schema_version") == LEGACY_TASK_SCHEMA:
         raise HarnessError("v1 任务不支持 changes-preview，需先迁移", code="legacy_task_requires_migration")
@@ -4403,19 +4573,20 @@ def task_changes_preview(target: Path, state: Path, task_id: str) -> tuple[int, 
     changed = snapshot_changes(freeze["workspace_snapshot"], workspace_snapshot(target))
     write_scope = package.get("write_scope", package.get("allowed_scope", []))
     read_scope = package.get("read_scope", [])
-    in_scope = sorted(path for path in changed if scope_covers(path, write_scope))
-    outside_scope = sorted(path for path in changed if not scope_covers(path, write_scope))
-    read_set_drift = sorted(
-        path for path in changed if path not in in_scope and scope_covers(path, read_scope)
+    changed_in_write_scope = sorted(path for path in changed if scope_covers(path, write_scope))
+    changed_outside_write_scope = sorted(path for path in changed if not scope_covers(path, write_scope))
+    changed_in_read_scope = sorted(
+        path for path in changed if path not in changed_in_write_scope and scope_covers(path, read_scope)
     )
     return 0, {
         "action": "changes-preview",
         "task_id": task_id,
         "changed_paths": changed,
-        "in_scope": in_scope,
-        "outside_scope": outside_scope,
-        "read_set_drift": read_set_drift,
-        "next_action": "按 changed_paths 对齐证据 write_set 后 verify",
+        "changed_in_write_scope": changed_in_write_scope,
+        "changed_outside_write_scope": changed_outside_write_scope,
+        "changed_in_read_scope": changed_in_read_scope,
+        "attribution_status": "unknown_until_evidence",
+        "next_action": "按 changed_paths 对齐证据 write_set；工作区分区不代表 verify 已完成任务归因",
     }
 
 
@@ -4445,6 +4616,9 @@ def command_task(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         if completion_manifest_valid(package.get("completion_manifest")):
             status_payload["evidence_checklist"] = evidence_checklist_payload(state, package)
             status_payload["pending_context_receipts"] = pending_context_receipts(state, package, target, compiled)
+        instructions = package_context_instructions(package)
+        if instructions:
+            status_payload["context_instructions"] = instructions
         return 0, status_payload
     if args.action == "changes-preview":
         return task_changes_preview(target, state, args.task_id)
@@ -4938,6 +5112,9 @@ def command_context(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "knowledge_context": package.get("knowledge_context", {}),
         "receipt": receipt,
     }
+    instructions = package_context_instructions(package)
+    if instructions:
+        payload["context_instructions"] = instructions
     if stage == "plan":
         payload["plan_contract"] = plan_contract_payload(package)
         payload.update(
@@ -5167,6 +5344,7 @@ def facts_from_package(package: dict[str, Any]) -> dict[str, Any]:
         "task_type": package["task_type"],
         "task_intent": package["task_intent"],
         "candidate_intents": package["candidate_intents"],
+        "intent_assessment": package.get("intent_assessment"),
         "deferred_intents": package.get("deferred_intents", []),
         "intent_boundary_reason_codes": package.get("intent_boundary_reason_codes", []),
         "mutation_profile": package["mutation_profile"],
@@ -5238,6 +5416,7 @@ def first_run_payload(
         "execution_topology": package["execution_topology"],
         "task_intent": package["task_intent"],
         "candidate_intents": package["candidate_intents"],
+        "intent_decision": package.get("intent_decision"),
         "deferred_intents": package.get("deferred_intents", []),
         "intent_boundary_reason_codes": package.get("intent_boundary_reason_codes", []),
         "mutation_profile": package["mutation_profile"],
@@ -5266,6 +5445,9 @@ def first_run_payload(
         "blockers": compiled["blockers"],
         "next_action": compiled["next_action"],
     }
+    instructions = package_context_instructions(package)
+    if instructions:
+        payload["context_instructions"] = instructions
     if package.get("fast_track"):
         payload["fast_track"] = True
         payload["evidence_profile"] = "fast_track"
@@ -5277,6 +5459,17 @@ def first_run_payload(
     if package.get("inline_note_ignored"):
         payload["inline_note_ignored"] = True
         payload["inline_note_effective_condition"] = "inline_note 仅 fast_track 任务生效；本次未生效，已按普通流程处理"
+    if compiled.get("control_status") == "blocked" and package.get("mutation_profile") in {"workspace_write", "external_write"}:
+        payload["assessment_requirements"] = {
+            "intent_assessment": package.get("intent_assessment") or {
+                "intents": [package.get("task_intent", "modify")],
+                "rationale": "<一句话说明当前任务意图与变更面>",
+            },
+            "gate_assessment": package.get("gate_assessment") or {
+                "gates": list(package.get("matched_gates", [])),
+                "rationale": "<一句话说明当前任务涉及与不涉及的风险 Gate>",
+            },
+        }
     if reused:
         payload["active_task_reused"] = True
     platform_scope = package.get("platform_scope", {})
@@ -5707,6 +5900,9 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "dispatch_contracts": package["dispatch_contracts"],
         "blockers": compiled["blockers"],
     }
+    instructions = package_context_instructions(package)
+    if instructions:
+        payload["context_instructions"] = instructions
     if completion_manifest_valid(package.get("completion_manifest")):
         payload["evidence_checklist"] = evidence_checklist_payload(state, package)
         payload["pending_context_receipts"] = pending_context_receipts(state, package, target, compiled)
@@ -5819,6 +6015,7 @@ def parse_utc_timestamp(value: Any, field: str) -> dt.datetime:
 def known_evidence_types() -> set[str]:
     result = {
         "workspace_attribution",
+        "change_review",
         "source_trace",
         "document_trace",
         "code_diff",
@@ -5894,6 +6091,7 @@ def load_evidence(
     target: Path | None = None,
     binding_package_fingerprint: str | None = None,
     binding_target_identity: str | None = None,
+    trusted_ingress: bool = False,
 ) -> tuple[Path, dict[str, Any]]:
     path, value = load_json_object_file(
         path_value,
@@ -5901,7 +6099,8 @@ def load_evidence(
         max_bytes=1024 * 1024,
         error_code="invalid_evidence",
     )
-    if value.get("schema_version") == EVIDENCE_DECLARATION_SCHEMA:
+    was_declaration = value.get("schema_version") == EVIDENCE_DECLARATION_SCHEMA
+    if was_declaration:
         if package is None or target is None:
             raise HarnessError("证据声明草案缺少任务验证上下文", code="invalid_evidence_receipt")
         value = mint_evidence_receipt(
@@ -5994,8 +6193,13 @@ def load_evidence(
             raise HarnessError("v2 证据收据目标不匹配", code="evidence_binding_mismatch")
         adapter = producer.get("adapter")
         capability = producer.get("capability")
-        if (adapter, capability) not in TRUSTED_EVIDENCE_PRODUCERS:
+        producer_key = (adapter, capability)
+        if producer_key not in RECOGNIZED_EVIDENCE_PRODUCERS:
             raise HarnessError("v2 证据生产者不可信", code="untrusted_evidence_producer")
+        if trusted_ingress and producer_key not in CONTROLLER_VERIFIED_PRODUCERS:
+            raise HarnessError("受控证据入口与 producer 不匹配", code="evidence_ingress_mismatch")
+        if not trusted_ingress and producer_key in CONTROLLER_VERIFIED_PRODUCERS:
+            raise HarnessError("外部证据不得冒充控制器 producer", code="forged_evidence_producer")
         started = parse_utc_timestamp(value.get("started_at"), "started_at")
         ended = parse_utc_timestamp(value.get("ended_at"), "ended_at")
         ttl = value.get("ttl")
@@ -6011,8 +6215,9 @@ def load_evidence(
         content_set = value.get("content_set_fingerprint")
         if content_set is not None and (not isinstance(content_set, str) or not re.fullmatch(r"sha256:[0-9a-f]{64}", content_set)):
             raise HarnessError("content_set_fingerprint 无效", code="invalid_evidence_receipt")
-        attribution_quality = "verified"
-        trust_level = "verified"
+        if trusted_ingress:
+            attribution_quality = "verified"
+            trust_level = "verified"
     return path, {
         "schema_version": EVIDENCE_RECEIPT_SCHEMA if is_v2 else "docs-harness/evidence/v1",
         "id": str(value.get("id") or sha256_text(canonical_json(value))[7:23]),
@@ -6027,6 +6232,9 @@ def load_evidence(
         "attribution_quality": attribution_quality,
         "producer": producer,
         "trust_level": trust_level,
+        "ingress_trust": "controller_verified" if trusted_ingress else (
+            "host_reported" if was_declaration else "external_reported"
+        ),
         "target_identity": value.get("target_identity"),
         "package_fingerprint": value.get("package_fingerprint"),
         "content_set_fingerprint": value.get("content_set_fingerprint"),
@@ -6044,7 +6252,7 @@ def load_evidence(
 def actual_scope_change(target: Path, package: dict[str, Any], freeze: dict[str, Any], scope: Sequence[str]) -> tuple[list[str], list[str], list[str]]:
     changed = snapshot_changes(freeze["workspace_snapshot"], workspace_snapshot(target))
     outside = [path for path in changed if not scope_covers(path, scope)]
-    new_gates = [gate for gate in infer_gates_from_paths(changed) if gate not in package["matched_gates"]]
+    new_gates = [gate for gate in gates_for_paths(target, changed) if gate not in package["matched_gates"]]
     return changed, outside, new_gates
 
 
@@ -6075,6 +6283,13 @@ def workspace_change_attribution(
         for path in item.get("concurrent_drift", [])
         if path in changed_set and path not in reported_writes
     }
+    reported_concurrent = {
+        path
+        for item in evidence
+        if item.get("attribution_quality") != "verified"
+        for path in item.get("concurrent_drift", [])
+        if path in changed_set and path not in reported_writes
+    }
     unattributed = changed_set - reported_writes - concurrent
     read_items = [entry for item in evidence for entry in item.get("read_set", [])]
     read_paths = {str(item.get("path")) for item in read_items if isinstance(item, dict)}
@@ -6098,22 +6313,31 @@ def workspace_change_attribution(
     concurrent_overlap = sorted(
         path for path in concurrent if scope_covers(path, write_scope) or scope_covers(path, read_scope) or path in read_paths
     )
+    reported_concurrent_overlap = sorted(
+        path
+        for path in reported_concurrent
+        if scope_covers(path, write_scope) or scope_covers(path, read_scope) or path in read_paths
+    )
     drift_set = set(read_set_drift)
     unattributed_overlap = sorted(
         path
         for path in unattributed
-        if path not in drift_set
+        if path not in drift_set and path not in reported_concurrent
         and (scope_covers(path, write_scope) or scope_covers(path, read_scope) or path in read_paths)
     )
     risk_gates = HIGH_RISK_GATE_NAMES
     risky_concurrent = sorted(
         path
         for path in concurrent | unattributed
-        if set(infer_gates_from_paths([path], mutation_profile="workspace_write")) & risk_gates
+        if set(gates_for_paths(target, [path], mutation_profile="workspace_write")) & risk_gates
     )
     new_gates = [
         gate
-        for gate in infer_gates_from_paths(sorted(reported_writes), mutation_profile=package.get("mutation_profile", "workspace_write"))
+        for gate in gates_for_paths(
+            target,
+            sorted(reported_writes),
+            mutation_profile=package.get("mutation_profile", "workspace_write"),
+        )
         if gate not in package["matched_gates"]
     ]
     blockers: list[dict[str, Any]] = []
@@ -6123,6 +6347,8 @@ def workspace_change_attribution(
         blockers.append({"reason_code": "read_set_drift", "paths": sorted(set(read_set_drift))})
     if concurrent_overlap:
         blockers.append({"reason_code": "concurrent_drift_overlap", "paths": concurrent_overlap})
+    if reported_concurrent_overlap:
+        blockers.append({"reason_code": "concurrent_drift_unverified", "paths": reported_concurrent_overlap})
     if unattributed_overlap:
         blockers.append({"reason_code": "unattributed_drift_overlap", "paths": unattributed_overlap})
     if risky_concurrent:
@@ -6131,9 +6357,16 @@ def workspace_change_attribution(
         blockers.append({"reason_code": "new_risk_gate", "gates": new_gates})
     warnings: list[dict[str, Any]] = []
     unrelated_concurrent = sorted(concurrent - set(concurrent_overlap) - set(risky_concurrent))
-    unrelated_unattributed = sorted(unattributed - set(unattributed_overlap) - set(risky_concurrent))
+    unrelated_reported_concurrent = sorted(
+        reported_concurrent - set(reported_concurrent_overlap) - set(risky_concurrent)
+    )
+    unrelated_unattributed = sorted(
+        unattributed - reported_concurrent - set(unattributed_overlap) - set(risky_concurrent)
+    )
     if unrelated_concurrent:
         warnings.append({"reason_code": "concurrent_drift_unrelated", "paths": unrelated_concurrent})
+    if unrelated_reported_concurrent:
+        warnings.append({"reason_code": "concurrent_drift_unverified_unrelated", "paths": unrelated_reported_concurrent})
     if unrelated_unattributed:
         warnings.append({"reason_code": "unattributed_drift_unrelated", "paths": unrelated_unattributed})
     quality = "verified" if evidence and all(item.get("attribution_quality") == "verified" for item in evidence) else (
@@ -6144,6 +6377,7 @@ def workspace_change_attribution(
         "task_write_set": sorted(reported_writes),
         "read_set": read_items,
         "concurrent_drift": sorted(concurrent),
+        "reported_concurrent_drift": sorted(reported_concurrent),
         "unattributed_drift": sorted(unattributed),
         "attribution_quality": quality,
         "outside_scope": task_outside,
@@ -6325,41 +6559,6 @@ def incrementally_recompile_new_gates(
     return candidate, candidate_compiled, candidate_freeze, adopted, needs_context
 
 
-SCOPE_EXTENSION_LIMIT = 3
-
-# 与增量重编译相同的稳定字段清单，但去掉 allowed_scope/write_scope：扩围本身就是对这两个字段的受控变更。
-STABLE_FIELDS_MINUS_SCOPE = (
-    "task_id",
-    "task_snapshot_ref",
-    "original_task",
-    "task_intent",
-    "candidate_intents",
-    "mutation_profile",
-    "execution_route",
-    "execution_topology",
-    "read_scope",
-    "git_scope",
-    "external_scope",
-    "git_operation",
-    "git_sync_scope",
-    "allowed_actions",
-    "success_criteria",
-    "authorization_requirements",
-    "verification_commands",
-    "work_packages",
-    "dispatch_contracts",
-    "blocking_deliverables",
-)
-
-
-def scope_extension_count(state: Path) -> int:
-    return sum(
-        1
-        for item in read_jsonl(state / "events.jsonl")
-        if item.get("event") == "scope_extension_readmission"
-    )
-
-
 def enforce_supplied_write_sets_changed(supplied: Sequence[dict[str, Any]], changed: Sequence[str]) -> None:
     """硬校验 supplied 证据 write_set ⊆ 实际变化路径；虚报即失败关闭，防止 stale 证据借扩围入索引。"""
     for evidence in supplied:
@@ -6382,145 +6581,6 @@ def enforce_supplied_write_sets_changed(supplied: Sequence[dict[str, Any]], chan
                     "actual_changed_paths": list(changed),
                 },
             )
-
-
-def incrementally_extend_write_scope(
-    state: Path,
-    target: Path,
-    package: dict[str, Any],
-    compiled: dict[str, Any],
-    freeze: dict[str, Any],
-    outside_paths: Sequence[str],
-    reusable: Sequence[dict[str, Any]],
-    supplied: Sequence[dict[str, Any]],
-) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any], list[dict[str, Any]], list[str]] | None:
-    """在执行/授权/方案合同不变的前提下，把已声明的越界写入并入 write_scope 并继承同轮证据。"""
-    target = Path(target).resolve()
-    if package.get("execution_route") not in {"direct", "planned"}:
-        return None
-    if package.get("git_operation") == "git_sync":
-        return None
-    write_scope = list(package.get("write_scope", []))
-    if not write_scope or not outside_paths:
-        return None
-    additions = [path for path in outside_paths if not scope_covers(path, write_scope)]
-    if not additions:
-        return None
-    extended = list(dict.fromkeys([*write_scope, *additions]))
-    recompile_facts = merge_recompile_facts(package, {"write_scope": extended})
-    neutral_cli = argparse.Namespace(scope=[], action=[], success=[], feature=[])
-    candidate, blockers = build_package(
-        target,
-        package["original_task"],
-        recompile_facts,
-        neutral_cli,
-        package["task_id"],
-    )
-    candidate["package_revision"] = package["package_revision"] + 1
-    candidate["created_at"] = package["created_at"]
-    candidate["recompiled_at"] = utc_now()
-    if blockers:
-        return None
-    # 硬断言：候选包必须是原范围与越界路径的超集，任何包覆写都失败关闭。
-    if not set(candidate.get("write_scope", [])) >= set(write_scope) | set(outside_paths):
-        return None
-    if any(candidate.get(field) != package.get(field) for field in STABLE_FIELDS_MINUS_SCOPE):
-        return None
-    if set(candidate.get("matched_gates", [])) != set(package.get("matched_gates", [])):
-        return None
-    if candidate["plan_fields"] != package["plan_fields"]:
-        return None
-    adoption = authorization_adoption_record(state, package, candidate)
-    if candidate.get("authorization_requirements") and adoption is None:
-        return None
-    supplied_sources = {str(item.get("source_fingerprint") or "") for item in supplied if item.get("source_fingerprint")}
-    old_fingerprint = package_fingerprint(package)
-    new_fingerprint = package_fingerprint(candidate)
-    adopted: list[dict[str, Any]] = []
-    seen_sources: set[str] = set()
-    for item in [*reusable, *supplied]:
-        if item.get("schema_version") != EVIDENCE_RECEIPT_SCHEMA:
-            continue
-        source_fp = str(item.get("source_fingerprint") or "")
-        if source_fp and source_fp in seen_sources:
-            continue
-        if source_fp:
-            seen_sources.add(source_fp)
-        value = dict(item)
-        value["origin_package_fingerprint"] = value.get("origin_package_fingerprint") or value.get("package_fingerprint")
-        value["adopted_from_package_fingerprint"] = value.get("package_fingerprint")
-        value["package_fingerprint"] = new_fingerprint
-        value["adoption_reason"] = "scope_superset_extension"
-        value["adopted_at"] = utc_now()
-        if source_fp and source_fp in supplied_sources:
-            # supplied 来源：与常规 verify 路径一致，补齐受管 artifact 审计字段，避免扩展轮收据缺 artifact_ref。
-            source_path = Path(str(value.get("source_ref", "")))
-            if source_path.is_file() and not value.get("artifact_ref"):
-                managed_evidence = store_managed_artifact(
-                    state,
-                    "evidence",
-                    f"evidence.{value.get('id', 'item')}.v{candidate['package_revision']}.json",
-                    source_path.read_text(encoding="utf-8"),
-                )
-                value["artifact_ref"] = str(managed_evidence)
-                value["artifact_fingerprint"] = file_fingerprint(managed_evidence)
-        adopted.append(value)
-    candidate_compiled = initial_compiled(candidate, [])
-    for field in (
-        "plan_ref",
-        "plan_fingerprint",
-        "plan_artifact",
-        "authorization_status",
-        "authorization_receipt_ref",
-        "work_package_states",
-        "current_work_package",
-    ):
-        candidate_compiled[field] = compiled.get(field)
-    candidate_compiled.update(
-        {
-            "control_status": compiled["control_status"],
-            "verification_status": compiled.get("verification_status", "not_started"),
-            "next_action": compiled.get("next_action", "verify"),
-            "blockers": [],
-            "scope_changed": False,
-            "updated_at": utc_now(),
-        }
-    )
-    candidate_freeze = dict(freeze)
-    extended_paths = sorted(set(candidate["write_scope"]) - set(write_scope))
-    with state_lock(state):
-        delta = archive_and_rewrite_package(
-            state,
-            candidate,
-            candidate_compiled,
-            candidate_freeze,
-            target,
-        )
-        if adoption is not None:
-            append_jsonl(state / "authorization-receipts.jsonl", adoption)
-        if adopted:
-            index = read_json(state / "evidence-index.json")
-            fingerprints = {item.get("source_fingerprint") for item in adopted}
-            retained = [
-                item
-                for item in index.setdefault("evidence", [])
-                if item.get("source_fingerprint") not in fingerprints
-            ]
-            index["evidence"] = [*retained, *adopted]
-            atomic_write_json(state / "evidence-index.json", index)
-        append_task_event(
-            state,
-            candidate,
-            event="scope_extension_readmission",
-            phase="admission",
-            reason_code="scope_superset_extension",
-            extended_paths=extended_paths,
-            prior_package_fingerprint=old_fingerprint,
-            adopted_evidence_ids=[str(item.get("id", "unknown")) for item in adopted],
-            authorization_adopted=adoption is not None,
-            disposition=delta["disposition"],
-        )
-    return candidate, candidate_compiled, candidate_freeze, adopted, extended_paths
 
 
 def command_progress(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
@@ -7003,6 +7063,7 @@ def persist_verification_receipts(
                 expected_cover=package["task_id"],
                 package=package,
                 target=target,
+                trusted_ingress=True,
             )
             index_evidence(state, normalized)
             persisted.append(normalized)
@@ -7540,6 +7601,13 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
                     "added_gates": detected_new_gates,
                     "adopted_evidence_ids": [str(item.get("id", "unknown")) for item in adopted_evidence],
                     "evidence_regeneration_required": False,
+                    "recovery_actions": [
+                        {
+                            "action": "incremental_admission",
+                            "reason_codes": ["incremental_gate_context_required"],
+                            "added_gates": detected_new_gates,
+                        }
+                    ],
                     "next_action": compiled["next_action"],
                 }
     current_rules, rule_errors = load_active_rules(
@@ -7551,58 +7619,42 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
     frozen_rules = {(item["rule_id"], item["content_fingerprint"]) for item in package["matched_rules"]}
     active_rules = {(item["rule_id"], item["content_fingerprint"]) for item in current_rules}
     auto_attributed_paths: list[str] = []
-    scope_extended_paths: list[str] = []
     if attribution["blockers"] or rule_errors or active_rules != frozen_rules:
         stable_contract = not rule_errors and active_rules == frozen_rules
-        if stable_contract and blocker_codes == {"write_scope_violation"} and not new_gates:
-            if scope_extension_count(state) >= SCOPE_EXTENSION_LIMIT:
-                compiled["scope_changed"] = True
-                compiled["control_status"] = "blocked"
-                compiled["verification_status"] = "needs_readmission"
-                compiled["next_action"] = "rerun_harness_for_readmission"
-                atomic_write_json(state / "compiled-task.json", compiled)
-                return 4, {
-                    "task_id": package["task_id"],
-                    "result": "重新准入",
-                    "reason_code": "scope_extension_limit_exceeded",
-                    "changed_paths": changed,
-                    "outside_scope": outside,
-                    "scope_extension_limit": SCOPE_EXTENSION_LIMIT,
-                    "readmission_hint": {
-                        "message": f"已达 {SCOPE_EXTENSION_LIMIT} 次增量扩围上限，需全量重准入并重新评估任务边界",
-                        "facts_template": {"write_scope": list(dict.fromkeys([*package.get("write_scope", []), *outside]))},
-                        "example_argv": harness_command_argv("run", target, "--task-id", package["task_id"], "--facts", "<facts.json>"),
-                    },
-                    "next_action": compiled["next_action"],
+        if stable_contract and blocker_codes == {"concurrent_drift_unverified"}:
+            reported_paths = sorted(
+                {
+                    path
+                    for item in attribution["blockers"]
+                    if item.get("reason_code") == "concurrent_drift_unverified"
+                    for path in item.get("paths", [])
                 }
-            # 扩围前先硬校验 supplied 证据 write_set，虚报失败关闭、不扩围，与常规 verify 路径同一标准。
-            enforce_supplied_write_sets_changed(supplied, changed)
-            extension = incrementally_extend_write_scope(
-                state,
-                target,
-                package,
-                compiled,
-                freeze,
-                outside,
-                reusable_evidence,
-                supplied,
             )
-            if extension is not None:
-                package, compiled, freeze, adopted_evidence, scope_extended_paths = extension
-                telemetry["package"] = package
-                reusable_evidence = adopted_evidence
-                supplied = []
-                attribution = workspace_change_attribution(
-                    target,
-                    package,
-                    freeze,
-                    reusable_evidence,
-                    git_result=git_result,
-                )
-                changed = attribution["changed_paths"]
-                outside = attribution["outside_scope"]
-                new_gates = attribution["new_gates"]
-                blocker_codes = {str(item.get("reason_code")) for item in attribution["blockers"]}
+            compiled["verification_status"] = "needs_evidence"
+            compiled["next_action"] = "provide_evidence"
+            atomic_write_json(state / "compiled-task.json", compiled)
+            return 3, {
+                "task_id": package["task_id"],
+                "result": "补充证据",
+                "reason_code": "concurrent_drift_unverified",
+                "changed_paths": changed,
+                "outside_scope": outside,
+                "reported_concurrent_paths": reported_paths,
+                "missing_attribution_paths": reported_paths,
+                "auto_attributed_paths": [],
+                "workspace_attribution": attribution,
+                "recovery_actions": [
+                    {
+                        "action": "provide_evidence",
+                        "reason_codes": ["concurrent_drift_unverified"],
+                        "paths": reported_paths,
+                        "requirement": "提供控制器受控入口生成的并发归因收据",
+                    }
+                ],
+                "next_action": compiled["next_action"],
+            }
+        # write_scope 是语义合同的一部分。发现新路径时必须由宿主重新提交 intent/gate assessment，
+        # verify 不再依据路径名称自动扩围并继承旧语义判断。
         if stable_contract and "unattributed_drift_overlap" in blocker_codes and blocker_codes <= {"unattributed_drift_overlap", "new_risk_gate"}:
             write_scope = package.get("write_scope", package.get("allowed_scope", []))
             overlap_paths = sorted(
@@ -7613,7 +7665,7 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
                     compiled["verification_status"] = "needs_evidence"
                     compiled["next_action"] = "provide_evidence"
                     atomic_write_json(state / "compiled-task.json", compiled)
-                    return 3, {"task_id": package["task_id"], "result": "补充证据", "reason_code": "unattributed_drift_overlap", "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "missing_attribution_paths": overlap_paths, "auto_attributed_paths": [], "workspace_attribution": attribution, "next_action": compiled["next_action"]}
+                    return 3, {"task_id": package["task_id"], "result": "补充证据", "reason_code": "unattributed_drift_overlap", "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "missing_attribution_paths": overlap_paths, "auto_attributed_paths": [], "workspace_attribution": attribution, "recovery_actions": [{"action": "provide_evidence", "reason_codes": ["unattributed_drift_overlap"], "paths": overlap_paths}], "next_action": compiled["next_action"]}
                 receipt = mint_evidence_receipt(
                     target,
                     package,
@@ -7636,6 +7688,7 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
                     expected_cover=package["task_id"],
                     package=package,
                     target=target,
+                    trusted_ingress=True,
                 )
                 supplied.append(auto_evidence)
                 auto_attributed_paths = overlap_paths
@@ -7694,7 +7747,7 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
                 compiled["verification_status"] = "needs_evidence"
                 compiled["next_action"] = "refresh_evidence"
                 atomic_write_json(state / "compiled-task.json", compiled)
-                return 3, {"task_id": package["task_id"], "result": "补充证据", "reason_code": "read_set_drift", "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "refresh_paths": sorted(drift_paths), "discarded_evidence_ids": discarded_ids, "auto_attributed_paths": auto_attributed_paths, "workspace_attribution": attribution, "next_action": compiled["next_action"]}
+                return 3, {"task_id": package["task_id"], "result": "补充证据", "reason_code": "read_set_drift", "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "refresh_paths": sorted(drift_paths), "discarded_evidence_ids": discarded_ids, "auto_attributed_paths": auto_attributed_paths, "workspace_attribution": attribution, "recovery_actions": [{"action": "refresh_evidence", "reason_codes": ["read_set_drift"], "paths": sorted(drift_paths)}], "next_action": compiled["next_action"]}
             compiled["scope_changed"] = True
             compiled["control_status"] = "blocked"
             compiled["verification_status"] = "needs_readmission"
@@ -7702,19 +7755,41 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
             atomic_write_json(state / "compiled-task.json", compiled)
             reason_code = attribution["blockers"][0]["reason_code"] if attribution["blockers"] else "rule_drift"
             payload: dict[str, Any] = {"task_id": package["task_id"], "result": "重新准入", "reason_code": reason_code, "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "rule_errors": rule_errors, "auto_attributed_paths": auto_attributed_paths, "workspace_attribution": attribution, "next_action": compiled["next_action"]}
+            payload["recovery_actions"] = [
+                {
+                    "action": "full_readmission",
+                    "reason_codes": sorted(blocker_codes or {reason_code}),
+                    "paths": sorted(set(outside)),
+                }
+            ]
             if fast_track_downgraded_trigger:
                 payload["fast_track_downgraded"] = True
                 payload["fast_track_downgrade_reason"] = fast_track_downgraded_trigger
             if "new_risk_gate" in blocker_codes and new_gates:
                 payload["readmission_hint"] = {
-                    "message": "可通过 --facts 声明 Gate 跳过关键词推断，避免反复循环",
-                    "facts_template": {"gates": list(new_gates)},
+                    "message": "项目显式路径规则发现新增 Gate；更新 Gate 语义声明后重新准入",
+                    "facts_template": {
+                        "gate_assessment": {
+                            "gates": list(dict.fromkeys([*package.get("matched_gates", []), *new_gates])),
+                            "rationale": "<说明新增路径为何触发这些 Gate>",
+                        }
+                    },
                     "example_argv": harness_command_argv("run", target, "--task-id", package["task_id"], "--facts", "<facts.json>"),
                 }
             elif "write_scope_violation" in blocker_codes and outside:
                 payload["readmission_hint"] = {
-                    "message": "实际写入超出 write_scope；将全部实际写入路径并入 write_scope 后一次性重准入，避免反复循环",
-                    "facts_template": {"write_scope": list(dict.fromkeys([*package.get("write_scope", []), *outside]))},
+                    "message": "实际写入超出 write_scope；新路径必须连同意图与 Gate 语义重新评估",
+                    "facts_template": {
+                        "write_scope": list(dict.fromkeys([*package.get("write_scope", []), *outside])),
+                        "intent_assessment": package.get("intent_assessment") or {
+                            "intents": [package.get("task_intent", "modify")],
+                            "rationale": "<说明扩围后当前任务意图仍然成立>",
+                        },
+                        "gate_assessment": package.get("gate_assessment") or {
+                            "gates": list(package.get("matched_gates", [])),
+                            "rationale": "<重新评估扩围路径涉及的全部 Gate>",
+                        },
+                    },
                     "example_argv": harness_command_argv("run", target, "--task-id", package["task_id"], "--facts", "<facts.json>"),
                 }
             elif "concurrent_drift_overlap" in blocker_codes:
@@ -7836,11 +7911,44 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
     ]
     no_evidence = not fresh_evidence and not command_results and git_result is None
     if command_failed or missing_types or missing_receipts or missing_blocking_deliverables or no_evidence:
+        recovery_actions: list[dict[str, Any]] = []
+        evidence_gaps = bool(missing_types or missing_receipts or missing_blocking_deliverables or no_evidence)
+        if stale_evidence and evidence_gaps:
+            recovery_actions.append({
+                "action": "refresh_evidence",
+                "reason_codes": ["stale_evidence"],
+                "example_argv": harness_command_argv("verify", target, "--task-id", package["task_id"], "--evidence", "<evidence.json>"),
+            })
+        if evidence_gaps:
+            recovery_actions.append({
+                "action": "provide_evidence",
+                "reason_codes": [
+                    code
+                    for code, active in (
+                        ("missing_evidence_types", bool(missing_types)),
+                        ("missing_receipts", bool(missing_receipts)),
+                        ("missing_blocking_deliverables", bool(missing_blocking_deliverables)),
+                        ("no_evidence", no_evidence),
+                    )
+                    if active
+                ],
+                "example_argv": harness_command_argv("verify", target, "--task-id", package["task_id"], "--evidence", "<evidence.json>"),
+            })
+        if command_failed:
+            recovery_actions.append({
+                "action": "retry_verification",
+                "reason_codes": ["verification_command_failed"],
+                "failed_command_indexes": [
+                    index for index, item in enumerate(command_results) if item.get("result") != "passed"
+                ],
+                "example_argv": harness_command_argv("verify", target, "--task-id", package["task_id"]),
+            })
+        primary_action = recovery_actions[0]["action"] if recovery_actions else "provide_evidence"
         compiled["verification_status"] = "needs_evidence"
-        compiled["next_action"] = "provide_evidence"
+        compiled["next_action"] = primary_action
         atomic_write_json(state / "compiled-task.json", compiled)
         skeleton_refs = ensure_evidence_skeletons(state, missing_types)
-        missing_payload: dict[str, Any] = {"task_id": package["task_id"], "result": "补充证据", "changed_paths": changed, "auto_attributed_paths": auto_attributed_paths, "workspace_attribution": attribution, "manifest_fingerprint": manifest["manifest_fingerprint"], "activated_conditions": activated_conditions, "missing_evidence_types": missing_types, "missing_receipts": missing_receipts, "missing_blocking_deliverables": missing_blocking_deliverables, "stale_evidence": stale_evidence, "verification_commands": command_results, "verification_receipts": command_receipts, "git_postcheck": git_result, "evidence_skeletons": skeleton_refs, "evidence_checklist": evidence_checklist_payload(state, package), "pending_context_receipts": pending_context_receipts(state, package, target, compiled), "next_action": compiled["next_action"]}
+        missing_payload: dict[str, Any] = {"task_id": package["task_id"], "result": "补充证据", "reason_code": recovery_actions[0]["reason_codes"][0] if recovery_actions and recovery_actions[0].get("reason_codes") else "verification_incomplete", "changed_paths": changed, "auto_attributed_paths": auto_attributed_paths, "workspace_attribution": attribution, "manifest_fingerprint": manifest["manifest_fingerprint"], "activated_conditions": activated_conditions, "missing_evidence_types": missing_types, "missing_receipts": missing_receipts, "missing_blocking_deliverables": missing_blocking_deliverables, "stale_evidence": stale_evidence, "verification_commands": command_results, "verification_receipts": command_receipts, "git_postcheck": git_result, "evidence_skeletons": skeleton_refs, "evidence_checklist": evidence_checklist_payload(state, package), "pending_context_receipts": pending_context_receipts(state, package, target, compiled), "recovery_actions": recovery_actions, "next_action": compiled["next_action"]}
         if "functional_confirmation" in missing_types:
             fc_contract: list[dict[str, Any]] = []
             for item in package.get("functional_confirmation_features", []):
@@ -7859,9 +7967,6 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
             missing_payload["functional_confirmation_contract"] = fc_contract
         if package.get("fast_track"):
             missing_payload["evidence_profile"] = "fast_track"
-        if scope_extended_paths:
-            missing_payload["scope_extended"] = True
-            missing_payload["extended_paths"] = scope_extended_paths
         return 3, missing_payload
     if package.get("context_quality") == "degraded":
         fallback_refs = list(package.get("fallback_fact_refs", []))
@@ -7999,9 +8104,6 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
     }
     if package.get("fast_track"):
         success_payload["evidence_profile"] = "fast_track"
-    if scope_extended_paths:
-        success_payload["scope_extended"] = True
-        success_payload["extended_paths"] = scope_extended_paths
     if fc_skipped:
         success_payload["functional_confirmation_skipped"] = fc_skipped
     return 0, success_payload
@@ -10568,7 +10670,14 @@ def command_knowledge(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     raise HarnessError("未知 knowledge 动作", code="invalid_knowledge_action")
 
 
-def managed_agent_block() -> str:
+def managed_agent_block(target: Path | None = None) -> str:
+    if target is not None and (target / REPOWIKI_RELATIVE).is_dir():
+        knowledge_source_instruction = f"- {REPOWIKI_ARCHITECTURE_INSTRUCTION}\n"
+    else:
+        knowledge_source_instruction = (
+            "- 功能知识来自 `docs/knowledge-map.json` 和 `docs/features/`；任务无法唯一定位功能时使用 "
+            "`run --feature <id>` 重新准入，不得全量加载 `docs/`。\n"
+        )
     return f"""{MANAGED_BEGIN}
 ## Docs Harness 任务入口
 
@@ -10591,7 +10700,7 @@ python3 scripts/harness.py run --target . --task "<原始用户任务>" --json
 - 宿主能力不足时将 Job 置为 `queued_manual` 并保留原 `execution_route`；不得误报已派发。
 - 后台 Job 只能写 `allowed_write_scope`，不得触碰代码、提交、推送、发布或外部状态；所有 Job 固定 `may_mutate_parent=false`、`may_spawn_child_jobs=false` 和 `suppress_post_completion_dispatch=true`。
 - 知识 Job 只有在控制器复算最终状态为 `ready` 时才能以 `updated|no_change` 完成；非终态 bootstrap 阻塞增量 Job，失败依赖不得释放等待者。
-- 功能知识来自 `docs/knowledge-map.json` 和 `docs/features/`；任务无法唯一定位功能时使用 `run --feature <id>` 重新准入，不得全量加载 `docs/`。
+{knowledge_source_instruction.rstrip()}
 - 只有用户明确要求“添加到质量账本”或同义写入动作时，才整理脱敏复盘 JSON 并运行 `ledger add`；不得自动记录，也不得在每个任务结束后主动询问。
 - 后续任务需要复用历史经验时，按任务编号或关键词运行 `ledger read`；不得自动注入全部个人账本。
 - `--scope` 是可重复单值参数，一次只传一个项目内相对路径；禁止把 JSON 数组整体作为单个值传入（会报 `invalid_scope_json`）。`--facts`/`--plan`/`--evidence`/`--authorization` 等文件参数一律使用工作区相对路径，Windows 上不要传 Git Bash 的 `/tmp` 路径。
@@ -10884,7 +10993,7 @@ def project_changes(
     elif cached_file_fingerprint(script) != cached_file_fingerprint(source_script):
         changes.append({"path": "scripts/harness.py", "action": "update"})
     managed_entries = (
-        ("AGENTS.md", MANAGED_BEGIN, MANAGED_END, managed_agent_block()),
+        ("AGENTS.md", MANAGED_BEGIN, MANAGED_END, managed_agent_block(target)),
         ("CLAUDE.md", CLAUDE_BEGIN, CLAUDE_END, claude_block()),
     )
     for relative, begin, end, block in managed_entries:
@@ -10995,7 +11104,7 @@ def apply_project_install(
 
     agent_path = target / "AGENTS.md"
     agent_text = agent_path.read_text(encoding="utf-8") if agent_path.is_file() else "# AGENTS.md\n"
-    new_agent = replace_managed_block(agent_text, MANAGED_BEGIN, MANAGED_END, managed_agent_block())
+    new_agent = replace_managed_block(agent_text, MANAGED_BEGIN, MANAGED_END, managed_agent_block(target))
     if new_agent != agent_text:
         atomic_write_text(agent_path, new_agent)
         changed.append("AGENTS.md")
@@ -11093,6 +11202,10 @@ def apply_project_install(
     existing_knowledge = existing_config.get("knowledge", {}) if existing_config and isinstance(existing_config.get("knowledge"), dict) else {}
     if "inventory_include" in existing_knowledge:
         config_value["knowledge"]["inventory_include"] = existing_knowledge["inventory_include"]
+    if existing_config and "gate_path_rules" in existing_config:
+        # 先调用统一解析器失败关闭，再原样保留用户显式语义映射。
+        configured_gate_path_rules(target)
+        config_value["gate_path_rules"] = existing_config["gate_path_rules"]
     existing_verification = existing_config.get("verification", {}) if existing_config and isinstance(existing_config.get("verification"), dict) else {}
     if "volatile_paths" in existing_verification:
         config_value["verification"] = {
@@ -11863,7 +11976,7 @@ def build_parser() -> argparse.ArgumentParser:
     progress.add_argument("--scope-changed", action="store_true")
     progress.add_argument("--handoff", action="store_true")
 
-    verify = commands.add_parser("verify", help="同源验收、补证或重新准入")
+    verify = commands.add_parser("verify", help="证据验收、补证或重新准入")
     add_common_target(verify)
     verify.add_argument("--task-id", required=True)
     verify.add_argument(

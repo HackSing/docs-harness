@@ -42,9 +42,9 @@ Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、�
 
 `git_commit` 覆盖本地提交层（写 `.git` 对象/索引/分支引用，不改工作区、不触远端）：默认动作 `read` + `git_commit`，不附带 `git_fetch` 授权，也不触发远端交付层；触发词为「git commit」「commit」「本地提交」「提交改动」「提交代码」「提交当前」「提交工作区」「提交暂存」，裸「提交」刻意不收（避免「提交证据/提交方案」误判）。任务文本关键词不参与 Gate 分类；规则 keywords 匹配与交付层需求判定仍各自使用否定守卫，因此「不推送」「无需部署」「不要发布」不会误匹配 `DH-RELEASE-AUTHORIZATION-ROLLBACK` 规则，也不会把 `remote_delivery` 层标为 `required`。
 
-混合意图保留全部 `candidate_intents`，未来子句进入 `deferred_intents`，完成体只作为审查上下文；Gate 编译取当前任务最高变更面和风险结果。显式 facts 只能升级，不能把 `audit+fix`、`if-needed-fix` 或 `fetch+sync` 降级。任务意图的英文短词仍按单词边界识别，Gate 路径推断按完整路径段匹配；`Claude Code`、`reviews`、`rapid`、`latest`、`authors` 不得产生无关意图或 Gate。
+宿主使用 `intent_assessment` 提交权威意图声明（`{"intents": [...], "rationale": "..."}`）；兼容字段 `task_intent|candidate_intents` 同样视为显式声明。一旦声明，任务文本启发式不得增补或覆盖；未声明时的启发式结果只是诊断候选，不能授予写权限。写任务缺少意图声明失败关闭，响应携带可填的声明模板。
 
-宿主应在 facts 中提交 `gate_assessment`（`{"gates": [...], "rationale": "..."}`，rationale 为 500 字符内非空字符串）对 Gate 做权威语义判断。声明后最终 Gate = `gate_assessment.gates` ∪ 兼容字段 `gates`，不再由任务文本关键词或初始 scope 路径增补；未声明时最终 Gate = 兼容字段 `gates` ∪ `read_scope`/`write_scope` 路径推断，并记录 `gate_decision.mode=path_inferred`。准入响应与 task-package 的 `gate_decision` 只记录 `mode`/`declared_gates`/`rationale`。高风险 Gate 一旦声明，方案、授权与证据门槛继续失败关闭；任务中途基于实际变更路径的 Gate 绊线与增量/完整重新准入不受初始声明影响。
+宿主必须在 facts 中提交 `gate_assessment`（`{"gates": [...], "rationale": "..."}`，rationale 为 500 字符内非空字符串）对 Gate 做权威语义判断。写任务缺少该声明失败关闭。初始路径只能推断 `document-edit|code-edit|testing-acceptance` 这类封闭结构 Gate，不根据 `security|auth|api|migration|database|frontend` 等开放路径名称猜语义。项目级稳定映射使用 `.docs-harness/config.json` 的 `gate_path_rules: [{"pattern": "...", "gates": [...]}]` 显式声明，运行期绊线仅依该映射触发语义 Gate。
 
 路径范围只接受项目内相对路径、glob 或受控 Git 资源。完整句子、否定说明和自然语言边界返回 `invalid_scope_description`。形似 JSON 的值（数组或对象整体作为单个 scope 字符串）返回 `invalid_scope_json` 并附修复提示；`--scope` 是可重复单值参数，facts 中 scope 字段必须是字符串数组。自然语言约束应放入任务约束，不得伪装成路径。
 
@@ -82,11 +82,11 @@ ready_extended
 
 `verify` 只按当前清单固定项及预声明条件验收，不得在收尾阶段静默增加隐藏要求。产品、架构、安全、数据破坏、外部发布、前端设计、extended 路线，以及任何改变执行路线、授权、范围、方案字段、工作包或阻断交付物的新 Gate，必须完整重新准入。仅追加且保持上述合同不变的普通 Gate 由控制器原子生成下一 package revision：保留首次冻结基线，把同轮已校验收据以 `origin_package_fingerprint|adopted_from_package_fingerprint|adoption_reason` 留痕后继承，并在需要时只要求加载新 action context；宿主不重新执行完整 `run`，也不重新生成相同证据。补证使用增量收据；父任务最终正文只生成一次。
 
-低风险任务可显式声明轻量准入：facts 携带 `fast_track: true`（必须是布尔值，其他类型失败关闭），且同时满足 ①路线为 `direct`、②未命中 high gate、③`write_scope` 全部落在文档/规则/测试路径（复用 `infer_gates_from_paths` 的路径分类，纯代码路径不算）、④无 `work_packages` 时生效。任一条件不满足即静默降级普通流程，响应标注 `fast_track_denied_reason`（受控原因码 `route_not_direct`/`high_gate_present`/`scope_not_doc_like`/`has_work_packages`）。fast_track 是声明制，不做自动推断，也不豁免任何 Gate 判定。生效时 `completion_manifest.evidence_profile="fast_track"`，`required_evidence_types` 收敛为最小集（`code_diff`，另加声明了验证命令时的 `test_run`），Gate/规则语义证据累加不叠加；准入与 verify 响应显式携带 `evidence_profile`，禁止静默裁剪。运行期 verify 归因命中 `new_risk_gate` 或 `high_risk_drift` 时单向降级：任务包 `fast_track` 写回 `false`、`completion_manifest` 重建为标准证据集、记录 `fast_track_downgraded` 事件与原因，后续 verify 按普通证据集校验；降级不可反向升级，重编译只继承任务包记录的生效值。fast_track 任务还可在 facts 携带 `inline_note`（200 字符内非空字符串）替代独立 plan 文档，落入任务包 `inline_note` 字段，不写 `docs/plans/`；非 fast_track 任务携带时按 `facts_ignored` 同类语义返回 `inline_note_ignored` 提示。
+低风险任务可显式声明 `fast_track: true`；生效时 `required_evidence_types` 收敛为 `code_diff + change_review`，声明验证命令时再加 `test_run`。`code_diff` 证明差异事实，`change_review` 证明变更与意图一致，两者不得互相替代。
 
 合同与方案一次冻结：package revision 变化时控制器生成 `contract_delta`（新增证据类型、收据、条件项与阻断项）并归档到 `package-history`；新增 Gate 只缺方案字段时返回 `complete_plan_delta` 和 `plan_delta_contract`，宿主只补充缺失字段，不重做完整方案。上下文正文按 task、stage、compiler contract 与内容指纹跨阶段复用，不随 revision 重复加载。
 
-准入三处响应（首次 run、二次 run 的 ready 响应、`task status`）携带 `evidence_checklist` 四段：`required`（完成清单要求的证据类型）、`conditional`（预声明条件项及激活条件）、`required_receipts`（每项附条件性文字，如 `write_set` 仅在任务产生实际写入时要求）、`skeletons`（准入时预生成的证据骨架路径，骨架含 `_instructions` 填写说明）。verify 缺证失败路径与准入预生成使用同一助手与同一批骨架文件。同三处响应另携带 `pending_context_receipts`：列出尚未加载的上下文阶段（action/plan）与工作包（`work_package:<id>` 形式，已 verified 的工作包不再列出），宿主执行前自查，消灭 `action_context_missing`。失败即前置：`action_context_missing` 与缺证（exit 3）失败载荷同样携带 `pending_context_receipts` 与完整 `evidence_checklist`（骨架与清单同批），宿主即使未读准入指引也能照失败载荷补齐，不依赖指令遵守。推荐备证流程：准入读清单 → 执行中随手铸 `evidence-declaration/v1` 草案（绑定在 verify 时刻代铸，铸后再改同路径不致 stale）→ verify 一次提交全齐。
+准入三处响应携带 `evidence_checklist` 五段：`required`、`conditional`、`required_receipts`、`skeletons`、`trust_requirements`。高风险证据列入 `trust_requirements` 且不生成可自填骨架，明确要求受控入口。缺证失败载荷同样携带完整清单、`pending_context_receipts` 和有序 `recovery_actions`，宿主可直接执行最小修复动作。
 
 完成回执保留兼容字段，同时携带结构化 `delivery_layers`。每一层包含 `expectation`（`not_applicable|not_requested|required`）、`status`（`not_verified|verified`）与 `evidence_refs`；最小层级为：
 
@@ -171,13 +171,13 @@ external_state
 
 重读漂移路径后其指纹与当前快照一致即视为已解释，不再阻断。
 
-write_scope 增量扩展例外：合同稳定、唯一阻断为 `write_scope_violation`、无新增 Gate、路线为 `direct|planned`（planned 额外要求候选 `plan_fields` 不变）、无授权要求、非 `git_sync`、扩展次数 ≤3 时，控制器在同一次 verify 内以 `write_scope = 原范围 ∪ 越界路径` 重编译候选包：除 scope 外全部稳定字段（`STABLE_FIELDS_MINUS_SCOPE`）逐字段一致、blockers 为空、`matched_gates` 不新增，且候选 `write_scope` 必须覆盖原范围与越界路径的并集（硬断言，不满足失败关闭）。成功时 `package_revision + 1`、保留 `created_at`、写入 `recompiled_at`，既有索引收据与本轮提交证据按新指纹重绑（`adoption_reason="scope_superset_extension"` 全审计字段，索引按 source_fingerprint 替换不双写，supplied 来源收据同步补齐受管 artifact 审计字段），扩围前先对同轮 supplied 证据执行与常规 verify 同一标准的 `write_set ⊆ 实际变化路径` 硬校验（虚报失败关闭抛 `stale_evidence`，不扩围），写入 `scope_extension_readmission` 事件并在同一 verify 内继续证据评估，响应携带 `scope_extended: true` 与 `extended_paths`。任一前置不满足失败关闭回退 `full_readmission`；授权任务扩围必改授权合同指纹，一律走 `full_readmission`；扩展上限 3 次（事件扫描计数，跨任务包持久），超限 exit 4 `scope_extension_limit_exceeded`。
+范围是语义合同，不存在 verify 内自动扩围例外。任何 `write_scope_violation` 都返回 exit 4 `full_readmission`；控制器不修改 package revision、不重绑旧证据、不产生 `scope_extended` 或 `scope_extension_readmission`。
 
-verify 因 `write_scope_violation`、`concurrent_drift_overlap` 或 `scope_extension_limit_exceeded` 走全量重准入时，响应携带 `readmission_hint`：越界场景的 `facts_template` 只含 `write_scope`（原范围 ∪ 越界路径，不给 allowed_scope）；`concurrent_drift_overlap` 给出两个选项——收窄 scope 剔除重叠路径（`facts_template` 同时给出剔除后的 `write_scope` 与受影响时的 `read_scope`；重叠若来自证据 read_set 则只能选后项），或等并发变更落定后不带 scope 变更全量重准入（重冻基线自然消解 drift），该码只保证失败后一次重准入即过、不承诺首轮必过；提示均附可执行 `example_argv`。`stale_evidence` 硬错误载荷携带 `stale_write_paths` 与 `actual_changed_paths` 双清单，宿主可用 `task changes-preview` 在 verify 前零试探对齐。
+`write_scope_violation` 的 `readmission_hint.facts_template` 包含新旧 `write_scope` 并集、`intent_assessment` 与 `gate_assessment`，宿主必须重新确认扩围后的意图和风险。`task changes-preview` 仅返回 `changed_in_write_scope|changed_outside_write_scope|changed_in_read_scope` 分区与 `attribution_status=unknown_until_evidence`，不代表 verify 归因结论。
 
 ## 6. evidence-receipt/v2
 
-新任务只接受 `docs-harness/evidence-receipt/v2`。必填绑定字段：
+新任务接受 `docs-harness/evidence-declaration/v1` 或 `docs-harness/evidence-receipt/v2`；两者由宿主/外部提交时均是 `reported`。v2 必填绑定字段：
 
 ```json
 {
@@ -198,7 +198,7 @@ verify 因 `write_scope_violation`、`concurrent_drift_overlap` 或 `scope_exten
 }
 ```
 
-过期、跨任务、跨目标、跨 package fingerprint、不可信生产者、非零退出或摘要无效均拒绝。安全、发布、恢复等高风险证据必须来自可信 v2 生产者；报告型旧证据不能满足。
+过期、跨任务、跨目标、跨 package fingerprint、非零退出或摘要无效均拒绝。生产者名称只是识别字段，不是信任来源：宿主提交的 v2 JSON 一律是 `reported`，且不得冒充 `docs-harness/git_postcheck|verification_command|auto_attribution` controller producer。只有这些受控内部入口可产生 `verified`。
 
 验证命令使用：
 
@@ -226,9 +226,9 @@ verify 因 `write_scope_violation`、`concurrent_drift_overlap` 或 `scope_exten
 }
 ```
 
-`type`、`write_set`、`changed_paths`、`read_set`、`concurrent_drift`、`conclusion` 由宿主声明；`task_id`、`target_identity`、`package_fingerprint`、`cwd`、起止时间、`ttl=3600`、`exit_code=0`、两个 digest（对声明正文计算）以及 `read_set` 各路径的当前指纹全部由控制器代铸，producer 记 `("docs-harness", "host_declaration")`。代铸后按完整 v2 收据同等校验、索引并保存受管副本，信任等级与宿主自铸收据持平；缺 `type`、`type` 不在白名单、路径越界等按现有校验失败关闭。完整 `evidence-receipt/v2` 格式继续接受。
+`type`、`write_set`、`changed_paths`、`read_set`、`concurrent_drift`、`conclusion` 由宿主声明；绑定字段与指纹由控制器在 verify 时刻代铸，producer 记 `("docs-harness", "host_declaration")`。代铸只解决时效与绑定，信任等级仍为 `reported`；宿主声明的 `concurrent_drift` 只记为 `reported_concurrent_drift`，不能证明并发归因，也禁止同路径被自动认领。与任务读写范围重叠时返回 `concurrent_drift_unverified + provide_evidence`，要求受控并发归因收据。
 
-合同稳定且唯一阻断是 `write_scope` 内未归因写入时，控制器默认代铸一张 `workspace_attribution` 收据（producer `("docs-harness", "auto_attribution")`，`write_set` 为这批路径）自动认领，索引后写入 `auto_attribution` 事件并继续本次 verify，响应新增 `auto_attributed_paths` 字段；项目可在 `.docs-harness/config.json` 设置 `verification.auto_attribute_in_scope=false` 恢复 `provide_evidence` 补证据行为。范围之外的写入、其他阻断与高风险 Gate 处理不变。
+合同稳定且唯一阻断是 `write_scope` 内未归因写入时，控制器默认代铸 `workspace_attribution` 收据。它只消解写入所有权，不满足语义验收；每个写任务至少需要一类非 attribution 证据，没有其他合同要求时默认为 `change_review`。
 
 验证命令使用 `docs-harness/verification-command-receipt/v1` 逐项收据：命令按 argv、声明 `produces` 与输入指纹（读取集与工作区相关写入）绑定。输入不变且上次通过的命令直接复用收据（`cache_hit=true`），不重复执行；输入变化、上次失败或 volatile 副产物改变输入时重跑。只重跑失败或输入变化的命令，其余沿用通过收据。项目可在 `.docs-harness/config.json` 设置 `verification.command_cache_enabled=false` 整体关闭复用；关闭时不读不写收据缓存，验证事件记录 `command_cache_enabled=false`。
 
@@ -299,7 +299,7 @@ dry-run 把候选清单（含状态指纹）冻结到 `task-prune-candidates.jso
 harness task changes-preview --target . --task-id <id>
 ```
 
-恒只读、无 `--apply`：以冻结基线对当前工作区做纯函数 diff，返回 `action`、`changed_paths`、`in_scope`、`outside_scope` 与 `read_set_drift`，与 verify 时刻归因同源；不写 compiled、freeze、事件与任何状态文件，执行前后任务 state 目录逐字节一致。
+恒只读、无 `--apply`：以冻结基线对当前工作区做纯函数 diff，返回 `action`、`changed_paths`、`changed_in_write_scope`、`changed_outside_write_scope`、`changed_in_read_scope` 与 `attribution_status=unknown_until_evidence`；它只是工作区分区，不代表 verify 时的证据归因。命令不写 compiled、freeze、事件与任何状态文件，执行前后任务 state 目录逐字节一致。
 
 ## 9. 脱敏效率事件
 
@@ -371,7 +371,7 @@ retry 只归档当前 attempt 工件、推进 attempt、清空准备引用并刷
 
 `project init|upgrade` 共享 `knowledge_flow`：`already_ready` 不创建初始化动作；`bootstrap_new` 幂等创建单一 bootstrap；`bootstrap_in_progress` 复用活动 Job；`audit_existing` 保持零知识内容写入并返回 audit/consent 下一步；`external_consume_only`（项目存在 `.qoder/repowiki` 外部知识库）不创建任何知识动作。任一非终态 bootstrap 都会阻塞增量 Job。只有 bootstrap `updated|no_change` 且控制器复算知识 ready 才释放等待者；其他结果进入 `needs_user_input`。所有知识 Job 的 `updated|no_change` 都要求最终 ready，候选地图在落盘前按实际功能文档纯读取复算。
 
-外部只消费知识源：项目存在 `.qoder/repowiki/knowledge/<locale>/`（含知识卡 `.md`）时，`knowledge_status` 直接返回 `ready` 且带 `source="repowiki"`，不再检查 `docs/` 与 `knowledge-map.json`；准入上下文按任务文本与 scope 命中知识卡 frontmatter 的 `name`/`scope` 选卡（`knowledge_context.source="repowiki"`），命中即 `context_quality=complete`，未命中沿用 `unresolved` 降级语义；知识卡枚举上限 1000（可用环境变量 `DOCS_HARNESS_REPOWIKI_CARD_LIMIT` 覆盖为正整数），超限按排序截断，`knowledge_status` 与 `knowledge_context` 始终回传 `total_cards` 与 `truncated` 暴露截断事实，不得静默丢弃。该模式下不创建 `docs/` 骨架、不自动声明 `feature_knowledge_incremental_sync`/`adr_changelog_todo_review` 交付物、增量 Job 创建短路返回 `knowledge_external_consume_only`，`knowledge bootstrap` 以同码失败关闭（退出码 3）；知识交付不参与 `clone_ready` 判定（`knowledge_delivery_status="external_repowiki"`）。
+外部只消费知识源：项目存在 `.qoder/repowiki/knowledge/<locale>/`（含知识卡 `.md`）时，`knowledge_status` 直接返回 `ready` 且带 `source="repowiki"`，不再检查 `docs/` 与 `knowledge-map.json`；准入上下文按任务文本与 scope 命中知识卡 frontmatter 的 `name`/`scope` 选卡（`knowledge_context.source="repowiki"`），命中即 `context_quality=complete`，未命中沿用 `unresolved` 降级语义；知识卡枚举上限 1000（可用环境变量 `DOCS_HARNESS_REPOWIKI_CARD_LIMIT` 覆盖为正整数），超限按排序截断，`knowledge_status` 与 `knowledge_context` 始终回传 `total_cards` 与 `truncated` 暴露截断事实，不得静默丢弃。只要 `.qoder/repowiki` 目录存在，任务包与运行时响应就通过 `context_instructions` 下发“了解项目架构和模块知识时，优先阅读 `.qoder/repowiki/zh/content/` 下的 Wiki 文档和 `.qoder/repowiki/knowledge/zh/` 下的知识卡片”，并在项目安装或升级时写入受管 `AGENTS.md`；该提示不依赖当前任务是否命中具体知识卡。该模式下不创建 `docs/` 骨架、不自动声明 `feature_knowledge_incremental_sync`/`adr_changelog_todo_review` 交付物、增量 Job 创建短路返回 `knowledge_external_consume_only`，`knowledge bootstrap` 以同码失败关闭（退出码 3）；知识交付不参与 `clone_ready` 判定（`knowledge_delivery_status="external_repowiki"`）。
 
 知识审查与工作量估算共享过滤器。`.git`、`.docs-harness`、依赖/构建/缓存目录、`.playwright-cli`、`zbuddy-output`、敏感路径及图片、音视频、压缩包、DMG、Office/PPT 等资产默认排除；响应返回 `excluded_summary`。assessment、consent 与 decline cache 绑定实际返回库存生成的 `knowledge_inventory_fingerprint`。
 

@@ -19,7 +19,7 @@ python3 <docs-harness-skill>/scripts/harness.py project init --target <project> 
 - 新项目创建最小知识骨架、执行 `knowledge estimate` 并返回 `knowledge_bootstrap` 后台合同；安装不等待知识生成。
 - 已有 `docs/` 的项目安装阶段零文档内容写入；先审查，缺口需要用户同意后才能创建后台 Job。
 - 不自动修改 `.gitignore`、提交、推送或发布。
-- 项目存在 `.qoder/repowiki` 外部知识库时进入只消费模式：不创建 `docs/` 骨架、不执行 bootstrap/增量同步等任何知识库写动作（`knowledge bootstrap` 返回 `knowledge_external_consume_only` 失败关闭），任务准入按任务文本与 scope 命中知识卡（frontmatter 的 `name`/`scope`）作为上下文；`knowledge_status.source="repowiki"`，交接 mode 为 `external_consume_only`。
+- 项目存在 `.qoder/repowiki` 外部知识库时进入只消费模式：不创建 `docs/` 骨架、不执行 bootstrap/增量同步等任何知识库写动作（`knowledge bootstrap` 返回 `knowledge_external_consume_only` 失败关闭），任务准入按任务文本与 scope 命中知识卡（frontmatter 的 `name`/`scope`）作为上下文；`knowledge_status.source="repowiki"`，交接 mode 为 `external_consume_only`。同时向宿主下发并在受管 `AGENTS.md` 中写入条件式指令：“了解项目架构和模块知识时，优先阅读 `.qoder/repowiki/zh/content/` 下的 Wiki 文档和 `.qoder/repowiki/knowledge/zh/` 下的知识卡片。”
 - `runtime_status`、`controller_clone_ready`、整体 `clone_ready`、远端与真实宿主验收分别报告。
 - `project upgrade` preserve-and-merge 合法 `document_routes`；非法路由或缺少路由合同的在途治理 Job 返回 `needs_manual_migration`，不覆盖真源配置或旧 Job scope。
 
@@ -37,11 +37,11 @@ python3 scripts/harness.py run --target . --task "<原始用户任务>" --json
 
 规则、授权、安全、范围、用户指定交付物和必要证据异常继续失败关闭。
 
-`run` 先编译 `task_intent`、`candidate_intents` 和 `deferred_intents`，再取当前任务最高 `mutation_profile` 和风险 Gate。未来任务子句与完成体只进入可审计边界字段，不授权当前写入。只读查询使用 `read_only + write_scope=[]`；Git inspect、fetch、commit、sync 分别使用读取、Git 元数据写入、Git 元数据写入（本地提交层，不附带 fetch/远端授权）和工作区写入合同。任务文本关键词不参与 Gate 分类；Harness Home 规则匹配与交付层需求判断仍使用各自的受控关键词和否定守卫，因此「不推送」「无需部署」等紧邻否定语境不会误匹配发布规则或远端交付要求。
+`run` 先编译 `task_intent`、`candidate_intents` 和 `deferred_intents`，再取当前任务最高 `mutation_profile` 和风险 Gate。宿主可通过 `intent_assessment` 提交权威意图声明（`{"intents": [...], "rationale": "..."}`）；兼容字段 `task_intent|candidate_intents` 同样为显式声明。只有未声明时才运行文本启发式，其结果仅用于只读候选与诊断，不能授予写权限；写任务缺少意图声明必须失败关闭。未来任务子句与完成体只进入可审计边界字段，不授权当前写入。任务文本关键词不参与 Gate 分类；Harness Home 规则匹配与交付层需求判断仍使用各自的受控关键词和否定守卫。
 
-宿主必须基于任务语义判断风险 Gate，并在 `--facts` 中提交 `gate_assessment`（`{"gates": [...], "rationale": "<一句话依据>"}`）。提交后以模型声明为准（同时兼容既有 `facts.gates` 显式声明），控制器不再用任务文本关键词增补或覆盖；未提交时只合并既有 `facts.gates` 与 `read_scope`/`write_scope` 路径推断。`security-sensitive`、`destructive-data`、`release-external` 等高风险 Gate 一旦声明，方案、授权与证据门槛仍失败关闭；任务中途实际变更命中新路径 Gate 时，绊线与重新准入同样不受初始声明影响。
+宿主必须基于任务语义判断风险 Gate，并在 `--facts` 中提交 `gate_assessment`（`{"gates": [...], "rationale": "<一句话依据>"}`）。写任务缺少声明直接阻断；路径推断只标记文档、代码、测试这类封闭结构，不能代替安全、发布、数据等语义判断。项目确实存在稳定的语义路径边界时，在 `.docs-harness/config.json` 使用 `gate_path_rules` 显式配置 `pattern` 与 `gates`；运行期新路径只依该项目映射触发新 Gate 绊线。
 
-准入响应中的 `completion_manifest` 是收尾真源。新任务证据必须使用 `docs-harness/evidence-receipt/v2`，绑定当前 task、target、package fingerprint、可信 producer、时效和读写集合；验证命令只有显式声明白名单 `produces` 才能产生语义证据。验证命令期间新建的已知临时副产物（`__pycache__`、`.pytest_cache`、`.coverage` 等缓存、测试中间产物、日志和系统垃圾）不计入工作区额外写入，只进入 `volatile_write_set` 保持可见；同名已有文件的修改或删除仍失败关闭。项目可在 `.docs-harness/config.json` 的 `verification.volatile_paths` 追加带固定根目录的 glob 白名单，全局或越界模式拒绝。最终验收晚发现仅追加、且不改变路线、授权、范围、方案字段或阻断交付物的普通 Gate 时，控制器原子增量准入并继承同轮已验证收据，宿主只加载新增上下文；高风险或合同变化继续完整重新准入。
+准入响应中的 `completion_manifest` 是收尾真源。宿主提交的 `evidence-declaration/v1` 与完整 v2 JSON 均是 `reported`：控制器可代铸绑定字段，但不会把宿主自述升级为已验证事实。只有控制器自身执行的命令、Git 后检与自动归因入口可产生 `verified` 收据；外部 JSON 不得声称这些 controller producer。安全、发布、恢复、远端交付等高风险证据只接受 `verified` 受控入口，`reported` 不能满足。
 
 最终验收：
 
@@ -55,17 +55,17 @@ python3 scripts/harness.py verify --target . --task-id <task-id> --evidence <evi
 
 宿主验证必须按实际变更面分层，详细真源见 `docs/testing.md`：行为代码、依赖或公共夹具变化时先跑目标测试，行为稳定后同一行为快照最多一次完整回归；仅版本、README、CHANGELOG 或元数据变化时只做版本一致性、自检、编译和打包检查；下游同步只做 preview/apply/diff/check 与受管文件摘要，不重复上游完整回归。已有完整回归证据在行为快照未变时必须复用，长测试默认安静输出。
 
-write_scope 内的写入由控制器自动归因：代铸 `workspace_attribution` 收据、记录 `auto_attribution` 事件，响应含 `auto_attributed_paths`，`verification.auto_attribute_in_scope=false` 可恢复补证据流程。需要声明证据类型时只提交 `docs-harness/evidence-declaration/v1` 草案（`type`/`write_set`/`read_set`/`concurrent_drift`/`conclusion`），装订字段与 `read_set` 指纹由控制器代铸，完整 v2 收据继续接受。git_sync 遇远端漂移时 `run --task-id` 单命令完成重新准入并复用已冻结方案，pull 已落盘文件经 `git_sync_landed_scope` 自动归因，`origin/HEAD` 更新不再误判 ref 越界。
+write_scope 内的写入由控制器自动归因：代铸 `workspace_attribution` 收据、记录 `auto_attribution` 事件，响应含 `auto_attributed_paths`。该收据只证明“这些路径归当前任务写入”，不证明变更正确；每个写任务仍至少需要一类独立语义验收，当 Gate、规则、意图与显式合同都未提供时自动要求 `change_review`。
 
 v1 在途任务只允许 `task status` 读取；必须显式执行 `task migrate --apply` 后重新准入。存在活动 v2 任务时，`project rollback-check` 必须阻断回滚。
 
 v1.6.9 准入效率加固：scope 值形似 JSON（数组/对象整体作为单值）直接报 `invalid_scope_json` 并给出修复提示；`--facts` 等文件参数在 Windows 上传入 Git Bash `/tmp` 等 POSIX 绝对路径时，缺失文件错误附带改用工作区相对路径的提示；非 blocked/scope_changed 状态下提交 `--facts` 不再静默忽略，响应返回 `facts_ignored` 与生效条件；所有 `next_step_payload` 响应统一携带 `contract_snapshot`（当前 `allowed_scope`/`read_scope`/`write_scope`、`plan_fields`、所需证据类型），每步即可自查合同，无需额外探查。
 
-v1.7.0 低风险轻量准入：低风险文档/规则/测试类小任务可在 `--facts` 显式声明 `fast_track: true`（声明制，不做自动推断）；仅在 direct 路线、无 high gate、write_scope 全为文档/规则/测试路径、无 `work_packages` 时生效，否则静默降级普通流程并返回 `fast_track_denied_reason`。生效后响应携带 `evidence_profile: "fast_track"`，所需证据收敛为 `code_diff`（声明验证命令时加 `test_run`）最小集；fast_track 不豁免任何 Gate，运行期命中新风险 Gate 或高风险漂移即单向降级回普通证据集（`fast_track_downgraded`）。fast_track 任务可用 `inline_note`（≤200 字）替代独立 plan 文档，非 fast_track 携带会返回 `inline_note_ignored`。`task status` 新增 `overhead_summary`（`harness_total_ms`/`wall_clock_ms`/`harness_share`），可复算 harness 自身开销占比。
+v1.7.0 低风险轻量准入：低风险文档/规则/测试类小任务可在 `--facts` 显式声明 `fast_track: true`。生效后所需证据收敛为 `code_diff + change_review`（声明验证命令时再加 `test_run`）；差异事实与语义审查仍分层，fast_track 不豁免任何 Gate。
 
 v1.7.1 发版同步与验收提效：`release sync` 单命令核对四处版本真源（VERSION 文件、package.json、SKILL.md frontmatter、`scripts/harness.py` 的 `VERSION` 常量），检查模式输出差异报告（exit 0/2/1），`--apply` 以 `VERSION` 常量为唯一真源原子写入三处受管文件（任一失败整体回滚），`--target-version` 冲突失败关闭（`release_version_conflict`）；CHANGELOG 顶部条目仅提示不自动生成。验收层间按（路径, 清单/内容摘要, 合同版本, target_identity）键复用工作区快照与文件 SHA-256 中间产物（单次 CLI 会话内进程级缓存），verify 响应新增 `layer_reuse` 计数遥测；四层验收判定结论保持独立，fresh clone 与远端网络 I/O 不跳过。
 
-v1.7.3 验收循环提效：准入三处响应（首次 run、二次 run、`task status`）携带 `evidence_checklist`（required/conditional/required_receipts/skeletons，含 write_set 条件性标注）与预生成证据骨架（含 `_instructions` 填写说明），verify 前按清单一次备齐即可消除缺证往返；同三处响应携带 `pending_context_receipts`，执行前自查未加载的上下文阶段与工作包（`work_package:<id>`）。无授权、非 git_sync 的 direct/planned 任务纯越界写入（唯一阻断为 `write_scope_violation`）由 verify 在同一次调用内增量扩展 write_scope 并继续验收（响应含 `scope_extended`/`extended_paths`，单任务上限 3 次；扩围前同轮证据先过与常规 verify 同一标准的 stale_evidence 硬校验，虚报不扩围）；授权任务、git_sync、混合阻断或超限时 exit 4 并携带 `readmission_hint`（精确扩围 `facts_template` + 可执行 `example_argv`），一次重准入即过。`concurrent_drift_overlap` 的 hint 给出收窄 scope（同时剔除 write_scope 与受影响时的 read_scope）与等并发落定重准入两个选项（重叠来自证据 read_set 时只能选后者；只保证失败后一次重准入即过）。verify 前可用恒只读的 `task changes-preview --task-id <id>` 预览 in_scope/outside_scope/read_set_drift（零状态变更），避免 stale_evidence 试探；stale_evidence 错误载荷含 `stale_write_paths`/`actual_changed_paths` 双清单。推荐备证流程：准入读 `evidence_checklist` 知道备什么 → 执行中按清单随手铸 `docs-harness/evidence-declaration/v1` 草案（绑定字段在 verify 时刻代铸，铸证后再改同路径不致 stale，write_set 照实写即可）→ verify 一次提交全齐。宿主未照准入指引执行时仍有兜底：`action_context_missing` 与缺证的 exit 3 失败载荷自身携带 `pending_context_receipts` 与完整 `evidence_checklist`（骨架与清单同批），照失败载荷补齐即过，不依赖指令遵守。
+当前验收循环合同：`evidence_checklist` 含 `required/conditional/required_receipts/skeletons/trust_requirements` 五段，高风险项不生成可自填的声明骨架。`verify` 失败载荷返回有序 `recovery_actions`，分别对应 `provide_evidence → refresh_evidence → retry_verification → incremental_admission → full_readmission`，只重做受影响层。`task changes-preview` 只返回工作区分区（`changed_in_write_scope/changed_outside_write_scope/changed_in_read_scope`）与 `attribution_status=unknown_until_evidence`，不宣称 verify 归因或“同源”。任何越出 `write_scope` 的新路径都返回 `full_readmission`/exit 4，`readmission_hint.facts_template` 同时携带范围并集、意图声明和 Gate 声明；控制器不再在 verify 中自动扩围。
 
 ## 后台治理
 

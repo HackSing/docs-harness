@@ -5,16 +5,21 @@
 - [scripts/harness.py](file://scripts/harness.py)
 - [package.json](file://package.json)
 - [README.md](file://README.md)
-- [docs/contracts.md](file://docs/contracts.md)
+- [CHANGELOG.md](file://CHANGELOG.md)
+- [SKILL.md](file://SKILL.md)
+- [VERSION](file://VERSION)
+- [docs/testing.md](file://docs/testing.md)
 - [tests/test_harness.py](file://tests/test_harness.py)
 </cite>
 
 ## 更新摘要
 **已进行的更改**   
-- 新增 v1.7.3 task changes-preview 命令，提供纯函数差异对比功能，无需修改状态文件
-- 增强 HarnessError 错误响应机制，支持更多诊断信息字段
-- 更新任务管理命令的 changes-preview 子命令规格
-- 完善错误处理指南和调试建议
+- 版本更新至 v1.7.6，反映所有配置文件中的版本同步
+- 新增自适应验证强度测试策略：基于实际变更面选择验证强度，支持行为级验证优先
+- 移除任务文本关键词 Gate 路由，改为宿主语义判断
+- 新增 git_commit 受控意图（本地提交层）
+- 增强错误响应机制，支持更多诊断信息字段
+- 完善测试策略文档和验收分层指导
 
 ## 目录
 1. [简介](#简介)
@@ -29,19 +34,21 @@
 10. [附录：JSON输出与结构化响应](#附录json输出与结构化响应)
 
 ## 简介
-本文件为 Docs Harness v1.7.3 的完整 CLI 命令参考，覆盖 run、verify、background、project、ledger、context、progress、task、knowledge、authorization、release、self-test 等全部命令。文档包含每个命令的语法、必需与可选参数、环境变量与配置项、错误码与退出码、常见工作流示例、命令间依赖与执行顺序指导，以及 JSON 输出格式说明与调试建议。所有规范以仓库内源码与契约文档为依据。
+本文件为 Docs Harness v1.7.6 的完整 CLI 命令参考，覆盖 run、verify、background、project、ledger、context、progress、task、knowledge、authorization、release、self-test 等全部命令。文档包含每个命令的语法、必需与可选参数、环境变量与配置项、错误码与退出码、常见工作流示例、命令间依赖与执行顺序指导，以及 JSON 输出格式说明与调试建议。所有规范以仓库内源码与契约文档为依据。
 
 **v1.7.x 版本特性**：
 - **快速通道准入**（v1.7.0）：低风险任务可通过 `fast_track: true` 声明走轻量流程，证据要求收敛到最小集
 - **发版同步**（v1.7.1）：单命令原子同步 VERSION、package.json、SKILL.md 等版本真源
 - **后台优化**（v1.7.2）：合并 dispatch 快路径和批量 progress 推进，减少 CLI 往返次数
 - **变更预览**（v1.7.3）：新增 `task changes-preview` 只读命令，提供纯函数差异对比，零状态变更
+- **自适应验证强度**（v1.7.6）：基于实际变更面选择验证强度，行为代码变化触发目标测试优先，版本元数据变更只做轻量检查
 
 ## 项目结构
 - 入口脚本：scripts/harness.py（Python 实现）
 - 包元数据：package.json（版本、脚本、打包清单）
 - 技能说明：README.md（安装、任务入口、后台治理、质量账本等高层流程）
 - 契约与状态机：docs/contracts.md（任务包、证据、上下文、授权、验证命令、迁移与回滚、退出码等）
+- 测试策略：docs/testing.md（验证选择矩阵、验收分层、事实来源）
 
 ```mermaid
 graph TB
@@ -51,15 +58,18 @@ C --> D["运行时状态目录<br/>.docs-harness/runs/<task-id>"]
 C --> E["项目配置<br/>.docs-harness/config.json"]
 C --> F["Git 集成<br/>git_* 工具函数"]
 C --> G["规则与知识<br/>harness-home/rules/*<br/>docs/knowledge-map.json"]
+C --> H["测试策略<br/>docs/testing.md"]
 ```
 
 **图表来源** 
 - [scripts/harness.py:11415-11438](file://scripts/harness.py#L11415-L11438)
-- [package.json:1-23](file://package.json#L1-L23)
+- [package.json:1-24](file://package.json#L1-L24)
+- [docs/testing.md:9-24](file://docs/testing.md#L9-L24)
 
 章节来源
 - [scripts/harness.py:11415-11438](file://scripts/harness.py#L11415-L11438)
-- [package.json:1-23](file://package.json#L1-L23)
+- [package.json:1-24](file://package.json#L1-L24)
+- [docs/testing.md:9-24](file://docs/testing.md#L9-L24)
 
 ## 核心组件
 - 命令行解析与分发：build_parser() 定义所有子命令与参数；main(argv) 路由到具体 command_* 函数并统一输出 emit()。
@@ -167,6 +177,7 @@ KNO-->>U : 知识库/后台兼容操作
 - 计划冻结：若需提交/补全计划，返回 complete_plan 或 complete_plan_delta，仅列出缺失字段，避免整份重交。
 - Git 预检/后检查：对 git_fetch/git_sync 进行 preflight 与 postcheck，漂移将触发重新准入。
 - **快速通道**：facts 中声明 `fast_track: true` 且满足条件时走轻量流程，证据要求收敛到最小集。
+- **自适应验证**：v1.7.6 起根据实际变更面选择验证强度，行为代码变化触发目标测试优先。
 
 返回值与下一步
 - 可能返回 next_action 与 next_command_argv，如 load_plan_context、load_action_context、obtain_authorization、provide_evidence、retry_verification、rerun_harness_for_readmission 等。
@@ -238,15 +249,17 @@ KNO-->>U : 知识库/后台兼容操作
 行为要点
 - 五级处置：provide_evidence、refresh_evidence、retry_verification、incremental_admission、full_readmission。
 - 验证命令逐项缓存：输入不变且上次通过则复用收据；失败或输入变化才重跑。可通过 verification.command_cache_enabled=false 整体关闭。
-- 自动归因：write_scope 内未归因写入默认由控制器代铸 workspace_attribution 收据；可通过 verification.auto_attribute_in_scope=false 恢复补证据流程。
+- 自动归因：write 内未归因写入默认由控制器代铸 workspace_attribution 收据；可通过 verification.auto_attribute_in_scope=false 恢复补证据流程。
 - 每次 verify 均记录结构化事件，统计命令执行次数、缓存命中、上下文加载计数与 readmission_count。
 - **层复用**：v1.7.1 起在单次会话内复用中间产物，响应包含 layer_reuse 遥测信息。
+- **自适应验证强度**：v1.7.6 起根据变更类型选择验证策略，行为代码变化优先目标测试，版本元数据变更只做轻量检查。
 
 示例
 - python3 scripts/harness.py verify --target . --task-id <id> --evidence evidence.json --json
 
 **章节来源**
 - [scripts/harness.py:10718-10726](file://scripts/harness.py#L10718-L10726)
+- [docs/testing.md:9-24](file://docs/testing.md#L9-L24)
 
 ### task 命令
 用途：查询、取消、归档、清理任务或显式迁移 v1 在途任务，**新增外部任务补录功能和变更预览功能**。
@@ -329,7 +342,7 @@ KNO-->>U : 知识库/后台兼容操作
 示例
 - **python3 scripts/harness.py release sync --target . --json**
 - **python3 scripts/harness.py release sync --apply --target . --json**
-- **python3 scripts/harness.py release sync --apply --target-version 1.7.2 --target . --json**
+- **python3 scripts/harness.py release sync --apply --target-version 1.7.6 --target . --json**
 
 **章节来源**
 - [scripts/harness.py:11152-11180](file://scripts/harness.py#L11152-L11180)
@@ -510,9 +523,11 @@ VersionSync --> End
 - **层复用遥测**：v1.7.1 起 verify 响应包含 layer_reuse 字段，记录中间产物复用情况。
 - **开销度量**：v1.7.0 起 task status 包含 overhead_summary（harness_total_ms/wall_clock_ms/harness_share），目标 ≤1/10。
 - **变更预览性能**：changes-preview 使用纯函数 snapshot_changes 和 workspace_snapshot，零状态变更，执行前后 state 目录逐字节一致。
+- **自适应验证性能**：v1.7.6 起根据变更类型选择验证策略，行为代码变化优先目标测试，版本元数据变更只做轻量检查，避免不必要的完整回归。
 
 **章节来源**
 - [scripts/harness.py:3980-4051](file://scripts/harness.py#L3980-L4051)
+- [docs/testing.md:9-24](file://docs/testing.md#L9-L24)
 
 ## 故障排除指南
 - 常见错误码与退出码
@@ -533,20 +548,16 @@ VersionSync --> End
   - **快速通道降级**：检查 fast_track_denied_reason，确认是否满足 direct 路线、无 high gate、文档类 write_scope 等条件
   - **变更预览失败**：检查任务是否为 v2 格式，v1 任务不支持 changes-preview，需先迁移
   - **stale_evidence 错误**：使用 task changes-preview 在 verify 前预览实际变更，对齐证据 write_set
-- 调试建议
-  - 始终使用 --json 获取结构化响应
-  - 关注 next_action 与 next_command_argv，按指引执行下一步
-  - 查看 events.jsonl 与 evidence-index.json 了解最近轮次与证据状态
-  - 检查 .docs-harness/config.json 的 verification.* 开关是否符合预期
-  - **v1.7.x 新特性调试**：关注 fast_track/evidence_profile/layer_reuse/overhead_summary 等新字段
-  - **增强错误响应调试**：关注 suggested_fix、missing_items、actual_vs_expected 等诊断字段
+  - **验证强度不当**：v1.7.6 起根据变更类型自动选择验证策略，行为代码变化应优先目标测试，版本元数据变更只做轻量检查
+  - **Gate 路由异常**：v1.7.6 起移除任务文本关键词 Gate 路由，需通过 gate_assessment 提交语义判断
 
 **章节来源**
 - [scripts/harness.py:3980-4051](file://scripts/harness.py#L3980-L4051)
 - [scripts/harness.py:10556-10604](file://scripts/harness.py#L10556-L10604)
+- [CHANGELOG.md:3-10](file://CHANGELOG.md#L3-L10)
 
 ## 结论
-Docs Harness CLI 围绕"意图优先、证据可复用、失败关闭"的原则设计，通过严格的准入、范围绑定、Gate 编译、上下文与授权回执、逐命令验证与收据复用，确保任务执行的可审计性与稳定性。**v1.7.x 版本新增了快速通道准入、发版同步、后台优化和变更预览四大特性**，进一步提升了小任务的执行效率和发布流程的可靠性。掌握 run/context/verify/progress/background/project/ledger/task/authorization/release/knowledge/self-test 的命令规格与依赖关系，即可高效编排从任务准入到验收的全流程。
+Docs Harness CLI 围绕"意图优先、证据可复用、失败关闭"的原则设计，通过严格的准入、范围绑定、Gate 编译、上下文与授权回执、逐命令验证与收据复用，确保任务执行的可审计性与稳定性。**v1.7.x 版本新增了快速通道准入、发版同步、后台优化、变更预览和自适应验证强度五大特性**，进一步提升了小任务的执行效率和发布流程的可靠性。掌握 run/context/verify/progress/background/project/ledger/task/authorization/release/knowledge/self-test 的命令规格与依赖关系，即可高效编排从任务准入到验收的全流程。
 
 ## 附录：JSON输出与结构化响应
 - 输出格式
@@ -564,6 +575,7 @@ Docs Harness CLI 围绕"意图优先、证据可复用、失败关闭"的原则�
   - **性能字段**：overhead_summary（harness_total_ms/wall_clock_ms/harness_share）、layer_reuse
   - **changes-preview 字段**：**v1.7.3 新增** action、task_id、changed_paths、in_scope、outside_scope、read_set_drift、next_action
   - **增强错误响应字段**：**v1.7.3 增强** suggested_fix、missing_items、actual_vs_expected、extra_payload
+  - **自适应验证字段**：**v1.7.6 新增** verification_strategy、change_type、target_tests、full_regression_eligible
 - 事件与指标
   - events.jsonl 记录 verification_attempt、readmission、auto_attribution、**task_adopted**、**fast_track_downgraded** 等事件
   - 指标包括 duration_ms、command_executed_count、command_cache_hit_count、context_load_count、readmission_count
@@ -574,3 +586,4 @@ Docs Harness CLI 围绕"意图优先、证据可复用、失败关闭"的原则�
 - [scripts/harness.py:11152-11180](file://scripts/harness.py#L11152-L11180)
 - [scripts/harness.py:10795-10801](file://scripts/harness.py#L10795-L10801)
 - [scripts/harness.py:4424-4448](file://scripts/harness.py#L4424-L4448)
+- [docs/testing.md:9-24](file://docs/testing.md#L9-L24)

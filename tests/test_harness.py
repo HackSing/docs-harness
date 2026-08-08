@@ -58,9 +58,56 @@ class DocsHarnessContractTest(unittest.TestCase):
     def tearDown(self) -> None:
         self.temp.cleanup()
 
-    def run_harness(self, *args: str, expected: int | None = 0) -> tuple[subprocess.CompletedProcess[str], dict[str, Any]]:
+    def _inject_default_assessments(self, args: tuple[str, ...]) -> tuple[str, ...]:
+        """历史合同用例由测试宿主补齐新声明；声明专项测试可显式关闭。"""
+        if not args or args[0] != "run" or "--task" not in args or "--task-id" in args:
+            return args
+        mutable = list(args)
+        task = mutable[mutable.index("--task") + 1]
+        facts: dict[str, Any] = {}
+        facts_index: int | None = None
+        if "--facts" in mutable:
+            facts_index = mutable.index("--facts") + 1
+            try:
+                loaded = json.loads(Path(mutable[facts_index]).read_text(encoding="utf-8"))
+            except (OSError, json.JSONDecodeError):
+                return args
+            if not isinstance(loaded, dict):
+                return args
+            facts = loaded
+        scopes = list(facts.get("write_scope") or facts.get("allowed_scope") or [])
+        scope_positions = [index for index, value in enumerate(mutable) if value == "--scope"]
+        scopes.extend(mutable[index + 1] for index in scope_positions if index + 1 < len(mutable))
+        if "intent_assessment" not in facts and "task_intent" not in facts and "candidate_intents" not in facts:
+            candidates, _, _ = HARNESS_MODULE.classify_task_intents(
+                task, {}, has_declared_scope=bool(scopes)
+            )
+            facts["intent_assessment"] = {
+                "intents": [item["intent"] for item in candidates],
+                "rationale": "测试宿主按当前任务语义提交意图声明",
+            }
+        if "gate_assessment" not in facts:
+            gates = list(facts.get("gates") or HARNESS_MODULE.infer_gates_from_paths(scopes))
+            facts["gate_assessment"] = {
+                "gates": gates,
+                "rationale": "测试宿主按当前范围提交 Gate 声明",
+            }
+        injected = self.write_json(f"auto-assessment-{len(list(self.temp_root.glob('auto-assessment-*')))}.json", facts)
+        if facts_index is None:
+            mutable.extend(("--facts", str(injected)))
+        else:
+            mutable[facts_index] = str(injected)
+        return tuple(mutable)
+
+    def run_harness(
+        self,
+        *args: str,
+        expected: int | None = 0,
+        inject_assessments: bool = True,
+    ) -> tuple[subprocess.CompletedProcess[str], dict[str, Any]]:
+        effective_args = self._inject_default_assessments(args) if inject_assessments else args
         result = subprocess.run(
-            [sys.executable, str(HARNESS), *args, "--json"],
+            [sys.executable, str(HARNESS), *effective_args, "--json"],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -1598,7 +1645,7 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertEqual(attribution["unattributed_drift"], ["unrelated.txt"])
         self.assertEqual(attribution["warnings"][0]["reason_code"], "unattributed_drift_unrelated")
 
-    def test_v15_verified_concurrent_drift_is_not_misclassified(self) -> None:
+    def test_v15_reported_concurrent_drift_is_not_promoted_to_verified(self) -> None:
         self.init_project()
         facts = self.write_json("concurrent-scope.json", {"write_scope": ["README.md"]})
         _, routed = self.run_harness(
@@ -1619,12 +1666,17 @@ class DocsHarnessContractTest(unittest.TestCase):
             "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
         )
         attribution = verified["workspace_attribution"]
-        self.assertEqual(attribution["concurrent_drift"], ["external.txt"])
-        self.assertEqual(attribution["unattributed_drift"], [])
-        self.assertEqual(attribution["warnings"][0]["reason_code"], "concurrent_drift_unrelated")
+        self.assertEqual(attribution["concurrent_drift"], [])
+        self.assertEqual(attribution["reported_concurrent_drift"], ["external.txt"])
+        self.assertEqual(attribution["unattributed_drift"], ["external.txt"])
+        self.assertEqual(attribution["warnings"][0]["reason_code"], "concurrent_drift_unverified_unrelated")
 
     def test_v15_high_risk_concurrent_drift_fails_closed(self) -> None:
         self.init_project()
+        config_path = self.project / ".docs-harness" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["gate_path_rules"] = [{"pattern": "security/**", "gates": ["security-sensitive"]}]
+        config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
         facts = self.write_json("risky-concurrent.json", {"write_scope": ["README.md"]})
         _, routed = self.run_harness(
             "run", "--target", str(self.project), "--task", "修改 README 文档", "--facts", str(facts)
@@ -1706,6 +1758,7 @@ class DocsHarnessContractTest(unittest.TestCase):
         )
         self.assertEqual(pending["result"], "补充证据")
         self.assertEqual(pending["reason_code"], "read_set_drift")
+        self.assertEqual([item["action"] for item in pending["recovery_actions"]], ["refresh_evidence"])
         self.assertEqual(pending["refresh_paths"], ["source.txt"])
         self.assertEqual(pending["next_action"], "refresh_evidence")
         after = HARNESS_MODULE.file_fingerprint(source)
@@ -3867,6 +3920,7 @@ class DocsHarnessContractTest(unittest.TestCase):
             expected=3,
         )
         self.assertEqual(pending["reason_code"], "incremental_gate_context_required")
+        self.assertEqual([item["action"] for item in pending["recovery_actions"]], ["incremental_admission"])
         self.assertEqual(pending["added_gates"], ["code-edit"])
         self.assertFalse(pending["evidence_regeneration_required"])
 
@@ -3881,8 +3935,17 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertEqual(indexed[0]["adoption_reason"], "additive_gate_only")
 
         self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
+        change_review = self.write_json(
+            "incremental-change-review.json",
+            {
+                "schema_version": "docs-harness/evidence-declaration/v1",
+                "type": "change_review",
+                "write_set": ["src/helper.py"],
+                "conclusion": "增量 Gate 准入后变更仍符合原任务意图",
+            },
+        )
         _, verified = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(change_review)
         )
         self.assertEqual(verified["result"], "完成")
         events = HARNESS_MODULE.read_jsonl(state / "events.jsonl")
@@ -4421,13 +4484,43 @@ class DocsHarnessContractTest(unittest.TestCase):
             encoding="utf-8",
         )
         (root / "_index.yaml").write_text("schema_version: 1\nmodules: {}\n", encoding="utf-8")
+        wiki_root = self.project / ".qoder" / "repowiki" / "zh" / "content"
+        wiki_root.mkdir(parents=True, exist_ok=True)
+        (wiki_root / "架构概览.md").write_text(
+            "# 架构概览\n\n测试项目由核心模块与文档体系组成。\n",
+            encoding="utf-8",
+        )
+
+    def test_v177_repowiki_guidance_depends_on_directory_presence(self) -> None:
+        self.assertEqual(HARNESS_MODULE.repowiki_context_guidance(self.project), {})
+        self.write_repowiki_fixture()
+        guidance = HARNESS_MODULE.repowiki_context_guidance(self.project)
+        self.assertEqual(
+            guidance["instructions"],
+            [HARNESS_MODULE.REPOWIKI_ARCHITECTURE_INSTRUCTION],
+        )
+        self.assertEqual(
+            guidance["preferred_read_roots"],
+            [
+                ".qoder/repowiki/zh/content/",
+                ".qoder/repowiki/knowledge/zh/",
+            ],
+        )
 
     def test_v166_repowiki_init_consumes_without_scaffold_or_bootstrap(self) -> None:
         self.write_repowiki_fixture()
         _, payload = self.run_harness("project", "init", "--target", str(self.project))
         self.assertFalse((self.project / "docs").exists())
         self.assertEqual(payload["knowledge_flow"]["mode"], "external_consume_only")
+        self.assertEqual(
+            payload["knowledge_flow"]["context_instructions"],
+            [HARNESS_MODULE.REPOWIKI_ARCHITECTURE_INSTRUCTION],
+        )
         self.assertEqual(payload["knowledge_status"], "ready")
+        self.assertIn(
+            HARNESS_MODULE.REPOWIKI_ARCHITECTURE_INSTRUCTION,
+            (self.project / "AGENTS.md").read_text(encoding="utf-8"),
+        )
         bootstraps = [
             job
             for job in HARNESS_MODULE.list_background_jobs(self.project)
@@ -4443,6 +4536,10 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertEqual(status["features"], 2)
         self.assertEqual(status["total_cards"], 2)
         self.assertFalse(status["truncated"])
+        self.assertEqual(
+            status["context_instructions"],
+            [HARNESS_MODULE.REPOWIKI_ARCHITECTURE_INSTRUCTION],
+        )
 
     def test_v167_repowiki_truncation_is_observable(self) -> None:
         self.write_repowiki_fixture()
@@ -4483,12 +4580,34 @@ class DocsHarnessContractTest(unittest.TestCase):
         context = package["knowledge_context"]
         self.assertEqual(context["source"], "repowiki")
         self.assertEqual(context["context_quality"], "complete")
+        self.assertEqual(
+            routed["context_instructions"],
+            [HARNESS_MODULE.REPOWIKI_ARCHITECTURE_INSTRUCTION],
+        )
+        self.assertEqual(
+            context["instructions"],
+            [HARNESS_MODULE.REPOWIKI_ARCHITECTURE_INSTRUCTION],
+        )
+        self.assertEqual(
+            context["preferred_read_roots"],
+            [
+                ".qoder/repowiki/zh/content/",
+                ".qoder/repowiki/knowledge/zh/",
+            ],
+        )
         self.assertEqual(context["selected_features"], ["核心模块"])
         card_refs = [ref for refs in context["category_refs"].values() for ref in refs]
         self.assertIn(".qoder/repowiki/knowledge/zh/核心模块/核心模块.md", card_refs)
         declared = {item["deliverable"] for item in package["background_deliverables"]}
         self.assertNotIn("feature_knowledge_incremental_sync", declared)
         self.assertNotIn("adr_changelog_todo_review", declared)
+        _, status = self.run_harness(
+            "task", "status", "--target", str(self.project), "--task-id", routed["task_id"]
+        )
+        self.assertEqual(
+            status["context_instructions"],
+            [HARNESS_MODULE.REPOWIKI_ARCHITECTURE_INSTRUCTION],
+        )
 
     def test_v166_repowiki_bootstrap_fails_closed(self) -> None:
         self.write_repowiki_fixture()
@@ -6208,10 +6327,10 @@ class DocsHarnessContractTest(unittest.TestCase):
         )
         layers = verified["delivery_layers"]
         self.assertEqual(layers["remote_delivery"]["expectation"], "required")
-        self.assertEqual(layers["remote_delivery"]["status"], "verified")
-        self.assertEqual(layers["remote_delivery"]["evidence_refs"], ["remote_delivery"])
-        self.assertNotIn("remote_delivery_not_verified", verified["known_limit_codes"])
-        self.assertIn("remote_delivery", verified["acceptance_layers"])
+        self.assertEqual(layers["remote_delivery"]["status"], "not_verified")
+        self.assertEqual(layers["remote_delivery"]["evidence_refs"], [])
+        self.assertIn("remote_delivery_not_verified", verified["known_limit_codes"])
+        self.assertNotIn("remote_delivery", verified["acceptance_layers"])
 
     def disable_auto_attribution(self) -> None:
         config_path = self.project / ".docs-harness" / "config.json"
@@ -6233,7 +6352,7 @@ class DocsHarnessContractTest(unittest.TestCase):
         )
         subprocess.run(["git", "push", "-q", "origin", "main"], cwd=other, check=True)
 
-    def test_auto_attribution_completes_modify_task_without_evidence(self) -> None:
+    def test_auto_attribution_only_proves_write_ownership(self) -> None:
         self.init_project()
         _, routed = self.run_harness(
             "run", "--target", str(self.project), "--task", "调整 src/settings.json 的默认阈值", "--scope", "src/settings.json"
@@ -6241,9 +6360,11 @@ class DocsHarnessContractTest(unittest.TestCase):
         task_id = routed["task_id"]
         (self.project / "src").mkdir(exist_ok=True)
         (self.project / "src" / "settings.json").write_text('{"threshold": 1}\n', encoding="utf-8")
-        _, verified = self.run_harness("verify", "--target", str(self.project), "--task-id", task_id)
-        self.assertEqual(verified["result"], "完成")
-        self.assertEqual(verified["auto_attributed_paths"], ["src/settings.json"])
+        _, pending_review = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
+        )
+        self.assertEqual(pending_review["missing_evidence_types"], ["change_review"])
+        self.assertEqual(pending_review["auto_attributed_paths"], ["src/settings.json"])
         state = HARNESS_MODULE.task_state_dir(self.project, task_id)
         index = json.loads((state / "evidence-index.json").read_text(encoding="utf-8"))
         attributed = [item for item in index["evidence"] if item.get("type") == "workspace_attribution"]
@@ -6258,6 +6379,20 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertEqual(len(auto_events), 1)
         self.assertEqual(auto_events[0]["paths"], ["src/settings.json"])
 
+        review = self.write_json(
+            "settings-change-review.json",
+            {
+                "schema_version": "docs-harness/evidence-declaration/v1",
+                "type": "change_review",
+                "write_set": ["src/settings.json"],
+                "conclusion": "变更内容与任务目标一致",
+            },
+        )
+        _, verified = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(review)
+        )
+        self.assertEqual(verified["result"], "完成")
+
         self.disable_auto_attribution()
         _, routed_off = self.run_harness(
             "run", "--target", str(self.project), "--task", "调整 src/limits.json 的默认阈值", "--scope", "src/limits.json"
@@ -6270,6 +6405,7 @@ class DocsHarnessContractTest(unittest.TestCase):
         self.assertEqual(pending["reason_code"], "unattributed_drift_overlap")
         self.assertEqual(pending["missing_attribution_paths"], ["src/limits.json"])
         self.assertEqual(pending["auto_attributed_paths"], [])
+        self.assertEqual([item["action"] for item in pending["recovery_actions"]], ["provide_evidence"])
 
     def test_evidence_declaration_draft_is_minted_by_controller(self) -> None:
         self.init_project()
@@ -6290,8 +6426,18 @@ class DocsHarnessContractTest(unittest.TestCase):
                 "conclusion": "验收通过",
             },
         )
+        change_review = self.write_json(
+            "declaration-change-review.json",
+            {
+                "schema_version": "docs-harness/evidence-declaration/v1",
+                "type": "change_review",
+                "write_set": ["src/core.py"],
+                "conclusion": "代码变更与任务意图一致",
+            },
+        )
         _, verified = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(draft)
+            "verify", "--target", str(self.project), "--task-id", task_id,
+            "--evidence", str(draft), "--evidence", str(change_review),
         )
         self.assertEqual(verified["result"], "完成")
         self.assertIn("test_result", verified["evidence_types"])
@@ -6300,7 +6446,8 @@ class DocsHarnessContractTest(unittest.TestCase):
         minted = [item for item in index["evidence"] if item.get("type") == "test_result"]
         self.assertEqual(len(minted), 1)
         self.assertEqual(minted[0]["producer"], {"adapter": "docs-harness", "capability": "host_declaration"})
-        self.assertEqual(minted[0]["trust_level"], "verified")
+        self.assertEqual(minted[0]["trust_level"], "reported")
+        self.assertEqual(minted[0]["ingress_trust"], "host_reported")
 
         package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
         missing_type = self.write_json(
@@ -6331,7 +6478,8 @@ class DocsHarnessContractTest(unittest.TestCase):
         _, minted_high_risk = HARNESS_MODULE.load_evidence(
             str(high_risk), expected_cover=task_id, package=package, target=self.project
         )
-        self.assertEqual(minted_high_risk["trust_level"], "verified")
+        self.assertEqual(minted_high_risk["trust_level"], "reported")
+        self.assertEqual(minted_high_risk["ingress_trust"], "host_reported")
         self.assertEqual(minted_high_risk["producer"], {"adapter": "docs-harness", "capability": "host_declaration"})
 
         _, verified_v2 = self.complete_code_task("src/legacy.py")
@@ -6502,19 +6650,28 @@ class DocsHarnessContractTest(unittest.TestCase):
         )
         self.assertEqual(rejected["code"], "invalid_gate_assessment")
 
-    def test_gate_assessment_absent_uses_path_inference(self) -> None:
+    def test_gate_assessment_absent_blocks_write_task(self) -> None:
         self.init_project()
         self.make_project_facts_meaningful("architecture.md", "testing.md")
         source = self.project / "src" / "cache.py"
         source.parent.mkdir(parents=True, exist_ok=True)
         source.write_text("# cache\n", encoding="utf-8")
-        facts = self.write_json("gate-fallback.json", {"write_scope": ["src/cache.py"]})
+        facts = self.write_json(
+            "gate-fallback.json",
+            {
+                "write_scope": ["src/cache.py"],
+                "intent_assessment": {"intents": ["modify"], "rationale": "需要修改缓存实现"},
+            },
+        )
         _, routed = self.run_harness(
-            "run", "--target", str(self.project), "--task", "实现接口的缓存逻辑", "--facts", str(facts)
+            "run", "--target", str(self.project), "--task", "实现接口的缓存逻辑", "--facts", str(facts),
+            expected=3, inject_assessments=False,
         )
         self.assertIn("code-edit", routed["matched_gates"])
         self.assertNotIn("architecture-contract", routed["matched_gates"])
         self.assertEqual(routed["gate_decision"]["mode"], "path_inferred")
+        self.assertEqual(routed["admission_status"], "blocked")
+        self.assertIn("gate_assessment", routed["assessment_requirements"])
 
     def test_gate_assessment_does_not_disable_mid_task_path_tripwire(self) -> None:
         self.init_project()
@@ -6841,8 +6998,8 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content, encoding="utf-8")
 
-    # ---------- T1：direct 纯越界一次 verify 内扩展并完成 ----------
-    def test_v173_t1_write_scope_extension_completes_in_one_verify(self) -> None:
+    # ---------- T1：新路径必须带语义声明重新准入 ----------
+    def test_v173_t1_write_scope_violation_requires_semantic_readmission(self) -> None:
         self.init_project()
         self.make_project_facts_meaningful("architecture.md")
         _, routed = self.run_harness(
@@ -6857,23 +7014,23 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
             "t1-extension", evidence_type="test_result", covers=task_id,
             changed_paths=["src/core.py", "src/extra.py"],
         )
-        _, verified = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
+        _, blocked = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
         )
-        self.assertEqual(verified["control_status"], "complete")
-        self.assertTrue(verified["scope_extended"])
-        self.assertEqual(verified["extended_paths"], ["src/extra.py"])
+        self.assertEqual(blocked["reason_code"], "write_scope_violation")
+        self.assertNotIn("scope_extended", blocked)
+        self.assertEqual([item["action"] for item in blocked["recovery_actions"]], ["full_readmission"])
+        template = blocked["readmission_hint"]["facts_template"]
+        self.assertEqual(set(template["write_scope"]), {"src/core.py", "src/extra.py"})
+        self.assertIn("intent_assessment", template)
+        self.assertIn("gate_assessment", template)
         package = self.read_package(task_id)
-        self.assertEqual(package["package_revision"], 2)
-        self.assertEqual(set(package["write_scope"]), {"src/core.py", "src/extra.py"})
-        self.assertIn("recompiled_at", package)
-        extensions = [item for item in self.read_events(task_id) if item["event"] == "scope_extension_readmission"]
-        self.assertEqual(len(extensions), 1)
-        self.assertEqual(extensions[0]["extended_paths"], ["src/extra.py"])
-        self.assertNotIn("readmission", [item["event"] for item in self.read_events(task_id)])
+        self.assertEqual(package["package_revision"], 1)
+        self.assertEqual(package["write_scope"], ["src/core.py"])
+        self.assertNotIn("scope_extension_readmission", [item["event"] for item in self.read_events(task_id)])
 
-    # ---------- T2：既有收据继承（全审计字段 + 新指纹） ----------
-    def test_v173_t2_indexed_receipts_are_adopted_with_full_audit_fields(self) -> None:
+    # ---------- T2：越界阻断不会暗中改指纹或继承证据 ----------
+    def test_v173_t2_scope_violation_preserves_existing_contract_and_receipts(self) -> None:
         task_id = self.admit_review_task()
         self.write_file("src/core.py")
         first = self.evidence(
@@ -6888,23 +7045,16 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         second = self.evidence(
             "t2-round2", evidence_type="review_result", covers=task_id, changed_paths=["src/extra.py"]
         )
-        _, verified = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(second)
+        _, blocked = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(second), expected=4
         )
-        self.assertEqual(verified["control_status"], "complete")
-        self.assertTrue(verified["scope_extended"])
-        new_fingerprint = HARNESS_MODULE.package_fingerprint(self.read_package(task_id))
-        self.assertNotEqual(old_fingerprint, new_fingerprint)
+        self.assertEqual(blocked["reason_code"], "write_scope_violation")
+        self.assertEqual(HARNESS_MODULE.package_fingerprint(self.read_package(task_id)), old_fingerprint)
         index = json.loads((self.state_dir(task_id) / "evidence-index.json").read_text(encoding="utf-8"))
         items = index["evidence"]
-        source_fps = [item["source_fingerprint"] for item in items]
-        self.assertEqual(len(source_fps), len(set(source_fps)), "同源证据不得双写")
-        for item in items:
-            self.assertEqual(item["package_fingerprint"], new_fingerprint)
-            self.assertEqual(item["adoption_reason"], "scope_superset_extension")
-            self.assertEqual(item["origin_package_fingerprint"], old_fingerprint)
-            self.assertEqual(item["adopted_from_package_fingerprint"], old_fingerprint)
-            self.assertIn("adopted_at", item)
+        self.assertTrue(any(item.get("id") == "t2-round1" for item in items))
+        self.assertFalse(any(item.get("id") == "t2-round2" for item in items))
+        self.assertTrue(all(item["package_fingerprint"] == old_fingerprint for item in items))
 
     # ---------- T3：授权任务越界不扩展，携带 readmission_hint ----------
     def test_v173_t3_authorized_task_gets_readmission_hint_instead_of_extension(self) -> None:
@@ -6953,7 +7103,9 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         )
         self.assertEqual(blocked["reason_code"], "write_scope_violation")
         hint = blocked["readmission_hint"]
-        self.assertEqual(hint["facts_template"], {"write_scope": ["README.md", "notes/extra.md"]})
+        self.assertEqual(hint["facts_template"]["write_scope"], ["README.md", "notes/extra.md"])
+        self.assertIn("intent_assessment", hint["facts_template"])
+        self.assertIn("gate_assessment", hint["facts_template"])
         self.assertIn("--facts", hint["example_argv"])
         package = self.read_package(task_id)
         self.assertEqual(package["write_scope"], ["README.md"])
@@ -6962,6 +7114,10 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
     # ---------- T4：越界与 new_risk_gate 共存走既有路径 ----------
     def test_v173_t4_mixed_blockers_do_not_trigger_extension(self) -> None:
         self.init_project()
+        config_path = self.project / ".docs-harness" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["gate_path_rules"] = [{"pattern": "src/security/**", "gates": ["security-sensitive"]}]
+        config_path.write_text(json.dumps(config, ensure_ascii=False), encoding="utf-8")
         self.make_project_facts_meaningful("architecture.md", "security.md")
         _, routed = self.run_harness(
             "run", "--target", str(self.project), "--task", "实现项目核心代码", "--scope", "src/core.py"
@@ -6983,42 +7139,31 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         self.assertEqual(self.read_package(task_id)["package_revision"], 1)
         self.assertNotIn("scope_extension_readmission", [item["event"] for item in self.read_events(task_id)])
 
-    # ---------- T5/T12：扩展上限 3 次，第 4 次失败关闭；计数跨任务包持久 ----------
-    def test_v173_t5_extension_limit_is_enforced_by_event_scan(self) -> None:
+    # ---------- T5：越界写入每次都直接要求重新准入 ----------
+    def test_v173_t5_every_scope_violation_requires_readmission(self) -> None:
         task_id = self.admit_review_task()
         self.write_file("src/core.py")
-        for round_index in (1, 2, 3):
-            extra = f"src/extra{round_index}.py"
-            self.write_file(extra)
-            evidence = self.evidence(
-                f"t5-round{round_index}", evidence_type="test_result", covers=task_id,
-                changed_paths=["src/core.py", extra],
-            )
-            _, pending = self.run_harness(
-                "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=3
-            )
-            self.assertTrue(pending["scope_extended"], pending)
-            self.assertEqual(pending["extended_paths"], [extra])
-            self.assertEqual(pending["missing_evidence_types"], ["review_result"])
-        extensions = [item for item in self.read_events(task_id) if item["event"] == "scope_extension_readmission"]
-        self.assertEqual(len(extensions), 3)
-        self.assertEqual(self.read_package(task_id)["package_revision"], 4)
-        self.write_file("src/extra4.py")
-        final = self.evidence(
-            "t5-round4", evidence_type="review_result", covers=task_id,
-            changed_paths=["src/extra4.py"],
+        self.write_file("src/extra.py")
+        evidence = self.evidence(
+            "t5-scope", evidence_type="test_result", covers=task_id,
+            changed_paths=["src/core.py", "src/extra.py"],
         )
-        _, blocked = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(final), expected=4
-        )
-        self.assertEqual(blocked["reason_code"], "scope_extension_limit_exceeded")
-        self.assertEqual(len([item for item in self.read_events(task_id) if item["event"] == "scope_extension_readmission"]), 3)
+        for _ in range(2):
+            _, blocked = self.run_harness(
+                "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
+            )
+            self.assertEqual(blocked["reason_code"], "write_scope_violation")
+            self.assertNotIn("scope_extended", blocked)
+        self.assertEqual(self.read_package(task_id)["package_revision"], 1)
+        self.assertFalse(any(item["event"] == "scope_extension_readmission" for item in self.read_events(task_id)))
 
-    # ---------- T6：planned 路线 plan_fields 不变则扩展成功；变化则回退 ----------
-    def test_v173_t6_planned_route_extension_succeeds_when_plan_fields_unchanged(self) -> None:
+    # ---------- T6：planned 路线也不能自动扩围 ----------
+    def test_v173_t6_planned_route_scope_violation_requires_readmission(self) -> None:
         self.init_project()
         self.make_project_facts_meaningful("product.md", "design.md", "architecture.md")
-        facts = self.write_json("t6-facts.json", {"allowed_scope": ["src/view.tsx"]})
+        facts = self.write_gate_facts(
+            "t6-facts.json", ["frontend-design"], allowed_scope=["src/view.tsx"]
+        )
         _, routed = self.run_harness(
             "run", "--target", str(self.project), "--task", "实现 UI 页面", "--facts", str(facts)
         )
@@ -7043,33 +7188,16 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
             "t6-planned-test", evidence_type="test_result", covers=task_id,
             changed_paths=["src/view.tsx", "src/extra.tsx"],
         )
-        _, verified = self.run_harness(
+        _, blocked = self.run_harness(
             "verify", "--target", str(self.project), "--task-id", task_id,
-            "--evidence", str(evidence), "--evidence", str(extra_evidence),
+            "--evidence", str(evidence), "--evidence", str(extra_evidence), expected=4,
         )
-        self.assertEqual(verified["control_status"], "complete")
-        self.assertTrue(verified["scope_extended"])
-        self.assertEqual(verified["extended_paths"], ["src/extra.tsx"])
+        self.assertEqual(blocked["reason_code"], "write_scope_violation")
+        self.assertIn("intent_assessment", blocked["readmission_hint"]["facts_template"])
+        self.assertNotIn("scope_extended", blocked)
 
-    def test_v173_t6_planned_route_plan_fields_change_falls_back(self) -> None:
-        task_id = self.admit_review_task()
-        package = self.read_package(task_id)
-        state = self.state_dir(task_id)
-        compiled = json.loads((state / "compiled-task.json").read_text(encoding="utf-8"))
-        freeze = json.loads((state / "freeze.json").read_text(encoding="utf-8"))
-        original_build = HARNESS_MODULE.build_package
-
-        def corrupted_build(*args, **kwargs):
-            candidate, blockers = original_build(*args, **kwargs)
-            candidate["plan_fields"] = [*candidate["plan_fields"], "额外字段"]
-            return candidate, blockers
-
-        with mock.patch.object(HARNESS_MODULE, "build_package", side_effect=corrupted_build):
-            result = HARNESS_MODULE.incrementally_extend_write_scope(
-                state, self.project, package, compiled, freeze, ["src/extra.py"], [], []
-            )
-        self.assertIsNone(result)
-        self.assertEqual(self.read_package(task_id)["package_revision"], package["package_revision"])
+    def test_v173_t6_legacy_scope_extension_helper_is_removed(self) -> None:
+        self.assertFalse(hasattr(HARNESS_MODULE, "incrementally_extend_write_scope"))
 
     # ---------- T7：三处响应 evidence_checklist 齐全且骨架同一助手 ----------
     def test_v173_t7_evidence_checklist_in_three_responses(self) -> None:
@@ -7081,7 +7209,10 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         task_id = routed["task_id"]
         for payload in (routed,):
             checklist = payload["evidence_checklist"]
-            self.assertEqual(set(checklist), {"required", "conditional", "required_receipts", "skeletons"})
+            self.assertEqual(
+                set(checklist),
+                {"required", "conditional", "required_receipts", "skeletons", "trust_requirements"},
+            )
             self.assertIn("test_result", checklist["required"])
             receipt_names = [item["receipt"] for item in checklist["required_receipts"]]
             self.assertIn("write_set", receipt_names)
@@ -7102,16 +7233,9 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         )
         self.assertEqual(set(missing["evidence_skeletons"]), set(routed["evidence_checklist"]["skeletons"]))
 
-    # ---------- T8：extended 路线不扩展 ----------
-    def test_v173_t8_extended_route_is_never_extended(self) -> None:
-        state = self.temp_root / "unused-state"
-        state.mkdir()
-        result = HARNESS_MODULE.incrementally_extend_write_scope(
-            state, self.project,
-            {"execution_route": "extended", "git_operation": None},
-            {}, {}, ["src/extra.py"], [], []
-        )
-        self.assertIsNone(result)
+    # ---------- T8：所有路线共用同一个扩围失败关闭原则 ----------
+    def test_v173_t8_no_route_has_an_automatic_scope_extension_helper(self) -> None:
+        self.assertFalse(hasattr(HARNESS_MODULE, "incrementally_extend_write_scope"))
 
     # ---------- T9：auto-attribution / new_risk_gate 增量 / read_set_drift 不回归 ----------
     def test_v173_t9_auto_attribution_not_hijacked_by_extension(self) -> None:
@@ -7207,9 +7331,10 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         )
         self.assertEqual(preview["action"], "changes-preview")
         self.assertEqual(preview["changed_paths"], ["README.md", "notes/extra.md"])
-        self.assertEqual(preview["in_scope"], ["README.md"])
-        self.assertEqual(preview["outside_scope"], ["notes/extra.md"])
-        self.assertEqual(preview["read_set_drift"], [])
+        self.assertEqual(preview["changed_in_write_scope"], ["README.md"])
+        self.assertEqual(preview["changed_outside_write_scope"], ["notes/extra.md"])
+        self.assertEqual(preview["changed_in_read_scope"], [])
+        self.assertEqual(preview["attribution_status"], "unknown_until_evidence")
         self.assertEqual(self.snapshot_tree(self.state_dir(task_id)), before)
         stale = self.evidence(
             "t15-stale", evidence_type="document_review", covers=task_id,
@@ -7223,16 +7348,9 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         self.assertEqual(error["actual_changed_paths"], ["README.md", "notes/extra.md"])
         self.assertIn("missing_items", error)
 
-    # ---------- T16：git_sync 不扩展；规则漂移时纯越界也失败关闭 ----------
+    # ---------- T16：git_sync 与规则漂移同样失败关闭 ----------
     def test_v173_t16_git_sync_and_rule_drift_fail_closed(self) -> None:
-        state = self.temp_root / "unused-state-2"
-        state.mkdir()
-        result = HARNESS_MODULE.incrementally_extend_write_scope(
-            state, self.project,
-            {"execution_route": "direct", "git_operation": "git_sync"},
-            {}, {}, ["src/extra.py"], [], []
-        )
-        self.assertIsNone(result)
+        self.assertFalse(hasattr(HARNESS_MODULE, "incrementally_extend_write_scope"))
         task_id = self.admit_review_task()
         routed = self.read_package(task_id)
         self.assertTrue(routed["matched_rules"], "需要命中规则的任务才能构造规则漂移场景")
@@ -7313,8 +7431,8 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         )
         self.assertEqual(verified["result"], "完成")
 
-    # ---------- T19：扩展轮 supplied 证据 write_set 虚报同样被 stale_evidence 硬拦（不扩围） ----------
-    def test_v173_t19_extension_round_overstated_write_set_fails_closed(self) -> None:
+    # ---------- T19：范围越界先重准入，未准入证据不进索引 ----------
+    def test_v173_t19_scope_violation_precedes_evidence_adoption(self) -> None:
         self.init_project()
         _, routed = self.run_harness(
             "run", "--target", str(self.project), "--task", "实现项目核心代码", "--scope", "src/core.py"
@@ -7331,10 +7449,9 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         )
         _, failed = self.run_harness(
             "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(overstated),
-            expected=2,
+            expected=4,
         )
-        self.assertEqual(failed["code"], "stale_evidence")
-        self.assertEqual(failed["stale_write_paths"], ["src/ghost-never-touched.py"])
+        self.assertEqual(failed["reason_code"], "write_scope_violation")
         package = self.read_package(task_id)
         self.assertEqual(package["package_revision"], revision_before)
         self.assertEqual(package["write_scope"], ["src/core.py"])
@@ -7343,21 +7460,7 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
             any(item.get("id") == "t19-overstated" for item in index["evidence"]),
             "虚报证据不得入索引",
         )
-        # 按真实写入重铸后，扩展轮正常完成且收据带受管 artifact 审计字段
-        fresh = self.evidence(
-            "t19-fresh", evidence_type="test_result", covers=task_id,
-            changed_paths=["src/core.py", "src/extra.py"],
-        )
-        _, verified = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(fresh)
-        )
-        self.assertEqual(verified["control_status"], "complete")
-        self.assertTrue(verified.get("scope_extended"))
-        index = json.loads((self.state_dir(task_id) / "evidence-index.json").read_text(encoding="utf-8"))
-        minted = [item for item in index["evidence"] if item.get("id") == "t19-fresh"]
-        self.assertEqual(len(minted), 1)
-        self.assertTrue(minted[0].get("artifact_ref"), "扩展轮收据必须带受管 artifact 审计字段")
-        self.assertTrue(minted[0].get("artifact_fingerprint"))
+        self.assertIn("intent_assessment", failed["readmission_hint"]["facts_template"])
 
     # ---------- T20：pending_context_receipts 覆盖 work_packages ----------
     def test_v173_t20_pending_context_receipts_cover_work_packages(self) -> None:
@@ -7398,8 +7501,8 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         _, status = self.run_harness("task", "status", "--target", str(self.project), "--task-id", task_id)
         self.assertEqual(status["pending_context_receipts"], ["work_package:wp-b"])
 
-    # ---------- T21：concurrent 重叠源自 read_scope 时选项 1 同步剔除 read_scope ----------
-    def test_v173_t21_concurrent_hint_narrows_read_scope(self) -> None:
+    # ---------- T21：宿主自报 concurrent 不得被自动归因或升级为 verified ----------
+    def test_v173_t21_reported_concurrent_overlap_requires_controlled_evidence(self) -> None:
         self.init_project()
         self.make_project_facts_meaningful("architecture.md")
         facts = self.write_json(
@@ -7418,30 +7521,12 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
             changed_paths=["docs/a.md"], concurrent_drift=["docs/b.md"],
         )
         _, blocked = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=3
         )
-        self.assertEqual(blocked["reason_code"], "concurrent_drift_overlap")
-        narrow = next(
-            item for item in blocked["readmission_hint"]["options"] if item["option"] == "narrow_scope"
-        )
-        template = narrow["facts_template"]
-        self.assertNotIn("docs/b.md", template["write_scope"])
-        self.assertIn("read_scope", template, "read_scope 来源的重叠必须在选项 1 中给出剔除项")
-        self.assertNotIn("docs/b.md", template["read_scope"])
-        # 照选项 1 一次重准入后，照刷新基线备证即过
-        narrow_facts = self.write_json("t21-narrow-facts.json", template)
-        self.run_harness(
-            "run", "--target", str(self.project), "--task-id", task_id, "--facts", str(narrow_facts)
-        )
-        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
-        refreshed = self.evidence(
-            "t21-refreshed", evidence_type="document_review", covers=task_id,
-            changed_paths=["docs/a.md", "docs/b.md"],
-        )
-        _, verified = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(refreshed)
-        )
-        self.assertEqual(verified["control_status"], "complete")
+        self.assertEqual(blocked["reason_code"], "concurrent_drift_unverified")
+        self.assertEqual(blocked["auto_attributed_paths"], [])
+        self.assertEqual(blocked["reported_concurrent_paths"], ["docs/b.md"])
+        self.assertEqual(blocked["next_action"], "provide_evidence")
 
     # ---------- T22：行尾宽容指纹在 1MiB chunk 边界的 CRLF 归一化 ----------
     def test_v173_t22_tolerant_fingerprint_crlf_chunk_boundary(self) -> None:
@@ -7486,36 +7571,20 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         self.assertNotIn("evidence_checklist", payload)
         self.assertNotIn("pending_context_receipts", payload)
 
-    # ---------- V1 回放：write_scope 循环样例（连续越界不再产生全量重准入） ----------
-    def test_v173_replay_write_scope_loop_never_full_readmission(self) -> None:
+    # ---------- V1 回放：write_scope 循环在第一个新路径即停止 ----------
+    def test_v173_replay_write_scope_loop_stops_at_first_new_path(self) -> None:
         task_id = self.admit_review_task()
         self.write_file("src/core.py")
-        verify_rounds = 0
-        for round_index in (1, 2):
-            extra = f"src/loop{round_index}.py"
-            self.write_file(extra)
-            evidence = self.evidence(
-                f"replay-loop{round_index}", evidence_type="test_result", covers=task_id,
-                changed_paths=["src/core.py", extra],
-            )
-            _, payload = self.run_harness(
-                "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence),
-                expected=None,
-            )
-            verify_rounds += 1
-            self.assertNotEqual(payload.get("reason_code"), "write_scope_violation", payload)
-        review = self.evidence(
-            "replay-review", evidence_type="review_result", covers=task_id,
-            changed_paths=["src/core.py", "src/loop1.py", "src/loop2.py"],
+        self.write_file("src/loop1.py")
+        evidence = self.evidence(
+            "replay-loop1", evidence_type="test_result", covers=task_id,
+            changed_paths=["src/core.py", "src/loop1.py"],
         )
-        _, verified = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(review)
+        _, blocked = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
         )
-        verify_rounds += 1
-        self.assertEqual(verified["control_status"], "complete")
-        events = [item["event"] for item in self.read_events(task_id)]
-        self.assertNotIn("readmission", events)
-        self.assertLessEqual(verify_rounds, 3)
+        self.assertEqual(blocked["reason_code"], "write_scope_violation")
+        self.assertEqual(self.read_package(task_id)["package_revision"], 1)
 
     # ---------- V1 回放：checklist 一次备齐消灭首轮补证 ----------
     def test_v173_replay_checklist_eliminates_first_round_evidence_chase(self) -> None:
@@ -7557,15 +7626,15 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         )
         evidence = self.evidence(
             "replay-stale-fixed", evidence_type="document_review", covers=task_id,
-            changed_paths=list(preview["in_scope"]),
+            changed_paths=list(preview["changed_in_write_scope"]),
         )
         _, verified = self.run_harness(
             "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence)
         )
         self.assertEqual(verified["control_status"], "complete")
 
-    # ---------- V1 回放：concurrent_drift_overlap 双选项与一次重准入即过 ----------
-    def test_v173_replay_concurrent_drift_hint_and_one_readmission(self) -> None:
+    # ---------- V1 回放：自报 concurrent 返回最小补证动作 ----------
+    def test_v173_replay_reported_concurrent_returns_provide_evidence(self) -> None:
         self.init_project()
         self.make_project_facts_meaningful("architecture.md")
         facts = self.write_json("replay-drift-facts.json", {"allowed_scope": ["docs/a.md", "docs/b.md"]})
@@ -7581,28 +7650,14 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
             changed_paths=["docs/a.md"], concurrent_drift=["docs/b.md"],
         )
         _, blocked = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=3
         )
-        self.assertEqual(blocked["reason_code"], "concurrent_drift_overlap")
-        hint = blocked["readmission_hint"]
-        options = {item["option"] for item in hint["options"]}
-        self.assertEqual(options, {"narrow_scope", "wait_and_refresh"})
-        narrow = next(item for item in hint["options"] if item["option"] == "narrow_scope")
-        self.assertNotIn("docs/b.md", narrow["facts_template"]["write_scope"])
-        # 选项 2：等并发落定后全量重准入刷新基线，一次即过
-        self.run_harness("run", "--target", str(self.project), "--task-id", task_id)
-        self.run_harness("context", "--target", str(self.project), "--task-id", task_id, "--stage", "action")
-        refreshed = self.evidence(
-            "replay-drift-refreshed", evidence_type="document_review", covers=task_id,
-            changed_paths=["docs/a.md", "docs/b.md"],
-        )
-        _, verified = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(refreshed)
-        )
-        self.assertEqual(verified["control_status"], "complete")
+        self.assertEqual(blocked["reason_code"], "concurrent_drift_unverified")
+        self.assertEqual([item["action"] for item in blocked["recovery_actions"]], ["provide_evidence"])
+        self.assertEqual(blocked["auto_attributed_paths"], [])
 
-    # ---------- V2 矩阵：扩展后重 verify 幂等 ----------
-    def test_v173_matrix_reverify_after_extension_is_idempotent(self) -> None:
+    # ---------- V2 矩阵：越界重 verify 幂等地继续阻断 ----------
+    def test_v173_matrix_reverify_after_scope_violation_is_idempotent(self) -> None:
         task_id = self.admit_review_task()
         self.write_file("src/core.py")
         self.write_file("src/extra1.py")
@@ -7611,16 +7666,15 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
             changed_paths=["src/core.py", "src/extra1.py"],
         )
         _, pending = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=3
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
         )
-        self.assertTrue(pending["scope_extended"])
+        self.assertEqual(pending["reason_code"], "write_scope_violation")
         _, again = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=4
         )
+        self.assertEqual(again["reason_code"], "write_scope_violation")
         self.assertNotIn("scope_extended", again)
-        self.assertEqual(
-            len([item for item in self.read_events(task_id) if item["event"] == "scope_extension_readmission"]), 1
-        )
+        self.assertFalse(any(item["event"] == "scope_extension_readmission" for item in self.read_events(task_id)))
 
     # ---------- V2 矩阵：同源证据不双写 ----------
     def test_v173_matrix_duplicate_source_fingerprint_not_double_indexed(self) -> None:
@@ -7643,8 +7697,8 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         fingerprints = [item["source_fingerprint"] for item in index["evidence"]]
         self.assertEqual(len(fingerprints), len(set(fingerprints)))
 
-    # ---------- V2 矩阵：归档完整性 ----------
-    def test_v173_matrix_archive_integrity_after_extension(self) -> None:
+    # ---------- V2 矩阵：阻断时不产生伪重编译归档 ----------
+    def test_v173_matrix_scope_violation_does_not_archive_a_fake_revision(self) -> None:
         task_id = self.admit_review_task()
         created_at = self.read_package(task_id)["created_at"]
         self.write_file("src/core.py")
@@ -7654,38 +7708,18 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
             changed_paths=["src/core.py", "src/extra1.py"],
         )
         _, pending = self.run_harness(
-            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=3
+            "verify", "--target", str(self.project), "--task-id", task_id, "--evidence", str(evidence), expected=4
         )
-        self.assertTrue(pending["scope_extended"])
+        self.assertEqual(pending["reason_code"], "write_scope_violation")
         history = self.state_dir(task_id) / "package-history"
-        self.assertTrue((history / "task-package.v1.json").is_file())
-        self.assertTrue((history / "freeze.v1.json").is_file())
-        self.assertTrue((history / "contract-delta.v1.json").is_file())
+        self.assertFalse(history.exists())
         after = self.read_package(task_id)
         self.assertEqual(after["created_at"], created_at)
-        self.assertEqual(after["package_revision"], 2)
+        self.assertEqual(after["package_revision"], 1)
 
-    # ---------- V2 矩阵：候选包覆写注入失败关闭 ----------
-    def test_v173_matrix_corrupted_candidate_fails_closed(self) -> None:
-        task_id = self.admit_review_task()
-        package = self.read_package(task_id)
-        state = self.state_dir(task_id)
-        compiled = json.loads((state / "compiled-task.json").read_text(encoding="utf-8"))
-        freeze = json.loads((state / "freeze.json").read_text(encoding="utf-8"))
-        original_build = HARNESS_MODULE.build_package
-
-        def overwritten_build(*args, **kwargs):
-            candidate, blockers = original_build(*args, **kwargs)
-            candidate["write_scope"] = [path for path in candidate["write_scope"] if path != "src/extra.py"]
-            return candidate, blockers
-
-        fingerprint_before = HARNESS_MODULE.package_fingerprint(package)
-        with mock.patch.object(HARNESS_MODULE, "build_package", side_effect=overwritten_build):
-            result = HARNESS_MODULE.incrementally_extend_write_scope(
-                state, self.project, package, compiled, freeze, ["src/extra.py"], [], []
-            )
-        self.assertIsNone(result)
-        self.assertEqual(HARNESS_MODULE.package_fingerprint(self.read_package(task_id)), fingerprint_before)
+    # ---------- V2 矩阵：旧扩围入口不可被调用 ----------
+    def test_v173_matrix_legacy_scope_extension_entrypoint_is_absent(self) -> None:
+        self.assertFalse(hasattr(HARNESS_MODULE, "incrementally_extend_write_scope"))
 
     # ---------- v1.7.5：本地提交意图 + 安全底线否定守卫 ----------
     def test_v175_git_commit_intent_admits_local_commit_layer(self) -> None:
@@ -7754,6 +7788,196 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
             "已经提交了改动", {}, has_declared_scope=False
         )
         self.assertNotIn("git_commit", {item["intent"] for item in current})
+
+    # ---------- 声明制准入与证据信任收敛 ----------
+    def test_declared_intent_is_authoritative_over_text_keywords(self) -> None:
+        current, deferred, reasons = HARNESS_MODULE.classify_task_intents(
+            "审查消息发送逻辑，不修改任何文件",
+            {
+                "intent_assessment": {
+                    "intents": ["query", "audit"],
+                    "rationale": "只读审查发送模块的实现，不执行外部发送",
+                }
+            },
+            has_declared_scope=False,
+        )
+        self.assertEqual([item["intent"] for item in current], ["query", "audit"])
+        self.assertEqual(deferred, [])
+        self.assertEqual(reasons, ["host_declared_intent"])
+
+    def test_write_task_without_assessments_is_blocked_with_templates(self) -> None:
+        self.init_project()
+        _, blocked = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整默认阈值",
+            "--scope", "src/settings.json", expected=3, inject_assessments=False,
+        )
+        self.assertEqual(blocked["admission_status"], "blocked")
+        self.assertTrue(any("intent_assessment" in item for item in blocked["blockers"]))
+        self.assertTrue(any("gate_assessment" in item for item in blocked["blockers"]))
+        self.assertEqual(blocked["assessment_requirements"]["intent_assessment"]["intents"], ["modify"])
+
+    def test_auto_attribution_cannot_replace_change_review(self) -> None:
+        self.init_project()
+        facts = self.write_json("strict-write.json", {
+            "intent_assessment": {"intents": ["modify"], "rationale": "修改项目配置"},
+            "gate_assessment": {"gates": [], "rationale": "普通配置调整，无高风险 Gate"},
+            "write_scope": ["src/settings.json"],
+        })
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整默认阈值", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        path = self.project / "src" / "settings.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text('{"threshold": 1}\n', encoding="utf-8")
+        _, pending = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id, expected=3
+        )
+        self.assertEqual(pending["auto_attributed_paths"], ["src/settings.json"])
+        self.assertIn("change_review", pending["missing_evidence_types"])
+        review = self.write_json("change-review.json", {
+            "schema_version": "docs-harness/evidence-declaration/v1",
+            "type": "change_review",
+            "write_set": ["src/settings.json"],
+            "conclusion": "阈值变更符合任务目标",
+        })
+        _, complete = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id,
+            "--evidence", str(review),
+        )
+        self.assertEqual(complete["result"], "完成")
+
+    def test_host_declaration_is_reported_and_cannot_prove_concurrent_drift(self) -> None:
+        self.init_project()
+        facts = self.write_json("reported-evidence.json", {
+            "intent_assessment": {"intents": ["modify"], "rationale": "修改项目配置"},
+            "gate_assessment": {"gates": [], "rationale": "普通配置调整"},
+            "write_scope": ["src/settings.json"],
+        })
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整默认阈值", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        state = HARNESS_MODULE.task_state_dir(self.project, task_id)
+        package = json.loads((state / "task-package.json").read_text(encoding="utf-8"))
+        freeze = json.loads((state / "freeze.json").read_text(encoding="utf-8"))
+        self.write_file("src/settings.json", '{"threshold": 1}\n')
+        self.write_file("external.txt", "concurrent\n")
+        declaration = self.write_json("reported-declaration.json", {
+            "schema_version": "docs-harness/evidence-declaration/v1",
+            "type": "change_review",
+            "write_set": ["src/settings.json"],
+            "concurrent_drift": ["external.txt"],
+            "conclusion": "配置审查通过",
+        })
+        _, normalized = HARNESS_MODULE.load_evidence(
+            str(declaration), expected_cover=task_id, package=package, target=self.project
+        )
+        self.assertEqual(normalized["trust_level"], "reported")
+        self.assertEqual(normalized["attribution_quality"], "reported")
+        attribution = HARNESS_MODULE.workspace_change_attribution(
+            self.project, package, freeze, [normalized]
+        )
+        self.assertEqual(attribution["concurrent_drift"], [])
+        self.assertEqual(attribution["reported_concurrent_drift"], ["external.txt"])
+        self.assertIn("external.txt", attribution["unattributed_drift"])
+        high_risk = self.write_json("reported-security.json", {
+            "schema_version": "docs-harness/evidence-declaration/v1",
+            "type": "security_acceptance",
+            "write_set": ["src/settings.json"],
+            "conclusion": "安全验收通过",
+        })
+        _, normalized_high_risk = HARNESS_MODULE.load_evidence(
+            str(high_risk), expected_cover=task_id, package=package, target=self.project
+        )
+        self.assertEqual(normalized_high_risk["trust_level"], "reported")
+
+    def test_external_receipt_cannot_impersonate_controller_producer(self) -> None:
+        self.init_project()
+        facts = self.write_json("producer-task.json", {
+            "intent_assessment": {"intents": ["modify"], "rationale": "修改项目配置"},
+            "gate_assessment": {"gates": [], "rationale": "普通配置调整"},
+            "write_scope": ["src/settings.json"],
+        })
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整默认阈值", "--facts", str(facts)
+        )
+        forged = self.evidence(
+            "forged-controller", evidence_type="change_review", covers=routed["task_id"],
+            changed_paths=[], producer={"adapter": "docs-harness", "capability": "verification_command"},
+        )
+        package = self.read_package(routed["task_id"])
+        with self.assertRaises(HARNESS_MODULE.HarnessError) as raised:
+            HARNESS_MODULE.load_evidence(
+                str(forged), expected_cover=routed["task_id"], package=package, target=self.project
+            )
+        self.assertEqual(raised.exception.code, "forged_evidence_producer")
+
+    def test_failed_verification_returns_retry_action(self) -> None:
+        self.init_project()
+        facts = self.write_json("retry-action.json", {
+            "intent_assessment": {"intents": ["modify"], "rationale": "修改项目配置"},
+            "gate_assessment": {"gates": [], "rationale": "普通配置调整"},
+            "write_scope": ["src/settings.json"],
+            "verification_commands": [{
+                "argv": ["python3", "-m", "unittest", "test_module_that_does_not_exist"],
+                "produces": ["test_result"],
+            }],
+        })
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整默认阈值", "--facts", str(facts)
+        )
+        task_id = routed["task_id"]
+        self.write_file("src/settings.json", '{"threshold": 1}\n')
+        review = self.write_json("retry-review.json", {
+            "schema_version": "docs-harness/evidence-declaration/v1", "type": "change_review",
+            "write_set": ["src/settings.json"], "conclusion": "变更符合目标",
+        })
+        test_result = self.write_json("retry-test-result.json", {
+            "schema_version": "docs-harness/evidence-declaration/v1", "type": "test_result",
+            "write_set": ["src/settings.json"], "conclusion": "宿主报告测试结果",
+        })
+        _, pending = self.run_harness(
+            "verify", "--target", str(self.project), "--task-id", task_id,
+            "--evidence", str(review), "--evidence", str(test_result), expected=3,
+        )
+        self.assertEqual(pending["next_action"], "retry_verification")
+        self.assertEqual([item["action"] for item in pending["recovery_actions"]], ["retry_verification"])
+
+    def test_changes_preview_reports_workspace_partition_not_verify_attribution(self) -> None:
+        self.init_project()
+        facts = self.write_json("preview-contract.json", {
+            "intent_assessment": {"intents": ["modify"], "rationale": "修改项目配置"},
+            "gate_assessment": {"gates": [], "rationale": "普通配置调整"},
+            "write_scope": ["src/settings.json"],
+        })
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整默认阈值", "--facts", str(facts)
+        )
+        self.write_file("src/settings.json", '{"threshold": 1}\n')
+        self.write_file("external.txt", "other\n")
+        _, preview = self.run_harness(
+            "task", "changes-preview", "--target", str(self.project), "--task-id", routed["task_id"]
+        )
+        self.assertEqual(preview["changed_in_write_scope"], ["src/settings.json"])
+        self.assertEqual(preview["changed_outside_write_scope"], ["external.txt"])
+        self.assertEqual(preview["attribution_status"], "unknown_until_evidence")
+        self.assertNotIn("outside_scope", preview)
+
+    def test_semantic_path_gates_require_project_mapping(self) -> None:
+        self.init_project()
+        self.assertNotIn(
+            "security-sensitive",
+            HARNESS_MODULE.infer_gates_from_paths(["docs/auth.md"]),
+        )
+        config_path = self.project / ".docs-harness" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["gate_path_rules"] = [{"pattern": "docs/auth.md", "gates": ["security-sensitive"]}]
+        config_path.write_text(json.dumps(config), encoding="utf-8")
+        self.assertIn(
+            "security-sensitive",
+            HARNESS_MODULE.gates_for_paths(self.project, ["docs/auth.md"]),
+        )
 
 
 if __name__ == "__main__":

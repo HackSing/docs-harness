@@ -3,11 +3,11 @@ schema_version: 1
 locale: zh-CN
 branch: main
 nodes_managed: true
-exported_at: "2026-08-08T03:38:22Z"
+exported_at: "2026-08-08T08:42:58Z"
 modules:
     "":
-        dir_name: Docs Harness 根包（npm 封装与契约真源）
-        title: Docs Harness 根包（npm 封装与契约真源）
+        dir_name: Docs Harness 技能包根
+        title: Docs Harness 技能包根
         scope:
             - SKILL.md
             - .gitignore

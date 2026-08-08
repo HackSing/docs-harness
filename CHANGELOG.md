@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- `.qoder/repowiki` 外部知识源补齐显式阅读指令：只要目标目录存在，任务包、首次/二次准入、context 与 task status 响应均通过 `context_instructions` 提示宿主在了解项目架构和模块知识时优先阅读 `.qoder/repowiki/zh/content/` Wiki 与 `.qoder/repowiki/knowledge/zh/` 知识卡；project init/upgrade 同步把条件式指令写入受管 `AGENTS.md`。既有只消费、按任务选卡和不写 repowiki 的边界不变。
+- 写任务准入改为双声明失败关闭：宿主必须提交 `intent_assessment` 与 `gate_assessment`，显式意图不再被文本关键词升级；初始路径只判断文档/代码/测试结构 Gate，安全、发布等项目语义边界改由 `gate_path_rules` 显式映射。
+- 证据信任与 JSON 内的 producer 名称解耦：宿主 `evidence-declaration/v1` 与外部 v2 收据统一为 `reported`，不得冒充 controller producer；高风险证据和并发归因只接受受控内部入口。`evidence_checklist` 新增 `trust_requirements`，高风险项不再生成可自填骨架。
+- 自动 `workspace_attribution` 只证明写入归属，不再单独完成写任务；没有其他语义验收要求时，完成清单至少要求 `change_review`。fast track 最小集改为 `code_diff + change_review`。
+- 取消 verify 内 write_scope 自动扩围和旧证据重绑；任何新路径都返回 exit 4 重新准入，`readmission_hint` 同时携带范围并集、意图声明和 Gate 声明。失败响应新增有序 `recovery_actions`，验证命令失败明确返回 `retry_verification`。
+- `task changes-preview` 改为纯工作区分区预览：返回 `changed_in_write_scope|changed_outside_write_scope|changed_in_read_scope` 与 `attribution_status=unknown_until_evidence`，不再宣称与 verify 归因同源。
+
 ## 1.7.6 - 2026-08-08
 
 - 新增按实际变更面选择验证强度的测试策略：同一行为快照最多一次完整回归，行为代码、依赖和公共夹具未变时复用已有全量证据；版本、说明和元数据变更只做轻量发布检查；下游同步只验 preview/apply/diff/check 与受管文件摘要。策略写入 `docs/testing.md` 真源、`SKILL.md` 操作规则和下游 `AGENTS.md` 受管模板，长测试默认安静输出，避免重复回归和无效上下文消耗。
