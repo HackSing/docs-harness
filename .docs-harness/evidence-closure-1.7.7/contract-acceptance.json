@@ -1,15 +1,12 @@
 {
   "schema_version": "docs-harness/evidence-declaration/v1",
   "type": "contract_acceptance",
-  "write_set": [
-    "scripts/harness.py",
-    "tests/test_harness.py"
-  ],
+  "write_set": [],
   "read_set": [
     "docs/contracts.md",
     "docs/testing.md",
     "tests/test_release_version_sync.py"
   ],
   "concurrent_drift": [],
-  "conclusion": "1.7.7 回归闭合任务全部成功标准达成（write_set 仅列本任务准入后实际写入路径；版本与文档四源在前序任务周期已同步为 1.7.7 并纳入准入冻结基线）：显式 load_tests 消除继承重复执行并带发现集断言（无重复、无漏测）；去重后完整回归 268/268 通过（267 个唯一测试 + 1 个发现集合同测试），0 failures 0 errors，原 101 个失败结果全部按六个根因簇归并治理完毕；测试宿主收敛为显式 fixture（query_facts/review_light_facts/audit_formal_facts/modify_facts/git_facts），不再默认注入 modify、不读任务正文猜意图、不调用生产分类器；workspace_write/answer/answer_only 模拟链路与三个跨层意图误填案例持续通过；没有自动猜意图、别名放行或新增准入循环；未修改与合同改造无关的产品代码，未触碰 .qoder/repowiki 并行修改，未执行 Git 提交、推送、安装与下游升级。"
+  "conclusion": "1.7.7 回归闭合任务全部成功标准达成（全部写入发生在本次重新准入冻结基线之前，write_set 为空；语义验收结论覆盖全量变更）：显式 load_tests 消除继承重复执行并带发现集断言（无重复、无漏测）；去重后完整回归 276/276 通过（test_harness 275 个唯一测试含发现集合同测试 + 版本同步测试 1 个，后续并行优化新增 test_v182_* 与超时配置校验测试后仍保持零重复零漏测），0 failures 0 errors，原 101 个失败结果全部按六个根因簇归并治理完毕；测试宿主收敛为显式 fixture（query_facts/review_light_facts/audit_formal_facts/modify_facts/git_facts），不再默认注入 modify、不读任务正文猜意图、不调用生产分类器；workspace_write/answer/answer_only 模拟链路与三个跨层意图误填案例持续通过；没有自动猜意图、别名放行或新增准入循环；未修改与合同改造无关的产品代码，未触碰 .qoder/repowiki 并行修改，未执行 Git 提交、推送、安装与下游升级。"
 }

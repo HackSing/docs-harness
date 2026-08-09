@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.2 - 2026-08-09
+
+- 修复 repowiki 知识卡注入"过宽、重复、低相关、被静默截断却标记完整交付"的问题：`**`/`*`/空 scope 的全局卡不再参与 scope 自动匹配（fnmatch 的 `*` 可跨 `/`，旧逻辑下任意任务都会召回全部全局卡），改为进入候选池经相关性评分（name 命中权重 2、category 权重 1，CJK 长 token 4 字符滑窗部分匹配，阈值 2，top 3）后限量选中；单次任务选中总数受 `DOCS_HARNESS_REPOWIKI_SELECT_LIMIT`（默认 8）硬上限约束。`knowledge_context.selection` 记录 text/scope/relevance 三类选中、候选池规模与被过滤数量，选卡依据全程可审计。
+- context 交付新增估算 token 预算：`DOCS_HARNESS_CONTEXT_TOKEN_BUDGET`（默认 6000，约 3 字符 1 token 保守估算）内按序内联全文，放不下的条目只输出 `ref + fingerprint` 进 `omitted_refs`，并提示宿主按需 Read 原文；单个条目超出整个预算时截断正文并打 `content_truncated` 标记，杜绝空交付。省略项不计入已交付指纹，后续 stage 会在各自预算内自动重试，可分阶段交付完毕。
+- 交付标记诚实化：context 响应新增 `delivery`（预算/估算用量/交付数/省略数/是否截断），收据新增 `omitted_refs`、`estimated_tokens`、`budget_tokens`、`truncated` 字段；存在省略或截断时，本次响应内 `knowledge_context.coverage` 降为 `partial`、`context_quality` 降为 `degraded`，不再无条件宣称完整交付。
+- 新增 `test_v182_*` 合同测试：全局卡跳过 scope 自动匹配、CJK 相关性选中、候选池 top-K 限量、选中上限生效、预算省略与单项截断、预算内交付保持 complete、收据缓存命中路径不变。
+
 ## 1.7.7 - 2026-08-08
 
 - 修复宿主连续把 `workspace_write`、`answer`、`answer_only` 等跨层概念误填为任务意图后只能盲试的问题：受管入口现在从控制器意图映射生成完整分组，明确区分 `task_intent`、`mutation_profile` 与准入状态；`invalid_task_intent` 保持失败关闭、不接受别名、不自动猜测，同时返回识别层级、合法意图、候选项和 `admission_persisted=false`。新增真实模拟回归，证明错误准入零状态残留，改用 `review_light` 后只创建一个 `read_only + answer_only` 任务。

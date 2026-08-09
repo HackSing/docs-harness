@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 
-VERSION = "1.7.7"
+VERSION = "1.8.2"
 TASK_SCHEMA = "docs-harness/task-package/v2"
 LEGACY_TASK_SCHEMA = "docs-harness/task-package/v1"
 COMPILED_SCHEMA = "docs-harness/compiled-task/v2"
@@ -98,6 +98,15 @@ REPOWIKI_ARCHITECTURE_INSTRUCTION = (
     "`.qoder/repowiki/knowledge/zh/` 下的知识卡片。"
 )
 REPOWIKI_CARD_LIMIT = 1000
+# 全局 scope 模式：不参与 scope 自动匹配，只进相关性候选池（fnmatch 的 * 可跨 /，** 会命中任意路径）。
+REPOWIKI_GLOBAL_SCOPE_PATTERNS = frozenset({"**", "*"})
+REPOWIKI_SELECT_LIMIT = 8
+# 候选池相关性：name token 命中权重 2、category 命中权重 1，阈值 2，最多取 top 3。
+REPOWIKI_RELEVANCE_TOP_K = 3
+REPOWIKI_RELEVANCE_MIN_SCORE = 2
+# context 交付预算：默认 6000 估算 token，落在宿主可传输窗口下限，可用环境变量覆盖。
+CONTEXT_TOKEN_BUDGET = 6000
+CONTEXT_TRUNCATION_MARKER = "\n…[truncated by docs-harness: 内容超出上下文预算，可按需 Read 原文]"
 KNOWLEDGE_CATEGORIES = ("product", "development", "testing", "design")
 FALLBACK_SNAPSHOT_FILE_LIMIT = 4096
 BACKGROUND_MAX_ATTEMPTS = 3
@@ -1602,6 +1611,23 @@ def verification_command_cache_enabled(target: Path) -> bool:
     return enabled
 
 
+def verification_command_timeout_seconds(target: Path) -> int:
+    """验证命令单条超时默认 120 秒，可通过项目配置 verification.command_timeout_seconds 调整。"""
+    config = project_config(target) or {}
+    verification = config.get("verification")
+    if verification is None:
+        return 120
+    if not isinstance(verification, dict):
+        raise HarnessError("项目配置 verification 必须是对象", code="invalid_project_config")
+    timeout = verification.get("command_timeout_seconds", 120)
+    if isinstance(timeout, bool) or not isinstance(timeout, int) or not 1 <= timeout <= 3600:
+        raise HarnessError(
+            "项目配置 verification.command_timeout_seconds 必须是 1-3600 的整数秒",
+            code="invalid_project_config",
+        )
+    return timeout
+
+
 def auto_attribute_in_scope(target: Path) -> bool:
     """write_scope 内未归因写入默认由控制器自动归因，可通过 verification.auto_attribute_in_scope 关闭。"""
     config = project_config(target) or {}
@@ -2050,6 +2076,73 @@ def repowiki_card_limit() -> int:
     return REPOWIKI_CARD_LIMIT
 
 
+def repowiki_select_limit() -> int:
+    """单次任务知识卡选中上限：默认 8，可用 DOCS_HARNESS_REPOWIKI_SELECT_LIMIT 覆盖为正整数。"""
+    raw = os.environ.get("DOCS_HARNESS_REPOWIKI_SELECT_LIMIT", "").strip()
+    if raw.isdigit() and int(raw) > 0:
+        return int(raw)
+    return REPOWIKI_SELECT_LIMIT
+
+
+def context_token_budget() -> int:
+    """单次 context 交付的估算 token 预算：默认 6000，可用 DOCS_HARNESS_CONTEXT_TOKEN_BUDGET 覆盖为正整数。"""
+    raw = os.environ.get("DOCS_HARNESS_CONTEXT_TOKEN_BUDGET", "").strip()
+    if raw.isdigit() and int(raw) > 0:
+        return int(raw)
+    return CONTEXT_TOKEN_BUDGET
+
+
+def estimate_tokens(text: str) -> int:
+    """中英混合文本的保守 token 估算：约 3 字符 1 token。"""
+    return max(1, (len(text) + 2) // 3)
+
+
+def repowiki_card_is_global(card: dict[str, Any]) -> bool:
+    """空 scope 或仅含 ** / * 的卡不参与 scope 自动匹配，只进相关性候选池。"""
+    return not card["scope"] or all(pattern in REPOWIKI_GLOBAL_SCOPE_PATTERNS for pattern in card["scope"])
+
+
+def repowiki_task_tokens(task: str) -> set[str]:
+    """任务文本分词（纯标准库）：按非字母数字切分，保留 CJK 连续段与长度 ≥2 的 token。"""
+    tokens: set[str] = set()
+    for token in re.split(r"[^0-9A-Za-z一-鿿]+", task.casefold()):
+        if len(token) >= 2:
+            tokens.add(token)
+    return tokens
+
+
+def repowiki_token_hit(token: str, task_tokens: set[str], lowered_task: str) -> bool:
+    if token in task_tokens:
+        return True
+    # CJK 无空格分词：短 token 子串匹配；长 token 用 4 字符滑窗，允许部分命中（如“发票格式”命中“发票格式规范”）。
+    # ASCII token 保持整词匹配，避免 go/governance 类误命中。
+    if not any("一" <= char <= "鿿" for char in token):
+        return False
+    if len(token) <= 4:
+        return token in lowered_task
+    return any(token[index : index + 4] in lowered_task for index in range(len(token) - 3))
+
+
+def rank_repowiki_candidates(
+    candidates: Sequence[dict[str, Any]],
+    task: str,
+) -> list[dict[str, Any]]:
+    """候选池相关性排序：name token 命中权重 2、category 命中权重 1，阈值以上取 top K。"""
+    lowered_task = task.casefold()
+    task_tokens = repowiki_task_tokens(task)
+
+    def hits(text: str) -> int:
+        return sum(1 for token in repowiki_task_tokens(text) if repowiki_token_hit(token, task_tokens, lowered_task))
+
+    scored: list[tuple[int, dict[str, Any]]] = []
+    for card in candidates:
+        score = hits(card["name"]) * 2 + hits(card["category"])
+        if score >= REPOWIKI_RELEVANCE_MIN_SCORE:
+            scored.append((score, card))
+    scored.sort(key=lambda item: (-item[0], item[1]["ref"]))
+    return [card for _, card in scored[:REPOWIKI_RELEVANCE_TOP_K]]
+
+
 def repowiki_knowledge_root(target: Path) -> Path | None:
     """返回 .qoder/repowiki 的知识卡根目录（knowledge/<locale>/），不存在时返回 None。"""
     base = target / REPOWIKI_RELATIVE / "knowledge"
@@ -2385,9 +2478,25 @@ def resolve_repowiki_knowledge(
     categories: list[str],
     requested: Sequence[str],
 ) -> tuple[dict[str, Any], list[str], list[str]]:
-    """repowiki 只消费知识源：按任务文本与 scope 命中知识卡，绝不产生写动作。"""
+    """repowiki 只消费知识源：按任务文本与 scope 命中知识卡，绝不产生写动作。
+
+    选卡规则（v1.8.2）：
+    - 显式 requested 不变；
+    - text_match（卡名出现在任务文本）任意卡可命中；
+    - scope_match 只对具体 scope 模式生效；`**`/`*`/空 scope 的全局卡只进候选池，
+      经相关性评分（阈值 + top K）后才能选中，避免无关任务全量召回；
+    - 总选中数受 repowiki_select_limit() 上限约束。
+    """
     cards, truncated, total_cards = repowiki_cards(target)
     selected: list[dict[str, Any]] = []
+    selection: dict[str, Any] = {
+        "text_selected": [],
+        "scope_selected": [],
+        "relevance_selected": [],
+        "candidate_pool_size": 0,
+        "filtered_out": 0,
+        "select_limit": repowiki_select_limit(),
+    }
     if requested:
         for feature_id in requested:
             match = next(
@@ -2397,18 +2506,41 @@ def resolve_repowiki_knowledge(
             if match is None:
                 raise HarnessError(f"未知功能 ID：{feature_id}", code="unknown_feature")
             selected.append(match)
+        selection["text_selected"] = [card["name"] for card in selected]
     else:
         lowered = task.casefold()
+        candidate_pool: list[dict[str, Any]] = []
         for card in cards:
             text_match = bool(card["name"]) and card["name"].casefold() in lowered
+            if repowiki_card_is_global(card):
+                if text_match:
+                    selected.append(card)
+                    selection["text_selected"].append(card["name"])
+                else:
+                    candidate_pool.append(card)
+                continue
             scope_match = any(
                 fnmatch.fnmatch(path, pattern) or scope_covers(path, [pattern])
                 for path in scope
                 for pattern in card["scope"]
+                if pattern not in REPOWIKI_GLOBAL_SCOPE_PATTERNS
             )
-            if text_match or scope_match:
+            if text_match:
                 selected.append(card)
+                selection["text_selected"].append(card["name"])
+            elif scope_match:
+                selected.append(card)
+                selection["scope_selected"].append(card["name"])
+        selection["candidate_pool_size"] = len(candidate_pool)
+        ranked = rank_repowiki_candidates(candidate_pool, task)
+        selected.extend(ranked)
+        selection["relevance_selected"] = [card["name"] for card in ranked]
+        selection["filtered_out"] = len(candidate_pool) - len(ranked)
     selected = list({card["ref"]: card for card in selected}.values())
+    select_limit = selection["select_limit"]
+    if len(selected) > select_limit:
+        selection["filtered_out"] += len(selected) - select_limit
+        selected = selected[:select_limit]
     if not selected and len(cards) == 1:
         selected = list(cards)
     meaningful = [card for card in selected if meaningful_knowledge_doc(target, card["ref"])]
@@ -2426,6 +2558,7 @@ def resolve_repowiki_knowledge(
             "fallback_required": True,
             "truncated": truncated,
             "total_cards": total_cards,
+            "selection": selection,
         }, [], []
     refs = [card["ref"] for card in meaningful]
     return {
@@ -2444,6 +2577,7 @@ def resolve_repowiki_knowledge(
         "fallback_fact_refs": [],
         "truncated": truncated,
         "total_cards": total_cards,
+        "selection": selection,
     }, refs, []
 
 
@@ -5320,6 +5454,35 @@ def context_receipt_valid(
     ) is not None
 
 
+def apply_context_budget(
+    contents: Sequence[dict[str, str]],
+    budget: int,
+) -> tuple[list[dict[str, Any]], list[dict[str, str]], int]:
+    """按估算 token 预算拆分本次交付：放不下的只带 ref/fingerprint 进 omitted，
+
+    单个条目超出整个预算时截断正文并打标，保证不产生空交付。
+    返回（带全文交付项, 省略项, 已用估算 token）。
+    """
+    delivered: list[dict[str, Any]] = []
+    omitted: list[dict[str, str]] = []
+    used = 0
+    for item in contents:
+        cost = estimate_tokens(item["content"])
+        if used + cost <= budget:
+            delivered.append(dict(item))
+            used += cost
+        elif used == 0:
+            limit = max(1, budget * 3 - len(CONTEXT_TRUNCATION_MARKER))
+            truncated_item: dict[str, Any] = dict(item)
+            truncated_item["content"] = item["content"][:limit] + CONTEXT_TRUNCATION_MARKER
+            truncated_item["content_truncated"] = True
+            delivered.append(truncated_item)
+            used = budget
+        else:
+            omitted.append({"ref": item["ref"], "fingerprint": item["fingerprint"]})
+    return delivered, omitted, used
+
+
 def command_context(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     started = time.monotonic()
     target = safe_target(args.target)
@@ -5361,11 +5524,20 @@ def command_context(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         work_package=args.work_package,
     )
     prior_fingerprints = prior_context_content_fingerprints(state, package, target)
-    delivered_contents = (
+    stage_contents = (
         []
         if cached_receipt is not None
         else [item for item in contents if item["fingerprint"] not in prior_fingerprints]
     )
+    budget = context_token_budget()
+    if cached_receipt is not None:
+        emitted_contents: list[dict[str, Any]] = []
+        omitted_refs: list[dict[str, str]] = []
+        used_tokens = 0
+    else:
+        emitted_contents, omitted_refs, used_tokens = apply_context_budget(stage_contents, budget)
+    delivered_truncated = any(item.get("content_truncated") for item in emitted_contents)
+    delivery_truncated = bool(omitted_refs) or delivered_truncated
     context_delta = cached_receipt is None and bool(prior_fingerprints)
     receipt = {
         "schema_version": RECEIPT_SCHEMA,
@@ -5379,10 +5551,14 @@ def command_context(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "rule_ids": schedule.get("rule_ids", []),
         "project_fact_refs": schedule.get("project_fact_refs", []),
         "content_fingerprints": content_fingerprints,
-        "delivered_content_fingerprints": [item["fingerprint"] for item in delivered_contents],
+        "delivered_content_fingerprints": [item["fingerprint"] for item in emitted_contents],
         "reused_content_fingerprints": [
             item["fingerprint"] for item in contents if item["fingerprint"] in prior_fingerprints
         ],
+        "omitted_refs": omitted_refs,
+        "estimated_tokens": used_tokens,
+        "budget_tokens": budget,
+        "truncated": delivery_truncated,
         "content_set_fingerprint": content_set,
         "loaded_at": utc_now(),
     }
@@ -5400,10 +5576,28 @@ def command_context(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         duration_ms=int((time.monotonic() - started) * 1000),
         context_cache_hit=cached_receipt is not None,
         context_delta=context_delta,
-        loaded_content_count=len(delivered_contents),
-        reused_content_count=max(0, len(contents) - len(delivered_contents)),
+        loaded_content_count=len(emitted_contents),
+        reused_content_count=max(0, len(contents) - len(stage_contents)),
+        omitted_content_count=len(omitted_refs),
+        delivery_truncated=delivery_truncated,
         stage=stage,
     )
+    knowledge_context = dict(package.get("knowledge_context", {}))
+    delivery = {
+        "budget_tokens": budget,
+        "estimated_tokens": used_tokens,
+        "delivered_count": len(emitted_contents),
+        "omitted_count": len(omitted_refs),
+        "truncated": delivery_truncated,
+    }
+    if knowledge_context:
+        # 诚实交付：有省略/截断时不再宣称 complete（仅影响本次响应视图，不改任务包本体）。
+        knowledge_context["delivery"] = delivery
+        if delivery_truncated:
+            if knowledge_context.get("coverage") == "complete":
+                knowledge_context["coverage"] = "partial"
+            if knowledge_context.get("context_quality") == "complete":
+                knowledge_context["context_quality"] = "degraded"
     payload = {
         "task_id": package["task_id"],
         "stage": stage,
@@ -5411,14 +5605,20 @@ def command_context(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "control_status": compiled["control_status"],
         "context_cache_hit": cached_receipt is not None,
         "context_delta": context_delta,
-        "loaded_content_count": len(delivered_contents),
-        "reused_content_count": max(0, len(contents) - len(delivered_contents)),
-        "rules": [item for item in delivered_contents if item["ref"].startswith("rule:")],
-        "project_facts": [item for item in delivered_contents if not item["ref"].startswith("rule:")],
-        "knowledge_context": package.get("knowledge_context", {}),
+        "loaded_content_count": len(emitted_contents),
+        "reused_content_count": max(0, len(contents) - len(stage_contents)),
+        "delivery": delivery,
+        "omitted_refs": omitted_refs,
+        "rules": [item for item in emitted_contents if item["ref"].startswith("rule:")],
+        "project_facts": [item for item in emitted_contents if not item["ref"].startswith("rule:")],
+        "knowledge_context": knowledge_context,
         "receipt": receipt,
     }
     instructions = package_context_instructions(package)
+    if omitted_refs:
+        instructions = instructions + [
+            "部分上下文因 token 预算未内联；omitted_refs 中的文件可按需用 Read 工具读取原文。"
+        ]
     if instructions:
         payload["context_instructions"] = instructions
     if stage == "plan":
@@ -7229,6 +7429,7 @@ def run_verification_commands_cached(
     cache = load_verification_command_receipts(state)
     cwd = str(target.resolve())
     target_id = target_identity(target)
+    command_timeout = verification_command_timeout_seconds(target)
     results: list[dict[str, Any]] = []
     cache_entries: list[dict[str, Any]] = []
     for raw in package.get("verification_commands", []):
@@ -7265,7 +7466,7 @@ def run_verification_commands_cached(
         started_at = utc_now()
         command_unavailable = False
         try:
-            completed = subprocess.run(command, cwd=target, capture_output=True, text=True, timeout=120, check=False)
+            completed = subprocess.run(command, cwd=target, capture_output=True, text=True, timeout=command_timeout, check=False)
             output_digest = sha256_text(completed.stdout + "\0" + completed.stderr)
             exit_code = completed.returncode
         except subprocess.TimeoutExpired:

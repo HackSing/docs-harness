@@ -1,7 +1,7 @@
 # Scope Priority Matrix (v1.8.1)
 
 **目的**: 明确 RepoWiki 知识卡 scope 字段的优先级规则与兼容策略  
-**版本**: v1.8.1 (吸收 Kimi 审查意见后简化)  
+**版本**: v1.8.2 (候选池过滤/top-K/token 预算已落地代码)  
 **最后更新**: 2026-08-09  
 
 ---
@@ -112,10 +112,11 @@ A: v1.8.1 需要修改 Qoder 的 system prompt，禁止随意用 `**`，改为�
 
 ## 六、实施检查清单
 
-- [ ] ✅ harness.py L2400-2450: 添加 scope 类型识别逻辑
-- [ ] ✅ 实现 minimal relevance ranking 算法
-- [ ] ✅ 设置 TOP_K=3, MIN_SCORE=3.0 阈值
-- [ ] ⏳ 编写 cleanup 脚本替换现有 `**` 卡
+- [x] ✅ harness.py `resolve_repowiki_knowledge`: scope 类型识别（全局模式 `**`/`*`/空 只进候选池）— v1.8.2 已实施
+- [x] ✅ 实现 relevance ranking（name 权重 2 / category 权重 1，CJK 4 字符滑窗部分匹配）— v1.8.2 已实施
+- [x] ✅ TOP_K=3、MIN_SCORE=2、总选中上限 8（`DOCS_HARNESS_REPOWIKI_SELECT_LIMIT`）— v1.8.2 已实施
+- [x] ✅ context 交付 token 预算（`DOCS_HARNESS_CONTEXT_TOKEN_BUDGET`，默认 6000）+ `omitted_refs` + 诚实 `coverage`/`delivery` 标记 — v1.8.2 已实施
+- [ ] ⏳ 编写 cleanup 脚本替换现有 `**` 卡（目标项目数据工作）
 - [ ] ⏳ 更新 Qoder 的 Prompt 禁止生成 `**`
 - [ ] ⏳ 建立月度 Review 机制监控 `**` 卡片数量 (<5% 目标)
 

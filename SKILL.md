@@ -2,7 +2,7 @@
 name: docs-harness
 description: "通过独立控制器完成 Gate、任务包、降级知识上下文、主任务验收和异步文档治理。"
 metadata:
-  version: 1.7.7
+  version: 1.8.2
   status: active
 ---
 
@@ -19,7 +19,8 @@ python3 <docs-harness-skill>/scripts/harness.py project init --target <project> 
 - 新项目创建最小知识骨架、执行 `knowledge estimate` 并返回 `knowledge_bootstrap` 后台合同；安装不等待知识生成。
 - 已有 `docs/` 的项目安装阶段零文档内容写入；先审查，缺口需要用户同意后才能创建后台 Job。
 - 不自动修改 `.gitignore`、提交、推送或发布。
-- 项目存在 `.qoder/repowiki` 外部知识库时进入只消费模式：不创建 `docs/` 骨架、不执行 bootstrap/增量同步等任何知识库写动作（`knowledge bootstrap` 返回 `knowledge_external_consume_only` 失败关闭），任务准入按任务文本与 scope 命中知识卡（frontmatter 的 `name`/`scope`）作为上下文；`knowledge_status.source="repowiki"`，交接 mode 为 `external_consume_only`。同时向宿主下发并在受管 `AGENTS.md` 中写入条件式指令：“了解项目架构和模块知识时，优先阅读 `.qoder/repowiki/zh/content/` 下的 Wiki 文档和 `.qoder/repowiki/knowledge/zh/` 下的知识卡片。”
+- 项目存在 `.qoder/repowiki` 外部知识库时进入只消费模式：不创建 `docs/` 骨架、不执行 bootstrap/增量同步等任何知识库写动作（`knowledge bootstrap` 返回 `knowledge_external_consume_only` 失败关闭），任务准入按任务文本与 scope 命中知识卡（frontmatter 的 `name`/`scope`）作为上下文；`**`/`*`/空 scope 的全局卡不参与 scope 自动匹配，只进候选池经相关性评分限量选中（top 3，总数默认 ≤8，可用 `DOCS_HARNESS_REPOWIKI_SELECT_LIMIT` 覆盖），选卡依据见 `knowledge_context.selection`。`knowledge_status.source="repowiki"`，交接 mode 为 `external_consume_only`。同时向宿主下发并在受管 `AGENTS.md` 中写入条件式指令：“了解项目架构和模块知识时，优先阅读 `.qoder/repowiki/zh/content/` 下的 Wiki 文档和 `.qoder/repowiki/knowledge/zh/` 下的知识卡片。”
+- `context` 交付有估算 token 预算（`DOCS_HARNESS_CONTEXT_TOKEN_BUDGET`，默认 6000）：预算内内联全文，放不下的进 `omitted_refs`（可按需 Read 原文），单超大项截断打标；响应 `delivery` 与收据如实记录交付/省略/截断，有省略时 `coverage=partial`，不再宣称完整交付。
 - `runtime_status`、`controller_clone_ready`、整体 `clone_ready`、远端与真实宿主验收分别报告。
 - `project upgrade` preserve-and-merge 合法 `document_routes`；非法路由或缺少路由合同的在途治理 Job 返回 `needs_manual_migration`，不覆盖真源配置或旧 Job scope。
 

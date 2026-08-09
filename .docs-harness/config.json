@@ -1,0 +1,8 @@
+{
+  "schema_version": "docs-harness/project-config/v4",
+  "version": "1.8.2",
+  "rules_root": "harness-home/rules",
+  "verification": {
+    "command_timeout_seconds": 900
+  }
+}

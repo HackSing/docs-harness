@@ -3675,6 +3675,22 @@ class DocsHarnessContractTest(unittest.TestCase):
                     HARNESS_MODULE.validate_volatile_verification_paths([pattern])
                 self.assertEqual(raised.exception.code, "invalid_project_config")
 
+    def test_verification_command_timeout_configurable_and_validated(self) -> None:
+        self.init_project()
+        config_path = self.project / ".docs-harness" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        self.assertEqual(HARNESS_MODULE.verification_command_timeout_seconds(self.project), 120)
+        config["verification"] = {"command_timeout_seconds": 900}
+        config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        self.assertEqual(HARNESS_MODULE.verification_command_timeout_seconds(self.project), 900)
+        for invalid in (0, 3601, "900", True):
+            with self.subTest(invalid=invalid):
+                config["verification"] = {"command_timeout_seconds": invalid}
+                config_path.write_text(json.dumps(config, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+                with self.assertRaises(HARNESS_MODULE.HarnessError) as raised:
+                    HARNESS_MODULE.verification_command_timeout_seconds(self.project)
+                self.assertEqual(raised.exception.code, "invalid_project_config")
+
     def test_project_upgrade_fails_before_writes_for_invalid_volatile_pattern(self) -> None:
         self.init_project()
         config_path = self.project / ".docs-harness" / "config.json"
@@ -8536,12 +8552,152 @@ class DocsHarnessV173VerifyLoopTest(DocsHarnessContractTest):
         )
 
 
+class DocsHarnessV182KnowledgeInjectionTest(DocsHarnessContractTest):
+    """v1.8.2：知识卡相关性门控选卡 + context 交付 token 预算 + 诚实交付标记。"""
+
+    def write_card(
+        self,
+        name: str,
+        scopes: list[str],
+        *,
+        category: str = "architecture",
+        body: str | None = None,
+    ) -> None:
+        root = self.project / ".qoder" / "repowiki" / "knowledge" / "zh" / name
+        root.mkdir(parents=True, exist_ok=True)
+        scope_block = "\n".join(f"    - '{item}'" for item in scopes)
+        text = (
+            f"---\nkind: module\nname: {name}\ncategory: {category}\nscope:\n{scope_block}\n---\n\n"
+            f"### 1. 概述\n\n{body or (name + ' 的真实事实与当前边界说明，已由测试项目确认。')}\n"
+        )
+        (root / f"{name}.md").write_text(text, encoding="utf-8")
+
+    def resolve_cards(self, task: str, scope: list[str]) -> dict[str, Any]:
+        context, _, _ = HARNESS_MODULE.resolve_repowiki_knowledge(
+            self.project, task, scope, ["development"], []
+        )
+        return context
+
+    def test_v182_global_scope_cards_skip_scope_auto_match(self) -> None:
+        self.write_card("核心模块", ["src/**"])
+        self.write_card("前端样式", ["**"])
+        self.write_card("语音引擎", ["*"])
+        context = self.resolve_cards("调整发票格式", ["src/core.py"])
+        self.assertEqual(context["selected_features"], ["核心模块"])
+        selection = context["selection"]
+        self.assertEqual(selection["scope_selected"], ["核心模块"])
+        self.assertEqual(selection["candidate_pool_size"], 2)
+        self.assertEqual(selection["filtered_out"], 2)
+
+    def test_v182_global_card_selected_by_cjk_relevance(self) -> None:
+        self.write_card("发票格式规范", ["**"])
+        self.write_card("语音引擎", ["**"])
+        context = self.resolve_cards("请输出发票格式说明", ["billing/invoice.py"])
+        self.assertEqual(context["selected_features"], ["发票格式规范"])
+        self.assertEqual(context["selection"]["text_selected"], [])
+        self.assertEqual(context["selection"]["relevance_selected"], ["发票格式规范"])
+        self.assertEqual(context["selection"]["filtered_out"], 1)
+
+    def test_v182_relevance_top_k_limits_candidate_pool(self) -> None:
+        for name in ("payment-gateway", "payment-flow", "payment-ledger", "payment-risk", "payment-audit"):
+            self.write_card(name, ["**"])
+        context = self.resolve_cards("refactor payment module", ["src/payment.py"])
+        self.assertEqual(len(context["selected_features"]), HARNESS_MODULE.REPOWIKI_RELEVANCE_TOP_K)
+        self.assertEqual(context["selection"]["candidate_pool_size"], 5)
+        self.assertEqual(context["selection"]["filtered_out"], 2)
+
+    def test_v182_select_limit_caps_total_selection(self) -> None:
+        self.write_card("核心模块", ["src/**"])
+        self.write_card("支付模块", ["src/**"])
+        os.environ["DOCS_HARNESS_REPOWIKI_SELECT_LIMIT"] = "1"
+        try:
+            context = self.resolve_cards("调整核心模块", ["src/core.py"])
+        finally:
+            os.environ.pop("DOCS_HARNESS_REPOWIKI_SELECT_LIMIT", None)
+        self.assertEqual(len(context["selected_features"]), 1)
+        self.assertEqual(context["selection"]["select_limit"], 1)
+
+    def write_budget_fixture(self) -> None:
+        self.write_card("核心模块", ["src/**"])
+        self.write_card("支付模块", ["src/**"])
+        self.init_project(bootstrap_knowledge=False)
+
+    def run_budget_task(self) -> str:
+        _, routed = self.run_harness(
+            "run", "--target", str(self.project), "--task", "调整核心模块的处理逻辑", "--scope", "src/core.py"
+        )
+        return routed["task_id"]
+
+    def test_v182_context_budget_omits_and_marks_partial(self) -> None:
+        self.write_budget_fixture()
+        task_id = self.run_budget_task()
+        os.environ["DOCS_HARNESS_CONTEXT_TOKEN_BUDGET"] = "60"
+        try:
+            _, payload = self.run_harness(
+                "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+            )
+        finally:
+            os.environ.pop("DOCS_HARNESS_CONTEXT_TOKEN_BUDGET", None)
+        delivery = payload["delivery"]
+        self.assertEqual(delivery["budget_tokens"], 60)
+        self.assertLessEqual(delivery["estimated_tokens"], 60)
+        self.assertTrue(delivery["truncated"])
+        self.assertTrue(
+            payload["omitted_refs"]
+            or any(item.get("content_truncated") for item in payload["rules"] + payload["project_facts"])
+        )
+        knowledge = payload["knowledge_context"]
+        self.assertEqual(knowledge["coverage"], "partial")
+        self.assertEqual(knowledge["context_quality"], "degraded")
+        self.assertEqual(knowledge["delivery"], delivery)
+        receipt = payload["receipt"]
+        self.assertTrue(receipt["truncated"])
+        self.assertEqual(receipt["budget_tokens"], 60)
+        self.assertIn("omitted_refs", receipt)
+        self.assertIn("estimated_tokens", receipt)
+
+    def test_v182_context_budget_truncates_single_oversized_item(self) -> None:
+        self.write_budget_fixture()
+        task_id = self.run_budget_task()
+        os.environ["DOCS_HARNESS_CONTEXT_TOKEN_BUDGET"] = "10"
+        try:
+            _, payload = self.run_harness(
+                "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+            )
+        finally:
+            os.environ.pop("DOCS_HARNESS_CONTEXT_TOKEN_BUDGET", None)
+        self.assertTrue(payload["delivery"]["truncated"])
+        emitted = payload["rules"] + payload["project_facts"]
+        self.assertEqual(len(emitted), 1)
+        self.assertTrue(emitted[0].get("content_truncated"))
+        self.assertIn("truncated by docs-harness", emitted[0]["content"])
+        self.assertEqual(payload["receipt"]["omitted_refs"], payload["omitted_refs"])
+        self.assertGreater(len(payload["omitted_refs"]), 0)
+
+    def test_v182_context_within_budget_stays_complete(self) -> None:
+        self.write_budget_fixture()
+        task_id = self.run_budget_task()
+        _, payload = self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+        )
+        self.assertFalse(payload["delivery"]["truncated"])
+        self.assertEqual(payload["omitted_refs"], [])
+        self.assertEqual(payload["knowledge_context"]["coverage"], "complete")
+        self.assertFalse(payload["receipt"]["truncated"])
+        _, replay = self.run_harness(
+            "context", "--target", str(self.project), "--task-id", task_id, "--stage", "action"
+        )
+        self.assertTrue(replay["context_cache_hit"])
+        self.assertEqual(replay["delivery"]["delivered_count"], 0)
+
+
 # 继承会让基类测试在子类中整体重跑（210 + 210 + 56 = 477 的重复执行），
 # 因此 discovery 使用显式 load_tests 去重：基类只执行自身声明的测试一次，
 # 子类只执行自身 __dict__ 中声明的测试，发现集断言保证无重复、无漏测。
 DEDUPLICATED_TEST_CLASSES: tuple[type, ...] = (
     DocsHarnessContractTest,
     DocsHarnessV173VerifyLoopTest,
+    DocsHarnessV182KnowledgeInjectionTest,
 )
 
 

@@ -243,7 +243,7 @@ external_state
 
 合同稳定且唯一阻断是 `write_scope` 内未归因写入时，控制器默认代铸 `workspace_attribution` 收据。它只消解写入所有权，不满足语义验收；每个写任务至少需要一类非 attribution 证据，没有其他合同要求时默认为 `change_review`。
 
-验证命令使用 `docs-harness/verification-command-receipt/v1` 逐项收据：命令按 argv、声明 `produces` 与输入指纹（读取集与工作区相关写入）绑定。输入不变且上次通过的命令直接复用收据（`cache_hit=true`），不重复执行；输入变化、上次失败或 volatile 副产物改变输入时重跑。只重跑失败或输入变化的命令，其余沿用通过收据。项目可在 `.docs-harness/config.json` 设置 `verification.command_cache_enabled=false` 整体关闭复用；关闭时不读不写收据缓存，验证事件记录 `command_cache_enabled=false`。
+验证命令使用 `docs-harness/verification-command-receipt/v1` 逐项收据：命令按 argv、声明 `produces` 与输入指纹（读取集与工作区相关写入）绑定。输入不变且上次通过的命令直接复用收据（`cache_hit=true`），不重复执行；输入变化、上次失败或 volatile 副产物改变输入时重跑。只重跑失败或输入变化的命令，其余沿用通过收据。项目可在 `.docs-harness/config.json` 设置 `verification.command_cache_enabled=false` 整体关闭复用；关闭时不读不写收据缓存，验证事件记录 `command_cache_enabled=false`。单条命令超时默认 120 秒，超时按失败处理且不产生可复用收据；项目可设置 `verification.command_timeout_seconds`（1-3600 整数秒）适配长测试套件，非法值返回 `invalid_project_config` 失败关闭。
 
 ## 7. 上下文与授权收据
 
