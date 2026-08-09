@@ -1,0 +1,17 @@
+{
+  "schema_version": "docs-harness/plan-template/v2",
+  "kind": "level",
+  "id": "full",
+  "version": "2.0.0",
+  "fields": [
+    {"id": "background", "label": "背景", "required": true},
+    {"id": "objective", "label": "目标", "required": true},
+    {"id": "non_goals", "label": "非目标", "required": true},
+    {"id": "success_criteria", "label": "成功标准", "required": true},
+    {"id": "execution_scope", "label": "执行范围", "required": true},
+    {"id": "implementation", "label": "执行内容", "required": true},
+    {"id": "acceptance_plan", "label": "验收方案", "required": true},
+    {"id": "constraints", "label": "约束", "required": false},
+    {"id": "risks_and_rollback", "label": "风险与回滚", "required": false}
+  ]
+}

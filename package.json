@@ -1,19 +1,26 @@
 {
   "name": "docs-harness",
-  "version": "1.8.2",
+  "version": "2.0.0",
   "private": true,
-  "description": "意图优先、证据可复用且失败关闭的独立 Docs Harness 控制技能。",
+  "description": "默认直跑，按需提供知识、方案模板与可选真实验收记录的 Docs Harness。",
   "files": [
     "CHANGELOG.md",
     "README.md",
     "SKILL.md",
     "VERSION",
-    "docs/",
+    "docs/README.md",
+    "docs/architecture.md",
+    "docs/contracts.md",
+    "docs/testing.md",
+    "docs/todo.md",
+    "docs/migrations/v2.0.0.md",
+    "docs/plans/README.md",
+    "docs/plans/docs-harness-v2.0.0-direct-first-plan.md",
     "evals/",
-    "harness-home/",
+    "plan-templates/",
     "scripts/harness.py",
-    "tests/test_harness.py",
-    "tests/test_release_version_sync.py"
+    "tests/test_release_version_sync.py",
+    "tests/test_v2_direct.py"
   ],
   "scripts": {
     "test": "python3 -m unittest discover -s tests -p test_*.py",

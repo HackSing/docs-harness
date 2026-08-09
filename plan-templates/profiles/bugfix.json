@@ -1,0 +1,14 @@
+{
+  "schema_version": "docs-harness/plan-template/v2",
+  "kind": "profile",
+  "id": "bugfix",
+  "version": "2.0.0",
+  "fields": [
+    {"id": "exact_reproduction", "label": "精确复现", "required": true},
+    {"id": "event_timeline", "label": "完整事件时间线", "required": true},
+    {"id": "first_divergence", "label": "首次偏离", "required": true},
+    {"id": "root_cause_evidence", "label": "根因证据", "required": true},
+    {"id": "fix_boundary", "label": "修复边界", "required": true},
+    {"id": "regression_paths", "label": "正向、负向与回归路径", "required": true}
+  ]
+}

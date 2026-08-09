@@ -1,14 +1,14 @@
 # Docs Harness 有效上下文密度与稳定性优化方案（v1.8.2+）
 
-状态：方案草案，尚未实施  
-日期：2026-08-09  
-修订：补充 Intent/Effect 双重校验、answer-only 副作用拦截、Gate 级联去重、工作区归属隔离和 Verify 语义拆分  
-适用范围：Repowiki 检索与交付、Run、Gate、Plan、Verify、重准入、宿主适配和 ZBuddy 下游验收  
-核心指标：有效上下文密度（Effective Context Density，ECD）
+- 状态：最终设计方案；Codex Host Adapter P0 确定性基础层已实现并通过聚焦审查，完整宿主编排尚未实施
+- 日期：2026-08-09
+- 修订：补充 Intent/Effect 双重校验、answer-only 副作用拦截、Gate 级联去重、工作区归属隔离、Verify 语义拆分、Codex Host Adapter、规划/执行上下文隔离、Codex Schema 兼容合同、宿主最小上下文档位和子智能体使用策略
+- 适用范围：Repowiki 检索与交付、Run、Gate、Plan、Verify、重准入、宿主适配和 ZBuddy 下游验收
+- 核心指标：有效上下文密度（Effective Context Density，ECD）
 
 ## 1. 文档定位
 
-本方案基于当前本地工作区标记为 `1.8.2` 的代码继续设计。当前 Git `HEAD` 仍为 `1.7.7`，因此本文中的“1.8.2”表示当前工作区源码基线，不代表已经提交、推送、安装或进入 ZBuddy。
+本方案基于当前本地提交 `e0ca4fb` 的 `1.8.2` 代码继续设计，`VERSION`、`package.json` 与 `.docs-harness/config.json` 均为 `1.8.2`。该本地源码与提交状态仍不能单独证明远端、fresh clone、ZBuddy 受管副本、安装产物或用户可见行为已经更新。
 
 本文用于统一以下分散设计：
 
@@ -26,7 +26,7 @@
 
 1.8.2 已经完成第一轮止血：全局知识卡不再因 `**`、`*` 或空 scope 自动全量命中；候选卡进行简单相关性评分；任务选卡和单次 context 交付都增加了上限；响应开始暴露省略和截断。
 
-但稳定、高效的 Docs Harness 仍缺少六项系统能力：
+但稳定、高效的 Docs Harness 仍缺少八项系统能力：
 
 1. **任务方向准确性**：结构化意图仍可能被宿主声明错误，answer-only 尚无执行期副作用拦截；
 2. **Gate 级联约束**：错误 Gate 仍会派生额外规则、证据、Plan 字段和 Verify 要求；
@@ -34,6 +34,8 @@
 4. **相关性能力**：当前评分主要依赖卡片名称、分类和简单文本片段，短了但不一定准；
 5. **交付真实性**：控制器准备输出不等于模型实际收到，partial 收据仍可能被当作有效收据复用；
 6. **控制面隔离与数据化验收**：Run、Gate、Plan、Verify 的完整内部状态仍大量进入模型上下文，且没有以真实 ZBuddy 任务为基准的联合发布门槛。
+7. **Codex 宿主编排**：规划和执行仍发生在同一个 Codex 上下文中，Harness 单独无法清空上下文、隐藏原始控制载荷或自动启动干净的执行调用。
+8. **宿主基础上下文治理**：即使业务工作单很短，Codex 默认配置仍可能加载大量系统指令、技能和插件；如果不单独度量和收缩这一层，拆分调用只会隔离历史，不会自动提高有效上下文密度。
 
 本方案不把“减少 token”本身视为成功。核心目标是：在不降低必要上下文召回率、任务成功率和安全合同的前提下，减少无关、重复、过期和只属于控制器内部的模型可见内容。
 
@@ -183,6 +185,9 @@ flowchart LR
 - 降低 Run、Context、Verify 和重准入往返轮次；
 - 保留意图、Gate、授权、范围和证据的失败关闭能力；
 - 用真实 ZBuddy 任务和统一模型条件证明改进，不以单元测试数量替代产品效果。
+- 默认使用同一个强模型承担规划和执行，但两个角色使用隔离上下文，只通过冻结方案和紧凑工作单传递信息；
+- 让 Codex Host Adapter 负责上下文防火墙、调用编排、动作 preflight 和真实交付确认；
+- 子智能体仅用于天然可分解的规划、只读调查和独立审查，不作为 Harness 日常操作员。
 
 ### 5.2 非目标
 
@@ -194,6 +199,9 @@ flowchart LR
 - 不因为工作区存在与当前范围无关的其他改动就重准入当前任务；
 - 不把固定 token 数、固定百分比或主观相关性分数当作已经验证的事实；
 - 不在本方案阶段修改控制器代码或 ZBuddy 下游副本。
+- 不强制使用两个不同模型；模型身份与上下文角色分离；
+- 不默认启用子智能体，也不让多个智能体在同一工作区无边界并发写入；
+- 不把仓库内 `harness.py` 能力表述成已经完成 Codex Desktop 原生编排。
 
 ## 6. 核心指标体系
 
@@ -248,6 +256,11 @@ false_complete_rate = 被标记 complete 但宿主未确认完整交付的 conte
 - `behavior_verification_execution_rate`：声明需要行为验证的任务中实际执行命令或受控人工验收的比例；
 - `task_success_rate`：真实任务是否满足用户目标；
 - `harness_wall_time_share`：Harness 往返占任务总耗时比例。
+- `raw_control_payload_visible_tokens`：Run/Gate/Plan/Verify 原始控制载荷进入执行模型的 token 数；
+- `planning_execution_context_overlap`：规划过程进入执行上下文的内容，仅允许冻结方案、必要上下文与明确引用；
+- `side_effect_preflight_coverage`：受管副作用动作中执行前经过 Harness preflight 的比例；
+- `host_delivery_ack_rate`：要求确认的上下文交付中获得宿主实际 delivery ack 的比例；
+- `agent_coordination_overhead`：使用子智能体时用于分派、同步和合并的模型可见 token 与往返次数。
 
 ### 6.5 建议发布门槛
 
@@ -263,6 +276,9 @@ false_complete_rate = 被标记 complete 但宿主未确认完整交付的 conte
 | 冻结的 Intent/Effect/Gate 误判回放 | 100% exact match，0 个错误路线 |
 | answer-only 实际执行副作用 | 0 |
 | 仅因无关工作区漂移触发重准入 | 0 |
+| 原始控制载荷进入执行上下文 | 0 token |
+| 受管副作用动作 preflight 覆盖率 | 100% |
+| 规划到执行的上下文传递 | 仅冻结方案、工作单和必要上下文 |
 | answer-only 模型可见 Harness 内容 | ≤300 token |
 | 普通 Run/Verify 单次响应 | ≤600 token |
 | 平均 Verify 次数 | ≤1.2 |
@@ -579,6 +595,24 @@ Harness 可见预算
 - 单个必需条目过大时按语义段落分块，不按字符中间截断；
 - 任何省略都必须保留游标、ref、fingerprint 和省略原因。
 
+### 12.4 双层上下文预算
+
+宿主必须把模型实际输入拆成两层记录，不能只统计 Harness 业务载荷：
+
+```text
+模型实际输入
+= 宿主基础上下文（系统指令、工具说明、技能、插件、项目规则）
++ 任务业务上下文（用户目标、工作单、知识、代码、工具结果）
+```
+
+规划、执行、验证分别声明 `host_context_profile`。至少支持：
+
+- `minimal_planner`：只保留规划必需的系统指令、只读工具、项目规则、方案 Schema 和必要知识；
+- `minimal_executor`：只保留执行必需的系统指令、受管工具、冻结方案、当前工作单和验收合同；
+- `full_interactive`：仅用于确实需要完整技能、插件和交互能力的任务，不作为后台规划/执行默认值。
+
+必须分别记录 `host_base_input_tokens`、`task_input_tokens`、`cached_input_tokens` 和 `output_tokens`。如果宿主无法直接拆分，至少保存完整输入指纹、配置档位和总量，并标记 `token_breakdown=unavailable`，不得把短工作单等同于低上下文占用。
+
 ## 13. 交付收据与缓存
 
 ### 13.1 两阶段收据
@@ -779,9 +813,310 @@ Verify 对外必须区分：
 
 不能用“不要展示矛盾信息”掩盖数据不一致。
 
-## 17. 评测与验收设计
+## 17. Codex 落地架构与完整任务流程
 
-### 17.1 冻结真实任务集
+### 17.1 当前实际流程
+
+当前 1.8.2 的真实宿主流程仍然是同一个 Codex 上下文同时承担 Harness 操作和业务任务：
+
+```text
+用户提出任务
+↓
+Codex 判断 Intent/Gate
+↓
+Codex 调用 Harness Run
+↓
+Codex 阅读准入响应并加载 Context
+↓
+Codex 填写 Plan
+↓
+Codex 执行业务任务
+↓
+Codex 整理证据并调用 Verify
+↓
+Codex 处理补证或重准入
+↓
+回复用户
+```
+
+同一上下文因此同时承载需求分析、Harness 操作、项目管理、技术规划、代码执行、证据整理和验收收尾。当前文档描述的上下文隔离是目标能力，不是 1.8.2 已有事实。
+
+### 17.2 目标组件职责
+
+| 组件 | 主要职责 | 不承担的职责 |
+|---|---|---|
+| Docs Harness 控制器 | 状态、Intent/Effect 一致性、Gate、范围、方案审核、收据、归属、验证和重准入 | 不生成技术实现，不直接管理模型上下文生命周期 |
+| Codex Host Adapter | 调用编排、上下文防火墙、模型可见投影、动作 preflight、delivery ack、用户进度整合 | 不替代 Harness 的控制合同，不替代模型技术推理 |
+| 规划调用 | 消费有效上下文和必要方案字段，生成具体方案 | 不修改工作区，不执行最终任务 |
+| 执行调用 | 消费冻结方案和当前工作单，完成业务任务 | 不读取完整 Harness 账本，不重新维护 Gate 和证据合同 |
+| 可选子智能体 | 独立规划、只读调查或高风险审查 | 不作为 Harness 日常操作员，不默认并发写当前工作区 |
+
+默认使用同一个强模型完成规划和执行。这里的“规划调用”和“执行调用”是两个角色、两个隔离上下文，不要求使用两个不同模型。
+
+### 17.3 任务分流
+
+| 任务类型 | 目标流程 |
+|---|---|
+| 普通问答 | 直接回答，不创建 Harness 任务 |
+| 简单只读检查 | 最小读取合同，不生成 Plan/Verify |
+| 明确低风险修改 | 最小工作单，直接执行 |
+| 复杂任务 | 独立规划 → Harness 审核冻结 → 独立执行 |
+| 高风险任务 | 独立规划 → Harness 审核 → 必要授权 → 独立执行 |
+
+分流依据是结构化 Intent、Effect、范围、风险和任务拓扑，不使用任务正文关键词直接授予权限。
+
+### 17.4 完整目标流程
+
+```mermaid
+flowchart TD
+    U["用户需求"] --> T["任务分流"]
+    T -->|普通问答| A["直接回答"]
+    T -->|简单 direct| D["最小工作单"]
+    T -->|planned/extended| I["隔离准入"]
+    I --> C["加载规划所需有效上下文"]
+    C --> P["同一模型的独立规划调用"]
+    P --> F["Harness 审核并冻结方案"]
+    F --> W["生成紧凑执行工作单"]
+    D --> E["干净执行上下文"]
+    W --> E
+    E --> X["工具动作 preflight"]
+    X --> B["执行业务任务"]
+    B --> V["Harness 合同核验与行为验证"]
+    V -->|通过| R["最终答复"]
+    V -->|任务内失败| E
+    V -->|合同变化| Q["隔离规划差量"]
+    Q --> F
+
+    I -.完整控制状态.-> H["Harness 控制面文件"]
+    P -.完整规划过程不继承.-> H
+    V -.完整证据与归因.-> H
+    H -.仅工作单和引用.-> E
+```
+
+### 17.5 规划上下文
+
+规划调用只消费：
+
+```text
+用户目标
++ 有效项目上下文
++ 必要方案字段
++ 允许范围和动作
++ 必须满足的风险与验收约束
+```
+
+规划调用默认使用只读 sandbox。它输出结构化方案，不执行写入、构建、Git 变更、删除或外部发送。
+
+Harness 随后检查方案是否越权、是否包含未声明副作用、范围是否完整、必要步骤是否缺失、验收是否可执行。审核通过后保存方案 fingerprint 并冻结。
+
+### 17.6 执行上下文与工作单合同
+
+执行调用是新的干净上下文，只消费冻结方案的执行投影：
+
+```json
+{
+  "task_id": "...",
+  "objective": "当前用户目标",
+  "plan_ref": "冻结方案路径",
+  "plan_fingerprint": "sha256:...",
+  "current_step": "当前要执行的步骤",
+  "required_context": ["当前步骤真正需要的摘要或引用"],
+  "allowed_actions": ["read", "workspace_write"],
+  "read_scope": ["..."],
+  "write_scope": ["..."],
+  "acceptance": ["指定验证命令或人工验收"],
+  "stop_conditions": ["何时必须停止并返回控制器"],
+  "detail_ref": "完整控制面文件路径"
+}
+```
+
+执行上下文不得继承 Harness Run 原始输出、Gate 推导过程、空方案模板、候选方案讨论、废弃假设、完整证据清单和规划调用全过程。
+
+如果方案发生变化，只传递新增事实、步骤、范围、验收和新的方案 fingerprint，不重新注入原方案和完整控制状态。
+
+### 17.7 Codex Host Adapter 必需能力
+
+以下能力必须由 Codex 宿主层实现，不能仅通过 `harness.py` 完成：
+
+- 自动启动独立规划调用；
+- 规划完成后启动干净的执行调用；
+- 将 Harness 原始响应写入控制面文件，并保证其不进入执行模型上下文；
+- 只把 `model_directive`、冻结方案和当前工作单投影给模型；
+- 在所有受管写入、构建、Git、删除和外部动作前执行 `action_preflight`；
+- 使用宿主 tokenizer 统计模型实际收到的 token；
+- 返回真实 context delivery ack；
+- 把规划、执行、验证和最终答复在 Codex Desktop 中呈现为同一个连续用户任务；
+- 记录规划调用和执行调用的独立 context/session 标识，证明上下文没有隐式继承。
+
+Host Adapter 是完整产品的一部分，不是可选包装层。没有它，只能实现“更短的同上下文流程”，不能证明规划和执行已经隔离。
+
+### 17.8 当前 Codex 可用基础能力
+
+2026-08-09 本机观察到 `codex-cli 0.147.0` 提供：
+
+- `codex exec`：独立非交互调用；
+- `--ephemeral`：不持久化调用会话；
+- `--sandbox read-only`：规划调用保持只读；
+- `--output-schema`：约束最终方案结构；
+- `--json`：以 JSONL 输出事件；
+- `--ignore-user-config`：保留认证但不加载用户级 Codex 配置，可用于最小宿主档位原型；
+- 新任务、`fork`、`resume` 等会话入口。
+
+因此 CLI 层可以验证“同一个模型、两个独立上下文”的原型。例如：
+
+```text
+codex exec --ephemeral --sandbox read-only --output-schema <absolute-plan-schema-path> -C <target>
+```
+
+该命令只证明本机存在相应入口，不证明嵌套调用、Codex Desktop 连续体验、全工具 preflight 或 Host Adapter 已经完成；这些仍需专项实现和真实验收。
+
+#### 17.8.1 2026-08-09 首轮 CLI 最小验证事实
+
+首轮原型使用两个独立的 `codex exec --ephemeral` 调用完成“只读规划 → 冻结方案 → 受限执行”：
+
+- 规划 context/session：`019fe48f-1f49-7ed3-ac3c-103ec81bad9f`；
+- 执行 context/session：`019fe48f-df20-7782-b013-b781a8253a1f`；
+- 规划阶段没有创建 `result.txt`；
+- 执行阶段只新增 `result.txt`，最终字节为 `34 32 0a`，即 `42` 和一个末尾换行；
+- 冻结方案、输入夹具和 Schema 的前后哈希一致。
+
+该原型同时暴露三个必须纳入产品合同的问题：
+
+1. **Schema 路径解析**：相对 `--output-schema` 路径不会因为 `-C` 自动按目标工作目录解析。Host Adapter 必须在启动前将路径解析为受控绝对路径，检查文件存在、位于允许根目录，并记录 Schema fingerprint；路径错误时不得启动模型调用。
+2. **Schema 子集兼容**：当前 Codex 结构化输出接口拒绝 `uniqueItems`。Harness 不能把任意 JSON Schema 直接交给宿主；必须定义版本化的 `codex_response_schema_profile`，在启动前做兼容性校验，并用宿主集成测试覆盖允许关键字。首轮只证明 `uniqueItems` 不兼容，不据此推断其他未测试关键字。
+3. **宿主累计输入负担仍高且缺少拆分**：极短业务输入下，CLI 在规划 thread 完成时报告 `input_tokens=43,593`、`cached_input_tokens=21,248`，在执行 thread 完成时报告 `input_tokens=89,084`、`cached_input_tokens=64,768`。Codex 0.147.0 的 `turn.completed.usage` 是 thread/session 截至该事件的累计快照，包含该 thread 内多次模型/API round 的重复输入，不是单次初始上下文长度，也不能拆出宿主基础上下文或 Harness 知识正文。它能证明完整任务输入负担仍高，但不能证明宿主固定注入本身等于这些数值。
+
+两次调用沿用同一本地默认配置，但事件没有返回可核对的具体模型标识，因此本轮不能把“同一默认配置”虚报成“已证明同一模型身份”。下一轮必须记录宿主返回的模型 ID、配置档位和完整输入构成。
+
+#### 17.8.2 Codex Schema 与最小宿主档位合同
+
+Host Adapter 启动规划或执行调用前必须完成：
+
+- 将 Schema 引用解析为规范绝对路径，并校验允许根目录、可读性和 fingerprint；
+- 将通用 Plan/Work Order Schema 编译为宿主声明支持的严格子集；
+- 启动前运行本地 Schema lint，不把接口拒绝当成模型任务失败或重准入；
+- 为规划和执行分别选择最小 `host_context_profile`，默认不加载与当前角色无关的技能、插件和工具；
+- 在相同模型、相同提示、相同夹具、相同 Schema 下，对默认配置与最小配置进行 A/B；
+- 同时比较任务正确性、写入范围、输入 Token、缓存 Token、输出 Token 和耗时，不以 Token 下降单独判定成功。
+
+`--ignore-user-config` 只能作为 CLI 原型入口。正式产品应使用受版本控制、可审计的宿主配置档位，不能依赖绕过用户配置来隐藏必要规则，也不能因此丢失安全、项目或工具合同。
+
+#### 17.8.3 2026-08-09 最小宿主上下文 A/B
+
+第二轮原型保持以下条件不变：模型配置为 `gpt-5.6-sol`、推理强度为 `xhigh`，提示词、夹具、Schema、sandbox 和验收目标与首轮一致。实验组只增加 `--ignore-user-config`，用于观察用户级配置退出后的完整 thread 累计输入变化。下表均为各 thread 最后一个 `turn.completed` 的累计快照，不是单个 API round 或初始上下文长度。
+
+| 阶段 | 配置 | thread input total | cached input total | 推导的非缓存累计输入 | output total | 结果 |
+|---|---|---:|---:|---:|---:|---|
+| 规划 | 默认配置 | 43,593 | 21,248 | 22,345 | 590 | 正确，只读，方案符合 Schema |
+| 规划 | ignore-user-config 首次 | 34,405 | 0 | 34,405 | 449 | 正确，只读，方案符合 Schema |
+| 规划 | ignore-user-config 同配置重复 | 34,325 | 16,128 | 18,197 | 372 | 正确，只读，方案符合 Schema |
+| 执行 | 默认配置 | 89,084 | 64,768 | 24,316 | 740 | 正确，只新增目标文件 |
+| 执行 | ignore-user-config | 70,489 | 33,280 | 37,209 | 583 | 正确，只新增目标文件 |
+| 合计 | 默认配置 | 132,677 | 86,016 | 46,661 | 1,330 | 两阶段正确 |
+| 合计 | ignore-user-config | 104,894 | 33,280 | 71,614 | 1,032 | 两阶段正确 |
+
+首次精简两阶段相对默认配置：
+
+- 总输入减少 27,783 Token，即 20.9%；
+- 规划输入减少 21.1%，执行输入减少 20.9%；
+- 缓存输入减少 52,736 Token；
+- 由 `input_tokens - cached_input_tokens` 推导的非缓存输入反而增加 24,953 Token，即 53.5%；
+- 两组都完成了正确方案、不同规划/执行 context/session、单文件写入和精确字节验收。
+
+为了避免把冷启动误判成配置缺陷，随后在相同目录、相同配置、相同提示和相同 Schema 下重复精简规划调用：
+
+- 总输入为 34,325，相对默认规划减少 21.3%；
+- 缓存输入恢复到 16,128；
+- 推导的非缓存输入为 18,197，相对精简首次调用减少 47.1%，相对默认规划减少 18.6%；
+- 方案仍然正确且保持只读。
+
+精简组 context/session 分别为：
+
+- 规划：`019fe494-4220-72a3-bbc4-1e208d91f18f`；
+- 执行：`019fe494-e826-7cd3-b8bd-3f581f6650eb`。
+- 同配置重复规划：`019fe496-98b4-7553-a31e-3c8e122e27f8`。
+
+这仍然是最小单样本原型，只能证明方向和风险，不能推断稳定收益或模型能力变化。严格结论是：完全忽略用户配置可以降低完整 thread 的累计输入；首次缓存为零包含冷启动影响，不能据此声称精简配置必然破坏缓存；稳定重复后缓存能够恢复。但现有事件无法证明减少的具体内容来自插件、技能、系统指令还是多轮重复输入，也无法给出宿主固定上下文长度。`--ignore-user-config` 会无差别移除用户配置，因此不适合作为正式产品实现。
+
+正式 `minimal_planner` 与 `minimal_executor` 应采用“稳定公共前缀 + 角色化能力清单 + 任务差量”的版本化配置：保留安全、项目规则和高复用公共前缀，只删除与角色无关的插件、技能和工具说明。发布时同时看总输入、非缓存输入、延迟、正确性和安全合同，不能只追求总 Token 下降。
+
+#### 17.8.4 Codex Host Adapter P0 实施状态
+
+2026-08-09 已实现独立的 `scripts/codex_host_adapter.py` 确定性基础层：
+
+- 使用显式 `allowed_root`、目录 fd、`O_NOFOLLOW|O_DIRECTORY` 和同一文件 fd 完成 Schema 安全读取、严格兼容检查与 fingerprint；
+- Codex Schema v1 只允许本机已验证的严格 `object|array|string` 组合，其他类型、关键字和错误组合失败关闭；
+- 将 `turn.completed.usage` 记录为 thread/session 累计快照，只取最后快照，不重复求和；
+- API round、宿主基础输入和任务输入无法由现有事件拆分时统一标记为 `unavailable`；
+- 模块不包含网络、subprocess 或真实模型调用。
+
+聚焦测试 `python3 -m unittest tests.test_codex_host_adapter` 为 23/23 通过，`git diff --check` 通过。独立只读审查发现的 usage 重复累计、Schema TOCTOU、Schema 兼容误放行和 allowed_root 错误码四项问题均已修复并完成二次复审。
+
+该状态只证明 P0 本地基础层，不证明真实 Codex Host Adapter 已完成。进入真实调用集成前还必须解决：
+
+- 每个 usage payload 绑定明确 thread/session ID，禁止拼接多个独立流后取“最后累计值”；
+- preflight 后到 subprocess 启动前重新核对 Schema fingerprint，或让 Codex 消费受控不可变快照；
+- 为缺少 `dir_fd/O_NOFOLLOW/O_DIRECTORY` 的平台提供等强度实现；当前实现只会失败关闭，不能据此宣称 Windows 宿主可用；
+- 运行真实 Codex 集成测试，证明 Schema 错误确实发生在模型调用前，并证明调用消费的 Schema 与 preflight 字节一致。
+- 将 Host Adapter 模块和测试纳入正式包清单与 release/pack 验收；当前 `package.json.files` 尚未包含新增文件，因此本地源码存在不等于 npm 包已交付。
+
+### 17.9 子智能体策略
+
+子智能体不是完整流程的必需条件。默认拓扑仍是：
+
+```text
+Harness 控制器
++ 同一个强模型的隔离规划调用
++ 同一个强模型的隔离执行调用
+```
+
+允许使用子智能体的场景：
+
+- 复杂任务需要独立只读规划；
+- 多个模块可以进行互不依赖的只读调查；
+- 架构、安全、迁移、数据删除或发布任务需要独立审查；
+- 多个执行工作包具备明确接口、独立 worktree 和不重叠 write scope。
+
+禁止或默认不使用的场景：
+
+- 普通问答、单文件修改、明确 Git 动作和小范围修复；
+- 代替 Harness 维护 Intent、Gate、证据、收据或 Verify；
+- 多个智能体在同一工作区无归属并发写入；
+- 为了提高“任务状态”而重复读取相同上下文或重复验收。
+
+一写者规则：默认只有执行主智能体可以修改当前工作区。规划、调查和审查子智能体保持只读；确需并行写入时使用独立 worktree、冻结文件所有权和不重叠范围，由主智能体统一合并和验收。
+
+子智能体只接收自己的紧凑子工作单，返回方案、事实、风险或审查结论；完整探索过程和 Harness 控制状态不进入执行主智能体上下文。
+
+### 17.10 可落地边界
+
+仅修改 Docs Harness 可以完成：
+
+- Intent/Effect 一致性、Gate 派生、方案 Schema 和冻结；
+- 紧凑工作单、工作区归属、收据、Verify 和差量重准入；
+- 完整控制状态写文件并提供最小模型投影。
+
+必须修改或新增 Codex Host Adapter 才能完成：
+
+- 自动隔离规划与执行上下文；
+- 原始控制载荷对执行模型不可见；
+- 所有副作用工具统一 preflight；
+- 模型实际 token 和 delivery ack；
+- Codex Desktop 中的一体化任务体验。
+
+因此最终产品结构是：
+
+```text
+Docs Harness 控制器
++ Codex Host Adapter
++ 同一模型的独立规划调用
++ 同一模型的独立执行调用
++ 按需启用的只读规划/调查/审查子智能体
+```
+
+## 18. 评测与验收设计
+
+### 18.1 冻结真实任务集
 
 首期至少覆盖：
 
@@ -801,15 +1136,23 @@ Verify 对外必须区分：
 14. 已知函数定位：直接 Symbol Lookup，不进行宽泛 Repowiki 检索；
 15. 存在范围外脏文件：无关漂移不触发当前任务重准入；
 16. 并发改动与 write_scope 重叠：失败关闭且只返回一个归属阻断；
-17. 上下文被截断：partial 不得满足完成条件，使用同阶段游标续传。
+17. 上下文被截断：partial 不得满足完成条件，使用同阶段游标续传；
+18. 复杂 planned 任务：同一模型的规划与执行使用不同 context/session，只传冻结方案和工作单；
+19. 普通问答和单文件 direct 任务：不启动子智能体；
+20. 高风险审查：可选只读审查子智能体不修改当前工作区；
+21. 并行执行：只有独立 worktree 和不重叠 write scope 才允许多个写入者。
+22. Schema 相对路径：启动前解析为允许根目录内的绝对路径，错误时不启动模型；
+23. Schema 不兼容关键字：启动前 lint 并返回唯一兼容错误，不进入模型重试或重准入；
+24. 最小宿主上下文 A/B：默认配置与最小规划/执行档位在同模型、同提示、同夹具下分别运行，正确性与范围不能下降。
 
-### 17.2 金标
+### 18.2 金标
 
 每个任务冻结：
 
 - 预期 `task_intent`、`mutation_profile`、`requested_effects` 和允许动作；
 - 预期 Gate、Gate 来源和派生规则/证据集合；
 - 预期工作区归属分区和 Verify 语义范围；
+- 预期执行拓扑、规划/执行 context 隔离要求和子智能体策略；
 - must-have refs；
 - helpful refs；
 - irrelevant refs；
@@ -820,7 +1163,7 @@ Verify 对外必须区分：
 
 金标由人工基于当前源码、合同和任务事实建立。模型裁判只能辅助，不作为唯一真源。
 
-### 17.3 对照组
+### 18.3 对照组
 
 - A：1.7.7 冻结源码；
 - B：当前 1.8.2 冻结源码；
@@ -828,7 +1171,7 @@ Verify 对外必须区分：
 
 检索和控制器确定性指标每个任务运行一次即可复算。涉及模型结果的任务使用相同模型、相同系统提示、相同项目快照和相同宿主版本，每个版本至少重复 5 次，报告分布而不是只报告最好结果。
 
-### 17.4 必须记录
+### 18.4 必须记录
 
 - 模型实际收到的完整 Harness 载荷指纹；
 - 宿主真实 tokenizer 统计；
@@ -838,12 +1181,16 @@ Verify 对外必须区分：
 - Gate 派生图、放大系数以及撤销后的孤儿项数量；
 - 工作区变更归属分区和无关漂移处理结果；
 - `contract_check`、`behavior_verification`、实际命令和缓存命中；
+- 规划与执行 context/session 标识、工作单 fingerprint 和原始控制载荷可见 token；
+- Schema 绝对路径、fingerprint、兼容档位和 lint 结果；
+- 宿主配置档位、模型 ID、宿主基础上下文 Token、任务上下文 Token、缓存 Token、输出 Token 和耗时；
+- 子智能体数量、角色、读写范围、协调 token 和 worktree 所有权；
 - Run、Context、Verify 和重准入次数；
 - 最终任务成功与失败原因。
 
 不得记录凭据、原始 token、私密聊天正文或与评测无关的用户数据。
 
-## 18. 分阶段实施路线
+## 19. 分阶段实施路线
 
 ### P0：任务方向与交付真实性
 
@@ -893,18 +1240,37 @@ Verify 对外必须区分：
 
 发布门：ECD、必要上下文召回率和任务成功率同时达到候选门槛。
 
-### P3：ZBuddy 灰度交付
+### P3：Codex Host Adapter 与上下文隔离
 
-- 在 Docs Harness 源码冻结候选版本；
-- 完成源码测试、合同一致性、自检和打包检查；
+建议里程碑：Codex Host Adapter v1
+
+- 使用同一模型建立独立规划调用和独立执行调用；
+- 规划调用默认 `ephemeral + read-only + plan output schema`；
+- Schema 路径在调用前解析为受控绝对路径，并通过版本化 Codex Schema 子集 lint；
+- Harness 审核方案并冻结 plan fingerprint；
+- Host Adapter 生成工作单并启动干净执行上下文；
+- 规划与执行默认使用受版本控制的 `minimal_planner`、`minimal_executor` 宿主配置档位；
+- 最小宿主档位保持稳定公共前缀以复用缓存，不以 `--ignore-user-config` 作为正式运行方式；
+- 原始 Run/Gate/Plan/Verify 载荷只写控制面文件，不进入执行模型；
+- 所有受管副作用工具经过 action preflight；
+- 宿主记录实际 tokenizer、delivery ack 和独立 context/session 标识；
+- 子智能体默认关闭，复杂任务按 17.9 的策略启用；
+- Codex Desktop 将规划、执行、验证和最终答复呈现为同一用户任务。
+
+发布门：规划与执行 context/session 不同、Schema 启动前兼容检查通过、`raw_control_payload_visible_tokens=0`、副作用 preflight 覆盖率 100%、工作单 fingerprint 可追溯、真实 delivery ack 可复算；最小宿主档位相对默认配置降低总输入 Token，且任务正确率、必要上下文召回率和安全合同不下降。具体降幅由冻结 A/B 基线确定，不在实测前虚设。
+
+### P4：ZBuddy 灰度交付
+
+- 在 Docs Harness 与 Host Adapter 分别冻结候选版本；
+- 完成源码测试、合同一致性、自检、打包检查和宿主集成验收；
 - 使用下游 upgrade preview 检查 ZBuddy 受管变化；
 - 先在隔离工作树或灰度副本运行真实任务；
 - 达标后再同步到 ZBuddy；
-- 分别报告本地源码、提交、推送、下游同步、安装和用户可见验收状态。
+- 分别报告 Harness 源码、Host Adapter、提交、推送、下游同步、安装和用户可见验收状态。
 
 任一层未完成都不得用“已发布”替代。
 
-## 19. 实现范围建议
+## 20. 实现范围建议
 
 预计需要修改的正式实现面：
 
@@ -913,11 +1279,14 @@ Verify 对外必须区分：
 - `tests/test_harness.py`：误判回放、副作用拦截、Gate 撤销、工作区隔离、收据、缓存、排序、去重、压缩和循环熔断回归；
 - `evals/evals.json`：修正旧只读路线并加入 Intent/Effect、工作区归属、ECD/召回评测；
 - `SKILL.md` 与受管入口：提交结构化效果、执行 action preflight，并只向模型发送必须执行的短指令；
+- 新增或扩展 Codex Host Adapter：编排独立规划/执行调用、实施上下文防火墙、工具 preflight、真实 token 和 delivery ack；
+- `plan.schema.json` 与 `work-order.schema.json`：约束规划产物和执行投影，并提供版本化 Codex 兼容 Schema 投影与启动前 lint；
+- 宿主集成测试：证明原始 Harness 载荷不可见、规划/执行 context 隔离、同一模型身份和 Codex Desktop 连续体验；
 - 新的冻结评测事实文件：保存脱敏金标、实际 token 和对照结果。
 
 不建议在首期引入外部向量数据库或在线 embedding 服务。先用确定性、可解释、可离线复现的方案证明产品收益。
 
-## 20. 风险与控制
+## 21. 风险与控制
 
 | 风险 | 控制 |
 |---|---|
@@ -933,10 +1302,36 @@ Verify 对外必须区分：
 | 缓存复用了旧知识 | 缓存键绑定仓库、知识和策略指纹 |
 | 自动维护 Repowiki 污染知识库 | 知识维护独立授权，不由普通任务自动触发 |
 | 新协议导致旧宿主不可用 | 协议版本、能力协商、旧响应兼容投影和明确回滚路径 |
+| 只改 Harness 就宣称上下文已经隔离 | 以 Host Adapter 独立 context/session 标识和模型可见载荷指纹为验收依据 |
+| `codex exec` 原型无法直接形成 Desktop 连续体验 | CLI 原型与 Desktop 宿主集成分层验收，不把入口存在当成产品完成 |
+| Schema 相对路径解析错误 | Host Adapter 统一解析受控绝对路径，启动前检查存在性、允许根目录和 fingerprint |
+| 通用 JSON Schema 含 Codex 不支持关键字 | 版本化兼容子集、启动前 lint 和宿主契约测试；兼容错误不消耗模型调用 |
+| Schema 在 preflight 后、Codex 启动前漂移 | 调用前复核 fingerprint 或消费受控不可变快照，并用集成测试绑定实际输入 |
+| usage payload 混入多个 thread/session | payload 绑定 thread/session ID；无法证明同源时不生成权威累计值 |
+| 平台缺少安全逐组件打开能力 | P0 失败关闭；正式宿主提供等强度平台实现后才开放 |
+| 独立调用仍加载庞大宿主上下文 | 规划/执行最小宿主档位、双层 Token 记账和同条件 A/B 发布门 |
+| 冷启动或不稳定配置让缓存数据失真 | 同配置预热后重复测量，使用稳定公共前缀，并同时比较总输入与非缓存输入 |
+| 为降低宿主 Token 而删除必要安全或项目规则 | 正确率、召回率、安全合同与 Token 联合验收，任何能力下降都不发布 |
+| 使用不同模型导致规划与执行理解漂移 | 默认使用同一个强模型、不同上下文；不同模型必须通过独立 A/B 后再启用 |
+| 子智能体增加协调噪音 | 默认关闭，只在天然可分解场景启用并统计协调开销 |
+| 多智能体污染同一工作区 | 一写者默认规则；并行写入必须独立 worktree、文件所有权和不重叠范围 |
 
-## 21. 决策清单
+## 22. 决策清单
 
-实施前需要产品确认：
+### 22.1 已冻结的设计决策
+
+- Docs Harness 负责项目管理控制面，Codex 模型负责规划与执行；
+- 默认使用同一个强模型，不强制引入两个不同模型；
+- planned/extended 任务的规划与执行必须使用隔离上下文；
+- 冻结方案和紧凑工作单是两个上下文之间唯一的默认业务信息桥梁；
+- 完整上下文隔离必须包含 Codex Host Adapter，不能只修改 `harness.py`；
+- Schema 必须使用受控绝对路径和版本化 Codex 兼容子集，兼容检查发生在模型调用前；
+- 规划和执行默认使用角色化最小宿主上下文档位，并对宿主基础上下文和任务上下文分别记账；
+- `--ignore-user-config` 仅用于诊断 A/B，不作为正式 Host Adapter 配置；正式档位必须保留稳定公共前缀和必要安全合同；
+- 子智能体默认关闭，仅用于复杂只读规划、独立调查、高风险审查和边界清晰的工作包；
+- 当前工作区默认只有一个写入主智能体。
+
+### 22.2 实施前仍需确认
 
 - 是否采用 ECD + 必要上下文召回率作为联合核心指标；
 - 建议发布门槛是否先作为灰度目标，而非立即成为正式 SLO；
@@ -945,9 +1340,10 @@ Verify 对外必须区分：
 - 受管 shell 命令的效果由宿主显式声明还是由命令适配器提供，二者冲突时如何失败关闭；
 - 宿主是否能够返回模型实际 tokenizer 统计与 delivery ack；
 - 完整控制面产物的默认保留周期和脱敏要求；
-- ZBuddy 灰度任务是否采用本方案列出的首批十七类用例。
+- Codex Desktop 的 Host Adapter 使用 CLI、app-server、任务编排接口还是组合实现；
+- ZBuddy 灰度任务是否采用本方案列出的首批二十一类用例。
 
-## 22. 完成定义
+## 23. 完成定义
 
 只有同时满足以下条件，才能宣称“Docs Harness 有效上下文优化完成”：
 
@@ -958,14 +1354,21 @@ Verify 对外必须区分：
 5. 范围外 preexisting/concurrent 改动不会触发当前任务重准入；
 6. `contract_check` 与 `behavior_verification` 分开报告；
 7. partial、缓存、游标和 host ack 证明交付真实性；
-8. 冻结 ZBuddy 评测集达到 ECD、召回率和任务成功率联合门槛；
-9. Gate、Plan、Verify 和重准入的模型可见内容达到压缩目标；
-10. 全量回归仅运行一次且通过，失败按根因聚类；
-11. ZBuddy managed upgrade preview 只包含预期文件；
-12. 下游同步、提交、推送、安装和用户验收分别提供证据；
-13. 没有用版本号、测试数量或控制器准备输出代替真实交付结论。
+8. planned/extended 任务的规划与执行使用独立 context/session；
+9. 执行模型不可见 Harness 原始 Run/Gate/Plan/Verify 载荷；
+10. 受管副作用动作 action preflight 覆盖率为 100%；
+11. 子智能体默认关闭且遵守一写者、独立范围和 worktree 规则；
+12. 冻结 ZBuddy 评测集达到 ECD、召回率和任务成功率联合门槛；
+13. Gate、Plan、Verify 和重准入的模型可见内容达到压缩目标；
+14. 全量回归仅运行一次且通过，失败按根因聚类；
+15. ZBuddy managed upgrade preview 只包含预期文件；
+16. Harness、Host Adapter、下游同步、提交、推送、安装和用户验收分别提供证据；
+17. 没有用 CLI 入口存在、版本号、测试数量或控制器准备输出代替真实交付结论。
+18. Schema 路径和兼容性在模型调用前通过检查，接口兼容错误不会进入模型重试或 Harness 重准入；
+19. 规划与执行均使用可审计的宿主配置档位，并记录模型 ID 与双层 Token；
+20. 最小宿主档位相对默认配置降低输入负担，同时任务正确性、范围控制、必要上下文召回和安全合同不下降。
 
-## 23. 当前结论
+## 24. 当前结论
 
 1.8.2 应被视为“防止全量注入的止血版本”，不是最终的上下文效率版本。下一步优先级必须是：
 
@@ -973,11 +1376,14 @@ Verify 对外必须区分：
 2. 再隔离无关工作区变化，停止错误 Gate 向规则、证据、Plan 和重准入级联；
 3. 随后压缩 Run、Gate、Plan、Verify 和重准入，并区分合同核验与行为验证；
 4. 再用真实任务提高必要知识召回和排序精度；
-5. 最后通过 ZBuddy 对照评测证明模型得到的是方向正确、更短、更准、足够且可验证的上下文。
+5. 然后通过 Codex Host Adapter 隔离同一模型的规划与执行上下文，并按需启用只读子智能体；
+6. 最后通过 ZBuddy 对照评测证明模型得到的是方向正确、更短、更准、足够且可验证的上下文。
+
+完整产品不是单独升级 Harness，而是 `Docs Harness 控制器 + Codex Host Adapter + 同一模型的独立规划调用 + 同一模型的独立执行调用`。子智能体是按需能力，不是主流程依赖。
 
 Qoder Repowiki 通用规则中的按需触发、分层检索、增量加载、去重缓存和敏感信息边界已经吸收到本方案；固定检索顺序、固定 token 数、简单查询哈希缓存、隐藏信息冲突和自动写记忆等部分未原样采用。
 
-## 24. 证据定位
+## 25. 证据定位
 
 本方案使用的本地证据入口如下，便于实施前复核：
 
@@ -988,6 +1394,9 @@ Qoder Repowiki 通用规则中的按需触发、分层检索、增量加载、�
 - 当前 1.8.2 选卡、预算、收据与 Run 投影实现：`scripts/harness.py`；
 - 当前只读、Gate、context 和 Verify 合同：`docs/contracts.md`；
 - 当前评测入口：`evals/evals.json`；
+- 2026-08-09 首轮 Codex CLI 最小验证产物：`/tmp/docs-harness-codex-min-verify.sWqvlq/`；
+- 2026-08-09 最小宿主上下文 A/B 产物：`/tmp/docs-harness-codex-min-ab.ftRHlo/`；
+- Codex Host Adapter P0：`scripts/codex_host_adapter.py`、`tests/test_codex_host_adapter.py` 与 `docs/contracts.md` 第 14 节；
 - Qoder Repowiki 规则输入：`/Users/aiware/.codex/attachments/79ea9d86-e114-4f47-9a29-cc660e837ffd/pasted-text.txt`。
 
 上述文件只能证明各自所在层：历史任务包证明当时的准入和合同状态；当前源码证明本地工作区实现；评测配置证明期望口径；它们都不能单独证明远端发布、ZBuddy 已升级或模型能力已经改善。

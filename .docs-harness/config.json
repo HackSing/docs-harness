@@ -1,8 +1,36 @@
 {
-  "schema_version": "docs-harness/project-config/v4",
-  "version": "1.8.2",
-  "rules_root": "harness-home/rules",
-  "verification": {
-    "command_timeout_seconds": 900
-  }
+  "schema_version": "docs-harness/project-config/v6",
+  "version": "2.0.0",
+  "installed_script_fingerprint": "sha256:94ad0bf341899d0fa87d8ab1185b5b8ca4db3be5b29b84574a102efc3c329757",
+  "installed_plan_template_fingerprints": {
+    "levels/brief.json": "sha256:8dd0430e8a537b29993c2cc24b28e346b8b1e953e853249bcbb6a3024e266980",
+    "levels/full.json": "sha256:9b08b9ff92c479c75be24c175d2a856b26818a005d27c2d363e88eb21409da58",
+    "profiles/general.json": "sha256:6d7795ce462e7ad8dbdce74ac4a4fdc7279b6ac499b23539a24ebf7c5babfe11",
+    "profiles/frontend-ui.json": "sha256:49b3beeb171d584140f77ffdaa85f5929de0d7d753e271f2bdc1113226af2b03",
+    "profiles/backend-service.json": "sha256:18fe7209b6aa0f39a2f2cac6c70a5b3f1c846f9805ecd9bf68c5b8e1267ec71a",
+    "profiles/bugfix.json": "sha256:fe63a3a1790f9aac56f44da8753c117b90546beb3332e18628a6402d19ed1f3d",
+    "profiles/architecture.json": "sha256:71606c4af81cc0464fc398a5f2eda8caf30f9cf3b3b449f456a70b7e920d2836",
+    "profiles/migration-release.json": "sha256:b61690767e9b8ac7ee674bbb63d6b2cb681a22aeea5cb74079a3c1e63890b4e8"
+  },
+  "direct_mode": {
+    "default": true
+  },
+  "knowledge": {
+    "mode": "on_demand",
+    "read_only": true,
+    "docs_preexisting_at_install": true
+  },
+  "migration": {
+    "source_version": "1.8.2",
+    "legacy_document_system": "removed",
+    "removed_paths": [
+      ".docs-harness/background",
+      ".docs-harness/knowledge-jobs",
+      ".docs-harness/runs",
+      ".docs-harness/task-inputs",
+      ".git/docs-harness/runs"
+    ],
+    "preserved_paths": []
+  },
+  "installed_at": "2026-08-09T07:09:45+00:00"
 }

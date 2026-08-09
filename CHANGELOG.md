@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.0.0 - 2026-08-09
+
+- 默认产品合同改为 Codex 直接执行：普通问答、只读检查、代码修改、构建和测试不再要求 `run`、Gate、通用 Plan、旧 Verify 或 Readmission；受管 `AGENTS.md`/`CLAUDE.md` 与 SKILL 明确尊重用户“不使用 Harness”的选择。
+- 2.0.0 采用单向迁移，不兼容运行 1.x 文档系统：`run|context|progress|verify|task|background|authorization`、`--legacy-opt-in` 和知识维护 Job 入口从当前 CLI 与控制器移除。
+- 新增显式只读 `knowledge query`：按具体问题、可选 scope、条数和字符预算返回短事实与引用；不自动注入、不写知识库，并明确未与运行态比对的冲突边界。
+- 新增版本化 `plan-templates/` 与 `plan select|create`：支持 `none|brief|full` 和 `general|frontend_ui|backend_service|bugfix|architecture|migration_release` 双维选择；用户显式选择优先，复杂度与实际修改面采用结构化输入，不从任务关键词猜模板；冻结方案只向执行阶段返回紧凑投影。
+- 架构 Profile 新增 `adr_decision`。ADR 由主 Codex 编写，复杂、高风险、跨模块或不可逆决策可选使用只读子智能体复审；已接受决策通过新 ADR supersede，不原地重写历史。
+- 新增 `acceptance record`：分离 Contract Check、Behavior Acceptance 和 User Acceptance，使用 L1-L5 真实验收层；Contract Check 不能产生 `behavior_verified`，失败只返回原因和下一步，独立 CLI 只记录 `user_pending`，不能自行宣称用户已接受。
+- 删除任务级 Gate 后不再新增 Harness preflight、授权文件、Host Adapter 或 usage metrics；高风险动作完全使用 Codex 原生授权与沙箱，避免重新建立第二套控制系统。
+- 项目安装不再创建知识正文或自动派发知识/后台治理 Job；知识不参与控制器 clone-ready 判定。升级会预览并删除指纹归属明确的旧规则、已识别知识地图、受管版本区块和旧 Runtime，保留项目文档、质量账本以及已修改或归属不明文件，并写入纯 `project-config/v6` 迁移记录。
+- 当前合同、架构、测试、TODO 和文档地图只保留 2.0.0 产品事实；1.x 方案与审查迁入 `docs/history/`，默认知识查询排除该目录，npm 包改为当前文档白名单。
+- 源包和 npm 包删除 1.x 规则快照与旧状态机测试；`docs/history/` 仅留在源码仓库作历史证据，不进入安装包，也不会被默认知识查询召回。
+
 ## 1.8.2 - 2026-08-09
 
 - 修复 repowiki 知识卡注入"过宽、重复、低相关、被静默截断却标记完整交付"的问题：`**`/`*`/空 scope 的全局卡不再参与 scope 自动匹配（fnmatch 的 `*` 可跨 `/`，旧逻辑下任意任务都会召回全部全局卡），改为进入候选池经相关性评分（name 命中权重 2、category 权重 1，CJK 长 token 4 字符滑窗部分匹配，阈值 2，top 3）后限量选中；单次任务选中总数受 `DOCS_HARNESS_REPOWIKI_SELECT_LIMIT`（默认 8）硬上限约束。`knowledge_context.selection` 记录 text/scope/relevance 三类选中、候选池规模与被过滤数量，选卡依据全程可审计。
@@ -43,9 +56,9 @@
 - 越界重准入提示：verify 因 `write_scope_violation` 走全量重准入时响应携带 `readmission_hint`（`facts_template` 只含 `write_scope` 并集 + 可执行 `example_argv`），宿主一次重准入即过。
 - `task changes-preview`：新增恒只读 action（无 `--apply`），以冻结基线对当前工作区纯函数 diff，返回 `changed_paths`/`in_scope`/`outside_scope`/`read_set_drift`，与 verify 时刻归因同源，执行前后任务 state 目录逐字节一致；`stale_evidence` 硬错误载荷新增 `stale_write_paths` 与 `actual_changed_paths` 双清单，把基线漂移压到零试探。
 - `concurrent_drift_overlap` 双选项 `readmission_hint`：收窄 scope 剔除重叠路径（同时给出剔除后的 `write_scope` 与受影响时的 `read_scope`；重叠来自证据 read_set 时只能选后项），或等并发落定后不带 scope 变更全量重准入；该码只保证失败后一次重准入即过，不承诺首轮必过（唯一无确定性承诺的码，如实声明）。
-- 外部审查（kimi CLI，报告 `docs/reviews/v1.7.3-verify-loop-fix-kimi-code-review.md`）发现修复：扩围前对同轮 supplied 证据先执行与常规 verify 同一标准的 `write_set ⊆ 实际变化路径` 硬校验（虚报失败关闭抛 `stale_evidence`、不扩围），扩展函数对 supplied 来源收据补齐受管 artifact 审计字段；`pending_context_receipts` 覆盖工作包（`work_package:<id>`）；concurrent 选项 1 补 `read_scope` 剔除；行尾宽容指纹修复 1MiB chunk 边界 CRLF 归一化；`task changes-preview` 对 legacy v1 任务与缺 `workspace_snapshot` 基线结构化失败关闭；`first_run_payload` 补 `completion_manifest_valid` 守卫，三处清单置位防护一致。
+- 外部审查（kimi CLI，报告 `docs/history/reviews/v1.7.3-verify-loop-fix-kimi-code-review.md`）发现修复：扩围前对同轮 supplied 证据先执行与常规 verify 同一标准的 `write_set ⊆ 实际变化路径` 硬校验（虚报失败关闭抛 `stale_evidence`、不扩围），扩展函数对 supplied 来源收据补齐受管 artifact 审计字段；`pending_context_receipts` 覆盖工作包（`work_package:<id>`）；concurrent 选项 1 补 `read_scope` 剔除；行尾宽容指纹修复 1MiB chunk 边界 CRLF 归一化；`task changes-preview` 对 legacy v1 任务与缺 `workspace_snapshot` 基线结构化失败关闭；`first_run_payload` 补 `completion_manifest_valid` 守卫，三处清单置位防护一致。
 - 验收层环境宽容修复：验证命令缺失（`FileNotFoundError`）不再崩溃，失败关闭为 failed 收据 + `verification_command_unavailable` 原因码；`core.autocrlf` 等行尾转换不再触发安装副本 script_drift 红线（行尾宽容指纹）；`release sync --apply` 目标非普通文件时以 `release_write_failed` 整体拒绝，无部分写入。
-- 全量测试 455 项无豁免全绿（含 V4 修复的 `test_cross_platform_task_detection`、`test_authorization_template_command` 等历史失败）；新增 30 个 `test_v173_*` 合同测试（T1–T23 + V1 回放复现 + V2 失败关闭矩阵，T19–T23 为外部审查发现修复的回归守护）；V3 影子验收脚本 `docs/plans/v1.7.3-v3-shadow-acceptance.py` 安装副本全链路 25 项断言通过；最小宿主流程验证脚本 `docs/plans/v1.7.3-minimal-host-flow-verify.py` 15 项断言通过（实证：前置清单 + declaration 实时铸证一次过 verify，声明绑定 verify 时代铸、铸后再改同路径不致 stale，write_set 虚报被 stale_evidence 精确拦下，扩展轮同一标准）。预期效果：平均 verify 轮次 2.0 → ~1.2，一次通过率 28% → ~70%，实际以 ZBuddy 升级后账本复核。
+- 全量测试 455 项无豁免全绿（含 V4 修复的 `test_cross_platform_task_detection`、`test_authorization_template_command` 等历史失败）；新增 30 个 `test_v173_*` 合同测试（T1–T23 + V1 回放复现 + V2 失败关闭矩阵，T19–T23 为外部审查发现修复的回归守护）；V3 影子验收脚本 `docs/history/plans/v1.7.3-v3-shadow-acceptance.py` 安装副本全链路 25 项断言通过；最小宿主流程验证脚本 `docs/history/plans/v1.7.3-minimal-host-flow-verify.py` 15 项断言通过（实证：前置清单 + declaration 实时铸证一次过 verify，声明绑定 verify 时代铸、铸后再改同路径不致 stale，write_set 虚报被 stale_evidence 精确拦下，扩展轮同一标准）。预期效果：平均 verify 轮次 2.0 → ~1.2，一次通过率 28% → ~70%，实际以 ZBuddy 升级后账本复核。
 
 ## 1.7.2 - 2026-08-07
 

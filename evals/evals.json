@@ -1,520 +1,82 @@
 {
-  "schema_version": "docs-harness/evals/v1",
-  "version": "1.8.2",
+  "schema_version": "docs-harness/evals/v2",
+  "version": "2.0.0",
   "cases": [
     {
-      "id": "v2-read-only-intent",
-      "expected": [
-        "query",
-        "ready_direct",
-        "read_only",
-        "write_scope=[]",
-        "run+verify"
-      ]
+      "id": "direct-default-no-state",
+      "expected": ["direct-execution", "zero-harness-invocation", "zero-harness-state", "no-gate", "no-plan", "no-verify"]
     },
     {
-      "id": "v177-cross-layer-intent-diagnostics",
-      "expected": [
-        "workspace_write=mutation_profile",
-        "answer=host_action",
-        "answer_only=admission_status",
-        "admission_persisted=false",
-        "auto_select=false",
-        "review_light→read_only→answer_only"
-      ]
+      "id": "user-disables-harness",
+      "expected": ["direct-execution", "zero-harness-state", "host-native-safety-only"]
     },
     {
-      "id": "v2-mixed-intent-upper-bound",
-      "expected": [
-        "candidate_intents",
-        "audit+fix=workspace_write",
-        "fetch+sync=git_sync"
-      ]
+      "id": "legacy-cli-absent",
+      "expected": ["old-commands-invalid-choice", "--legacy-opt-in-absent", "zero-legacy-state", "execute-directly"]
     },
     {
-      "id": "v2-scope-contract",
-      "expected": [
-        "read_scope",
-        "write_scope",
-        "git_scope",
-        "external_scope",
-        "invalid_scope_description"
-      ]
+      "id": "knowledge-explicit-bounded",
+      "expected": ["facts+refs+constraints+conflicts+omitted", "current-source-authoritative", "character-budget", "no-write"]
     },
     {
-      "id": "v2-git-preflight-postcheck",
-      "expected": [
-        "git_state_snapshot",
-        "remote-oid-frozen",
-        "refs-bounded",
-        "dirty-overlap-blocked",
-        "remote-drift-readmission"
-      ]
+      "id": "knowledge-no-runtime-conflict-proof",
+      "expected": ["conflict_check=not_evaluated_against_runtime", "no-false-conflict-complete"]
     },
     {
-      "id": "v2-workspace-attribution",
-      "expected": [
-        "task_write_set",
-        "read_set",
-        "concurrent_drift",
-        "unattributed_drift",
-        "high-risk-fail-closed"
-      ]
+      "id": "plan-simple-none",
+      "expected": ["plan_level=none", "plan_profile=general", "no-plan-file"]
     },
     {
-      "id": "v2-evidence-receipt",
-      "expected": [
-        "task-target-package-binding",
-        "trusted-producer",
-        "ttl",
-        "produces-whitelist",
-        "no-raw-output"
-      ]
+      "id": "plan-brief",
+      "expected": ["objective", "scope", "steps", "acceptance", "no-domain-empty-fields"]
     },
     {
-      "id": "v2-context-completion",
-      "expected": [
-        "content-set-cache",
-        "completion-manifest-fingerprint",
-        "incremental-receipts",
-        "single-final"
-      ]
+      "id": "plan-full-frontend",
+      "expected": ["one-main-plan", "state-matrix", "interaction", "accessibility", "runtime-acceptance"]
     },
     {
-      "id": "v1-v2-migration",
-      "expected": [
-        "explicit-apply",
-        "staging-manifest-journal",
-        "interruption-rollback",
-        "legacy-read-only",
-        "old-controller-fail-closed"
-      ]
+      "id": "plan-full-backend",
+      "expected": ["api-contract", "data-model", "failure-retry", "idempotency", "service-acceptance"]
     },
     {
-      "id": "v2-bounded-telemetry",
-      "expected": [
-        "phase-duration-reason",
-        "cache-load-readmission-evidence-counts",
-        "no-task-body",
-        "no-raw-environment"
-      ]
+      "id": "plan-bugfix-exact-repro",
+      "expected": ["exact-reproduction", "event-timeline", "first-divergence", "root-cause-evidence", "regression-paths"]
     },
     {
-      "id": "direct-document",
-      "expected": [
-        "ready_direct",
-        "DH-DOCUMENTATION-CHANGES",
-        "action-context-receipt",
-        "verify=完成"
-      ]
+      "id": "plan-architecture-adr",
+      "expected": ["alternatives", "tradeoffs", "decision", "compatibility-migration", "rollback", "adr-decision"]
     },
     {
-      "id": "planned-ui",
-      "expected": [
-        "needs_plan",
-        "plan-context-receipt",
-        "ready_planned",
-        "ui_acceptance"
-      ]
+      "id": "plan-user-override",
+      "expected": ["explicit-level-wins", "explicit-profile-wins", "selection-fingerprint"]
     },
     {
-      "id": "release-authorization",
-      "expected": [
-        "needs_authorization",
-        "reported-receipt",
-        "scope-covered"
-      ]
+      "id": "native-risk-control-no-harness",
+      "expected": ["no-task-gate", "no-preflight-command", "no-host-adapter", "codex-native-authorization"]
     },
     {
-      "id": "extended-dependencies",
-      "expected": [
-        "dispatch-contracts",
-        "dependency-blocked",
-        "event-replay",
-        "all-work-packages-verified"
-      ]
+      "id": "acceptance-contract-not-behavior",
+      "expected": ["status=contract_checked", "behavior_verified=false", "accepted_layer=null"]
     },
     {
-      "id": "scope-change",
-      "expected": [
-        "verify=重新准入"
-      ]
+      "id": "acceptance-layer-honesty",
+      "expected": ["L1-not-L3", "source-not-package", "package-not-install", "L5-user-only"]
     },
     {
-      "id": "context-fingerprint-change",
-      "expected": [
-        "receipt-invalid",
-        "reload-context"
-      ]
+      "id": "acceptance-failure-minimal",
+      "expected": ["status+layer+reason+next_action", "no-gate", "no-receipt-history", "no-contract-snapshot"]
     },
     {
-      "id": "git-runtime-isolation",
-      "expected": [
-        "<git-dir>/docs-harness/runs"
-      ]
+      "id": "user-acceptance-handoff",
+      "expected": ["environment-ready", "automatically-verified", "user-checks", "shortest-steps", "no-undisclosed-items"]
     },
     {
-      "id": "missing-harness-home",
-      "expected": [
-        "project-check=failed",
-        "missing_harness_home",
-        "fail-closed"
-      ]
+      "id": "install-no-automatic-knowledge",
+      "expected": ["direct-mode-default", "config-v6", "no-docs-scaffold", "no-bootstrap-job", "no-rules", "plan-templates-installed"]
     },
     {
-      "id": "portable-project-rules",
-      "expected": [
-        "relative-rules-root",
-        "installed-rule-fingerprints",
-        "no-source-absolute-path",
-        "clone_ready"
-      ]
-    },
-    {
-      "id": "git-install-ignore-preflight",
-      "expected": [
-        "git_delivery_ignored",
-        "exit=3",
-        "zero-install-writes"
-      ]
-    },
-    {
-      "id": "git-head-delivery",
-      "expected": [
-        "pending_commit-before-HEAD",
-        "in_head-after-commit",
-        "fresh-clone-rules-loaded"
-      ]
-    },
-    {
-      "id": "manual-quality-ledger",
-      "expected": [
-        "user-explicit-trigger",
-        "one-task-one-snapshot",
-        "already_recorded",
-        "record_conflict-zero-overwrite"
-      ]
-    },
-    {
-      "id": "quality-ledger-local-isolation",
-      "expected": [
-        "git-dir-or-dot-docs-harness",
-        "excluded-from-workspace-snapshot",
-        "excluded-from-git-delivery",
-        "preserved-on-purge-runtime"
-      ]
-    },
-    {
-      "id": "quality-ledger-agent-read",
-      "expected": [
-        "read-by-task-id",
-        "bounded-text-query",
-        "schema-and-fingerprint-validation",
-        "corrupt-record-partial"
-      ]
-    },
-    {
-      "id": "knowledge-install-new-project",
-      "expected": [
-        "docs-scaffold-created",
-        "knowledge-status-building",
-        "workload-estimate-v1",
-        "knowledge-bootstrap-job",
-        "non-blocking-install"
-      ]
-    },
-    {
-      "id": "knowledge-install-existing-docs",
-      "expected": [
-        "zero-document-writes",
-        "needs_audit",
-        "assessment-required",
-        "consent-before-update"
-      ]
-    },
-    {
-      "id": "knowledge-dynamic-context",
-      "expected": [
-        "feature-resolution",
-        "gate-category-filter",
-        "shared-references",
-        "missing-category-context-degraded",
-        "new-feature-mode",
-        "control-plane-fail-closed"
-      ]
-    },
-    {
-      "id": "knowledge-post-completion-job",
-      "expected": [
-        "parent-complete-first",
-        "minimum-delivery-receipt",
-        "stable-job-id",
-        "host-dispatch-contract",
-        "non-blocking-parent",
-        "dispatch-failed-does-not-rollback",
-        "no-recursion"
-      ]
-    },
-    {
-      "id": "knowledge-job-safety",
-      "expected": [
-        "allowed-write-scope",
-        "forbidden-write-scope",
-        "base-fingerprints",
-        "feature-lock",
-        "catalog-lock",
-        "needs-rebase",
-        "max-attempts",
-        "explicit-retry"
-      ]
-    },
-    {
-      "id": "knowledge-git-portability",
-      "expected": [
-        "knowledge-delivery-status",
-        "all-declared-docs-in-head",
-        "fresh-clone-ready",
-        "runtime-excluded"
-      ]
-    },
-    {
-      "id": "background-workload-routing",
-      "expected": [
-        "raw-score",
-        "score-route",
-        "hard-upgrade-reason",
-        "direct-goal-phased",
-        "scan-limit-oversized"
-      ]
-    },
-    {
-      "id": "background-host-capabilities",
-      "expected": [
-        "direct-agent",
-        "persistent-goal",
-        "phased-owner",
-        "queued-manual",
-        "no-silent-downgrade"
-      ]
-    },
-    {
-      "id": "bootstrap-incremental-merge",
-      "expected": [
-        "waiting-for-bootstrap-merge",
-        "single-bootstrap-owner",
-        "discard-old-baseline",
-        "rebuild-current-baseline"
-      ]
-    },
-    {
-      "id": "critical-followup",
-      "expected": [
-        "completed-with-finding",
-        "one-idempotent-followup",
-        "parent-task-bound",
-        "parent-job-bound",
-        "parent-complete-immutable"
-      ]
-    },
-    {
-      "id": "background-runtime-prune",
-      "expected": [
-        "dry-run-default",
-        "explicit-apply",
-        "terminal-summary-indexed",
-        "critical-finding-preserved"
-      ]
-    },
-    {
-      "id": "verification-volatile-byproducts",
-      "expected": [
-        "builtin-cache-allowlist",
-        "new-files-only",
-        "volatile_write_set-visible",
-        "configured-volatile_paths",
-        "global-glob-rejected",
-        "real-write-still-blocked",
-        "upgrade-preserve"
-      ]
-    },
-    {
-      "id": "verification-incremental-gate-readmission",
-      "expected": [
-        "test-pattern-gate-preinference",
-        "additive-gate-only",
-        "atomic-package-revision",
-        "evidence-adoption-audit",
-        "no-evidence-regeneration",
-        "delta-context-only",
-        "high-risk-full-readmission"
-      ]
-    },
-    {
-      "id": "v164-active-task-idempotency",
-      "expected": [
-        "active_task_key",
-        "active_task_reused",
-        "--new-task",
-        "blocked-no-reuse",
-        "workspace-change-new-task"
-      ]
-    },
-    {
-      "id": "v164-verify-soft-classification",
-      "expected": [
-        "provide_evidence-exit3",
-        "refresh_evidence-exit3",
-        "retry_verification",
-        "no-revision-increase",
-        "full_readmission-on-contract-change"
-      ]
-    },
-    {
-      "id": "v164-managed-evidence-artifact-store",
-      "expected": [
-        "managed-copy",
-        "source-deletion-safe",
-        "artifact_ref"
-      ]
-    },
-    {
-      "id": "v164-verification-command-receipts",
-      "expected": [
-        "per-command-receipt",
-        "passed-not-rerun",
-        "only-failed-rerun",
-        "input-change-invalidates",
-        "command_cache_enabled-toggle"
-      ]
-    },
-    {
-      "id": "v164-change-scoped-fingerprint",
-      "expected": [
-        "scoped_files-binding",
-        "unrelated-change-ignored",
-        "changed-path-invalidates"
-      ]
-    },
-    {
-      "id": "v164-one-shot-plan-freeze",
-      "expected": [
-        "contract_delta",
-        "complete_plan_delta",
-        "cross-stage-context-reuse"
-      ]
-    },
-    {
-      "id": "v169-admission-efficiency",
-      "expected": [
-        "invalid_scope_json",
-        "facts_ignored-warning",
-        "contract_snapshot",
-        "windows-posix-path-hint"
-      ]
-    },
-    {
-      "id": "v170-fast-track-admission",
-      "expected": [
-        "fast_track-declared-only",
-        "ready_direct+evidence_profile",
-        "minimal-evidence-set",
-        "fast_track_denied_reason",
-        "runtime-downgrade-one-way",
-        "inline_note",
-        "overhead_summary"
-      ]
-    },
-    {
-      "id": "v171-release-sync-and-layer-reuse",
-      "expected": [
-        "four-source-check-exit0/2/1",
-        "atomic-apply-rollback-no-partial-write",
-        "release_version_conflict-fail-closed",
-        "managed-files-only",
-        "layer_reuse-telemetry",
-        "contract-or-target-change-invalidates",
-        "layers-stay-independent"
-      ]
-    },
-    {
-      "id": "v172-background-merged-dispatch",
-      "expected": [
-        "prepare-and-run-declared-only",
-        "gates-identical-to-stepwise",
-        "already_prepared-idempotent",
-        "eligibility-change-scoped-score<60",
-        "phased-oversized-rejected",
-        "progress-all-completed-atomic",
-        "blocked-no-partial-commit"
-      ]
-    },
-    {
-      "id": "v173-write-scope-incremental-extension",
-      "expected": [
-        "pure-write_scope_violation-only",
-        "stable_contract-precondition",
-        "direct-and-planned-routes",
-        "authorized-and-git_sync-excluded",
-        "STABLE_FIELDS_MINUS_SCOPE-equality",
-        "candidate-write_scope-hard-assertion",
-        "scope_extension_readmission-event",
-        "extension-limit-3-scope_extension_limit_exceeded",
-        "evidence-adoption-full-audit-fields",
-        "scope_extended+extended_paths"
-      ]
-    },
-    {
-      "id": "v173-evidence-checklist-frontloading",
-      "expected": [
-        "missing_evidence_types-eliminated",
-        "missing_receipts-eliminated",
-        "evidence_checklist-required/conditional/required_receipts/skeletons",
-        "write_set-conditional-annotation",
-        "first_run+second_run+task_status-three-carriers",
-        "ensure_evidence_skeletons-shared-helper",
-        "skeleton-_instructions",
-        "pending_context_receipts-action_context_missing"
-      ]
-    },
-    {
-      "id": "v173-stale-evidence-changes-preview",
-      "expected": [
-        "task-changes-preview-action",
-        "zero-state-change-byte-identical",
-        "in_scope/outside_scope/read_set_drift-preview",
-        "stale_evidence-stale_write_paths+actual_changed_paths"
-      ]
-    },
-    {
-      "id": "v173-out-of-scope-readmission-hint",
-      "expected": [
-        "readmission_hint-facts_template-write_scope-only",
-        "example_argv-with---facts",
-        "authorized-task-no-extension",
-        "extension-limit-exceeded-hint"
-      ]
-    },
-    {
-      "id": "v173-concurrent-drift-dual-options",
-      "expected": [
-        "concurrent_drift_overlap-readmission_hint",
-        "option1-narrow_scope-facts_template",
-        "option2-wait_and_refresh-full-readmission",
-        "one-readmission-after-failure-guarantee",
-        "attribution_quality-verified-required"
-      ]
-    },
-    {
-      "id": "v175-git-commit-intent-and-negation-guard",
-      "expected": [
-        "git_commit-git_metadata_write-local-only",
-        "no-bare-提交-false-positive",
-        "future-deferred-completed-context",
-        "floor-gate-negation-guard-keyword-mode",
-        "rule-keywords-negation-guard",
-        "delivery-layer-negation-guard",
-        "positive-push-release-still-trips"
-      ]
+      "id": "pre-v2-one-way-migration",
+      "expected": ["preview-zero-write", "owned-legacy-removed", "user-docs-preserved", "unknown-preserved-detached", "legacy-runtime-removed", "idempotent"]
     }
   ]
 }

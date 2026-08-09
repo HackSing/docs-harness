@@ -1,283 +1,134 @@
-# Docs Harness
+# Docs Harness 2.0.0
 
-> 为没有原生 Hook 的 AI 编程宿主提供可安装、可追踪、可验收，并且“主交付优先、文档异步治理”的任务控制闭环。
+Docs Harness 2.0.0 的核心变化是：**Codex 默认直接工作，Harness 只在确实能增加价值时提供一项独立能力。**
 
-## 三分钟读懂 Docs Harness
+1.x 把任务准入、Gate、上下文、Plan、Evidence、Verify 和 Readmission 串成一条强制流程。实际项目审查发现，这条控制链会把大量项目管理工作、重复状态和补证动作放进模型上下文，导致用户任务更慢、注意力被分散。2.0.0 不再优化这条强制链，而是改变默认产品合同。
 
-**它解决什么问题**：AI 助手干活有两个老毛病——**干活没规矩**（该确认的风险不确认、改超出范围的文件）和**收尾没凭证**（说"做完了"但拿不出证据）。Docs Harness 就是给 AI 装的"工单系统 + 监理"：不替 AI 干活，只管**派单、划边界、验收货**。
-
-**一次需要正式治理的任务流程**（普通问答、进度回答、代码阅读和轻量评审走 `answer_only`，读取必要事实后直接回答）：
-
-1. **开工派单**：AI 接到任务先向 harness 报到。harness 判断风险等级并开出工单：能读哪些文件、能改哪些文件、需要什么授权、交工时要拿什么证据。简单任务当场放行，复杂任务先交方案，敏感操作（删数据、发版本）必须先拿到用户授权；
-2. **干活过程**：AI 在工单范围内干活，harness 全程盯两张表——考勤表（每个环节花在"办手续"上的时间）和现场监控（有没有人动工单范围外的文件）。任务中途变味（小修改变成动核心代码），工单自动升级管控；
-3. **交工验收**：AI 说"做完了"，harness 对照工单逐项验：改动有没有越界、测试跑没跑、证据齐不齐。缺小东西让补，大偏差（范围、风险变化）打回重办手续；验收通过任务才正式关闭；
-4. **善后文书**：更新知识库、写变更日志这类"不紧急但重要"的文书工作不挡主任务交工——派到后台队列单独办，失败可重试，绝不反过来影响已完成的主任务。
-
-**低风险快速通道**：改文档、调规则、补测试这类小活，AI 可申报 `fast_track` 走轻量准入，凭证收敛到最小集；申报不实自动降级回普通流程，安全闸门一道不少。发版时 `release sync` 一条命令对齐所有版本真源；后台小事项支持合并窗口一次办结。
-
-**流程成本可度量**：每个任务结束都能查"手续耗时占比单"（`task status` 的 `overhead_summary`）：办手续花的时间 ÷ 任务总时长。流程提效不靠感觉，每单有据可查。
-
-一句话总结：**harness 是 AI 的工程监理——开工划界、过程盯防、完工验货、文书后置，小活有快速通道，每单的流程成本都有据可查。**
-
-## 版本演进
-
-当前合同将语义判断和事实校验彻底分层：所有首次 `run` 都必须由宿主提交 `intent_assessment`，写任务同时提交 `gate_assessment`；控制器不再根据任务正文关键词或 scope 猜测意图。缺少意图声明时在任务状态创建前返回非持久化错误，不产生 task-id 或取消需求。控制器只校验范围、指纹、时序和证据入口。语义路径 Gate 不再根据开放路径名猜测，项目如需运行期绊线，在 `gate_path_rules` 中显式映射。宿主提交的声明或 v2 JSON 只是 `reported`，不能冒充 controller producer 或满足高风险 `verified` 门槛。自动归因只证明写入所有权，每个写任务仍需独立语义验收。范围是语义合同：新路径不再自动扩围，而是返回同时包含范围、意图与 Gate 声明的重准入模板。研发任务仍拆成两条状态独立的通道：
-
-- 主任务通道完成用户价值、用户明确要求的交付物和必要验收；
-- 后台治理通道处理知识初始化、知识增量、ADR、Changelog、TODO 和非阻塞证据整理。
-
-主任务 `verify` 通过后先原子写入 `control_status=complete`，再创建后台 Job。后台排队、失败、重试或发现新问题，都不能回滚父任务的历史完成事实。
-
-## 产品边界
-
-Docs Harness 负责 Gate、任务包、上下文、授权、证据、后台 Job 和 Git 交付检查。它不负责：
-
-- 绕过宿主直接创建真实 Agent；
-- 自动提交、推送、发布或修改 `.gitignore`；
-- 把本地健康、当前 HEAD、远端、fresh clone、发布产物和真实 UI 混成一个完成结论；
-- 在知识缺失时编造项目事实；
-- 自动写入个人质量账本。
-
-控制规则、授权、安全、范围和必要验收继续失败关闭。知识缺失、构建中、失败或隔离只返回 `context_quality=degraded`，业务任务仍保留 `ready_direct|ready_planned|ready_extended` 准入状态。
-
-## 核心流程
+## 默认任务流程
 
 ```text
-原始任务
-  ↓
-run：意图/变更面 → 风险 Gate → task-package/v2 + completion_manifest
-  ├─ answer_only → 直接回答（无证据、无 verify）
-  └─ 正式治理
-      ↓
-    context / plan / authorization / progress
-      ↓
-    实现与必要验收
-      ↓
-    verify：原子写入父任务 complete
-      ↓
-    立即返回最小交付回执
-      └─ 后台候选项 → workload estimate → 统一 Background Job
-                              ├─ background_direct
-                              ├─ background_goal
-                              └─ background_goal_phased
+用户提出任务
+→ Codex 直接理解和读取必要文件
+→ 需要时单独查询知识或生成方案
+→ Codex 执行任务
+→ 运行能直接覆盖本次变化的最小真实验收
+→ 自动不了的部分准备好环境并交给用户验收
+→ 明确回复已验证、待用户验证和未验证层级
 ```
 
-文档是否阻塞由产品角色决定，不由扩展名决定。用户明确要求的文档、协议/迁移/恢复说明、安全审批材料和必要验收证据进入 `blocking_deliverables`；事后 ADR、Changelog、TODO、知识同步和完整证据排版进入 `background_deliverables`。
+普通任务 Harness 调用数应为 0。没有安装 Docs Harness，Codex 也必须能完整完成普通问答、只读检查、代码修改、构建和测试。
 
-## 安装
+## 默认模式与三项按需能力
 
-从包含 `harness-home/rules/` 的来源目录执行：
+| 能力 | 何时使用 | 不做什么 |
+|---|---|---|
+| 直接模式 | 默认所有普通任务 | 不创建任务包、Gate、Plan 或 Verify 循环 |
+| `knowledge query` | 缺少项目事实会改变目标、范围、方案或验收 | 不自动注入、不全量加载、不自动维护知识 |
+| `plan select/create` | 复杂、跨模块、高风险或用户明确要求方案 | 不要求简单任务填表，不拼接多份完整模板 |
+| `acceptance record` | 已经执行真实测试、运行、构建、安装或用户验收 | 不用合同检查代替功能正确性 |
+
+这些能力可以单独启用或全部关闭。关闭后仍回到 Codex 直接执行，不需要恢复 1.x 强制流程。
+
+## 快速使用
+
+### 按需查项目知识
+
+先搜索当前源码、符号和运行态。仍缺架构、产品原因或历史约束时：
 
 ```bash
-python3 /path/to/docs-harness/scripts/harness.py project init \
-  --target /path/to/project \
-  --json
+python3 scripts/harness.py knowledge query --target . \
+  --query "语音退出流程由哪些模块负责" --json
 ```
 
-安装会 preserve-and-merge `AGENTS.md` / `CLAUDE.md`，复制控制脚本和固定规则快照，并写入 `docs-harness/project-config/v4`。
+可用 `--scope` 限定知识文件，用 `--limit` 和 `--max-chars` 控制返回量。响应只包含可消费事实、引用、约束、冲突状态和省略数量。
 
-- 新项目：创建最小知识骨架，执行有界工作量评估，创建 `knowledge_bootstrap` Job，立即返回安装完成和 `knowledge_status=building`；
-- 已有 `docs/`：安装阶段零文档内容写入，只返回审查、工作量和同意边界；
-- Git 项目：控制器未进入当前 HEAD 时返回 `needs_delivery`；知识未完成或未进入 HEAD 时整体 `clone_ready=false`。
-
-安装完成不等于远端或 fresh clone 已验收。
-
-### 升级版本标记
-
-`project diff|upgrade` 会同步 `AGENTS.md` 和 `docs/INDEX.md` 中 Docs Harness 明确拥有的受管版本区块。预览会返回 `from_version`、`to_version` 和人工迁移项；仅对完全匹配白名单的旧索引模板自动迁移。
-
-归属不明的旧版本正文保持不变，apply 返回 `needs_manual_migration`。升级同时返回 `knowledge_flow.mode`：ready 项目为 `already_ready`，活动初始化为 `bootstrap_in_progress`，无 docs 的旧项目为 `bootstrap_new`，已有 docs 且知识未 ready 为 `audit_existing`。Git 当前 HEAD、远端与 fresh clone 仍需分层验收。
-
-目标项目存在 `.qoder/repowiki` 时，Harness 保持外部知识库只消费语义，并明确提示宿主：了解项目架构和模块知识时，优先阅读 `.qoder/repowiki/zh/content/` 下的 Wiki 文档和 `.qoder/repowiki/knowledge/zh/` 下的知识卡片。该指令会进入任务响应的 `context_instructions`，安装或升级时也会同步到受管 `AGENTS.md`。
-
-普通问答、轻量评审和只读 Git 查看使用 `answer_only`：需要项目事实时可先读取允许范围，随后直接回答，不生成证据也不运行 `verify`；纯对话和元问题可完全跳过 Harness。只有正式审计、Git 元数据变更、工作区写入和外部写入进入完成合同。只读任务不会再因 Harness Home 的“权限、发布、测试、UI”等关键词被追加验收门槛。
-
-## 工作量评估与宿主路线
+### 选择方案模板
 
 ```bash
-python3 scripts/harness.py knowledge estimate --target . --json
-python3 scripts/harness.py background estimate --target . --candidate <candidate.json> --json
+python3 scripts/harness.py plan select --target . \
+  --complexity complex --surface frontend_ui --json
 ```
 
-评估器有界扫描文件数量、功能候选、架构域、技术栈、知识缺口和依赖，输出原始分数、评分路线、硬升级原因和最终路线：
+方案深度：
 
-| 分数 | 工作量 | 路线 |
-|---:|---|---|
-| 0–24 | simple | `background_direct` |
-| 25–59 | complex | `background_goal` |
-| 60–100 | oversized | `background_goal_phased` |
+- `none`：无方案，直接执行；
+- `brief`：目标、范围、步骤、验收；
+- `full`：全面通用结构，并叠加真实相关的领域字段。
 
-bootstrap、全项目审查和全量 preserve-and-merge 使用 `project_wide`；知识增量与交付治理使用 `change_scoped`，按实际变化路径、功能和交付物估算。只有 project-wide 才会因扫描超限、全仓多域或大量既有文档硬升级；响应保留 `project_scale_context`、`change_scope_fingerprint`、`raw_score` 和原 `source_fingerprint`。
+领域 Profile：
 
-宿主能力不足时：
+- `general`：通用复杂任务；
+- `frontend_ui`：用户流程、完整状态、交互、视觉、可访问性和真实页面验收；
+- `backend_service`：接口、数据、一致性、失败、幂等、安全、性能和服务验收；
+- `bugfix`：精确复现、完整时间线、首次偏离、根因和回归路径；
+- `architecture`：候选、取舍、决策、边界、兼容、迁移、回滚和 ADR 处理；
+- `migration_release`：版本、产物、灰度、数据安全、停止条件、回滚和交付层。
 
-- 完全不支持后台：Job 进入 `queued_manual`；
-- 只支持普通后台：复杂路线仍保持 `background_goal|background_goal_phased`，不静默降级；
-- 支持目标但不支持并行：由单一目标 Owner 串行执行；
-- 支持完整能力：按原路线执行。
-
-## 日常任务
-
-除纯对话、元问题和不依赖项目事实的回答外，需要读取项目或执行动作的任务先准入：
+选择不读取任务关键词猜测，而由用户明确选择或宿主按复杂度、实际修改面和验收难度提交结构化信号。模型填好选择返回的字段后冻结：
 
 ```bash
-python3 scripts/harness.py run \
-  --target . \
-  --task "<原始用户任务>" \
-  --json
+python3 scripts/harness.py plan create --target . \
+  --selection selection.json --content content.json \
+  --output docs/plans/task.json --json
 ```
 
-`run` 只在结构化意图完整后返回唯一任务包、准入状态、`context_quality`、阻塞/后台交付物、带指纹的 `completion_manifest` 和下一条可执行命令。缺少声明返回 `missing_intent_assessment` 与 `admission_persisted=false`；普通写任务缺少 `write_scope`、外部写任务缺少 `external_scope` 时同样非持久化失败，任务正文路径不会自动授权。显式声明为普通问答、轻量评审和只读 Git 查看时返回 `answer_only`，宿主读取必要事实后直接回答；该状态不生成证据清单，也不进入 `verify`。`planned` 与 `extended` 使用同一个 `task-id` 完成方案和工作包，不创建重复任务。同一 target、任务文本、事实与工作区快照重复 `run` 时幂等复用活动任务（返回 `active_task_reused`）；任务或初始工作区不同则新建，`--new-task` 强制新建，`answer_only|complete|cancelled|failed|blocked` 状态不复用。
+### 风险与授权边界
 
-任务包使用 `docs-harness/task-package/v2`：
+Docs Harness 不提供第二套 Gate、preflight 或授权系统。Git 写入、删除、发布、安装和外部写入等高风险动作完全使用 Codex 原生授权与沙箱；Harness 不介入，也不向模型注入额外控制内容。
 
-- `task_intent`：`query|review_light|audit_formal|audit|git_inspect|git_fetch|git_sync|git_switch|git_commit|modify|external_write`；
-- `candidate_intents|deferred_intents|intent_boundary_reason_codes`：区分当前动作、未来动作和完成体上下文；
-- `intent_assessment|gate_assessment`：由宿主提交权威语义声明；所有任务必须有意图声明，写任务还必须有 Gate 声明，文本启发式和路径都不能代替；
-- `mutation_profile`：`read_only|git_metadata_write|workspace_write|external_write`；
-- `read_scope|write_scope|git_scope|external_scope` 分别承载读取、工作区写入、Git 元数据和外部目标；
-- 混合意图按最高变更面和最高风险 Gate 编译，显式 facts 只能升级；
-- `query|review_light|git_inspect` 默认 `answer_only + read_only + write_scope=[]`；`audit_formal`（兼容显式 `audit`）保留来源证据与最终验收；自然语言范围返回 `invalid_scope_description`；
-- `intent_assessment.intents` 只接受上述 `task_intent`；`read_only|git_metadata_write|workspace_write` 是变更面，`answer_only|ready_direct|ready_planned|ready_extended` 是准入状态。跨层误填返回识别层级、合法意图和候选项，仍保持非持久化失败且不自动替换；
-- 低风险任务可在 facts 声明 `fast_track: true` 走轻量通道，证据最小集为 `code_diff + change_review`（声明验证命令时加 `test_run`），事实差异与语义审查不互相替代。
-
-仅当 `completion_manifest.verification_required=true` 时执行最终验收：
+### 记录真实验收
 
 ```bash
-python3 scripts/harness.py verify \
-  --target . \
-  --task-id <task-id> \
-  --evidence <evidence.json> \
-  --json
+python3 scripts/harness.py acceptance record --target . \
+  --input acceptance.json --json
 ```
 
-准入响应会前置给出 `evidence_checklist`，其中 `trust_requirements` 明确哪些高风险结论必须来自受控入口。验收未通过时，`recovery_actions` 按最小修复顺序返回 `provide_evidence|refresh_evidence|retry_verification|incremental_admission|full_readmission`。可在 verify 前调用 `task changes-preview`查看工作区分区；该预览恒只读，不代表证据归因结论。如出现 `write_scope_violation`，必须根据返回的范围、意图和 Gate 模板重新准入，不会在 verify 内自动扩围。
+验收层级互不替代：
 
-`result=完成` 的回执包含：
+| 层级 | 能证明什么 |
+|---|---|
+| L1 | 源码、类型、编译或静态合同一致 |
+| L2 | 聚焦行为在测试、接口、组件或命令中成立 |
+| L3 | 本地应用或服务真实流程成立 |
+| L4 | 构建、包或安装产物成立 |
+| L5 | 用户可见、权限、硬件或主观体验成立 |
 
-- `delivered_value`；
-- `acceptance_layers`：只列出证据已验证的交付层；
-- `delivery_layers`：每层交付的 `expectation`（`not_applicable|not_requested|required`）、`status` 与 `evidence_refs`；
-- `minimum_evidence`；
-- 受控 `known_limit_codes` 和人类说明：只从“明确要求且尚未验证”的层派生，只读任务不再显示不适用的远端未验证提示；
-- `parent_completed_at`；
-- 后台 Job ID 与各自 `created_at`；没有声明后台交付物时返回 `post_completion.status=not_required`。
+独立 CLI 不接受 `user_acceptance + passed` 的自我声明，只记录 `user_pending`；用户确认完成必须由可信宿主通道或最终用户界面登记。
 
-这能证明控制器先固化父任务再创建后台合同。宿主不能提供 `user_response_emitted_at` 时，只能声称“后台状态不阻塞响应生成”，不能声称“界面零等待”。
+Contract Check 只证明范围、格式或授权一致，永远不返回 `behavior_verified`。失败响应只包含真实失败原因和下一步。Codex 无法完成 L5 时，必须先准备运行环境，再返回最短用户验收步骤。
 
-### Git 与工作区验收
+## ADR 规则
 
-`git_fetch|git_sync` 冻结脱敏远端身份、目标 OID、HEAD、索引、工作区和受控 refs。`git_sync` 根据预检目标自动生成变化范围，不要求操作者手写文件清单；远端漂移、非 fast-forward、ref 越界、重叠脏改动、LFS/Submodule 不可验证均失败关闭。`git_switch` 只接受单一 `.git:refs/heads/<branch>`，预检已有本地分支、干净工作区和所有 worktree 占用，后检当前分支、HEAD、refs、索引与工作区；分支名中的 `review|audit` 等文字不参与意图决策。
+只有会长期约束架构边界、公共接口、兼容、安全、数据或基础设施的决策才写 ADR。普通 Bug、局部重构、临时实验和 UI 样式不写。
 
-验收分别输出 `task_write_set`、`read_set`、`concurrent_drift` 和 `unattributed_drift`。无关且不重叠的漂移只告警；读取事实、写入范围或安全/数据/发布边界重叠时重新准入。仅追加且不改变路线、授权、范围、方案字段或阻断交付物的普通 Gate 由控制器原子增量准入；同轮收据随来源指纹留下继承记录并继续复用，宿主只加载新增上下文。产品、架构、安全、数据破坏、外部发布、前端设计、extended 路线及其他合同变化仍完整重新准入。
+主 Codex 负责读取相关源码和既有 ADR、比较候选、写入最终 ADR。复杂、高风险、跨模块或不可逆决策可选使用只读子智能体复审；子智能体不直接写文件。已接受 ADR 不原地改写决策，后续通过新 ADR 的 `Supersedes` 建立替代关系。
 
-合同稳定时 verify 按五级处置：未归因写入全部在写入范围内返回 `provide_evidence`（退出 3，补证据后继续，不增 package revision）；读取基线漂移返回 `refresh_evidence`，只失效引用漂移路径的证据后重读；验证命令失败返回 `retry_verification`；追加 Gate 走 `incremental_admission`；只有范围、高风险合同或规则变化才 `full_readmission`（退出 4）。
+## 2.0.0 单向迁移边界
 
-### v2 证据与上下文复用
+2.0.0 不兼容运行旧文档系统。`run|context|progress|verify|task|background|authorization` 与 `--legacy-opt-in` 均已从 CLI 和控制器删除；旧 Gate、规则、后台 Job 和 Runtime 不再参与任务。升级会清理所有权明确的旧工件，保留项目文档和归属不明内容，详见 [2.0.0 迁移指南](docs/migrations/v2.0.0.md)。
 
-新任务只接受 `docs-harness/evidence-receipt/v2`。收据首次提交必须绑定当前任务、目标、任务包指纹、可信生产者、命令摘要、时效、结果摘要及读写集合；过期、跨任务、跨目标和不可信生产者均拒绝。若同一次 `verify` 只触发兼容的增量 Gate 准入，控制器可把已经校验的收据原子继承到新包并记录原始/来源 package fingerprint，不要求宿主伪造或重写收据。验证命令必须使用白名单 `produces` 声明证据类型，退出 0 不会自动获得任意语义证据。
-
-证据文件在验收时复制进受管 artifact store，准入只依赖受管副本；原始文件事后删除或修改不影响已采纳证据。验证命令按 argv、`produces` 与输入指纹带逐项收据：输入不变且上次通过的命令直接复用（`cache_hit=true`），只重跑失败或输入变化的命令；`verification.command_cache_enabled=false` 可整体关闭。
-
-上下文收据按同一 task、target、stage、compiler contract 和 `content_set_fingerprint` 复用；命中缓存时不重复返回规则和项目事实正文。授权仍绑定当前 package fingerprint，不跨修订复用。
-
-### v1 在途任务迁移
+## 安装与升级
 
 ```bash
-python3 scripts/harness.py task status --target . --task-id <task-id> --json
-python3 scripts/harness.py task migrate --target . --task-id <task-id> --json
-python3 scripts/harness.py task migrate --target . --task-id <task-id> --apply --json
-python3 scripts/harness.py project rollback-check --target . --json
+python3 <docs-harness-2.0.0-source>/scripts/harness.py project init --target <project> --json
+python3 <docs-harness-2.0.0-source>/scripts/harness.py project upgrade --target <project> --json
+python3 <docs-harness-2.0.0-source>/scripts/harness.py project upgrade --target <project> --apply --json
 ```
 
-v1 任务默认只读兼容，不静默改写。显式迁移使用 staging、全对象备份、manifest 和 journal；中断自动回滚，迁移后必须按 v2 重新准入。存在活动 v2 任务时不允许项目回滚；v2 对象在回滚后只读保留，旧控制器遇到 v2 必须失败关闭。
+pre-2.0 项目必须用新取得的 2.0.0 来源包执行 upgrade；不能调用目标项目里仍是旧版本的 scripts/harness.py 来完成换代。安装后的项目脚本可用于 project check、project diff、知识查询、方案和验收。
 
-### 任务终结处置
+2.0.0 安装内容包括：
 
-废弃的 v2 任务、v1 历史对象和超期终态对象有受支持的终结入口，不需要手工删除 Runtime 目录：
+- 受管 `AGENTS.md` 与 `CLAUDE.md` 区块；
+- `scripts/harness.py`；
+- `plan-templates/` 版本化模板；
+- `.docs-harness/config.json`（`project-config/v6`）。
 
-```bash
-python3 scripts/harness.py task cancel --target . --task-id <task-id> --reason-code operator_abandoned --json
-python3 scripts/harness.py task cancel --target . --task-id <task-id> --reason-code operator_abandoned --apply --json
-python3 scripts/harness.py task archive --target . --task-id <task-id> --reason-code superseded --apply --json
-python3 scripts/harness.py task list --target . --json
-python3 scripts/harness.py task prune --target . --older-than 30 --dry-run --json
-python3 scripts/harness.py task prune --target . --older-than 30 --apply --json
-```
+fresh init 不创建项目知识正文，不自动派发知识、ADR、Changelog、TODO 或后台治理 Job，不修改 `.gitignore`，不提交、不推送、不发布。旧项目 upgrade 会先只读预览，再删除指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；项目正文、质量账本、已修改或归属不明文件一律保留并报告。
 
-- `cancel` 只把编译状态置为 `cancelled` 并追加不可变取消事件，不改写任务包、freeze 和既有证据；相同原因幂等，不同原因冲突失败；
-- `archive` 只写独立处置索引，v1 源对象保持只读；`task list` 默认隐藏已归档对象，源指纹漂移失败关闭；
-- `prune` 缺省 dry-run 并冻结候选清单，`--apply` 只删除清单中指纹未变化、已过保留期且无未终结子 Job 或严重发现的对象。
+## 验证与发布边界
 
-## 统一后台 Job
-
-```bash
-python3 scripts/harness.py background list --target . --json
-python3 scripts/harness.py background status --target . --job-id <job-id> --json
-python3 scripts/harness.py background prepare --target . --job-id <job-id> --json
-python3 scripts/harness.py background dispatch --target . --job-id <job-id> --job-status dispatched --json
-python3 scripts/harness.py background dispatch --target . --job-id <job-id> --job-status running --json
-python3 scripts/harness.py background progress --target . --job-id <job-id> --work-package-id <wp-id> --work-package-status in_progress --json
-python3 scripts/harness.py background progress --target . --job-id <job-id> --work-package-id <wp-id> --work-package-status completed --json
-python3 scripts/harness.py background verify --target . --job-id <job-id> --assessment <file> --json
-python3 scripts/harness.py background retry --target . --job-id <job-id> --json
-python3 scripts/harness.py background prune --target . --older-than 30 --json
-```
-
-Job 类型为 `knowledge_bootstrap`、`knowledge_incremental_sync`、`delivery_governance` 和 `critical_followup`。所有 Job：
-
-- 使用 `docs-harness/background-job/v2`，upgrade 幂等迁移活动 v1 Job；
-- 固定 `may_mutate_parent=false`、`may_spawn_child_jobs=false`、`suppress_post_completion_dispatch=true`；
-- 业务数据面声明允许读、允许写和禁止写范围，且不得覆盖 `.git/**`、`.docs-harness/**` 或 Harness Runtime；
-- `job.json`、`plan.json`、`progress.json`、`events.jsonl`、锁和索引只由 Harness CLI 写；
-- 在运行前校验基线与锁；
-- 复杂路线先 prepare revision 2 工件，在 `dispatched` 和 `running` 前分别校验绑定、attempt、工作包全集和指纹；
-- `updated|no_change` 要求全部工作包 completed，重大发现只允许 completed 或 blocked；
-- 最多尝试 3 次；
-- retry 归档旧 attempt 工件且不继承进度，普通 prepare 不覆盖无效工件，修复必须显式 `--repair`；
-- 用脱敏、去重的 append-only 事件记录状态变化；
-- 终态摘要按 Job、attempt、status 进入本地索引后，才可能成为 prune 候选。
-
-`completed_with_finding` 会幂等创建独立 `critical_followup`，并显示 `delivery_confidence=questioned`，不会改写父任务。
-
-初始化 Job 处于任一非终态时，增量 Job 进入 `waiting_for_bootstrap_merge`。只有 bootstrap 以 `updated|no_change` 结束且控制器复算知识 ready，等待者才重建基线进入 `contract_ready`；失败、取消、需用户输入或重大发现会把等待者置为 `needs_user_input`。
-
-v1.3 的 `knowledge job-status|dispatch|verify|retry` 仍可使用，响应包含 `deprecated_alias=true` 和对应 `background` 替代命令；兼容入口不能绕过复杂路线的 prepare、dispatched、running 或进度门禁。
-
-## 知识审查与同意
-
-```bash
-python3 scripts/harness.py knowledge status --target . --json
-python3 scripts/harness.py knowledge audit --target . --json
-python3 scripts/harness.py knowledge audit --target . --assessment <assessment.json> --json
-python3 scripts/harness.py knowledge update --target . --assessment <assessment.json> --consent <consent.json> --json
-```
-
-已有文档项目的同意/拒绝回执绑定审查指纹、过滤后项目库存指纹和受控范围。库存排除生成目录、运行产物、敏感路径和 Office/PPT 等二进制资产，并返回分类摘要；项目可通过受控 `knowledge.inventory_include` 显式纳入特殊路径。指纹未变的拒绝不会重复询问；审查变化或范围扩大时必须重新取得同意。
-
-知识地图损坏时状态为 `quarantined`，控制器不加载不可信内容。Agent 必须从允许范围内的代码、测试、配置和有效文档现场核实，并在任务完成时记录 `fallback_fact_refs`。
-
-## Runtime 与交付面
-
-| 工作区 | 任务 Runtime | 后台 Runtime | 质量账本 |
-|---|---|---|---|
-| Git | `<git-dir>/docs-harness/runs/` | `<git-dir>/docs-harness/background/` | `<git-dir>/docs-harness/quality-ledger/` |
-| 非 Git | `<project>/.docs-harness/runs/` | `<project>/.docs-harness/background/` | `<project>/.docs-harness/quality-ledger/` |
-
-Runtime、队列、锁、计划、进度和本地回执不进入 Git。真实知识、ADR、Changelog 和 TODO 按项目规则进入 Git 交付面。`background prune` 缺省只 dry-run；只有显式 `--apply` 才删除已终结、已索引且不含严重发现的 Job。`task prune` 同样缺省 dry-run 并冻结候选清单，`--apply` 只删除清单中指纹未变化的终态任务对象。
-
-## 质量账本
-
-质量账本只在用户明确要求时写入：
-
-```bash
-python3 scripts/harness.py ledger add --target . --task-id <task-id> --review <review.json> --json
-python3 scripts/harness.py ledger read --target . --query "<关键词>" --limit 5 --json
-```
-
-它保持本地、脱敏、不可变，不因 v1.4 统一后台引擎而自动记录。
-
-## 开发与验收
+源码、聚焦测试、全量回归、npm 包、fresh clone、Git 提交、远端推送、下游同步、本机安装和用户可见验收是不同层。任何一层通过都不能代替后续层。
 
 ```bash
 npm test
@@ -285,13 +136,6 @@ npm run self-test
 npm run pack:check
 ```
 
-这些命令只证明当前来源包的对应检查。发布还必须分别取得临时项目、真实 Git/fresh clone、直接后台路线、目标型后台路线、部分支持宿主和完全不支持宿主的证据。
+本地版本号为 2.0.0 不等于已经提交、推送、发布、同步到 ZBuddy 或完成真实用户验收。
 
-发版版本同步用单命令完成（先改 `scripts/harness.py` 的 `VERSION` 常量，再执行）：
-
-```bash
-python3 scripts/harness.py release sync --target . --json          # 检查四源一致性
-python3 scripts/harness.py release sync --apply --target . --json  # 原子写入 VERSION/package.json/SKILL.md
-```
-
-当前版本：`1.7.7`。详细 Schema 与状态机见 [docs/contracts.md](docs/contracts.md)，版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+文档入口见 [docs/README.md](docs/README.md)，详细合同见 [docs/contracts.md](docs/contracts.md)，完整产品与实施依据见 [2.0.0 方案](docs/plans/docs-harness-v2.0.0-direct-first-plan.md)。
