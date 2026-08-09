@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v1",
-  "version": "1.7.6",
+  "version": "1.7.7",
   "cases": [
     {
       "id": "v2-read-only-intent",
@@ -10,6 +10,17 @@
         "read_only",
         "write_scope=[]",
         "run+verify"
+      ]
+    },
+    {
+      "id": "v177-cross-layer-intent-diagnostics",
+      "expected": [
+        "workspace_write=mutation_profile",
+        "answer=host_action",
+        "answer_only=admission_status",
+        "admission_persisted=false",
+        "auto_select=false",
+        "review_light→read_only→answer_only"
       ]
     },
     {

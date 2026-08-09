@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Docs Harness v1.7.6 独立任务控制器。"""
+"""Docs Harness v1.7.7 独立任务控制器。"""
 
 from __future__ import annotations
 
@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any, Iterator, Sequence
 
 
-VERSION = "1.7.6"
+VERSION = "1.7.7"
 TASK_SCHEMA = "docs-harness/task-package/v2"
 LEGACY_TASK_SCHEMA = "docs-harness/task-package/v1"
 COMPILED_SCHEMA = "docs-harness/compiled-task/v2"
@@ -158,7 +158,7 @@ DELIVERY_LAYER_ORDER = (
     "ui",
     "external_state",
 )
-DELIVERY_READ_ONLY_INTENTS = {"query", "audit", "git_inspect"}
+ANSWER_ONLY_INTENTS = {"query", "review_light", "git_inspect"}
 DELIVERY_REMOTE_REQUIRE_RE = re.compile(r"远端|远程|推送|部署|\bpush\b|\bdeploy\b", re.IGNORECASE)
 DELIVERY_FRESH_CLONE_RE = re.compile(r"fresh\s*clone|全新克隆|干净克隆", re.IGNORECASE)
 DELIVERY_RELEASE_RE = re.compile(r"发布|\brelease\b", re.IGNORECASE)
@@ -204,10 +204,13 @@ QUALITY_SECRET_PATTERN = re.compile(
 
 TASK_INTENTS = (
     "query",
+    "review_light",
     "audit",
+    "audit_formal",
     "git_inspect",
     "git_fetch",
     "git_sync",
+    "git_switch",
     "git_commit",
     "modify",
     "external_write",
@@ -221,25 +224,44 @@ MUTATION_PROFILES = (
 MUTATION_RANK = {name: index for index, name in enumerate(MUTATION_PROFILES)}
 INTENT_MUTATION = {
     "query": "read_only",
+    "review_light": "read_only",
     "audit": "read_only",
+    "audit_formal": "read_only",
     "git_inspect": "read_only",
     "git_fetch": "git_metadata_write",
     "git_sync": "workspace_write",
+    "git_switch": "workspace_write",
     "git_commit": "git_metadata_write",
     "modify": "workspace_write",
     "external_write": "external_write",
 }
-INTENT_PATTERNS: dict[str, tuple[str, ...]] = {
-    "external_write": ("发布", "上线", "部署", "推送", "发送", "publish", "deploy", "release", "git push"),
-    "git_commit": ("git commit", "commit", "本地提交", "提交改动", "提交代码", "提交当前", "提交工作区", "提交暂存"),
-    "git_sync": ("git pull", "git merge", "git rebase", "fast-forward", "fast forward", "同步分支", "同步远端"),
-    "git_fetch": ("git fetch", "获取远端引用", "获取远端对象", "抓取远端"),
-    "git_inspect": ("git status", "git log", "git show", "git diff", "ls-remote", "检查分支", "查看分支", "分支是否可删除"),
-    "audit": ("审计", "审查", "评审", "review", "audit"),
-    "modify": ("实现", "修改", "调整", "编辑", "新增", "补充", "修复", "重构", "删除", "升级", "迁移", "write", "modify", "implement", "refactor", "fix"),
-    "query": ("在哪", "定位", "解释", "比较", "查询", "查找", "查看", "列出", "说明", "where", "explain", "locate", "find", "list"),
+INTENT_STATUS_VALUES = {
+    "answer_only",
+    "ready_direct",
+    "ready_planned",
+    "ready_extended",
+    "needs_plan",
+    "blocked",
+    "complete",
+    "cancelled",
+    "failed",
 }
-CONTROLLED_GIT_SCOPE_RE = re.compile(r"^\.git:(?:history|refs/remotes/[A-Za-z0-9._/*-]+)$")
+INTENT_HOST_ACTION_HINTS = {
+    "answer": ("query", "review_light"),
+    "respond": ("query", "review_light"),
+}
+ACTION_MUTATION = {
+    "read": "read_only",
+    "git_inspect": "read_only",
+    "git_fetch": "git_metadata_write",
+    "git_commit": "git_metadata_write",
+    "write": "workspace_write",
+    "local_verify": "workspace_write",
+    "git_sync": "workspace_write",
+    "git_switch": "workspace_write",
+    "external_write": "external_write",
+}
+CONTROLLED_GIT_SCOPE_RE = re.compile(r"^\.git:(?:history|refs/(?:remotes|heads)/[A-Za-z0-9._/*-]+)$")
 SCOPE_DESCRIPTION_MARKERS = (
     "仅只读",
     "不会写入",
@@ -712,6 +734,29 @@ def git_name_status_paths(output: str) -> list[str]:
     return paths
 
 
+def git_porcelain_paths(output: str) -> list[str]:
+    """解析 ``git status --porcelain=v1 -z``，重命名/复制条目额外消费一个原路径。"""
+    paths: list[str] = []
+    entries = output.split("\0")
+    index = 0
+    while index < len(entries):
+        entry = entries[index]
+        if not entry:
+            index += 1
+            continue
+        status = entry[:2]
+        path = entry[3:] if len(entry) >= 4 else ""
+        if path:
+            paths.append(path)
+        if ("R" in status or "C" in status) and index + 1 < len(entries):
+            index += 1
+            source_path = entries[index]
+            if source_path:
+                paths.append(source_path)
+        index += 1
+    return list(dict.fromkeys(paths))
+
+
 def git_scope_target(git_scope: Sequence[str], *, require_exact: bool) -> tuple[str, str, str]:
     resources = [item for item in git_scope if item.startswith(".git:refs/remotes/")]
     if not resources:
@@ -728,11 +773,139 @@ def git_scope_target(git_scope: Sequence[str], *, require_exact: bool) -> tuple[
     return remote, remote_ref, controlled
 
 
+def git_commit_preflight_contract(target: Path) -> tuple[dict[str, Any] | None, list[str], list[str]]:
+    """冻结纯本地提交前状态；提交只能消费准入时已经存在的工作区变化。"""
+    root = git_root(target)
+    if root != target.resolve():
+        return None, [], ["目标不是独立 Git 工作树根目录"]
+    head_result = git_command(target, "rev-parse", "HEAD")
+    head = head_result.stdout.strip() if head_result.returncode == 0 else "unborn"
+    branch_result = git_command(target, "symbolic-ref", "-q", "HEAD")
+    current_branch_ref = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
+    index_result = git_command(target, "ls-files", "-s", "-z")
+    if index_result.returncode != 0:
+        return None, [], ["git_preflight_failed: 无法冻结 Git 索引"]
+    status_result = git_command(target, "status", "--porcelain=v1", "-z")
+    candidate_paths = git_porcelain_paths(status_result.stdout) if status_result.returncode == 0 else []
+    blockers: list[str] = []
+    if not current_branch_ref:
+        blockers.append("git_commit 不支持 detached HEAD")
+    if status_result.returncode != 0:
+        blockers.append("git_preflight_failed: 无法检查工作区变化")
+    elif not candidate_paths:
+        blockers.append("git_commit 没有可提交的工作区变化")
+    snapshot = {
+        "operation": "git_commit",
+        "head": head,
+        "current_branch_ref": current_branch_ref,
+        "index_tree": sha256_text(index_result.stdout),
+        "commit_candidate_paths": candidate_paths,
+        "worktree_fingerprint": sha256_text(canonical_json(workspace_snapshot(target))),
+        "refs": git_refs_snapshot(target),
+        "controlled_refs_namespace": [f".git:{current_branch_ref}"] if current_branch_ref else [],
+        "captured_at": utc_now(),
+    }
+    return snapshot, [], blockers
+
+
+def git_switch_preflight_contract(
+    target: Path,
+    git_scope: Sequence[str],
+) -> tuple[dict[str, Any] | None, list[str], list[str]]:
+    """冻结本地分支切换合同；只支持干净工作区中的单一已有本地分支。"""
+    root = git_root(target)
+    if root != target.resolve():
+        return None, [], ["目标不是独立 Git 工作树根目录"]
+    resources = [item for item in git_scope if item.startswith(".git:refs/heads/")]
+    if len(resources) != 1 or len(git_scope) != 1:
+        return None, [], ["git_switch 必须绑定单一 .git:refs/heads/<branch> 范围"]
+    target_ref = resources[0].removeprefix(".git:")
+    branch = target_ref.removeprefix("refs/heads/")
+    if not branch or any(char in branch for char in "*?["):
+        return None, [], ["git_switch 目标分支必须是单一已有本地分支"]
+    target_result = git_command(target, "rev-parse", "--verify", target_ref)
+    head_result = git_command(target, "rev-parse", "HEAD")
+    branch_result = git_command(target, "symbolic-ref", "-q", "HEAD")
+    index_result = git_command(target, "ls-files", "-s", "-z")
+    status_result = git_command(target, "status", "--porcelain=v1", "-z")
+    blockers: list[str] = []
+    if target_result.returncode != 0 or not target_result.stdout.strip():
+        blockers.append("git_switch 目标本地分支不存在")
+    if index_result.returncode != 0:
+        blockers.append("git_preflight_failed: 无法冻结 Git 索引")
+    if status_result.returncode != 0:
+        blockers.append("git_preflight_failed: 无法检查工作区变化")
+    elif status_result.stdout:
+        blockers.append("git_switch 初期仅支持干净工作区和索引")
+    current_branch_ref = branch_result.stdout.strip() if branch_result.returncode == 0 else ""
+    if not current_branch_ref:
+        blockers.append("git_switch 不支持 detached HEAD")
+    elif current_branch_ref == target_ref:
+        blockers.append("git_switch 目标已经是当前分支")
+
+    worktrees_result = git_command(target, "worktree", "list", "--porcelain")
+    occupied_path = ""
+    worktree_path = ""
+    if worktrees_result.returncode != 0:
+        blockers.append("git_preflight_failed: 无法检查 worktree 分支占用")
+    else:
+        for line in [*worktrees_result.stdout.splitlines(), ""]:
+            if line.startswith("worktree "):
+                worktree_path = line.removeprefix("worktree ")
+            elif line.startswith("branch ") and line.removeprefix("branch ") == target_ref:
+                if Path(worktree_path).resolve() != target.resolve():
+                    occupied_path = worktree_path
+            elif not line:
+                worktree_path = ""
+    if occupied_path:
+        blockers.append(f"目标分支已被其他 worktree 占用：{occupied_path}")
+
+    uses_lfs = (target / ".gitattributes").is_file() and "filter=lfs" in (
+        target / ".gitattributes"
+    ).read_text(encoding="utf-8", errors="ignore")
+    lfs_probe = git_command(target, "lfs", "version") if uses_lfs else None
+    lfs_available = not uses_lfs or bool(lfs_probe and lfs_probe.returncode == 0)
+    uses_submodules = (target / ".gitmodules").is_file()
+    submodule_probe = git_command(target, "submodule", "status") if uses_submodules else None
+    submodule_available = not uses_submodules or bool(
+        submodule_probe
+        and submodule_probe.returncode == 0
+        and all(not line.startswith(("-", "+", "U")) for line in submodule_probe.stdout.splitlines() if line)
+    )
+    if not lfs_available:
+        blockers.append("Git LFS 不可用")
+    if not submodule_available:
+        blockers.append("Git Submodule 状态不可验证")
+
+    snapshot = {
+        "operation": "git_switch",
+        "head": head_result.stdout.strip() if head_result.returncode == 0 else "unborn",
+        "current_branch_ref": current_branch_ref,
+        "target_branch_ref": target_ref,
+        "target_branch": branch,
+        "target_oid": target_result.stdout.strip() if target_result.returncode == 0 else None,
+        "target_worktree_path": occupied_path or None,
+        "index_tree": sha256_text(index_result.stdout) if index_result.returncode == 0 else None,
+        "refs": git_refs_snapshot(target),
+        "controlled_refs_namespace": [resources[0]],
+        "uses_lfs": uses_lfs,
+        "lfs_available": lfs_available,
+        "uses_submodules": uses_submodules,
+        "submodule_available": submodule_available,
+        "captured_at": utc_now(),
+    }
+    return snapshot, [], blockers
+
+
 def git_preflight_contract(
     target: Path,
     operation: str | None,
     git_scope: Sequence[str],
 ) -> tuple[dict[str, Any] | None, list[str], list[str]]:
+    if operation == "git_commit":
+        return git_commit_preflight_contract(target)
+    if operation == "git_switch":
+        return git_switch_preflight_contract(target, git_scope)
     if operation not in {"git_fetch", "git_sync"}:
         return None, [], []
     root = git_root(target)
@@ -847,13 +1020,99 @@ def git_preflight_contract(
 def git_postcheck(target: Path, package: dict[str, Any]) -> dict[str, Any] | None:
     operation = package.get("git_operation")
     snapshot = package.get("git_state_snapshot")
-    if operation not in {"git_fetch", "git_sync"}:
+    if operation not in {"git_fetch", "git_sync", "git_switch", "git_commit"}:
         return None
     if not isinstance(snapshot, dict):
         return {
             "passed": False,
             "reason_code": "git_state_snapshot_missing",
             "checks": {},
+        }
+    if operation == "git_switch":
+        target_ref = str(snapshot.get("target_branch_ref", ""))
+        target_oid = str(snapshot.get("target_oid", ""))
+        branch_result = git_command(target, "symbolic-ref", "-q", "HEAD")
+        head_result = git_command(target, "rev-parse", "HEAD")
+        status_result = git_command(target, "status", "--porcelain=v1", "-z")
+        index_result = git_command(target, "diff", "--cached", "--quiet")
+        refs = git_refs_snapshot(target)
+        before_refs = snapshot.get("refs", {}) if isinstance(snapshot.get("refs"), dict) else {}
+        changed_refs = sorted(
+            name for name in set(before_refs) | set(refs) if before_refs.get(name) != refs.get(name)
+        )
+        checks = {
+            "branch_matches_target": branch_result.returncode == 0 and branch_result.stdout.strip() == target_ref,
+            "head_matches_target": head_result.returncode == 0 and head_result.stdout.strip() == target_oid,
+            "target_ref_unchanged": refs.get(target_ref) == target_oid,
+            "refs_unchanged": not changed_refs,
+            "index_matches_head": index_result.returncode == 0,
+            "worktree_clean": status_result.returncode == 0 and not status_result.stdout,
+        }
+        if snapshot.get("uses_lfs"):
+            checks["lfs_available"] = git_command(target, "lfs", "version").returncode == 0
+            checks["lfs_objects_valid"] = git_command(target, "lfs", "fsck").returncode == 0
+        if snapshot.get("uses_submodules"):
+            submodule = git_command(target, "submodule", "status")
+            checks["submodule_state_valid"] = (
+                submodule.returncode == 0
+                and all(not line.startswith(("-", "+", "U")) for line in submodule.stdout.splitlines() if line)
+            )
+        return {
+            "passed": all(checks.values()),
+            "reason_code": None if all(checks.values()) else "git_switch_postcheck_failed",
+            "operation": operation,
+            "checks": checks,
+            "changed_refs": changed_refs,
+            "target_branch_ref": target_ref,
+            "target_oid": target_oid,
+        }
+    if operation == "git_commit":
+        refs = git_refs_snapshot(target)
+        before_refs = snapshot.get("refs", {}) if isinstance(snapshot.get("refs"), dict) else {}
+        changed_refs = sorted(
+            name
+            for name in set(before_refs) | set(refs)
+            if before_refs.get(name) != refs.get(name)
+        )
+        current_branch_ref = str(snapshot.get("current_branch_ref", ""))
+        outside_refs = [name for name in changed_refs if name != current_branch_ref]
+        head_result = git_command(target, "rev-parse", "HEAD")
+        head = head_result.stdout.strip() if head_result.returncode == 0 else "unborn"
+        index_matches_head = git_command(target, "diff", "--cached", "--quiet").returncode == 0
+        diff_base = EMPTY_TREE_HASH if snapshot.get("head") == "unborn" else str(snapshot.get("head"))
+        committed_diff = git_command(target, "diff", "--name-status", "-M", diff_base, head)
+        committed_paths = git_name_status_paths(committed_diff.stdout) if committed_diff.returncode == 0 else []
+        candidate_paths = {
+            str(item)
+            for item in snapshot.get("commit_candidate_paths", [])
+            if isinstance(item, str)
+        }
+        parent_matches = False
+        if head != "unborn" and head != snapshot.get("head"):
+            if snapshot.get("head") == "unborn":
+                parent_count = git_command(target, "rev-list", "--parents", "-n", "1", head)
+                parent_matches = parent_count.returncode == 0 and len(parent_count.stdout.split()) == 1
+            else:
+                parent = git_command(target, "rev-parse", f"{head}^")
+                parent_matches = parent.returncode == 0 and parent.stdout.strip() == snapshot.get("head")
+        checks = {
+            "head_advanced_once": parent_matches,
+            "current_branch_ref_advanced": bool(current_branch_ref) and refs.get(current_branch_ref) == head,
+            "refs_within_contract": not outside_refs,
+            "committed_paths_preexisted": bool(committed_paths)
+            and set(committed_paths).issubset(candidate_paths),
+            "index_matches_head": index_matches_head,
+            "worktree_content_unchanged": sha256_text(canonical_json(workspace_snapshot(target)))
+            == snapshot.get("worktree_fingerprint"),
+        }
+        return {
+            "passed": all(checks.values()),
+            "reason_code": None if all(checks.values()) else "git_commit_postcheck_failed",
+            "operation": operation,
+            "checks": checks,
+            "changed_refs": changed_refs,
+            "outside_refs": outside_refs,
+            "committed_paths": committed_paths,
         }
     remote = str(snapshot.get("remote", {}).get("name", ""))
     remote_ref = str(snapshot.get("remote", {}).get("refspec", ""))
@@ -2576,10 +2835,9 @@ def load_active_rules(
             errors.append(f"{path.name}: active 规则正文结构不完整")
             continue
         valid_active_count += 1
-        keyword_match_allowed = not (
-            mutation_profile in {"read_only", "git_metadata_write"}
-            and gate_terms.intersection({"code-edit", "document-edit"})
-        )
+        # 关键词只为真实工作区/外部写入选择规则；只读与 Git 元数据任务必须靠
+        # 宿主声明的 Gate 命中，不能因讨论“权限、发布、测试、UI”等词被追加验收。
+        keyword_match_allowed = mutation_profile in {"workspace_write", "external_write"}
         keyword_hit = any(_keyword_not_negated(lowered_task, word) for word in keywords)
         if match_all or (gate_terms and gate_terms.intersection(gates)) or (keyword_match_allowed and keywords and keyword_hit):
             matched.append(
@@ -2633,19 +2891,52 @@ def parse_intent_assessment(facts: dict[str, Any]) -> tuple[list[str], str] | No
         raise HarnessError("intent_assessment.intents 不能为空", code="invalid_intent_assessment")
     unknown = set(intents) - set(TASK_INTENTS)
     if unknown:
-        raise HarnessError(f"未知任务意图：{', '.join(sorted(unknown))}", code="invalid_task_intent")
+        received_values = sorted(unknown)
+        recognized_layers: dict[str, str] = {}
+        suggested_candidates: dict[str, list[str]] = {}
+        for value in received_values:
+            if value in MUTATION_PROFILES:
+                recognized_layers[value] = "mutation_profile"
+                suggested_candidates[value] = [
+                    intent for intent in TASK_INTENTS if INTENT_MUTATION[intent] == value
+                ]
+            elif value in INTENT_STATUS_VALUES:
+                recognized_layers[value] = "admission_status"
+                suggested_candidates[value] = (
+                    [intent for intent in TASK_INTENTS if intent in ANSWER_ONLY_INTENTS]
+                    if value == "answer_only"
+                    else []
+                )
+            elif value in INTENT_HOST_ACTION_HINTS:
+                recognized_layers[value] = "host_action"
+                suggested_candidates[value] = list(INTENT_HOST_ACTION_HINTS[value])
+            else:
+                recognized_layers[value] = "unknown"
+                suggested_candidates[value] = []
+        raise HarnessError(
+            f"未知任务意图：{', '.join(received_values)}",
+            code="invalid_task_intent",
+            suggested_fix="只从 allowed_intents 选择 task_intent；根据用户语义确认候选后重新执行首次 run",
+            extra_payload={
+                "admission_persisted": False,
+                "received_values": received_values,
+                "recognized_layers": recognized_layers,
+                "allowed_intents": list(TASK_INTENTS),
+                "suggested_candidates": suggested_candidates,
+                "auto_select": False,
+                "auto_select_reason": "控制器不能根据变更面、准入状态或动作别名反向猜测用户意图",
+            },
+        )
     rationale = raw.get("rationale")
     if not isinstance(rationale, str) or not rationale.strip() or len(rationale) > 500:
         raise HarnessError("intent_assessment.rationale 必须是 500 字符内的非空字符串", code="invalid_intent_assessment")
     return list(dict.fromkeys(intents)), rationale.strip()
 
 
-def classify_task_intents(
-    task: str,
+def resolve_declared_intents(
     facts: dict[str, Any],
-    *,
-    has_declared_scope: bool,
 ) -> tuple[list[dict[str, str]], list[dict[str, str]], list[str]]:
+    """只解析宿主结构化声明；任务正文、路径和范围都不能参与意图决策。"""
     assessment = parse_intent_assessment(facts)
     if assessment is not None:
         intents, _rationale = assessment
@@ -2678,65 +2969,25 @@ def classify_task_intents(
             [],
             ["explicit_intent_authoritative"],
         )
-
-    lowered = task.casefold()
-    detected: list[tuple[int, str]] = []
-    deferred: list[tuple[int, str]] = []
-    reason_codes: list[str] = []
-    future_markers = tuple(marker.casefold() for marker in ("后续", "以后", "后面", "另行", "单独", "另开任务", "下一任务"))
-    completed_markers = tuple(marker.casefold() for marker in ("已经", "此前", "上次", "曾经", "已完成"))
-    for intent, patterns in INTENT_PATTERNS.items():
-        positions: list[int] = []
-        for pattern in patterns:
-            needle = pattern.casefold()
-            start = 0
-            while True:
-                position = lowered.find(needle, start)
-                if position < 0:
-                    break
-                if re.search(r"[a-z0-9]", needle):
-                    before = lowered[position - 1] if position else ""
-                    after_index = position + len(needle)
-                    after = lowered[after_index] if after_index < len(lowered) else ""
-                    if (before and before.isalnum()) or (after and after.isalnum()):
-                        start = position + len(needle)
-                        continue
-                prefix = lowered[max(0, position - 8) : position]
-                negated = re.search(r"(?:不|不要|禁止|不会|无需|不得|不进行|不执行|不允许|do not|don't)\s*$", prefix)
-                clause_start = max(lowered.rfind(mark, 0, position) for mark in ("。", "！", "？", ";", "；", "\n")) + 1
-                clause_prefix = lowered[clause_start:position]
-                is_deferred = intent in {"modify", "external_write", "git_sync", "git_commit"} and any(marker in clause_prefix for marker in future_markers)
-                is_completed = intent in {"modify", "external_write", "git_sync", "git_commit"} and any(marker in clause_prefix for marker in completed_markers)
-                if is_deferred:
-                    deferred.append((position, intent))
-                    reason_codes.append("future_clause_deferred")
-                elif is_completed:
-                    reason_codes.append("completed_action_is_context")
-                elif not negated:
-                    positions.append(position)
-                start = position + len(needle)
-        if positions:
-            detected.append((min(positions), intent))
-    read_only_question = re.search(r"(?:是否|能否|可否|要不要|有没有必要).{0,12}(?:删除|修改|修复|合并)", task)
-    explicit_followup_write = re.search(r"(?:并|然后|随后|直接|请|帮我|如需|需要时|必要时).{0,8}(?:删除|修改|修复|合并)", task)
-    if read_only_question and not explicit_followup_write:
-        detected = [item for item in detected if item[1] != "modify"]
-
-    ordered = [intent for _, intent in sorted(detected)]
-    if not ordered:
-        ordered = ["modify" if has_declared_scope else "query"]
-    unique = list(dict.fromkeys(ordered))
-    current = [{"intent": intent, "mutation_profile": INTENT_MUTATION[intent]} for intent in unique]
-    deferred_contract = [
-        {"intent": intent, "mutation_profile": INTENT_MUTATION[intent]}
-        for intent in dict.fromkeys(intent for _, intent in sorted(deferred))
-    ]
-    return current, deferred_contract, list(dict.fromkeys(reason_codes))
-
-
-def infer_task_intents(task: str, facts: dict[str, Any], *, has_declared_scope: bool) -> list[dict[str, str]]:
-    current, _, _ = classify_task_intents(task, facts, has_declared_scope=has_declared_scope)
-    return current
+    raise HarnessError(
+        "首次准入缺少宿主结构化意图声明",
+        code="missing_intent_assessment",
+        exit_code=3,
+        missing_items=[{
+            "field": "intent_assessment",
+            "required": {"intents": ["<task_intent>"], "rationale": "<宿主基于用户语义给出的判断>"},
+            "allowed_intents": list(TASK_INTENTS),
+            "hint": "由宿主完成语义判断；不要把原始任务文本交给 Harness 猜测",
+        }],
+        suggested_fix="在 --facts 中提交 intent_assessment 后重新执行首次 run",
+        extra_payload={
+            "admission_persisted": False,
+            "assessment_schema": {
+                "intents": ["<task_intent>"],
+                "rationale": "<500 字符内的宿主语义判断>",
+            },
+        },
+    )
 
 
 def compile_mutation_profile(candidates: Sequence[dict[str, str]], declared: Any) -> str:
@@ -2748,7 +2999,7 @@ def compile_mutation_profile(candidates: Sequence[dict[str, str]], declared: Any
     return max((inferred, declared), key=MUTATION_RANK.get)
 
 
-def infer_gates(task: str, declared: Sequence[str] = (), *, mutation_profile: str = "workspace_write") -> list[str]:
+def infer_gates(_task: str, declared: Sequence[str] = (), *, mutation_profile: str = "workspace_write") -> list[str]:
     gates = set(declared)
     unknown = gates - set(GATE_DEFS)
     if unknown:
@@ -2802,27 +3053,6 @@ def expand_scope_paths_for_inference(paths: Sequence[str], target: Path) -> list
         else:
             expanded.append(path)
     return expanded
-
-
-def extract_task_paths(task: str, target: Path) -> list[str]:
-    candidates = re.findall(r"`([^`]+)`", task)
-    paths: list[str] = []
-    for raw in candidates:
-        if not ("/" in raw or "\\" in raw or Path(raw).suffix):
-            continue
-        path = Path(raw).expanduser()
-        if path.is_absolute():
-            try:
-                raw = path.resolve().relative_to(target).as_posix()
-            except ValueError:
-                continue
-        else:
-            raw = path.as_posix()
-            while raw.startswith("./"):
-                raw = raw[2:]
-        if raw and ".." not in Path(raw).parts:
-            paths.append(raw)
-    return list(dict.fromkeys(paths))
 
 
 def validate_scope(scope: Sequence[str], *, field: str = "scope", allow_git_resources: bool = False) -> list[str]:
@@ -3060,8 +3290,15 @@ def build_completion_manifest(
 ) -> dict[str, Any]:
     if evidence_profile not in {"standard", "fast_track"}:
         raise HarnessError("evidence_profile 无效", code="invalid_evidence_profile")
-    required_receipts = ["read_set"] if mutation_profile == "read_only" else ["write_set"]
-    if task_intent in {"git_fetch", "git_sync"}:
+    answer_only = (
+        task_intent in ANSWER_ONLY_INTENTS
+        and mutation_profile == "read_only"
+        and not gates
+        and not evidence_types
+        and not verification_commands
+    )
+    required_receipts = [] if answer_only else (["read_set"] if mutation_profile == "read_only" else ["write_set"])
+    if task_intent in {"git_fetch", "git_sync", "git_switch", "git_commit"}:
         required_receipts.append("git_state_snapshot")
     conditional_reviews: list[dict[str, str]] = []
     if "security-sensitive" in gates:
@@ -3090,7 +3327,8 @@ def build_completion_manifest(
         "conditional_evidence": conditional_evidence,
         "verification_commands": list(verification_commands),
         "completion_blockers": [],
-        "completion_protocol": "incremental_receipts_single_final",
+        "verification_required": not answer_only,
+        "completion_protocol": "answer_only" if answer_only else "incremental_receipts_single_final",
     }
     manifest["manifest_fingerprint"] = sha256_text(canonical_json(manifest))
     return manifest
@@ -3099,7 +3337,7 @@ def build_completion_manifest(
 RECEIPT_CONDITION_TEXT = {
     "write_set": "仅在任务产生实际写入时要求；无写入时不要求",
     "read_set": "read_only 任务要求记录读取集",
-    "git_state_snapshot": "git_fetch/git_sync 任务要求记录 Git 状态快照",
+    "git_state_snapshot": "git_fetch/git_sync/git_switch/git_commit 任务要求记录 Git 状态快照",
 }
 
 
@@ -3295,32 +3533,50 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         inline_note = inline_note.strip()
     cli_scope = list(cli.scope or [])
     legacy_scope_raw = facts.get("allowed_scope", facts.get("target_paths"))
-    has_declared_scope = any(
-        value is not None
-        for value in (
-            legacy_scope_raw,
-            facts.get("read_scope"),
-            facts.get("write_scope"),
-            facts.get("git_scope"),
-            facts.get("external_scope"),
-        )
-    ) or bool(cli_scope)
-    candidate_intents, deferred_intents, intent_boundary_reason_codes = classify_task_intents(
-        task,
-        facts,
-        has_declared_scope=has_declared_scope,
-    )
+    candidate_intents, deferred_intents, intent_boundary_reason_codes = resolve_declared_intents(facts)
     task_intent = str(candidate_intents[0]["intent"])
+    candidate_names = {item["intent"] for item in candidate_intents}
+    git_intents = candidate_names & {"git_fetch", "git_sync", "git_switch", "git_commit"}
+    if len(git_intents) > 1 and git_intents != {"git_fetch", "git_sync"}:
+        raise HarnessError(
+            "一个任务只能包含一个可执行 Git 操作",
+            code="unsupported_mixed_git_intents",
+            suggested_fix="把多个 Git 操作拆成顺序明确的独立任务；git_sync 可单独包含其必要的 fetch 阶段",
+        )
+    if git_intents and candidate_names & {"modify", "external_write"}:
+        raise HarnessError(
+            "Git 操作与普通写入不能共用一个任务合同",
+            code="unsupported_mixed_git_intents",
+            suggested_fix="先完成 Git 操作并通过后检，再以新任务执行工作区或外部写入",
+        )
+    declared_mutation_profile = compile_mutation_profile(candidate_intents, None)
     mutation_profile = compile_mutation_profile(candidate_intents, facts.get("mutation_profile"))
+    if mutation_profile != declared_mutation_profile:
+        raise HarnessError(
+            "mutation_profile 不能高于结构化意图声明",
+            code="intent_contract_mismatch",
+            suggested_fix="把对应写意图加入 intent_assessment.intents，而不是单独抬高 mutation_profile",
+        )
     requested_actions = normalize_string_list(facts.get("allowed_actions"), "allowed_actions") + list(cli.action or [])
-    if any(action == "external_write" for action in requested_actions):
-        mutation_profile = max((mutation_profile, "external_write"), key=MUTATION_RANK.get)
-    elif any(action in {"write", "git_sync"} for action in requested_actions):
-        mutation_profile = max((mutation_profile, "workspace_write"), key=MUTATION_RANK.get)
-    elif any(action == "git_fetch" for action in requested_actions):
-        mutation_profile = max((mutation_profile, "git_metadata_write"), key=MUTATION_RANK.get)
+    unknown_actions = set(requested_actions) - set(ACTION_MUTATION)
+    if unknown_actions:
+        raise HarnessError(
+            f"未知 allowed_actions：{', '.join(sorted(unknown_actions))}",
+            code="invalid_allowed_action",
+        )
+    requested_action_profile = max(
+        (ACTION_MUTATION[action] for action in requested_actions),
+        key=MUTATION_RANK.get,
+        default="read_only",
+    )
     if work_packages:
-        mutation_profile = max((mutation_profile, "workspace_write"), key=MUTATION_RANK.get)
+        requested_action_profile = max((requested_action_profile, "workspace_write"), key=MUTATION_RANK.get)
+    if MUTATION_RANK[requested_action_profile] > MUTATION_RANK[mutation_profile]:
+        raise HarnessError(
+            "allowed_actions 或 work_packages 超出结构化意图声明",
+            code="intent_contract_mismatch",
+            suggested_fix="在 intent_assessment.intents 中声明覆盖该动作的意图",
+        )
 
     legacy_scope = normalize_string_list(legacy_scope_raw, "allowed_scope") + cli_scope
     read_scope = validate_scope(
@@ -3338,26 +3594,52 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
             read_scope = validate_scope([*read_scope, *legacy_scope], field="read_scope", allow_git_resources=True)
         else:
             write_scope = validate_scope([*write_scope, *legacy_scope], field="write_scope")
-    extracted_scope = extract_task_paths(task, target)
-    if not read_scope and not write_scope and extracted_scope:
-        if mutation_profile == "read_only":
-            read_scope = validate_scope(extracted_scope, field="read_scope", allow_git_resources=True)
-        else:
-            write_scope = validate_scope(extracted_scope, field="write_scope")
-    if write_scope:
-        mutation_profile = max((mutation_profile, "workspace_write"), key=MUTATION_RANK.get)
-    if external_scope:
-        mutation_profile = "external_write"
-    if not any(item["mutation_profile"] == mutation_profile for item in candidate_intents):
-        profile_intent = {
-            "read_only": "query",
-            "git_metadata_write": "git_fetch",
-            "workspace_write": "modify",
-            "external_write": "external_write",
-        }[mutation_profile]
-        candidate_intents.append({"intent": profile_intent, "mutation_profile": mutation_profile})
-    candidate_names = {item["intent"] for item in candidate_intents}
-    git_operation = "git_sync" if "git_sync" in candidate_names else ("git_fetch" if "git_fetch" in candidate_names else None)
+    scope_profile = "external_write" if external_scope else ("workspace_write" if write_scope else "read_only")
+    if MUTATION_RANK[scope_profile] > MUTATION_RANK[mutation_profile]:
+        raise HarnessError(
+            "声明范围超出结构化意图的变更面",
+            code="intent_contract_mismatch",
+            suggested_fix="在 intent_assessment.intents 中声明与 write_scope 或 external_scope 对应的写意图",
+        )
+    if mutation_profile == "workspace_write" and not candidate_names & {"git_sync", "git_switch"} and not write_scope:
+        raise HarnessError(
+            "工作区写任务缺少结构化 write_scope",
+            code="missing_write_scope",
+            exit_code=3,
+            missing_items=[{
+                "field": "write_scope",
+                "required": ["<项目内相对路径>"],
+                "hint": "由宿主明确声明写入范围；任务正文中的路径不会自动授权",
+            }],
+            suggested_fix="在 --facts 中提交 write_scope 后重新执行首次 run",
+            extra_payload={"admission_persisted": False},
+        )
+    if mutation_profile == "external_write" and not external_scope:
+        raise HarnessError(
+            "外部写任务缺少结构化 external_scope",
+            code="missing_external_scope",
+            exit_code=3,
+            missing_items=[{
+                "field": "external_scope",
+                "required": ["<外部目标>"],
+                "hint": "由宿主明确声明外部目标；任务正文不会自动授权",
+            }],
+            suggested_fix="在 --facts 中提交 external_scope 后重新执行首次 run",
+            extra_payload={"admission_persisted": False},
+        )
+    git_operation = (
+        "git_switch"
+        if "git_switch" in candidate_names
+        else (
+            "git_sync"
+            if "git_sync" in candidate_names
+            else (
+                "git_fetch"
+                if "git_fetch" in candidate_names
+                else ("git_commit" if "git_commit" in candidate_names else None)
+            )
+        )
+    )
     git_state, git_sync_scope, git_preflight_blockers = git_preflight_contract(
         target,
         git_operation,
@@ -3405,7 +3687,7 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
     route = max((inferred_route, requested_route or "direct"), key=route_rank.get)
     if route == "extended" and not work_packages:
         route = "planned"
-    if route == "direct" and mutation_profile in {"workspace_write", "external_write"} and not write_scope:
+    if route == "direct" and mutation_profile in {"workspace_write", "external_write"} and not write_scope and task_intent != "git_switch":
         route = "planned"
 
     fast_track = False
@@ -3428,14 +3710,20 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         "workspace_write": ["read", "write", "local_verify"],
         "external_write": ["read", "write", "local_verify", "external_write"],
     }
-    intent_actions = {
+    intent_action_map = {
         "git_inspect": ["git_inspect"],
         "git_fetch": ["git_fetch"],
         "git_sync": ["git_fetch", "git_sync"],
+        "git_switch": ["git_switch"],
         "git_commit": ["git_commit"],
-    }.get(task_intent, [])
-    if task_intent == "git_commit" and "git_fetch" not in candidate_names and "git_fetch" not in requested_actions:
-        # 纯本地提交任务不附带 git_fetch 授权
+    }
+    intent_actions = [
+        action
+        for item in candidate_intents
+        for action in intent_action_map.get(item["intent"], [])
+    ]
+    if candidate_names & {"git_commit", "git_switch"} and not candidate_names & {"modify", "external_write", "git_fetch", "git_sync"} and "git_fetch" not in requested_actions:
+        # 纯本地 Git 操作不附带 git_fetch 或通用 write 授权
         base_actions = ["read"]
     else:
         base_actions = default_actions[mutation_profile]
@@ -3474,16 +3762,20 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         auth_requirements.extend(GATE_DEFS[gate].get("authorization", ()))
         semantic_evidence.extend(GATE_DEFS[gate]["evidence"])
     intent_evidence = {
-        "query": ["source_trace"],
+        "query": [],
+        "review_light": [],
         "audit": ["source_trace"],
-        "git_inspect": ["git_inspection_result"],
+        "audit_formal": ["source_trace"],
+        "git_inspect": [],
         "git_fetch": ["git_fetch_result"],
         "git_sync": ["git_sync_result"],
-        "git_commit": [],
+        "git_switch": ["git_switch_result"],
+        "git_commit": ["git_commit_result"],
         "modify": [],
         "external_write": [],
     }
-    semantic_evidence.extend(intent_evidence[task_intent])
+    for item in candidate_intents:
+        semantic_evidence.extend(intent_evidence[item["intent"]])
     auth_requirements = list(dict.fromkeys(auth_requirements))
     semantic_evidence = list(dict.fromkeys(semantic_evidence))
     verification_commands = facts.get("verification_commands", [])
@@ -3512,7 +3804,7 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
         gates,
         matched_rules,
         write_scope,
-        scope_required=mutation_profile in {"workspace_write", "external_write"} and task_intent != "git_sync",
+        scope_required=mutation_profile in {"workspace_write", "external_write"} and task_intent not in {"git_sync", "git_switch"},
     )
     semantic_evidence = list(dict.fromkeys(semantic_evidence))
     blocking_deliverables, background_deliverables = classify_document_deliverables(
@@ -3538,9 +3830,6 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
     )
 
     blockers = list(rule_errors) + knowledge_blockers + git_preflight_blockers
-    intent_declared = intent_assessment is not None or facts.get("task_intent") is not None or facts.get("candidate_intents") is not None
-    if mutation_profile in {"workspace_write", "external_write"} and not intent_declared:
-        blockers.append("写任务缺少 intent_assessment；自然语言关键词不能授予写权限")
     if mutation_profile in {"workspace_write", "external_write"} and gate_assessment is None:
         blockers.append("写任务缺少 gate_assessment；路径推断不能替代语义 Gate 声明")
     if missing_facts:
@@ -3557,7 +3846,10 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
             for item in work_packages
         },
     }
-    admission = "blocked" if blockers else ("ready_direct" if route == "direct" else "needs_plan")
+    answer_only = completion_manifest.get("completion_protocol") == "answer_only"
+    admission = "blocked" if blockers else (
+        "answer_only" if answer_only else ("ready_direct" if route == "direct" else "needs_plan")
+    )
     platform_scope = detect_platform_scope(write_scope + read_scope)
     package = {
         "schema_version": TASK_SCHEMA,
@@ -3575,9 +3867,7 @@ def build_package(target: Path, task: str, facts: dict[str, Any], cli: argparse.
             else None
         ),
         "intent_decision": {
-            "mode": "host_declared" if intent_assessment is not None else (
-                "legacy_explicit" if intent_declared else "heuristic_advisory"
-            ),
+            "mode": "host_declared" if intent_assessment is not None else "legacy_explicit",
             "declared_intents": intent_assessment[0] if intent_assessment is not None else [],
             "rationale": intent_assessment[1] if intent_assessment is not None else None,
         },
@@ -3772,7 +4062,8 @@ def initial_compiled(package: dict[str, Any], blockers: Sequence[str]) -> dict[s
     states = {item["work_package_id"]: "pending" for item in package["work_packages"]}
     action_schedule = package["context_schedule"]["action"]
     direct_next = "load_action_context" if action_schedule["rule_ids"] or action_schedule["project_fact_refs"] else "execute"
-    return {
+    answer_only = package.get("completion_manifest", {}).get("completion_protocol") == "answer_only" and not blockers
+    compiled = {
         "schema_version": COMPILED_SCHEMA,
         "task_id": package["task_id"],
         "package_revision": package["package_revision"],
@@ -3782,7 +4073,9 @@ def initial_compiled(package: dict[str, Any], blockers: Sequence[str]) -> dict[s
         "execution_topology": package["execution_topology"],
         "work_package_states": states,
         "current_work_package": None,
-        "next_action": "resolve_blocker" if blockers else (direct_next if package["execution_route"] == "direct" else "load_plan_context"),
+        "next_action": "resolve_blocker" if blockers else (
+            "respond" if answer_only else (direct_next if package["execution_route"] == "direct" else "load_plan_context")
+        ),
         "blockers": list(blockers),
         "evidence_refs": [],
         "scope_changed": False,
@@ -3792,9 +4085,12 @@ def initial_compiled(package: dict[str, Any], blockers: Sequence[str]) -> dict[s
         "plan_delta_contract": None,
         "authorization_status": "not_required" if not package["authorization_requirements"] else "missing",
         "authorization_receipt_ref": None,
-        "verification_status": "not_started",
+        "verification_status": "not_required" if answer_only else "not_started",
         "updated_at": utc_now(),
     }
+    if answer_only:
+        compiled["completed_at"] = utc_now()
+    return compiled
 
 
 def create_task_state(
@@ -3865,22 +4161,17 @@ def load_state(target: Path, task_id: str) -> tuple[Path, dict[str, Any], dict[s
 def migrate_v1_package(target: Path, package: dict[str, Any]) -> dict[str, Any]:
     if package.get("schema_version") != LEGACY_TASK_SCHEMA:
         raise HarnessError("只允许迁移 task-package/v1", code="migration_not_required")
-    task = str(package.get("original_task", ""))
     legacy_scope = validate_scope(
         normalize_string_list(package.get("allowed_scope"), "allowed_scope"),
         field="allowed_scope",
     )
-    candidates = infer_task_intents(task, {}, has_declared_scope=bool(legacy_scope))
-    task_intent = candidates[0]["intent"]
-    mutation_profile = compile_mutation_profile(candidates, None)
-    if legacy_scope and mutation_profile == "read_only":
-        read_scope = legacy_scope
-        write_scope: list[str] = []
-    else:
-        read_scope = []
-        write_scope = legacy_scope
-        if write_scope:
-            mutation_profile = max((mutation_profile, "workspace_write"), key=MUTATION_RANK.get)
+    # v1 没有宿主权威意图。迁移只依据已经冻结的结构化范围做保守映射，
+    # 绝不读取 original_task 猜测语义，避免历史写任务被关键词降级。
+    task_intent = "modify" if legacy_scope else "query"
+    mutation_profile = "workspace_write" if legacy_scope else "read_only"
+    candidates = [{"intent": task_intent, "mutation_profile": mutation_profile}]
+    read_scope: list[str] = []
+    write_scope = legacy_scope
     actions = {
         "read_only": ["read"],
         "git_metadata_write": ["read", "git_fetch"],
@@ -3896,6 +4187,12 @@ def migrate_v1_package(target: Path, package: dict[str, Any]) -> dict[str, Any]:
             "migrated_at": utc_now(),
             "task_intent": task_intent,
             "candidate_intents": candidates,
+            "intent_assessment": None,
+            "intent_decision": {
+                "mode": "legacy_scope_conservative",
+                "declared_intents": [],
+                "rationale": "v1 历史任务包按冻结 allowed_scope 保守迁移，未读取任务正文",
+            },
             "deferred_intents": [],
             "intent_boundary_reason_codes": [],
             "mutation_profile": mutation_profile,
@@ -4172,7 +4469,7 @@ def task_cancel(target: Path, state: Path, task_id: str, reason_code: str | None
             "event_ref": compiled.get("cancellation_event_ref"),
             "idempotent": True,
         }
-    if status in {"complete", "failed"}:
+    if status in {"answer_only", "complete", "failed"}:
         raise HarnessError("终态任务不能取消", code="task_already_terminal")
     lock_error = task_lock_error(state)
     if lock_error is not None:
@@ -4478,7 +4775,7 @@ def task_adopt(
         raise HarnessError(f"任务状态不完整：{task_id}", code="missing_task_state")
     package = read_json(package_path)
     compiled = read_json(compiled_path)
-    terminal_statuses = {"complete", "cancelled", "failed"}
+    terminal_statuses = {"answer_only", "complete", "cancelled", "failed"}
     if compiled.get("control_status") in terminal_statuses:
         raise HarnessError(
             f"任务已处于终态({compiled.get('control_status')})，不可补录",
@@ -4613,7 +4910,16 @@ def command_task(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "migration_required": legacy,
             "overhead_summary": task_overhead_summary(state),
         }
-        if completion_manifest_valid(package.get("completion_manifest")):
+        answer_only = package.get("completion_manifest", {}).get("completion_protocol") == "answer_only"
+        if answer_only:
+            status_payload.update(
+                {
+                    "answer_only": True,
+                    "verification_required": False,
+                    "next_action": "respond",
+                }
+            )
+        if not answer_only and completion_manifest_valid(package.get("completion_manifest")):
             status_payload["evidence_checklist"] = evidence_checklist_payload(state, package)
             status_payload["pending_context_receipts"] = pending_context_receipts(state, package, target, compiled)
         instructions = package_context_instructions(package)
@@ -4654,7 +4960,7 @@ def active_task_key(target: Path, task: str, facts: dict[str, Any]) -> str:
     )
 
 
-ACTIVE_TASK_TERMINAL_STATUSES = {"complete", "cancelled", "failed"}
+ACTIVE_TASK_TERMINAL_STATUSES = {"answer_only", "complete", "cancelled", "failed"}
 # blocked 任务不参与幂等复用：重新 run 时必须重新校验规则与合同，不得返回陈旧阻断原因。
 ACTIVE_TASK_NO_REUSE_STATUSES = ACTIVE_TASK_TERMINAL_STATUSES | {"blocked"}
 
@@ -5408,6 +5714,7 @@ def first_run_payload(
     *,
     reused: bool = False,
 ) -> tuple[int, dict[str, Any]]:
+    answer_only = package.get("completion_manifest", {}).get("completion_protocol") == "answer_only"
     payload = {
         "task_id": package["task_id"],
         "task_package_ref": str(state / "task-package.json"),
@@ -5445,6 +5752,14 @@ def first_run_payload(
         "blockers": compiled["blockers"],
         "next_action": compiled["next_action"],
     }
+    if answer_only:
+        payload.update(
+            {
+                "answer_only": True,
+                "verification_required": False,
+                "response_policy": "直接回答；按需读取允许范围内的项目事实，不生成证据，不运行 verify",
+            }
+        )
     instructions = package_context_instructions(package)
     if instructions:
         payload["context_instructions"] = instructions
@@ -5482,8 +5797,9 @@ def first_run_payload(
             "message": f"检测到跨平台专属文件({', '.join(target_platforms)})，当前平台({platform_scope.get('current_platform')})可能无法执行完整验证。建议在目标平台补验。",
             "verification_layers": platform_scope.get("verification_layers", []),
         }
-    payload["plan_contract"] = plan_contract_payload(package)
-    if completion_manifest_valid(package.get("completion_manifest")):
+    if not answer_only:
+        payload["plan_contract"] = plan_contract_payload(package)
+    if not answer_only and completion_manifest_valid(package.get("completion_manifest")):
         payload["evidence_checklist"] = evidence_checklist_payload(state, package)
         payload["pending_context_receipts"] = pending_context_receipts(state, package, target, compiled)
     reason_code = (
@@ -5519,6 +5835,9 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         if not args.task or not args.task.strip():
             raise HarnessError("首次 run 必须提供原始任务", code="missing_task")
         task_text = args.task.strip()
+        # 权威声明必须在幂等复用和任务状态创建之前校验，避免复用历史启发式任务，
+        # 也避免为缺声明请求生成随后需要取消的伪任务。
+        resolve_declared_intents(facts)
         # 幂等键包含全工作区快照，仅当存在历史任务目录时才值得计算；
         # 无历史任务时延迟到落盘前再算（此时快照可被后续 create_task_state 复用）。
         key: str | None = None
@@ -5537,6 +5856,8 @@ def command_run(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         return first_run_payload(target, state, package, compiled)
 
     state, package, compiled, freeze = load_state(target, args.task_id)
+    if package.get("completion_manifest", {}).get("completion_protocol") == "answer_only":
+        return first_run_payload(target, state, package, compiled, reused=True)
     should_recompile = bool(compiled.get("scope_changed")) or (
         compiled.get("control_status") == "blocked" and not args.plan and not args.authorization
     )
@@ -6023,6 +6344,8 @@ def known_evidence_types() -> set[str]:
         "git_inspection_result",
         "git_fetch_result",
         "git_sync_result",
+        "git_switch_result",
+        "git_commit_result",
         "review_result",
         "document_review",
         "security_acceptance",
@@ -7175,7 +7498,7 @@ def delivery_layer_entry(expectation: str, verified: bool, evidence_refs: Sequen
 def build_delivery_layers(package: dict[str, Any], evidence_types: Sequence[str]) -> dict[str, Any]:
     """按任务意图与成功标准推导每层交付适用性，只把已验证证据绑定到对应层。"""
     intent = str(package.get("task_intent") or "")
-    read_only = intent in DELIVERY_READ_ONLY_INTENTS
+    read_only = package.get("mutation_profile") == "read_only"
     git_operation = package.get("git_operation")
     criteria = " ".join(str(item) for item in package.get("success_criteria", []))
     types = {str(item) for item in evidence_types}
@@ -7194,7 +7517,7 @@ def build_delivery_layers(package: dict[str, Any], evidence_types: Sequence[str]
     layers["local_verification"] = delivery_layer_entry(
         local_expectation, "test_result" in types, ["test_result"] if "test_result" in types else []
     )
-    if git_operation in {"git_fetch", "git_sync"}:
+    if git_operation in {"git_fetch", "git_sync", "git_switch", "git_commit"}:
         git_result_type = f"{git_operation}_result"
         layers["git_head"] = delivery_layer_entry(
             "required", git_result_type in types, [git_result_type] if git_result_type in types else []
@@ -7443,7 +7766,8 @@ def command_verify(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         raise
     telemetry["duration_ms"] = int((time.monotonic() - started) * 1000)
     payload["layer_reuse"] = layer_reuse_stats()
-    record_verification_attempt(telemetry, exit_code=exit_code, payload=payload)
+    if not telemetry.get("skip_record"):
+        record_verification_attempt(telemetry, exit_code=exit_code, payload=payload)
     return exit_code, payload
 
 
@@ -7455,18 +7779,33 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
     manifest = package.get("completion_manifest")
     if not completion_manifest_valid(manifest):
         raise HarnessError("completion_manifest 缺失或指纹无效", code="invalid_completion_manifest")
+    if manifest.get("completion_protocol") == "answer_only":
+        telemetry["input_accepted"] = True
+        telemetry["skip_record"] = True
+        return 0, {
+            "task_id": package["task_id"],
+            "result": "无需校验",
+            "control_status": "answer_only",
+            "answer_only": True,
+            "verification_required": False,
+            "next_action": "respond",
+        }
     if compiled["control_status"] not in {"ready_direct", "ready_planned", "ready_extended"}:
-        raise HarnessError("任务尚未获得执行准入", code="not_admitted", exit_code=3)
+        # verify 阻断待重准入的任务允许幂等重验：任何 write_scope_violation 都重复返回 exit 4 full_readmission
+        if not (compiled["control_status"] == "blocked" and compiled.get("blocked_in_verification")):
+            raise HarnessError("任务尚未获得执行准入", code="not_admitted", exit_code=3)
     if package["execution_route"] != "direct" and not plan_is_current(compiled):
         compiled["control_status"] = "blocked"
         compiled["verification_status"] = "needs_readmission"
         compiled["next_action"] = "rerun_harness_for_readmission"
+        compiled["blocked_in_verification"] = True
         atomic_write_json(state / "compiled-task.json", compiled)
         return 4, {"task_id": package["task_id"], "result": "重新准入", "reason": "正式方案缺失或指纹已变化", "reason_code": "plan_contract_drift", "next_action": compiled["next_action"]}
     if not authorization_is_current(state, package):
         compiled["control_status"] = "blocked"
         compiled["verification_status"] = "needs_readmission"
         compiled["next_action"] = "rerun_harness_for_readmission"
+        compiled["blocked_in_verification"] = True
         atomic_write_json(state / "compiled-task.json", compiled)
         return 4, {"task_id": package["task_id"], "result": "重新准入", "reason": "授权缺失、过期或指纹已变化", "reason_code": "authorization_contract_drift", "next_action": compiled["next_action"]}
     action_schedule = package["context_schedule"]["action"]
@@ -7489,6 +7828,7 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
         compiled["control_status"] = "blocked"
         compiled["verification_status"] = "needs_readmission"
         compiled["next_action"] = "rerun_harness_for_readmission"
+        compiled["blocked_in_verification"] = True
         atomic_write_json(state / "compiled-task.json", compiled)
         return 4, {
             "task_id": package["task_id"],
@@ -7752,6 +8092,7 @@ def verify_task(args: argparse.Namespace, telemetry: dict[str, Any]) -> tuple[in
             compiled["control_status"] = "blocked"
             compiled["verification_status"] = "needs_readmission"
             compiled["next_action"] = "rerun_harness_for_readmission"
+            compiled["blocked_in_verification"] = True
             atomic_write_json(state / "compiled-task.json", compiled)
             reason_code = attribution["blockers"][0]["reason_code"] if attribution["blockers"] else "rule_drift"
             payload: dict[str, Any] = {"task_id": package["task_id"], "result": "重新准入", "reason_code": reason_code, "changed_paths": changed, "outside_scope": outside, "new_gates": new_gates, "rule_errors": rule_errors, "auto_attributed_paths": auto_attributed_paths, "workspace_attribution": attribution, "next_action": compiled["next_action"]}
@@ -10678,22 +11019,33 @@ def managed_agent_block(target: Path | None = None) -> str:
             "- 功能知识来自 `docs/knowledge-map.json` 和 `docs/features/`；任务无法唯一定位功能时使用 "
             "`run --feature <id>` 重新准入，不得全量加载 `docs/`。\n"
         )
+    intent_groups = "; ".join(
+        f"`{'|'.join(intent for intent in TASK_INTENTS if INTENT_MUTATION[intent] == profile)}` → `{profile}`"
+        for profile in MUTATION_PROFILES
+        if any(INTENT_MUTATION[intent] == profile for intent in TASK_INTENTS)
+    )
     return f"""{MANAGED_BEGIN}
 ## Docs Harness 任务入口
 
 Docs Harness 当前版本：{VERSION}
 
-每个用户任务的第一条任务动作必须是：
+除纯对话、元问题且无需读取项目事实的消息外，宿主必须先完成语义判断并生成结构化 facts；每个项目任务的第一条任务动作必须是：
 
 ```bash
-python3 scripts/harness.py run --target . --task "<原始用户任务>" --json
+python3 scripts/harness.py run --target . --task "<原始用户任务>" --facts <facts.json> --json
 ```
 
+- 纯对话或元问题且无需读取项目事实时直接回答，不创建 Harness 任务。
+- 所有首次 `run` 的 facts 必须包含 `intent_assessment={{"intents": [...], "rationale": "..."}}`；宿主根据用户语义声明全部当前意图，Harness 不再从任务正文、分支名、路径或 scope 猜测意图。缺声明返回 `missing_intent_assessment`、`admission_persisted=false`，不产生 task-id，也不需要取消后重建。
+- 合法意图与默认变更面（箭头左侧才可填入 `intents`）：{intent_groups}。`read_only|git_metadata_write|workspace_write` 是变更面，`answer_only|ready_direct|ready_planned|ready_extended` 是准入状态，均不得当作意图；`external_write` 是唯一与变更面同名的合法意图。
+- `workspace_write|external_write` 还必须提交 `gate_assessment`；普通写任务提供 `write_scope`，外部写任务提供 `external_scope`，Git 操作提供对应 `git_scope`。正文路径不能代替结构化范围，缺范围同样在任务状态创建前失败。
+- `git_switch` 使用显式意图和单一 `.git:refs/heads/<branch>`；分支名中的 `review|audit|fix|release` 等文字不得改变意图。多个可执行 Git 操作，或 Git 操作与普通写入混合时，拆成顺序明确的独立任务。
+- `admission_status=answer_only` 时按需读取项目事实后直接回答；不得生成证据、不得运行 `verify`，也不得执行任何写入动作。普通解释、进度回答、代码阅读和轻量 review 均走该路线；只有用户明确要求可交付审计报告、证据化结论或高风险验收时才声明 `audit_formal`。
 - 只有 `ready_direct`、`ready_planned`、`ready_extended` 允许进入对应执行阶段；`context_quality=degraded` 只表示知识不完整，必须现场核实事实，不改变准入状态。
 - `planned/extended` 先运行 `context --stage plan`，形成正式方案后再次 `run` 取得执行准入。
 - `extended` 每个工作包依次执行 `context`、`progress begin`、`progress submit|block`。
 - 范围、目标、准备动作、授权或 Gate 变化时立即停止并重新运行 `run`。
-- 最终必须运行 `verify`；只有其返回 `完成` 才是 Docs Harness 完成状态。
+- 只有 `completion_manifest.verification_required=true` 的任务最终才运行 `verify`；`answer_only` 不进入验收阶段，其余任务只有 `verify` 返回 `完成` 才是 Docs Harness 完成状态。
 - 安装响应为 `knowledge_flow.mode=bootstrap_new` 时，安装已经完成，按 `execution_route` 异步派发 L2 知识初始化；响应为 `audit_existing` 时先零写入审查，只有确认不完整后才询问用户是否更新。
 - `verify` 返回完成后，父任务状态已经原子终结；宿主只按任务包冻结的 `background_deliverables` 和返回的 `background_jobs` 派发后台治理，未声明时不得创建 Job。
 - `background_direct` 创建有界后台子智能体；`background_goal|background_goal_phased` 必须建立持续目标、方案和进度，不能静默降级为直接任务。

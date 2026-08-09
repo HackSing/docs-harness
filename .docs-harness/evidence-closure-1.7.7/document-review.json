@@ -1,0 +1,17 @@
+{
+  "schema_version": "docs-harness/evidence-declaration/v1",
+  "type": "document_review",
+  "write_set": [],
+  "read_set": [
+    "docs/contracts.md",
+    "docs/testing.md",
+    "CHANGELOG.md",
+    "README.md",
+    "SKILL.md",
+    "VERSION",
+    "package.json",
+    "evals/evals.json"
+  ],
+  "concurrent_drift": [],
+  "conclusion": "文档与行为一致（本任务准入后无文档写入，文档四源在前序任务周期已同步并纳入准入冻结基线；本次为对当前工作区文档状态的审查）：docs/contracts.md 为行为合同真源，本次测试结构变化（显式 load_tests 去重、发现集断言、显式 fixture）已同步描述且与 tests/test_harness.py 实现一致；docs/testing.md 描述的测试结构与运行方式与实际 discovery 行为一致；CHANGELOG 顶版本 1.7.7 记录回归闭合与跨层意图诊断内容，无事实性错误；README 与 SKILL 未引入超出 1.7.7 的新版本声明；版本四源（VERSION、controller、skill、package）与评测元数据一致为 1.7.7。审查未发现需要回改的文档缺陷。"
+}

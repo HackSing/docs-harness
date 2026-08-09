@@ -2,7 +2,7 @@
 name: docs-harness
 description: "通过独立控制器完成 Gate、任务包、降级知识上下文、主任务验收和异步文档治理。"
 metadata:
-  version: 1.7.6
+  version: 1.7.7
   status: active
 ---
 
@@ -25,25 +25,29 @@ python3 <docs-harness-skill>/scripts/harness.py project init --target <project> 
 
 ## 任务入口
 
-每个任务的第一条动作：
+除纯对话、元问题且无需读取项目事实的消息外，每个项目任务的第一条动作：
 
 ```bash
 python3 scripts/harness.py run --target . --task "<原始用户任务>" --json
 ```
 
+纯对话或元问题不创建 Harness 任务。`run` 返回 `admission_status=answer_only` 时，宿主可按需读取允许范围内的项目事实并直接回答；不生成证据、不运行 `verify`、不执行写入。普通解释、进度回答、代码阅读、轻量 review 和普通 `git_inspect` 使用该协议；只有用户明确要求可交付审计报告、证据化结论或高风险验收时才声明 `audit_formal`（兼容显式 `audit`），并保留来源证据和最终验收。
+
 只在 `ready_direct|ready_planned|ready_extended` 后进入执行。`context_quality=degraded` 表示知识缺失、构建中、失败或隔离，不改变准入状态；必须从允许范围内的代码、测试、配置和有效文档核实事实，并记录 `fallback_fact_refs`。
 
-同一 target、任务文本、事实与工作区快照重复 `run` 时幂等复用活动任务（返回 `active_task_reused`），不重复建立上下文与授权；任务或初始工作区不同则新建，`--new-task` 强制新建。`complete|cancelled|failed|blocked` 状态的任务不复用。
+同一 target、任务文本、事实与工作区快照重复 `run` 时幂等复用活动任务（返回 `active_task_reused`），不重复建立上下文与授权；任务或初始工作区不同则新建，`--new-task` 强制新建。`answer_only|complete|cancelled|failed|blocked` 状态的任务不复用。
 
 规则、授权、安全、范围、用户指定交付物和必要证据异常继续失败关闭。
 
-`run` 先编译 `task_intent`、`candidate_intents` 和 `deferred_intents`，再取当前任务最高 `mutation_profile` 和风险 Gate。宿主可通过 `intent_assessment` 提交权威意图声明（`{"intents": [...], "rationale": "..."}`）；兼容字段 `task_intent|candidate_intents` 同样为显式声明。只有未声明时才运行文本启发式，其结果仅用于只读候选与诊断，不能授予写权限；写任务缺少意图声明必须失败关闭。未来任务子句与完成体只进入可审计边界字段，不授权当前写入。任务文本关键词不参与 Gate 分类；Harness Home 规则匹配与交付层需求判断仍使用各自的受控关键词和否定守卫。
+首次 `run` 前，宿主必须先根据用户语义提交 `intent_assessment`（`{"intents": [...], "rationale": "..."}`）；兼容字段 `task_intent|candidate_intents` 仅用于迁移期显式声明。Harness 不读取任务正文关键词，也不按 scope 猜测 `task_intent|candidate_intents|mutation_profile`。缺声明时返回 `missing_intent_assessment` 与 `admission_persisted=false`，不生成 task-id、任务包或取消需求。普通写任务还必须提供 `write_scope`，外部写任务必须提供 `external_scope`；缺失时同样非持久化失败，正文中的路径不能替代结构化范围。任务文本仍作为审计快照；Harness Home 规则匹配与交付层需求判断保留各自的受控关键词和否定守卫，但不得反向修改意图。
 
-宿主必须基于任务语义判断风险 Gate，并在 `--facts` 中提交 `gate_assessment`（`{"gates": [...], "rationale": "<一句话依据>"}`）。写任务缺少声明直接阻断；路径推断只标记文档、代码、测试这类封闭结构，不能代替安全、发布、数据等语义判断。项目确实存在稳定的语义路径边界时，在 `.docs-harness/config.json` 使用 `gate_path_rules` 显式配置 `pattern` 与 `gates`；运行期新路径只依该项目映射触发新 Gate 绊线。
+`intent_assessment.intents` 只能填写受控意图：`query|review_light|audit|audit_formal|git_inspect|git_fetch|git_sync|git_switch|git_commit|modify|external_write`。`read_only|git_metadata_write|workspace_write` 是变更面，`answer_only|ready_direct|ready_planned|ready_extended` 是准入状态，不得当作意图；`external_write` 是唯一与变更面同名的合法意图。跨层误填继续失败关闭，响应会标明识别层级、合法意图和候选项，但控制器不会自动替换。
+
+宿主必须基于任务语义判断风险 Gate；`workspace_write|external_write` 在 `--facts` 中提交 `gate_assessment`（`{"gates": [...], "rationale": "<一句话依据>"}`），只读任务可省略且缺省 Gate 不能授予写权限。写任务缺少声明直接阻断；路径推断只标记文档、代码、测试这类封闭结构，不能代替安全、发布、数据等语义判断。项目确实存在稳定的语义路径边界时，在 `.docs-harness/config.json` 使用 `gate_path_rules` 显式配置 `pattern` 与 `gates`；运行期新路径只依该项目映射触发新 Gate 绊线。
 
 准入响应中的 `completion_manifest` 是收尾真源。宿主提交的 `evidence-declaration/v1` 与完整 v2 JSON 均是 `reported`：控制器可代铸绑定字段，但不会把宿主自述升级为已验证事实。只有控制器自身执行的命令、Git 后检与自动归因入口可产生 `verified` 收据；外部 JSON 不得声称这些 controller producer。安全、发布、恢复、远端交付等高风险证据只接受 `verified` 受控入口，`reported` 不能满足。
 
-最终验收：
+`completion_manifest.verification_required=true` 的任务最终验收：
 
 ```bash
 python3 scripts/harness.py verify --target . --task-id <task-id> --evidence <evidence.json> --json

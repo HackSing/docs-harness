@@ -6,7 +6,7 @@
 
 **它解决什么问题**：AI 助手干活有两个老毛病——**干活没规矩**（该确认的风险不确认、改超出范围的文件）和**收尾没凭证**（说"做完了"但拿不出证据）。Docs Harness 就是给 AI 装的"工单系统 + 监理"：不替 AI 干活，只管**派单、划边界、验收货**。
 
-**一次任务的完整流程**：
+**一次需要正式治理的任务流程**（普通问答、进度回答、代码阅读和轻量评审走 `answer_only`，读取必要事实后直接回答）：
 
 1. **开工派单**：AI 接到任务先向 harness 报到。harness 判断风险等级并开出工单：能读哪些文件、能改哪些文件、需要什么授权、交工时要拿什么证据。简单任务当场放行，复杂任务先交方案，敏感操作（删数据、发版本）必须先拿到用户授权；
 2. **干活过程**：AI 在工单范围内干活，harness 全程盯两张表——考勤表（每个环节花在"办手续"上的时间）和现场监控（有没有人动工单范围外的文件）。任务中途变味（小修改变成动核心代码），工单自动升级管控；
@@ -21,7 +21,7 @@
 
 ## 版本演进
 
-当前合同将语义判断和事实校验彻底分层：宿主通过 `intent_assessment` 和 `gate_assessment` 声明任务意图与风险，写任务缺任一声明即失败关闭；控制器只校验范围、指纹、时序和证据入口。语义路径 Gate 不再根据开放路径名猜测，项目如需运行期绊线，在 `gate_path_rules` 中显式映射。宿主提交的声明或 v2 JSON 只是 `reported`，不能冒充 controller producer 或满足高风险 `verified` 门槛。自动归因只证明写入所有权，每个写任务仍需独立语义验收。范围是语义合同：新路径不再自动扩围，而是返回同时包含范围、意图与 Gate 声明的重准入模板。研发任务仍拆成两条状态独立的通道：
+当前合同将语义判断和事实校验彻底分层：所有首次 `run` 都必须由宿主提交 `intent_assessment`，写任务同时提交 `gate_assessment`；控制器不再根据任务正文关键词或 scope 猜测意图。缺少意图声明时在任务状态创建前返回非持久化错误，不产生 task-id 或取消需求。控制器只校验范围、指纹、时序和证据入口。语义路径 Gate 不再根据开放路径名猜测，项目如需运行期绊线，在 `gate_path_rules` 中显式映射。宿主提交的声明或 v2 JSON 只是 `reported`，不能冒充 controller producer 或满足高风险 `verified` 门槛。自动归因只证明写入所有权，每个写任务仍需独立语义验收。范围是语义合同：新路径不再自动扩围，而是返回同时包含范围、意图与 Gate 声明的重准入模板。研发任务仍拆成两条状态独立的通道：
 
 - 主任务通道完成用户价值、用户明确要求的交付物和必要验收；
 - 后台治理通道处理知识初始化、知识增量、ADR、Changelog、TODO 和非阻塞证据整理。
@@ -46,15 +46,17 @@ Docs Harness 负责 Gate、任务包、上下文、授权、证据、后台 Job 
 原始任务
   ↓
 run：意图/变更面 → 风险 Gate → task-package/v2 + completion_manifest
-  ↓
-context / plan / authorization / progress
-  ↓
-实现与必要验收
-  ↓
-verify：原子写入父任务 complete
-  ↓
-立即返回最小交付回执
-  └─ 后台候选项 → workload estimate → 统一 Background Job
+  ├─ answer_only → 直接回答（无证据、无 verify）
+  └─ 正式治理
+      ↓
+    context / plan / authorization / progress
+      ↓
+    实现与必要验收
+      ↓
+    verify：原子写入父任务 complete
+      ↓
+    立即返回最小交付回执
+      └─ 后台候选项 → workload estimate → 统一 Background Job
                               ├─ background_direct
                               ├─ background_goal
                               └─ background_goal_phased
@@ -88,6 +90,8 @@ python3 /path/to/docs-harness/scripts/harness.py project init \
 
 目标项目存在 `.qoder/repowiki` 时，Harness 保持外部知识库只消费语义，并明确提示宿主：了解项目架构和模块知识时，优先阅读 `.qoder/repowiki/zh/content/` 下的 Wiki 文档和 `.qoder/repowiki/knowledge/zh/` 下的知识卡片。该指令会进入任务响应的 `context_instructions`，安装或升级时也会同步到受管 `AGENTS.md`。
 
+普通问答、轻量评审和只读 Git 查看使用 `answer_only`：需要项目事实时可先读取允许范围，随后直接回答，不生成证据也不运行 `verify`；纯对话和元问题可完全跳过 Harness。只有正式审计、Git 元数据变更、工作区写入和外部写入进入完成合同。只读任务不会再因 Harness Home 的“权限、发布、测试、UI”等关键词被追加验收门槛。
+
 ## 工作量评估与宿主路线
 
 ```bash
@@ -114,7 +118,7 @@ bootstrap、全项目审查和全量 preserve-and-merge 使用 `project_wide`；
 
 ## 日常任务
 
-每个任务的第一条动作：
+除纯对话、元问题和不依赖项目事实的回答外，需要读取项目或执行动作的任务先准入：
 
 ```bash
 python3 scripts/harness.py run \
@@ -123,20 +127,21 @@ python3 scripts/harness.py run \
   --json
 ```
 
-`run` 返回唯一任务包、准入状态、`context_quality`、阻塞/后台交付物、带指纹的 `completion_manifest` 和下一条可执行命令。`planned` 与 `extended` 使用同一个 `task-id` 完成方案和工作包，不创建重复任务。同一 target、任务文本、事实与工作区快照重复 `run` 时幂等复用活动任务（返回 `active_task_reused`）；任务或初始工作区不同则新建，`--new-task` 强制新建，`complete|cancelled|failed|blocked` 状态不复用。
+`run` 只在结构化意图完整后返回唯一任务包、准入状态、`context_quality`、阻塞/后台交付物、带指纹的 `completion_manifest` 和下一条可执行命令。缺少声明返回 `missing_intent_assessment` 与 `admission_persisted=false`；普通写任务缺少 `write_scope`、外部写任务缺少 `external_scope` 时同样非持久化失败，任务正文路径不会自动授权。显式声明为普通问答、轻量评审和只读 Git 查看时返回 `answer_only`，宿主读取必要事实后直接回答；该状态不生成证据清单，也不进入 `verify`。`planned` 与 `extended` 使用同一个 `task-id` 完成方案和工作包，不创建重复任务。同一 target、任务文本、事实与工作区快照重复 `run` 时幂等复用活动任务（返回 `active_task_reused`）；任务或初始工作区不同则新建，`--new-task` 强制新建，`answer_only|complete|cancelled|failed|blocked` 状态不复用。
 
 任务包使用 `docs-harness/task-package/v2`：
 
-- `task_intent`：`query|audit|git_inspect|git_fetch|git_sync|git_commit|modify|external_write`；
+- `task_intent`：`query|review_light|audit_formal|audit|git_inspect|git_fetch|git_sync|git_switch|git_commit|modify|external_write`；
 - `candidate_intents|deferred_intents|intent_boundary_reason_codes`：区分当前动作、未来动作和完成体上下文；
-- `intent_assessment|gate_assessment`：由宿主提交权威语义声明，写任务不允许用文本启发式或路径猜测代替；
+- `intent_assessment|gate_assessment`：由宿主提交权威语义声明；所有任务必须有意图声明，写任务还必须有 Gate 声明，文本启发式和路径都不能代替；
 - `mutation_profile`：`read_only|git_metadata_write|workspace_write|external_write`；
 - `read_scope|write_scope|git_scope|external_scope` 分别承载读取、工作区写入、Git 元数据和外部目标；
 - 混合意图按最高变更面和最高风险 Gate 编译，显式 facts 只能升级；
-- 只读任务默认 `ready_direct + read_only + write_scope=[]`，自然语言范围返回 `invalid_scope_description`；
+- `query|review_light|git_inspect` 默认 `answer_only + read_only + write_scope=[]`；`audit_formal`（兼容显式 `audit`）保留来源证据与最终验收；自然语言范围返回 `invalid_scope_description`；
+- `intent_assessment.intents` 只接受上述 `task_intent`；`read_only|git_metadata_write|workspace_write` 是变更面，`answer_only|ready_direct|ready_planned|ready_extended` 是准入状态。跨层误填返回识别层级、合法意图和候选项，仍保持非持久化失败且不自动替换；
 - 低风险任务可在 facts 声明 `fast_track: true` 走轻量通道，证据最小集为 `code_diff + change_review`（声明验证命令时加 `test_run`），事实差异与语义审查不互相替代。
 
-最终验收：
+仅当 `completion_manifest.verification_required=true` 时执行最终验收：
 
 ```bash
 python3 scripts/harness.py verify \
@@ -162,7 +167,7 @@ python3 scripts/harness.py verify \
 
 ### Git 与工作区验收
 
-`git_fetch|git_sync` 冻结脱敏远端身份、目标 OID、HEAD、索引、工作区和受控 refs。`git_sync` 根据预检目标自动生成变化范围，不要求操作者手写文件清单；远端漂移、非 fast-forward、ref 越界、重叠脏改动、LFS/Submodule 不可验证均失败关闭。
+`git_fetch|git_sync` 冻结脱敏远端身份、目标 OID、HEAD、索引、工作区和受控 refs。`git_sync` 根据预检目标自动生成变化范围，不要求操作者手写文件清单；远端漂移、非 fast-forward、ref 越界、重叠脏改动、LFS/Submodule 不可验证均失败关闭。`git_switch` 只接受单一 `.git:refs/heads/<branch>`，预检已有本地分支、干净工作区和所有 worktree 占用，后检当前分支、HEAD、refs、索引与工作区；分支名中的 `review|audit` 等文字不参与意图决策。
 
 验收分别输出 `task_write_set`、`read_set`、`concurrent_drift` 和 `unattributed_drift`。无关且不重叠的漂移只告警；读取事实、写入范围或安全/数据/发布边界重叠时重新准入。仅追加且不改变路线、授权、范围、方案字段或阻断交付物的普通 Gate 由控制器原子增量准入；同轮收据随来源指纹留下继承记录并继续复用，宿主只加载新增上下文。产品、架构、安全、数据破坏、外部发布、前端设计、extended 路线及其他合同变化仍完整重新准入。
 
@@ -289,4 +294,4 @@ python3 scripts/harness.py release sync --target . --json          # 检查四�
 python3 scripts/harness.py release sync --apply --target . --json  # 原子写入 VERSION/package.json/SKILL.md
 ```
 
-当前版本：`1.7.2`。详细 Schema 与状态机见 [docs/contracts.md](docs/contracts.md)，版本历史见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本：`1.7.7`。详细 Schema 与状态机见 [docs/contracts.md](docs/contracts.md)，版本历史见 [CHANGELOG.md](CHANGELOG.md)。

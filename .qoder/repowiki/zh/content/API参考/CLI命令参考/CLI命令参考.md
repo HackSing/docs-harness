@@ -10,6 +10,7 @@
 - [VERSION](file://VERSION)
 - [docs/testing.md](file://docs/testing.md)
 - [tests/test_harness.py](file://tests/test_harness.py)
+- [docs/contracts.md](file://docs/contracts.md)
 </cite>
 
 ## 更新摘要
@@ -20,6 +21,7 @@
 - 新增 git_commit 受控意图（本地提交层）
 - 增强错误响应机制，支持更多诊断信息字段
 - 完善测试策略文档和验收分层指导
+- **重构 task changes-preview 命令**：重新设计为纯粹的工作区分区预览工具，不再声称与 verify 归因等价，返回结构化分区输出
 
 ## 目录
 1. [简介](#简介)
@@ -42,6 +44,7 @@
 - **后台优化**（v1.7.2）：合并 dispatch 快路径和批量 progress 推进，减少 CLI 往返次数
 - **变更预览**（v1.7.3）：新增 `task changes-preview` 只读命令，提供纯函数差异对比，零状态变更
 - **自适应验证强度**（v1.7.6）：基于实际变更面选择验证强度，行为代码变化触发目标测试优先，版本元数据变更只做轻量检查
+- **工作区分区预览**（v1.7.6）：changes-preview 命令重新设计为纯粹的工作区分区工具，返回结构化分区输出，不再冒充 verify 归因结果
 
 ## 项目结构
 - 入口脚本：scripts/harness.py（Python 实现）
@@ -282,7 +285,7 @@ KNO-->>U : 知识库/后台兼容操作
 - list 支持 include-archived 查看已归档 v1 对象。
 - **adopt** 功能：用于外部系统已完成的任务补录，将任务状态设置为 complete，verification_status 设置为 adopted_external，记录 adoption_record 并建议添加到质量账本。
 - **adopt** 限制：终态任务（complete/cancelled/failed）不可补录，必须提供 --outcome 描述完成结果。
-- **changes-preview** 功能：**v1.7.3 新增** 只读命令，对比当前工作区与冻结基线的差异，不进行任何状态修改。返回 changed_paths、in_scope、outside_scope、read_set_drift 等信息，帮助宿主在 verify 前对齐证据 write_set。
+- **changes-preview** 功能：**v1.7.3 新增，v1.7.6 重新设计** 只读命令，对比当前工作区与冻结基线的差异，不进行任何状态修改。**重新设计后作为纯粹的工作区分区预览工具**，返回结构化分区输出，不再声称与 verify 归因等价。
 
 示例
 - python3 scripts/harness.py task status --target . --task-id <id> --json
@@ -550,6 +553,7 @@ VersionSync --> End
   - **stale_evidence 错误**：使用 task changes-preview 在 verify 前预览实际变更，对齐证据 write_set
   - **验证强度不当**：v1.7.6 起根据变更类型自动选择验证策略，行为代码变化应优先目标测试，版本元数据变更只做轻量检查
   - **Gate 路由异常**：v1.7.6 起移除任务文本关键词 Gate 路由，需通过 gate_assessment 提交语义判断
+  - **changes-preview 误解**：changes-preview 仅返回工作区分区信息，不代表 verify 归因结论，不要将其结果等同于验收通过
 
 **章节来源**
 - [scripts/harness.py:3980-4051](file://scripts/harness.py#L3980-L4051)
@@ -573,7 +577,7 @@ Docs Harness CLI 围绕"意图优先、证据可复用、失败关闭"的原则�
   - **release sync 字段**：status（consistent/inconsistent/synced/already_consistent）、version_truth、diffs、changed、changelog_top_version、changelog_hint
   - **fast_track 字段**：fast_track、evidence_profile、fast_track_denied_reason、inline_note
   - **性能字段**：overhead_summary（harness_total_ms/wall_clock_ms/harness_share）、layer_reuse
-  - **changes-preview 字段**：**v1.7.3 新增** action、task_id、changed_paths、in_scope、outside_scope、read_set_drift、next_action
+  - **changes-preview 字段**：**v1.7.3 新增，v1.7.6 重新设计** action、task_id、changed_paths、**changed_in_write_scope**、**changed_outside_write_scope**、**changed_in_read_scope**、attribution_status、next_action。**重新设计后作为纯粹的工作区分区预览工具，不再声称与 verify 归因等价**
   - **增强错误响应字段**：**v1.7.3 增强** suggested_fix、missing_items、actual_vs_expected、extra_payload
   - **自适应验证字段**：**v1.7.6 新增** verification_strategy、change_type、target_tests、full_regression_eligible
 - 事件与指标

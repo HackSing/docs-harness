@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 1.7.7 - 2026-08-08
 
+- 修复宿主连续把 `workspace_write`、`answer`、`answer_only` 等跨层概念误填为任务意图后只能盲试的问题：受管入口现在从控制器意图映射生成完整分组，明确区分 `task_intent`、`mutation_profile` 与准入状态；`invalid_task_intent` 保持失败关闭、不接受别名、不自动猜测，同时返回识别层级、合法意图、候选项和 `admission_persisted=false`。新增真实模拟回归，证明错误准入零状态残留，改用 `review_light` 后只创建一个 `read_only + answer_only` 任务。
+
+- 新增 `answer_only` 只读快路由：纯 `query`、`review_light` 与普通 `git_inspect` 无显式 Gate/证据/验证命令时不生成 evidence checklist、不要求 read_set、不运行 verify，响应直接返回 `next_action=respond`；纯对话和无需项目事实的元问题由受管宿主入口直接回答，不创建 Harness 任务。`审查/评审/review` 归入轻量评审，`审计/audit` 归入 `audit_formal`，兼容显式旧 `audit`。
+- 收敛意图与规则误升级：只读讨论中提到“修改、升级、git fetch/pull、发布”等动作不再升级变更面，只有明确祈使或“并/然后/随后”等执行连接词才保留动作意图；仅声明 `read_scope` 时缺省保持 query。Harness Home 关键词仅对工作区/外部写入选规则，只读与 Git 元数据任务必须靠显式 Gate，不再因讨论安全、API、测试、UI 或发布被追加证据。
+- `git_commit` 补齐专属控制器后检：准入冻结 HEAD、分支引用、工作区内容和候选变化路径；verify 验证 HEAD 单步前进、仅当前分支 ref 变化、提交路径来自准入前变化、索引与 HEAD 一致且工作区内容未被提交动作改写，并由 `git_commit_result` 受控收据闭环，不再要求任意宿主补证。
 - `.qoder/repowiki` 外部知识源补齐显式阅读指令：只要目标目录存在，任务包、首次/二次准入、context 与 task status 响应均通过 `context_instructions` 提示宿主在了解项目架构和模块知识时优先阅读 `.qoder/repowiki/zh/content/` Wiki 与 `.qoder/repowiki/knowledge/zh/` 知识卡；project init/upgrade 同步把条件式指令写入受管 `AGENTS.md`。既有只消费、按任务选卡和不写 repowiki 的边界不变。
 - 写任务准入改为双声明失败关闭：宿主必须提交 `intent_assessment` 与 `gate_assessment`，显式意图不再被文本关键词升级；初始路径只判断文档/代码/测试结构 Gate，安全、发布等项目语义边界改由 `gate_path_rules` 显式映射。
 - 证据信任与 JSON 内的 producer 名称解耦：宿主 `evidence-declaration/v1` 与外部 v2 收据统一为 `reported`，不得冒充 controller producer；高风险证据和并发归因只接受受控内部入口。`evidence_checklist` 新增 `trust_requirements`，高风险项不再生成可自填骨架。

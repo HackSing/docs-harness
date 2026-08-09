@@ -1,10 +1,10 @@
-# Docs Harness v1.7.1 合同
+# Docs Harness v1.7.7 合同
 
 ## 1. 产品边界
 
 Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、证据、验收、后台治理和 Git 交付检查。它不自动提交、推送、发布、安装下游项目或修改 `.gitignore`，也不把源码、本地 Runtime、当前 HEAD、远端、fresh clone、发布产物和真实 UI 合并为一个完成结论。
 
-项目配置继续使用 `docs-harness/project-config/v4`，版本值为 `1.7.1`。Harness Home 缺失、没有合法 active 规则、规则指纹漂移、来源版本不一致或配置无效均失败关闭。
+项目配置继续使用 `docs-harness/project-config/v4`，版本值为 `1.7.7`。Harness Home 缺失、没有合法 active 规则、规则指纹漂移、来源版本不一致或配置无效均失败关闭。
 
 ## 2. task-package/v2
 
@@ -31,26 +31,34 @@ Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、�
 
 | 意图 | 默认变更面 | 默认路线 |
 |---|---|---|
-| `query` | `read_only` | `direct` |
-| `audit` | `read_only` | `direct`，高风险可升级 |
-| `git_inspect` | `read_only` | `direct` |
+| `query` | `read_only` | `answer_only` |
+| `review_light` | `read_only` | `answer_only` |
+| `audit_formal`（兼容显式 `audit`） | `read_only` | `direct`，高风险可升级 |
+| `git_inspect` | `read_only` | `answer_only` |
 | `git_fetch` | `git_metadata_write` | `direct` |
 | `git_sync` | `workspace_write` | `planned` |
+| `git_switch` | `workspace_write` | `direct` |
 | `git_commit` | `git_metadata_write` | `direct` |
 | `modify` | `workspace_write` | 按 Gate 决定 |
 | `external_write` | `external_write` | 至少 `planned` |
 
-`git_commit` 覆盖本地提交层（写 `.git` 对象/索引/分支引用，不改工作区、不触远端）：默认动作 `read` + `git_commit`，不附带 `git_fetch` 授权，也不触发远端交付层；触发词为「git commit」「commit」「本地提交」「提交改动」「提交代码」「提交当前」「提交工作区」「提交暂存」，裸「提交」刻意不收（避免「提交证据/提交方案」误判）。任务文本关键词不参与 Gate 分类；规则 keywords 匹配与交付层需求判定仍各自使用否定守卫，因此「不推送」「无需部署」「不要发布」不会误匹配 `DH-RELEASE-AUTHORIZATION-ROLLBACK` 规则，也不会把 `remote_delivery` 层标为 `required`。
+`git_commit` 覆盖本地提交层（写 `.git` 对象/索引/分支引用，不改工作区、不触远端）：默认动作 `read` + `git_commit`，不附带 `git_fetch` 授权，也不触发远端交付层。该意图只能由宿主结构化声明，任务正文中的“commit/提交”等词不参与路由。准入冻结 HEAD、当前分支、工作区内容和候选变化路径，最终由控制器 `git_commit_result` 后检证明 HEAD 只前进一步、仅当前分支引用变化、提交路径来自准入前变化、索引与 HEAD 一致且提交动作未改写工作区内容。任务文本关键词不参与 Gate 分类；Harness Home 规则 keywords 只对 `workspace_write|external_write` 选择规则，只读和 Git 元数据任务必须靠显式 Gate。交付层需求判断继续使用否定守卫，因此「不推送」「无需部署」「不要发布」不会把 `remote_delivery` 层标为 `required`。
 
-宿主使用 `intent_assessment` 提交权威意图声明（`{"intents": [...], "rationale": "..."}`）；兼容字段 `task_intent|candidate_intents` 同样视为显式声明。一旦声明，任务文本启发式不得增补或覆盖；未声明时的启发式结果只是诊断候选，不能授予写权限。写任务缺少意图声明失败关闭，响应携带可填的声明模板。
+宿主使用 `intent_assessment` 提交权威意图声明（`{"intents": [...], "rationale": "..."}`）；迁移期兼容字段 `task_intent|candidate_intents` 同样视为显式声明。生产控制器不再读取任务正文推导 `task_intent|candidate_intents|mutation_profile`，也不按是否存在 scope 默认成 `query` 或 `modify`。所有首次 `run` 都必须提供结构化意图；缺失时在幂等复用和任务状态创建之前返回 `missing_intent_assessment`、`admission_persisted=false` 与可填 Schema，不生成 task-id、任务包或取消需求。
 
-宿主必须在 facts 中提交 `gate_assessment`（`{"gates": [...], "rationale": "..."}`，rationale 为 500 字符内非空字符串）对 Gate 做权威语义判断。写任务缺少该声明失败关闭。初始路径只能推断 `document-edit|code-edit|testing-acceptance` 这类封闭结构 Gate，不根据 `security|auth|api|migration|database|frontend` 等开放路径名称猜语义。项目级稳定映射使用 `.docs-harness/config.json` 的 `gate_path_rules: [{"pattern": "...", "gates": [...]}]` 显式声明，运行期绊线仅依该映射触发语义 Gate。
+`intent_assessment.intents` 只接受受控 `task_intent`。`read_only|git_metadata_write|workspace_write` 属于 `mutation_profile`，`answer_only|ready_direct|ready_planned|ready_extended` 属于准入状态，均不得作为意图；`external_write` 是唯一与变更面同名的合法意图。跨层或未知值返回 `invalid_task_intent`、`admission_persisted=false`、`received_values`、`recognized_layers`、`allowed_intents`、`suggested_candidates` 与 `auto_select=false`，不创建 task-id，也不自动接受别名或反向猜测用户意图。
+
+普通工作区写入和外部写入还必须分别声明 `write_scope` 与 `external_scope`；缺失时返回 `missing_write_scope|missing_external_scope` 和 `admission_persisted=false`。任务正文中的反引号路径不能代替结构化范围或授予权限。`git_sync|git_switch` 使用各自 Git 范围合同，不要求手工文件写范围。
+
+v1 历史任务包迁移不读取 `original_task`：存在冻结 `allowed_scope` 时保守迁移为 `modify/workspace_write`，无范围时迁移为 `query/read_only`，并标记 `intent_decision.mode=legacy_scope_conservative`。
+
+`workspace_write|external_write` 必须在 facts 中提交 `gate_assessment`（`{"gates": [...], "rationale": "..."}`，rationale 为 500 字符内非空字符串）对 Gate 做权威语义判断；只读任务可省略，缺省 Gate 不能授予写权限。初始路径只能推断 `document-edit|code-edit|testing-acceptance` 这类封闭结构 Gate，不根据 `security|auth|api|migration|database|frontend` 等开放路径名称猜语义。项目级稳定映射使用 `.docs-harness/config.json` 的 `gate_path_rules: [{"pattern": "...", "gates": [...]}]` 显式声明，运行期绊线仅依该映射触发语义 Gate。
 
 路径范围只接受项目内相对路径、glob 或受控 Git 资源。完整句子、否定说明和自然语言边界返回 `invalid_scope_description`。形似 JSON 的值（数组或对象整体作为单个 scope 字符串）返回 `invalid_scope_json` 并附修复提示；`--scope` 是可重复单值参数，facts 中 scope 字段必须是字符串数组。自然语言约束应放入任务约束，不得伪装成路径。
 
 所有经 `next_step_payload` 的逐步响应统一携带 `contract_snapshot`：当前 `allowed_scope`/`read_scope`/`write_scope` 实际值、`plan_fields` 与完成清单所需证据类型（`required_evidence_types`）。快照只含合同字段，不含任务正文与原始环境信息。`--facts` 仅在 blocked 或 scope_changed 的重准入时生效；其他状态下提交 facts 不再静默忽略，响应返回 `facts_ignored=true` 与 `facts_effective_condition` 说明。Windows 上文件参数（`--facts`/`--plan`/`--evidence`/`--authorization` 等）传入 Git Bash `/tmp` 等 POSIX 绝对路径导致文件缺失时，错误附带改用工作区相对路径的 `suggested_fix`。
 
-`run` 按 active task key 幂等复用：同一 target、归一化任务文本、事实指纹与当前工作区快照命中活动任务时返回 `active_task_reused` 和原 task_id，不重复建立上下文与授权。任务文本、事实或初始工作区不同则新建；`--new-task` 强制新建；`complete|cancelled|failed|blocked` 状态的任务不复用，blocked 保证重新校验规则。
+`run` 按 active task key 幂等复用：同一 target、归一化任务文本、事实指纹与当前工作区快照命中活动任务时返回 `active_task_reused` 和原 task_id，不重复建立上下文与授权。任务文本、事实或初始工作区不同则新建；`--new-task` 强制新建；`answer_only|complete|cancelled|failed|blocked` 状态的任务不复用，blocked 保证重新校验规则。
 
 ## 3. 准入、路线与完成清单
 
@@ -58,6 +66,7 @@ Docs Harness 负责任务意图、风险 Gate、范围、上下文、授权、�
 
 ```text
 blocked
+answer_only
 needs_plan
 needs_authorization
 ready_direct
@@ -65,22 +74,24 @@ ready_planned
 ready_extended
 ```
 
-只读任务允许空 `write_scope`，不会因此升级为 `planned`。`run` 返回带指纹的 `docs-harness/completion-manifest/v1`：
+只读任务允许空 `write_scope`，不会因此升级为 `planned`。纯 `query|review_light|git_inspect` 在没有显式 Gate、证据或验证命令时返回终态控制状态 `answer_only`：宿主直接回答，不生成 evidence checklist，不要求 read_set，也不运行 verify。普通解释、进度回答、代码阅读和轻量 review 均属于该路线；只有用户明确要求可交付审计报告、证据化结论或高风险验收时，宿主才声明 `audit_formal`。其完成清单为：
 
 ```json
 {
+  "schema_version": "docs-harness/completion-manifest/v1",
   "manifest_fingerprint": "sha256:...",
-  "required_evidence_types": ["source_trace"],
-  "required_receipts": ["read_set"],
+  "required_evidence_types": [],
+  "required_receipts": [],
   "conditional_reviews": [],
   "conditional_evidence": [],
   "verification_commands": [],
   "completion_blockers": [],
-  "completion_protocol": "incremental_receipts_single_final"
+  "verification_required": false,
+  "completion_protocol": "answer_only"
 }
 ```
 
-`verify` 只按当前清单固定项及预声明条件验收，不得在收尾阶段静默增加隐藏要求。产品、架构、安全、数据破坏、外部发布、前端设计、extended 路线，以及任何改变执行路线、授权、范围、方案字段、工作包或阻断交付物的新 Gate，必须完整重新准入。仅追加且保持上述合同不变的普通 Gate 由控制器原子生成下一 package revision：保留首次冻结基线，把同轮已校验收据以 `origin_package_fingerprint|adopted_from_package_fingerprint|adoption_reason` 留痕后继承，并在需要时只要求加载新 action context；宿主不重新执行完整 `run`，也不重新生成相同证据。补证使用增量收据；父任务最终正文只生成一次。
+正式审计、Git 元数据变更、工作区写入和外部写入继续使用 `verification_required=true` 与 `incremental_receipts_single_final`。`verify` 只按当前清单固定项及预声明条件验收，不得在收尾阶段静默增加隐藏要求；对 `answer_only` 的兼容调用直接返回“无需校验”。产品、架构、安全、数据破坏、外部发布、前端设计、extended 路线，以及任何改变执行路线、授权、范围、方案字段、工作包或阻断交付物的新 Gate，必须完整重新准入。仅追加且保持上述合同不变的普通 Gate 由控制器原子生成下一 package revision：保留首次冻结基线，把同轮已校验收据以 `origin_package_fingerprint|adopted_from_package_fingerprint|adoption_reason` 留痕后继承，并在需要时只要求加载新 action context；宿主不重新执行完整 `run`，也不重新生成相同证据。补证使用增量收据；父任务最终正文只生成一次。
 
 低风险任务可显式声明 `fast_track: true`；生效时 `required_evidence_types` 收敛为 `code_diff + change_review`，声明验证命令时再加 `test_run`。`code_diff` 证明差异事实，`change_review` 证明变更与意图一致，两者不得互相替代。
 
@@ -101,7 +112,7 @@ ui
 external_state
 ```
 
-`query|audit|git_inspect` 默认将 `remote_delivery` 与 `fresh_clone` 标记为 `not_applicable`；本地 `modify` 未声明 Git 或外部交付时标记为 `not_requested`；`git_sync|external_write` 或成功标准明确要求远端、发布、安装或 fresh clone 时标记为 `required`。`acceptance_layers` 只列出证据已验证的层，不再由完成函数固定生成；`known_limit_codes` 只从 `expectation=required` 且未验证的层派生，`remote_delivery_not_verified` 不再是无条件默认值。`not_applicable|not_requested` 不产生“未验证”告警，但必须在 `delivery_layers` 中可见。远端、fresh clone、发布产物与 UI 证据分别绑定独立证据类型（`remote_delivery`、`fresh_clone_verification`、`release_acceptance`、`ui_acceptance`），不得由一个 Git 后检统一推导。
+`query|review_light|audit|audit_formal|git_inspect` 默认将 `remote_delivery` 与 `fresh_clone` 标记为 `not_applicable`；本地 `modify` 未声明 Git 或外部交付时标记为 `not_requested`；`git_sync|external_write` 或成功标准明确要求远端、发布、安装或 fresh clone 时标记为 `required`。`acceptance_layers` 只列出证据已验证的层，不再由完成函数固定生成；`known_limit_codes` 只从 `expectation=required` 且未验证的层派生，`remote_delivery_not_verified` 不再是无条件默认值。`not_applicable|not_requested` 不产生“未验证”告警，但必须在 `delivery_layers` 中可见。远端、fresh clone、发布产物与 UI 证据分别绑定独立证据类型（`remote_delivery`、`fresh_clone_verification`、`release_acceptance`、`ui_acceptance`），不得由一个 Git 后检统一推导。
 
 ## 4. Git 状态合同
 
@@ -131,7 +142,9 @@ external_state
 
 远端 URL 在计算指纹前移除用户名、密码、token、查询参数和 fragment，Runtime 不保存原文。
 
-- `git_inspect` 只读，不要求逐文件写入范围；
+- `git_inspect` 只读并使用 `answer_only`，不要求逐文件写入范围、证据或 verify；
+- `git_switch` 只接受单一 `.git:refs/heads/<branch>`，初期仅支持干净工作区中的已有本地分支；预检检查当前分支、HEAD、目标 OID、索引和所有 worktree 占用，不自动移动或删除 worktree；
+- `git_switch_result` 后检当前分支与 HEAD 已匹配冻结目标、refs 未漂移、索引匹配 HEAD 且工作区干净；分支或路径中的 `review|audit|fix|release` 等文字不能改变意图；
 - `git_fetch` 只允许声明的远端 refs/objects 变化，HEAD、索引和工作区必须不变；
 - `git_sync` 绑定单一预检 OID，自动生成新增、修改、删除和重命名范围；
 - `controlled_refs_namespace` 自动包含 `.git:refs/remotes/<remote>/HEAD`（由 `git_scope` 的远端引用推导），`origin/HEAD` 的创建或更新不再判为 ref 越界；

@@ -1,0 +1,14 @@
+{
+  "schema_version": "docs-harness/evidence-declaration/v1",
+  "type": "test_result",
+  "write_set": [
+    "scripts/harness.py",
+    "tests/test_harness.py"
+  ],
+  "read_set": [
+    "tests/test_release_version_sync.py",
+    "docs/testing.md"
+  ],
+  "concurrent_drift": [],
+  "conclusion": "完整回归实测通过：npm test 运行去重后发现集 268 项测试，结果 OK，0 failures 0 errors；发现集断言证明无继承重复执行、无漏测（基线 267 个唯一测试各执行一次）。npm run self-test 通过（rule_errors 为空）。npm run pack:check 通过，产出 docs-harness-1.7.7.tgz（50 个文件）。release sync --target . --target-version 1.7.7 返回 status=consistent，VERSION、controller、skill、package 四源一致为 1.7.7，CHANGELOG 顶版本一致，diffs 为空。Python 编译与 JSON 解析正常。"
+}
