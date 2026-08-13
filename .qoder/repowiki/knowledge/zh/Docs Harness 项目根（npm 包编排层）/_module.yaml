@@ -1,6 +1,6 @@
 schema_version: 1
 module_path: ""
-title: Docs Harness 技能包根
+title: Docs Harness 项目根（npm 包编排层）
 scope:
     - SKILL.md
     - .gitignore
