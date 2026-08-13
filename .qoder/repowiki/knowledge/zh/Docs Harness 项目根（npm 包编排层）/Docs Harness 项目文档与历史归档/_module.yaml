@@ -1,8 +1,0 @@
-schema_version: 1
-module_path: documentation
-title: Docs Harness 项目文档与历史归档
-scope:
-    - docs/
-source_files: []
-depends_on: []
-related_to: []

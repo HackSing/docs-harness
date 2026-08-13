@@ -1,12 +1,12 @@
-# Docs Harness 2.0.0 待办
+# Docs Harness 2.1.0 待办
 
-本文件只记录 2.0.0 当前尚未完成的交付层。1.x 已完成事项保留在 Git 历史、CHANGELOG 和 `docs/history/`，不再作为当前 TODO。
+本文件只记录 2.1.0 当前尚未完成的交付层。1.x 已完成事项保留在 Git 历史、CHANGELOG 和 `docs/history/`，不再作为当前 TODO。
 
 ## 发布前
 
 - 在正式 npm 包 fresh install 环境验证安装、CLI 和自检；
 - 在一个真实 pre-2.0 下游项目执行 upgrade preview，人工确认所有权清单后再决定是否 apply；
-- 正式发布前复核 npm 包只包含当前 2.0.0 对外文档，历史方案、旧规则和旧状态机测试不进入包。
+- 正式发布前复核 npm 包只包含当前 2.1.0 对外文档，历史方案、旧规则和旧状态机测试不进入包。
 
 ## 下游
 

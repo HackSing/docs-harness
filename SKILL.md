@@ -2,11 +2,11 @@
 name: docs-harness
 description: "默认不介入普通任务；仅按需提供项目知识、方案模板和真实验收记录。"
 metadata:
-  version: 2.0.0
+  version: 2.3.0
   status: active
 ---
 
-# Docs Harness 2.0.0
+# Docs Harness 2.3.0
 
 Docs Harness 是可选的项目辅助能力，不是每个任务必须经过的工单系统。
 
@@ -43,6 +43,8 @@ python3 scripts/harness.py plan select --target . \
 - `full`：完整通用模板，加一个主领域 Profile；
 - Profile：`general|frontend_ui|backend_service|bugfix|architecture|migration_release`。
 
+`full + bugfix` 必须填写结构化 `affected_modules`、`verification_scope`、`full_regression_trigger` 和 `failure_attribution`。默认选择 `affected_modules`；`repository_full` 只接受跨模块、公共契约、共享基础设施、依赖/共享夹具或发布门禁原因码。四项字段进入 `execution_projection`。
+
 用户明确指定模板时优先采用。前后端等复合任务仍只有一份主方案，次级 Profile 只补会改变执行或验收的字段。
 
 模型按选择结果生成内容 JSON 后，由 Harness 校验并冻结：
@@ -64,17 +66,17 @@ Git 写入、删除、发布、安装和外部系统写入等高风险动作完�
 验收按修改面选择最低成本但能直接覆盖用户目标的真实流程：
 
 - L1：lint、类型、编译、静态合同；
-- L2：单元、接口、组件或命令行为；
+- L2：聚焦测试或仓库级全量测试行为；
 - L3：本地应用或服务真实流程；
 - L4：构建、包或安装产物；
-- L5：用户可见、权限、硬件或主观体验。
+- L5：真实设备行为，或与其分离的用户可见、权限和主观体验。
 
 ```bash
 python3 scripts/harness.py acceptance record --target . \
   --input <acceptance.json> --json
 ```
 
-Contract Check、Behavior Acceptance 和 User Acceptance 必须分开。L1 只记录源码与合同一致性，不能声明行为已经正确；源码通过也不能冒充包、安装或用户验收。独立 CLI 只记录 `user_pending`，不能自行宣称用户已经接受。Codex 无法完成 L5 时，先准备可运行环境，再交付最短用户操作步骤，并披露未验证事项。
+Contract Check、Behavior Acceptance 和 User Acceptance 必须分开。Behavior Acceptance 使用 `evidence_layer=focused_test|repository_full_test|local_runtime|package_or_install|real_device`，并固定映射到 L2/L2/L3/L4/L5；任一层不得替代另一层。失败必须用 `failure_attributions[]` 分项记录 `change_related|unrelated|pre_existing|environment|flaky`、阻断性和证据。真实设备行为记录不等于用户主观确认；独立 CLI 仍不能自行声明用户已经接受。
 
 ## ADR
 
@@ -82,16 +84,25 @@ ADR 只用于会长期约束架构边界、公共接口、兼容、安全、数�
 
 ## 2.0.0 迁移边界
 
-旧控制流程已经移除，不存在兼容入口。旧命令和 `--legacy-opt-in` 不属于 2.0.0 CLI；升级旧项目时先读取 `docs/migrations/v2.0.0.md` 并运行 preview，只清理可证明归属的旧工件，项目文档和归属不明内容必须保留。
+旧控制流程已经移除，不存在兼容入口。旧命令和 `--legacy-opt-in` 不属于 2.x CLI；升级旧项目时先读取 `docs/migrations/v2.0.0.md` 并运行 preview，只清理可证明归属的旧工件，项目文档和归属不明内容必须保留。
 
-升级 pre-2.0 项目必须使用 2.0.0 来源包中的控制器，不能使用目标项目尚未升级的旧控制器。
+升级 pre-2.0 项目必须使用当前 2.3.0 来源包中的控制器，不能使用目标项目尚未升级的旧控制器。
 
 ## 项目安装
 
 ```bash
-python3 <docs-harness>/scripts/harness.py project init --target <project> --json
-python3 <docs-harness-2.0.0-source>/scripts/harness.py project upgrade --target <project> --json
-python3 <docs-harness-2.0.0-source>/scripts/harness.py project upgrade --target <project> --apply --json
+python3 <docs-harness-2.3.0-source>/scripts/harness.py project init --target <project> --json
+python3 <docs-harness-2.3.0-source>/scripts/harness.py project upgrade --target <project> --json
+python3 <docs-harness-2.3.0-source>/scripts/harness.py project upgrade --target <project> --apply --json
+python3 scripts/harness.py project upgrade --target . --source <docs-harness-2.3.0-source> --apply --json
+python3 scripts/harness.py project check --target . --json
+python3 scripts/harness.py project diff --target . --json
+python3 scripts/harness.py project uninstall --target <project> --json
+python3 scripts/harness.py project uninstall --target <project> --apply --json
+python3 scripts/harness.py docs-check --target .
+python3 scripts/harness.py self-test --target .
 ```
 
 fresh init 只写受管入口、控制器、方案模板和 `project-config/v6`；不安装旧规则，不创建项目知识正文，不自动启动知识或后台治理 Job，不提交、不推送、不发布。upgrade 是单向迁移：先预览，再清理所有权明确的旧规则、知识地图、受管版本区块和旧 Runtime，同时保留项目正文、质量账本以及已修改或归属不明文件。
+
+安装态可用 `project check` 核对版本、指纹与 Git 交付状态，`project diff` 只读列出与来源包的漂移；两者不做任何写入。`project uninstall` 先预览再删除所有权明确的受管文件（控制器、方案模板、config 与受管区块），项目文档、质量账本和用户正文一律保留。`docs-check` 是 docs/plans 可发现性常驻检查（状态横幅、索引条目、归档链接），`--strict` 使 WARN 也返回非 0 退出码，供 CI 使用；无 docs/plans 体系时自动 skipped。`self-test` 运行内置自检。init、upgrade、uninstall、check、diff 必须使用来源包或安装态中版本不低于目标的控制器；upgrade 不能从模板已缺失或滞后的项目内副本取得来源；从项目内安装副本运行 init/upgrade 时必须用 `--source` 显式指定同版本完整源包，跨版本升级必须直接运行源包内的控制器。

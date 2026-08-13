@@ -1,8 +1,0 @@
-schema_version: 1
-module_path: documentation/history_plans_reviews
-title: Docs Harness 历史方案与审查档案
-scope:
-    - docs/history/
-source_files: []
-depends_on: []
-related_to: []

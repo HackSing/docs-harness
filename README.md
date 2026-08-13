@@ -1,6 +1,6 @@
-# Docs Harness 2.0.0
+# Docs Harness 2.3.0
 
-Docs Harness 2.0.0 的核心变化是：**Codex 默认直接工作，Harness 只在确实能增加价值时提供一项独立能力。**
+Docs Harness 2.x 的核心变化是：**Codex 默认直接工作，Harness 只在确实能增加价值时提供一项独立能力。**
 
 1.x 把任务准入、Gate、上下文、Plan、Evidence、Verify 和 Readmission 串成一条强制流程。实际项目审查发现，这条控制链会把大量项目管理工作、重复状态和补证动作放进模型上下文，导致用户任务更慢、注意力被分散。2.0.0 不再优化这条强制链，而是改变默认产品合同。
 
@@ -60,7 +60,7 @@ python3 scripts/harness.py plan select --target . \
 - `general`：通用复杂任务；
 - `frontend_ui`：用户流程、完整状态、交互、视觉、可访问性和真实页面验收；
 - `backend_service`：接口、数据、一致性、失败、幂等、安全、性能和服务验收；
-- `bugfix`：精确复现、完整时间线、首次偏离、根因和回归路径；
+- `bugfix`：精确复现、完整时间线、首次偏离、根因、受影响模块、验证范围、全量触发依据和失败归因；
 - `architecture`：候选、取舍、决策、边界、兼容、迁移、回滚和 ADR 处理；
 - `migration_release`：版本、产物、灰度、数据安全、停止条件、回滚和交付层。
 
@@ -88,12 +88,14 @@ python3 scripts/harness.py acceptance record --target . \
 | 层级 | 能证明什么 |
 |---|---|
 | L1 | 源码、类型、编译或静态合同一致 |
-| L2 | 聚焦行为在测试、接口、组件或命令中成立 |
+| L2 | 聚焦测试或仓库级全量测试行为成立，两者证据面仍分开 |
 | L3 | 本地应用或服务真实流程成立 |
 | L4 | 构建、包或安装产物成立 |
-| L5 | 用户可见、权限、硬件或主观体验成立 |
+| L5 | 真实设备行为成立，或用户可见、权限和主观体验经用户确认 |
 
-独立 CLI 不接受 `user_acceptance + passed` 的自我声明，只记录 `user_pending`；用户确认完成必须由可信宿主通道或最终用户界面登记。
+Behavior Acceptance 必须声明 `evidence_layer`，固定为 `focused_test|repository_full_test|local_runtime|package_or_install|real_device`，分别映射到 L2/L2/L3/L4/L5。层级不可替代：仓库全量通过不能证明包/安装或真实设备，真实设备证据也不能冒充用户主观确认。
+
+失败输入必须提供 `failure_attributions[]`，每项独立记录 `category`、`summary`、`blocking` 和 `evidence_refs`；类别只允许 `change_related|unrelated|pre_existing|environment|flaky`。独立 CLI 不接受 `user_acceptance + passed` 的自我声明，只记录 `user_pending`。
 
 Contract Check 只证明范围、格式或授权一致，永远不返回 `behavior_verified`。失败响应只包含真实失败原因和下一步。Codex 无法完成 L5 时，必须先准备运行环境，再返回最短用户验收步骤。
 
@@ -110,16 +112,23 @@ Contract Check 只证明范围、格式或授权一致，永远不返回 `behavi
 ## 安装与升级
 
 ```bash
-python3 <docs-harness-2.0.0-source>/scripts/harness.py project init --target <project> --json
-python3 <docs-harness-2.0.0-source>/scripts/harness.py project upgrade --target <project> --json
-python3 <docs-harness-2.0.0-source>/scripts/harness.py project upgrade --target <project> --apply --json
+python3 <docs-harness-2.3.0-source>/scripts/harness.py project init --target <project> --json
+python3 <docs-harness-2.3.0-source>/scripts/harness.py project upgrade --target <project> --json
+python3 <docs-harness-2.3.0-source>/scripts/harness.py project upgrade --target <project> --apply --json
+python3 scripts/harness.py project upgrade --target <project> --source <docs-harness-2.3.0-source> --apply --json
+python3 scripts/harness.py project check --target <project> --json
+python3 scripts/harness.py project diff --target <project> --json
+python3 scripts/harness.py project uninstall --target <project> --json
+python3 scripts/harness.py project uninstall --target <project> --apply --json
+python3 scripts/harness.py docs-check --target <project>
+python3 scripts/harness.py self-test --target <project>
 ```
 
-pre-2.0 项目必须用新取得的 2.0.0 来源包执行 upgrade；不能调用目标项目里仍是旧版本的 scripts/harness.py 来完成换代。安装后的项目脚本可用于 project check、project diff、知识查询、方案和验收。
+pre-2.0 项目必须用新取得的当前来源包执行 upgrade；不能调用目标项目里仍是旧版本的 scripts/harness.py 来完成换代；`--source` 允许项目内安装副本显式指定同版本完整源包执行 init/upgrade，来源包版本必须与当前控制器一致，跨版本升级仍须直接运行源包内的控制器。安装后的项目脚本可用于 project check、project diff、知识查询、方案和验收。`project uninstall` 删除所有权明确的受管文件并保留全部用户文档；`docs-check` 对 docs/plans 体系做状态横幅、索引条目与归档链接的常驻检查，`--strict` 供 CI 将 WARN 计入失败。
 
-2.0.0 安装内容包括：
+2.3.0 安装内容包括：
 
-- 受管 `AGENTS.md` 与 `CLAUDE.md` 区块；
+- 受管 `AGENTS.md` 与 `CLAUDE.md` 区块（`AGENTS.md` 区块含工作流规则、编码质量规范、防御代码准入、提示词与代码流程同步、测试与验收范围等通用工程规范）；
 - `scripts/harness.py`；
 - `plan-templates/` 版本化模板；
 - `.docs-harness/config.json`（`project-config/v6`）。
@@ -136,6 +145,6 @@ npm run self-test
 npm run pack:check
 ```
 
-本地版本号为 2.0.0 不等于已经提交、推送、发布、同步到 ZBuddy 或完成真实用户验收。
+本地版本号为 2.3.0 不等于已经提交、推送、发布、同步到 ZBuddy 或完成真实用户验收。
 
 文档入口见 [docs/README.md](docs/README.md)，详细合同见 [docs/contracts.md](docs/contracts.md)，完整产品与实施依据见 [2.0.0 方案](docs/plans/docs-harness-v2.0.0-direct-first-plan.md)。

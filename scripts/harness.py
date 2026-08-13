@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Docs Harness 2.0.0：默认直跑，按需知识、方案模板、真实验收与单向迁移。"""
+"""Docs Harness 2.3.0：默认直跑，按需知识、方案模板、真实验收与单向迁移。"""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 
-VERSION = "2.0.0"
+VERSION = "2.3.0"
 CONFIG_SCHEMA = "docs-harness/project-config/v6"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
     f"docs-harness/project-config/v{version}" for version in range(1, 6)
@@ -27,8 +27,8 @@ KNOWN_LEGACY_CONFIG_SCHEMAS = {
 PLAN_TEMPLATE_SCHEMA = "docs-harness/plan-template/v2"
 PLAN_SELECTION_SCHEMA = "docs-harness/plan-selection/v2"
 PLAN_SCHEMA = "docs-harness/plan/v2"
-ACCEPTANCE_INPUT_SCHEMA = "docs-harness/acceptance-input/v2"
-ACCEPTANCE_RECORD_SCHEMA = "docs-harness/acceptance-record/v2"
+ACCEPTANCE_INPUT_SCHEMA = "docs-harness/acceptance-input/v3"
+ACCEPTANCE_RECORD_SCHEMA = "docs-harness/acceptance-record/v3"
 
 SCRIPT_ROOT = Path(__file__).resolve().parents[1]
 PLAN_TEMPLATES_RELATIVE = "plan-templates"
@@ -84,7 +84,34 @@ ACCEPTANCE_LAYERS = {
     "L4": "package_or_install",
     "L5": "user_visible",
 }
+ACCEPTANCE_EVIDENCE_LAYERS = {
+    "focused_test": "L2",
+    "repository_full_test": "L2",
+    "local_runtime": "L3",
+    "package_or_install": "L4",
+    "real_device": "L5",
+}
+FULL_REGRESSION_REASON_CODES = {
+    "cross_module_change",
+    "public_contract_change",
+    "shared_infrastructure_change",
+    "dependency_or_shared_fixture_change",
+    "release_gate",
+}
+FAILURE_ATTRIBUTION_CATEGORIES = {
+    "change_related",
+    "unrelated",
+    "pre_existing",
+    "environment",
+    "flaky",
+}
 SEMVER_PATTERN = r"[0-9]+\.[0-9]+\.[0-9]+"
+DOCS_CHECK_BANNER_MARKER = "状态："
+DOCS_CHECK_BANNER_STATES = ("有效", "已实施-仅追溯", "已废弃")
+DOCS_CHECK_ARCHIVE_EXEMPTION = "已归档"
+DOCS_CHECK_EXCLUDED_DIRS = {"node_modules", ".worktrees", "deliverables", "output", "artifacts"}
+DOCS_CHECK_STALE_DAYS = 90
+DOCS_CHECK_SYMBOL_MAX_FILE_BYTES = 2_000_000
 
 
 class HarnessError(Exception):
@@ -259,7 +286,78 @@ def parse_frontmatter(text: str) -> tuple[dict[str, str], str]:
     return metadata, text[end + 5 :]
 
 
-def managed_agent_block(target: Path) -> str:
+_GENERIC_STANDARDS = """
+## 工作流规则
+
+每条规则自带触发条件；不满足触发条件的部分不启用，无需另行豁免。
+
+1. **验收先行**：动手前先把验收条件转写为可执行的验证方式（测试、命令或复现步骤），完成与否以此为准。验收标准明确时直接执行，验证结果随收尾报告交付；仅当验收标准缺失或有歧义、且不同理解会改变方案时，先向用户确认。
+2. **根因优先**：修复 bug 前先定位根因并列出影响面（含同根因可能导致的其他表现）。根因清楚且修复局部、可逆时直接修，根因分析随收尾报告交付；根因跨模块、修复不可逆或存在代价不同的多个方案时，先经用户确认再改代码。
+3. **回归必跑**：交付代码改动前，跑受影响模块的回归验证并附输出（模块级，非仓库级全量；全量测试的触发条件见"测试与验收范围"）。涉及工具 handler/状态机/workflow 的改动不因任务小而豁免：须逐段给出消费链确认证据——改了生产者不查消费者，是隐性回归的首要来源。
+4. **分批交付**：改动跨模块数据流或预计 >3 个文件时分批执行：改完 → 验证 → 锁定 → 下一批。批次划分随首批一并报告；仅当某批含不可逆或高风险动作时，先经用户确认。
+
+## 编码质量规范
+
+写代码时以下规则与任务要求同级，违反任何一条都算任务未完成：
+
+1. **先复用，后新写。** 动手前必须搜索仓库里是否已有相同或相近的实现；存在就复用或扩展，不得平行再写一份。无法复用时，在收尾报告里说明搜过什么、为何不能复用。
+2. **重复即抽象。** 同一段逻辑出现第 3 次时必须抽成独立函数或模块，并让原有调用点改用它；不允许复制粘贴后微调。
+3. **分层隔离。** 界面/渲染代码、业务逻辑、外部 IO（文件、网络、进程间通信、系统调用）不得混在同一个函数里。
+4. **接口先行。** 新增模块必须先定义对外接口和数据类型，再写实现；对外暴露的东西越少越好，默认不导出。
+5. **体量红线。** 单个函数超过 60 行、单个文件超过 400 行时必须拆分；确实不能拆的，在收尾报告里说明理由。不得为绕过红线做无意义的机械切割。
+6. **错误不许吞。** 每个错误要么正确处理，要么明确向上传递；不得静默忽略或仅打印日志后继续。
+7. **不擅自加依赖。** 新增第三方库前必须说明：解决什么问题、为何标准库或现有依赖不够。未经用户确认不引入。
+8. **收尾自查。** 报告改动时额外回答两个问题：本次是否引入了重复逻辑（答"没有"要说明依据）；本次新增的抽象各自的职责是什么。答不出视为未完成。
+9. **业务默认值单一来源。** 所有业务默认值必须定义为具名常量并在唯一位置赋值，不得在 fallback、反序列化、条件分支中硬编码。修改默认值时只改一处，不会因遗漏产生隐性分歧。
+
+## 防御代码准入
+
+修复落在状态或数据的所有者层，优先恢复不变量；不得在各消费者层层加兜底。
+
+1. **证据准入**：新增 fallback、retry、兼容分支、catch-and-continue、数据修复或重复校验前，必须有当前接口契约或可复现运行证据证明该状态确实可达；拿不出证据的潜在风险只写进收尾报告，不转化为代码。
+2. **边界一次校验**：数据在边界完成校验与规范化后，下游信任其类型与不变量，不再重复防御。
+3. **不顺手加固**：不以"更保险""顺手加固"为理由扩大修改面；顺手发现的问题走报告，不走代码。
+
+## 提示词与代码流程同步
+
+提示词是代码流程的投影，两者必须同步。错位一处，弱模型就卡一处。
+
+1. **代码加了门禁，提示词就要写明前置步骤。** 如果代码要求先调用工具 A 解锁工具 B，提示词里就必须写"先调用 A，再执行后续步骤"。不能让模型自己推理出这层依赖关系。
+2. **代码自动注入数据，提示词就要说清模型不用管。** 如果渲染工具会自动从已确认的 Spec 读取文案，提示词要明确写"文案已自动加载，你只需提供映射关系"。否则模型会花大量 token 焦虑"我看不到内容怎么办"。
+3. **状态字段必须自解释。** 一个状态值对应一个明确动作。如果模型需要组合多个字段才能判断该做什么，就会在弱模型上出错。拍成单字段线性流转。
+4. **提示词只给当前步骤的指令。** 不要把所有阶段的规则堆在一起让模型自己筛选。每个阶段的提示词只描述该阶段该做什么，用编号步骤而非散文段落。
+5. **改了代码流程就要同步改提示词，反之亦然。** 每次修改工具解锁顺序、状态迁移逻辑或数据注入方式后，必须检查对应的提示词是否仍然准确。两者不同步是 AI 工作流 bug 的首要来源。
+
+## 测试与验收范围：聚焦优先，按风险扩展
+
+- 修复 Bug 或实现改动时，默认按"最小复现或最小验证 → 改动验证 → 受影响模块测试 → 必要的相邻契约或真实流程"逐层验证，达到最小充分证据后停止。
+- "受影响模块测试"覆盖该模块的完整测试集；"仓库级全量测试"指跨越本次影响面的全仓测试、全平台矩阵、全量 race 或完整端到端套件。
+- 仅在以下条件至少满足一项时运行仓库级全量测试：
+  - 用户明确要求；
+  - 修改涉及公共基础设施、共享依赖、构建链、全局配置、协议或跨模块公共契约；
+  - 影响边界经调查后仍不能可靠收敛；
+  - 聚焦测试发现系统性风险；
+  - 合并、发布、打包或正式验收入口明确要求。
+- 不得仅以"更保险"或"让证据更充分"为理由运行全量测试，也不得重复运行已通过且输入未变的测试。确需全量时，先说明触发条件、拟执行命令和已知成本。
+- 全量测试发现的既有失败、环境失败或 flaky 失败必须单独归因和报告，不得算作本次修复失败，也不得借机修改无关代码。
+- 聚焦测试通过不等于安装包、真实设备或外部服务通过——这些层级只在任务需要时分别验收。收尾时应报告实际执行的命令、退出结果、覆盖层级和未覆盖风险。
+
+## 文档可发现性规范（plans 文档）
+
+新增、实质修改或废弃 `docs/plans/` 文档时，同一次提交内完成以下闭环（可用 `python scripts/harness.py docs-check` 校验）：
+
+1. **状态横幅**：文件前 3 行内标注三值之一——`有效（现行事实/实施中）`、`已实施-仅追溯（代码已是真源，YYYY-MM-DD 核对）`、`已废弃-被 <文件> 取代（YYYY-MM-DD 核对）`。判定纪律：代码中找不到符号只能证明概念已死，不能证明 plan 过期（合法待实施方案同样没有代码）；证据不足标"存疑"，交用户裁决。
+2. **索引带符号**：`docs/INDEX.md` 条目带 2-4 个唯一性强的代码符号（取正文反引号标识符按频次排序，剔除 runId 类全仓通用词）+ 状态镜像，使 grep 符号能同时命中源码、索引与文档。
+3. **废弃归档**：废弃/被吸收文档移入 `docs/plans/archive/` 并退出活索引；移动必须 sweep 全仓 `.md` 相对链接，不留死链；新文档取代旧文档时，旧文档横幅同步改为"已废弃-被本文件取代"。
+4. **WARN 消费**：agent 在某领域执行任务收尾时，若 docs-check 输出与该领域相关的 WARN，必须在收尾报告中向用户转达，不得静默略过。
+
+## 收尾
+
+报告实际改动路径、执行命令与退出结果、验收层、未覆盖项和剩余风险。没有证据时不得声称完成。"""
+
+
+def _managed_content(target: Path) -> str:
+    """Harness 运行模式 + 通用规范。AGENTS.md 与 CLAUDE.md 受管区块共享。"""
     if (target / REPOWIKI_RELATIVE).is_dir():
         knowledge_line = (
             "- 需要项目架构或模块事实时，优先按需阅读 .qoder/repowiki/zh/content/ "
@@ -270,27 +368,28 @@ def managed_agent_block(target: Path) -> str:
             "- 需要项目架构或历史事实时，先查当前源码与符号；仍缺关键事实再显式运行 "
             "knowledge query，不得全量加载 docs/。"
         )
-    return f"""{MANAGED_BEGIN}
-## Docs Harness 2.0.0：默认直跑，能力按需
+    return f"""## Docs Harness {VERSION}：默认直跑，能力按需
 
 Docs Harness 当前版本：{VERSION}
 
-- 普通问答、只读检查、代码修改、构建和测试默认由 Codex 直接完成；Harness 不作为任务入口，也不创建任务控制状态。
+- 普通问答、只读检查、代码修改、构建和测试默认由 agent 直接完成；Harness 不作为任务入口，也不创建任务控制状态。
 - 用户明确说“不使用 Harness”时必须直接执行，不得暗中恢复旧流程。
 - 只有缺少的项目事实会改变目标、范围、方案或验收时才运行只读 knowledge query。
 - 简单任务不生成方案；复杂、跨模块、高风险或用户明确要求时才运行 plan select，按 Level 与实际修改面 Profile 生成方案。
 - 验收以真实功能为中心：能运行聚焦测试、接口、页面、应用、构建或安装流程时运行最小充分流程；不能独立判断时准备最低成本环境，再交给用户做最短确认。
-- 高风险动作使用 Codex 原生授权与沙箱，不建立第二套 Harness Gate 或授权协议。
+- 高风险动作使用原生授权与沙箱，不建立第二套 Harness Gate 或授权协议。
 {knowledge_line}
 - pre-2.0 项目只通过 project upgrade 单向迁移；迁移后不保留旧运行能力。
-- 不自动更新知识库、ADR、Changelog、TODO 或质量账本。ADR 由主 Codex 编写，复杂决策可选只读子智能体复审。
-{MANAGED_END}"""
+- 不自动更新知识库、ADR、Changelog、TODO 或质量账本。ADR 由主 agent 编写，复杂决策可选只读子智能体复审。
+{_GENERIC_STANDARDS}"""
 
 
-def claude_block() -> str:
-    return f"""{CLAUDE_BEGIN}
-执行任务前读取 AGENTS.md。Docs Harness 2.0.0 默认不作为任务入口，只按其中规则调用可选知识、方案或真实验收能力。
-{CLAUDE_END}"""
+def managed_agent_block(target: Path) -> str:
+    return f"{MANAGED_BEGIN}\n{_managed_content(target)}\n{MANAGED_END}"
+
+
+def claude_block(target: Path) -> str:
+    return f"{CLAUDE_BEGIN}\n{_managed_content(target)}\n{CLAUDE_END}"
 
 
 def validate_managed_markers(text: str, begin: str, end: str) -> None:
@@ -344,10 +443,52 @@ def template_fingerprints(root: Path) -> dict[str, str]:
 
 
 def validate_project_source(source_root: Path) -> None:
+    source_hint = (
+        f"若你正从项目内已安装的副本运行 init/upgrade，请改用完整的 Docs Harness {VERSION} 源包，"
+        "或先恢复项目内缺失的 plan-templates 文件"
+    )
     if not (source_root / "scripts" / "harness.py").is_file():
-        raise HarnessError("来源包缺少 scripts/harness.py", code="invalid_source")
+        raise HarnessError(
+            f"来源包缺少 scripts/harness.py（{source_hint}）", code="invalid_source"
+        )
     if not template_fingerprints(source_root / PLAN_TEMPLATES_RELATIVE):
-        raise HarnessError("来源包缺少完整 2.0.0 方案模板", code="invalid_source")
+        raise HarnessError(
+            f"来源包缺少完整 {VERSION} 方案模板（{source_hint}）", code="invalid_source"
+        )
+
+
+def source_package_version(source_root: Path) -> str:
+    version_file = source_root / "VERSION"
+    if version_file.is_file():
+        return version_file.read_text(encoding="utf-8").strip()
+    match = re.search(
+        r'^VERSION\s*=\s*"([^"]+)"',
+        (source_root / "scripts" / "harness.py").read_text(encoding="utf-8"),
+        re.MULTILINE,
+    )
+    if not match:
+        raise HarnessError(
+            "来源包缺少 VERSION 文件，且无法从 scripts/harness.py 读取版本",
+            code="invalid_source",
+        )
+    return match.group(1)
+
+
+def resolve_source_root(raw: str, target: Path) -> Path:
+    source_root = Path(raw).expanduser().resolve()
+    if not source_root.is_dir() or source_root.is_symlink():
+        raise HarnessError(
+            f"来源包必须是真实目录：{source_root}", code="invalid_source"
+        )
+    validate_project_source(source_root)
+    source_version = source_package_version(source_root)
+    if source_version != VERSION:
+        raise HarnessError(
+            f"来源包版本 {source_version} 与当前控制器版本 {VERSION} 不同；"
+            "跨版本升级请直接运行源包内的 scripts/harness.py project upgrade",
+            code="source_version_mismatch",
+        )
+    return source_root
 
 
 def project_config(target: Path) -> dict[str, Any] | None:
@@ -513,13 +654,15 @@ def unique_fields(items: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
         field_id = item.get("id")
         if isinstance(field_id, str) and field_id not in seen:
             seen.add(field_id)
-            result.append(
-                {
-                    "id": field_id,
-                    "label": item.get("label", field_id),
-                    "required": bool(item.get("required")),
-                }
-            )
+            normalized = {
+                "id": field_id,
+                "label": item.get("label", field_id),
+                "required": bool(item.get("required")),
+            }
+            guidance = item.get("guidance")
+            if isinstance(guidance, str) and guidance.strip():
+                normalized["guidance"] = guidance.strip()
+            result.append(normalized)
     return result
 
 
@@ -532,7 +675,7 @@ def build_plan_selection(
 ) -> dict[str, Any]:
     registry = template_registry(SCRIPT_ROOT / PLAN_TEMPLATES_RELATIVE)
     if not registry:
-        raise HarnessError("2.0.0 方案模板不完整", code="invalid_plan_registry")
+        raise HarnessError(f"{VERSION} 方案模板不完整", code="invalid_plan_registry")
     fields: list[dict[str, Any]] = []
     versions: list[str] = []
     if level != "none":
@@ -622,6 +765,88 @@ def nonempty_plan_value(value: Any) -> bool:
     return value is not None
 
 
+def nonempty_string_list(value: Any) -> bool:
+    return (
+        isinstance(value, list)
+        and bool(value)
+        and all(isinstance(item, str) and bool(item.strip()) for item in value)
+    )
+
+
+def validate_bugfix_plan_contract(selection: dict[str, Any], content: dict[str, Any]) -> None:
+    profiles = {selection.get("plan_profile"), *selection.get("secondary_profiles", [])}
+    if selection.get("plan_level") != "full" or "bugfix" not in profiles:
+        return
+
+    if not nonempty_string_list(content.get("affected_modules")):
+        raise HarnessError("Bugfix 方案的 affected_modules 必须是非空字符串数组", code="invalid_plan_content")
+
+    scope = content.get("verification_scope")
+    if not isinstance(scope, dict):
+        raise HarnessError("Bugfix 方案的 verification_scope 必须是对象", code="invalid_plan_content")
+    mode = scope.get("mode")
+    if mode not in {"affected_modules", "repository_full"}:
+        raise HarnessError(
+            "verification_scope.mode 必须是 affected_modules 或 repository_full",
+            code="invalid_plan_content",
+        )
+    if not nonempty_string_list(scope.get("commands")):
+        raise HarnessError("verification_scope.commands 必须是非空字符串数组", code="invalid_plan_content")
+    reused = scope.get("reused_passed_evidence")
+    if not isinstance(reused, list) or any(
+        not isinstance(item, str) or not item.strip() for item in reused
+    ):
+        raise HarnessError(
+            "verification_scope.reused_passed_evidence 必须是字符串数组",
+            code="invalid_plan_content",
+        )
+
+    trigger = content.get("full_regression_trigger")
+    if not isinstance(trigger, dict) or not isinstance(trigger.get("required"), bool):
+        raise HarnessError(
+            "full_regression_trigger 必须声明布尔 required、reason_codes 与 rationale",
+            code="invalid_plan_content",
+        )
+    reason_codes = trigger.get("reason_codes")
+    rationale = trigger.get("rationale")
+    if not isinstance(reason_codes, list) or any(
+        not isinstance(item, str) or item not in FULL_REGRESSION_REASON_CODES
+        for item in reason_codes
+    ):
+        raise HarnessError("全量测试触发原因码无效", code="invalid_plan_content")
+    if len(reason_codes) != len(set(reason_codes)):
+        raise HarnessError("全量测试触发原因码不得重复", code="invalid_plan_content")
+    if not isinstance(rationale, str) or not rationale.strip():
+        raise HarnessError("full_regression_trigger.rationale 不能为空", code="invalid_plan_content")
+    if mode == "repository_full" and (trigger["required"] is not True or not reason_codes):
+        raise HarnessError(
+            "仓库级全量测试必须由受控原因码明确触发",
+            code="invalid_plan_content",
+        )
+    if mode == "affected_modules" and (trigger["required"] is not False or reason_codes):
+        raise HarnessError(
+            "受影响模块测试不得携带仓库级全量触发原因",
+            code="invalid_plan_content",
+        )
+
+    attribution = content.get("failure_attribution")
+    if not isinstance(attribution, dict):
+        raise HarnessError("Bugfix 方案的 failure_attribution 必须是对象", code="invalid_plan_content")
+    categories = attribution.get("categories")
+    if (
+        not isinstance(categories, list)
+        or any(not isinstance(item, str) for item in categories)
+        or len(categories) != len(set(categories))
+        or set(categories) != FAILURE_ATTRIBUTION_CATEGORIES
+        or attribution.get("separate_non_change_failures") is not True
+        or attribution.get("evidence_required") is not True
+    ):
+        raise HarnessError(
+            "failure_attribution 必须声明全部受控类别、分项记录非本次变更失败并要求证据",
+            code="invalid_plan_content",
+        )
+
+
 def plan_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
     if not args.selection or not args.content or not args.output:
@@ -648,6 +873,7 @@ def plan_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     )
     if missing:
         raise HarnessError("方案缺少必填字段：" + ", ".join(missing), code="invalid_plan_content")
+    validate_bugfix_plan_contract(selection, content)
     output = project_output_path(target, args.output, code="invalid_plan_output")
     frozen: dict[str, Any] = {
         "schema_version": PLAN_SCHEMA,
@@ -686,6 +912,10 @@ def plan_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "success_criteria",
         "implementation",
         "acceptance_plan",
+        "affected_modules",
+        "verification_scope",
+        "full_regression_trigger",
+        "failure_attribution",
     }
     projection = {key: value for key, value in content.items() if key in projection_keys}
     return 0, {
@@ -693,6 +923,11 @@ def plan_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "plan_ref": output.relative_to(target).as_posix(),
         "plan_fingerprint": frozen["plan_fingerprint"],
         "execution_projection": projection,
+        "docs_hygiene_hint": (
+            "若将本方案落成 docs/plans/ markdown：首行写 "
+            "> 状态：有效（提案，待确认） 横幅骨架；同步补 docs/INDEX.md 条目"
+            "（含 2-4 个关键符号与状态镜像）；随后运行 python scripts/harness.py docs-check 校验。"
+        ),
     }
 
 
@@ -700,6 +935,50 @@ def evidence_path(target: Path, raw: str) -> Path:
     source = Path(raw)
     path = source if source.is_absolute() else target / source
     return ensure_within(target, path, code="acceptance_evidence_outside_project")
+
+
+def normalize_failure_attributions(target: Path, raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list) or not raw:
+        raise HarnessError(
+            "失败验收必须提供非空 failure_attributions 数组",
+            code="invalid_acceptance_input",
+        )
+    normalized: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for item in raw:
+        if not isinstance(item, dict):
+            raise HarnessError("failure_attributions 每项必须是对象", code="invalid_acceptance_input")
+        category = item.get("category")
+        summary = item.get("summary")
+        blocking = item.get("blocking")
+        refs = item.get("evidence_refs")
+        if category not in FAILURE_ATTRIBUTION_CATEGORIES:
+            raise HarnessError("失败归因类别无效", code="invalid_acceptance_input")
+        if not isinstance(summary, str) or not summary.strip():
+            raise HarnessError("失败归因 summary 不能为空", code="invalid_acceptance_input")
+        if not isinstance(blocking, bool):
+            raise HarnessError("失败归因 blocking 必须是布尔值", code="invalid_acceptance_input")
+        if not nonempty_string_list(refs):
+            raise HarnessError(
+                "失败归因 evidence_refs 必须是非空字符串数组",
+                code="invalid_acceptance_input",
+            )
+        key = (category, summary.strip())
+        if key in seen:
+            raise HarnessError("失败归因不得重复", code="invalid_acceptance_input")
+        seen.add(key)
+        for ref in refs:
+            if not evidence_path(target, ref).is_file():
+                raise HarnessError("失败归因证据不存在：" + ref, code="acceptance_evidence_missing")
+        normalized.append(
+            {
+                "category": category,
+                "summary": summary.strip(),
+                "blocking": blocking,
+                "evidence_refs": list(refs),
+            }
+        )
+    return normalized
 
 
 def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
@@ -712,20 +991,35 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     acceptance_type = value.get("acceptance_type")
     status = value.get("status")
     layer = value.get("layer")
+    evidence_layer = value.get("evidence_layer")
     if not isinstance(objective, str) or not objective.strip():
         raise HarnessError("验收目标不能为空", code="invalid_acceptance_input")
     if acceptance_type not in {"contract_check", "behavior_acceptance", "user_acceptance"}:
         raise HarnessError("验收类型无效", code="invalid_acceptance_input")
     if status not in {"passed", "failed", "unverified", "user_pending"} or layer not in ACCEPTANCE_LAYERS:
         raise HarnessError("验收状态或层级无效", code="invalid_acceptance_input")
+    if acceptance_type == "behavior_acceptance":
+        expected_layer = ACCEPTANCE_EVIDENCE_LAYERS.get(evidence_layer)
+        if expected_layer is None:
+            raise HarnessError("行为验收必须声明有效 evidence_layer", code="invalid_acceptance_input")
+        if layer != expected_layer:
+            raise HarnessError(
+                f"evidence_layer={evidence_layer} 必须记录在 {expected_layer}",
+                code="invalid_acceptance_input",
+            )
+    elif evidence_layer is not None:
+        raise HarnessError(
+            "只有 behavior_acceptance 可以声明 evidence_layer",
+            code="invalid_acceptance_input",
+        )
     refs = value.get("evidence_refs", [])
     if not isinstance(refs, list) or any(
         not isinstance(item, str) or not item for item in refs
     ):
         raise HarnessError("evidence_refs 必须是字符串数组", code="invalid_acceptance_input")
     if acceptance_type == "behavior_acceptance" and status == "passed":
-        if layer not in {"L2", "L3", "L4"}:
-            raise HarnessError("行为验收通过必须位于 L2-L4", code="invalid_acceptance_input")
+        if layer not in {"L2", "L3", "L4", "L5"}:
+            raise HarnessError("行为验收通过必须位于 L2-L5", code="invalid_acceptance_input")
         if (
             not isinstance(value.get("method"), str)
             or not value["method"].strip()
@@ -773,6 +1067,7 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         for ref in refs:
             if not evidence_path(target, ref).is_file():
                 raise HarnessError("验收证据不存在：" + ref, code="acceptance_evidence_missing")
+    failure_attributions: list[dict[str, Any]] = []
     if status == "failed":
         reason = value.get("reason")
         next_action = value.get("next_action")
@@ -783,6 +1078,14 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             or not next_action.strip()
         ):
             raise HarnessError("失败验收必须给出原因和下一步", code="invalid_acceptance_input")
+        failure_attributions = normalize_failure_attributions(
+            target, value.get("failure_attributions")
+        )
+    elif value.get("failure_attributions") is not None:
+        raise HarnessError(
+            "只有 failed 状态可以声明 failure_attributions",
+            code="invalid_acceptance_input",
+        )
     record_id = (
         "acc-"
         + dt.datetime.now(dt.timezone.utc).strftime("%Y%m%dT%H%M%S")
@@ -796,10 +1099,12 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "acceptance_type": acceptance_type,
         "status": status,
         "layer": layer,
+        "evidence_layer": evidence_layer,
         "method": value.get("method"),
         "evidence_refs": refs,
         "reason": value.get("reason"),
         "next_action": value.get("next_action"),
+        "failure_attributions": failure_attributions,
         "recorded_at": utc_now(),
     }
     if status == "user_pending":
@@ -820,14 +1125,17 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         return 0, {
             "status": "passed",
             "accepted_layer": layer,
+            "evidence_layer": evidence_layer,
             "claim": "behavior_accepted",
         }
     if status == "failed":
         return 3, {
             "status": "failed",
             "layer": ACCEPTANCE_LAYERS[layer],
+            "evidence_layer": evidence_layer,
             "reason": value["reason"],
             "next_action": value["next_action"],
+            "failure_attributions": failure_attributions,
         }
     if status == "user_pending":
         return 3, {
@@ -1231,7 +1539,7 @@ def install_preflight(
     ignored = git_ignored_install_paths(target, portable_install_paths())
     if ignored:
         raise HarnessError(
-            "Git 忽略了 Docs Harness 2.0.0 必需安装文件：" + ", ".join(ignored),
+            f"Git 忽略了 Docs Harness {VERSION} 必需安装文件：" + ", ".join(ignored),
             code="git_delivery_ignored",
             exit_code=3,
         )
@@ -1249,7 +1557,7 @@ def project_changes(target: Path, source_root: Path) -> list[dict[str, Any]]:
         changes.append({"path": "scripts/harness.py", "action": "update"})
     for relative, begin, end, block in (
         ("AGENTS.md", MANAGED_BEGIN, MANAGED_END, managed_agent_block(target)),
-        ("CLAUDE.md", CLAUDE_BEGIN, CLAUDE_END, claude_block()),
+        ("CLAUDE.md", CLAUDE_BEGIN, CLAUDE_END, claude_block(target)),
     ):
         path = target / relative
         if not path.is_file():
@@ -1363,7 +1671,7 @@ def apply_project_install(
             "CLAUDE.md",
             CLAUDE_BEGIN,
             CLAUDE_END,
-            claude_block(),
+            claude_block(target),
             "# CLAUDE.md\n",
         ),
     ):
@@ -1601,7 +1909,12 @@ def project_knowledge_summary(target: Path) -> dict[str, Any]:
 
 def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
-    source_root = SCRIPT_ROOT
+    raw_source = getattr(args, "source", None)
+    if raw_source and args.action not in {"init", "upgrade"}:
+        raise HarnessError("--source 仅支持 init 与 upgrade", code="invalid_request")
+    source_root = (
+        resolve_source_root(raw_source, target) if raw_source else SCRIPT_ROOT
+    )
     if args.action in {"init", "upgrade"}:
         existing = project_config(target)
         from_version = existing.get("version") if existing else None
@@ -1612,6 +1925,8 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 "action": "upgrade",
                 "mode": "preview",
                 "target": str(target),
+                "source": str(source_root),
+                "source_is_target": source_root == target,
                 "from_version": from_version,
                 "to_version": VERSION,
                 "changes": changes,
@@ -1639,6 +1954,8 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "action": args.action,
             "mode": "apply",
             "target": str(target),
+            "source": str(source_root),
+            "source_is_target": source_root == target,
             "from_version": from_version,
             "to_version": VERSION,
             "version": VERSION,
@@ -1979,6 +2296,197 @@ def command_release(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     return 0, payload
 
 
+def docs_check_banner(path: Path) -> str | None:
+    """返回文档前 3 行内的状态横幅行；没有横幅返回 None。"""
+    try:
+        lines = path.read_text(encoding="utf-8").splitlines()[:3]
+    except (OSError, UnicodeDecodeError) as exc:
+        raise HarnessError(f"无法读取文档：{path}", code="docs_check_unreadable") from exc
+    for line in lines:
+        if DOCS_CHECK_BANNER_MARKER in line:
+            return line
+    return None
+
+
+def docs_check_markdown_files(target: Path) -> list[Path]:
+    """全仓 .md 文件，排除 VCS 元数据、依赖、构建产物与隐藏目录。"""
+    files: list[Path] = []
+    for path in target.rglob("*.md"):
+        if path.is_symlink():
+            continue
+        parts = path.relative_to(target).parts
+        if any(part.startswith(".") for part in parts):
+            continue
+        if any(part in DOCS_CHECK_EXCLUDED_DIRS for part in parts):
+            continue
+        files.append(path)
+    return sorted(files)
+
+
+def command_docs_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    """docs/plans 文档卫生常驻检查：横幅、索引闭环、死链、取值、符号存活性与时效。"""
+    target = safe_target(args.target)
+    plans_dir = target / "docs" / "plans"
+    index_path = target / "docs" / "INDEX.md"
+    missing: list[str] = []
+    if not plans_dir.is_dir():
+        missing.append("docs/plans/")
+    if not index_path.is_file():
+        missing.append("docs/INDEX.md")
+    if missing:
+        return 0, {
+            "status": "skipped",
+            "reason": "文档体系尚未建立，跳过检查：" + "、".join(missing) + " 不存在",
+            "failures": [],
+            "warnings": [],
+        }
+    live_docs = sorted(
+        path for path in plans_dir.glob("*.md") if path.is_file() and not path.is_symlink()
+    )
+    archive_dir = plans_dir / "archive"
+    archived_names = (
+        sorted(
+            path.name
+            for path in archive_dir.glob("*.md")
+            if path.is_file() and not path.is_symlink()
+        )
+        if archive_dir.is_dir()
+        else []
+    )
+    failures: list[str] = []
+    warnings: list[str] = []
+
+    # C1/C4：活文档前 3 行必须有状态横幅，且横幅取值合法。
+    banners: dict[str, str] = {}
+    for path in live_docs:
+        relative = path.relative_to(target).as_posix()
+        banner = docs_check_banner(path)
+        if banner is None:
+            failures.append(f"FAIL: {relative}: 前 3 行内缺少状态横幅（状态：）")
+            continue
+        banners[relative] = banner
+        if not any(state in banner for state in DOCS_CHECK_BANNER_STATES):
+            failures.append(
+                f"FAIL: {relative}: 横幅取值非法，须含 有效/已实施-仅追溯/已废弃 之一"
+            )
+        elif "已废弃" in banner:
+            warnings.append(
+                f"WARN: {relative}: 活文档横幅含已废弃但仍在 docs/plans/ 根目录，应移入 archive/"
+            )
+
+    # C2：活文档必须进 INDEX.md 且条目带关键符号；归档文档必须退出活索引。
+    index_lines = index_path.read_text(encoding="utf-8").splitlines()
+    for path in live_docs:
+        relative = path.relative_to(target).as_posix()
+        basename = path.name
+        entries = [line for line in index_lines if basename in line]
+        if not entries:
+            failures.append(f"FAIL: docs/INDEX.md: 缺少 {relative} 的条目")
+        elif not any("关键符号" in line for line in entries):
+            failures.append(f"FAIL: docs/INDEX.md: {basename} 条目缺少关键符号")
+    for basename in archived_names:
+        leaked = [
+            line for line in index_lines
+            if basename in line and DOCS_CHECK_ARCHIVE_EXEMPTION not in line
+        ]
+        if leaked:
+            failures.append(
+                f"FAIL: docs/INDEX.md: 归档文档 {basename} 仍出现在活索引条目中"
+            )
+
+    # C3：全仓 .md 不得引用已归档文档的旧路径 docs/plans/<basename>。
+    markdown_files = docs_check_markdown_files(target)
+    for basename in archived_names:
+        stale = re.compile(r"docs/plans/" + re.escape(basename) + r"(?![\w.-])")
+        for path in markdown_files:
+            try:
+                content = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            if stale.search(content):
+                relative = path.relative_to(target).as_posix()
+                failures.append(
+                    f"FAIL: {relative}: 引用已归档文档旧路径 docs/plans/{basename}"
+                    f"（正确路径 docs/plans/archive/{basename}）"
+                )
+
+    # C5：镜像为已实施-仅追溯的条目，其关键符号必须在 docs/ 之外的仓库内容中至少命中 1 处。
+    trace_pending: dict[str, list[str]] = {}
+    for line in index_lines:
+        if "关键符号" not in line or "已实施-仅追溯" not in line:
+            continue
+        match = re.search(r"plans/([\w.-]+\.md)", line)
+        basename = match.group(1) if match else "(未知条目)"
+        symbols = re.findall(r"`([^`]+)`", line.split("关键符号", 1)[1])
+        if symbols:
+            trace_pending[basename] = symbols
+    if trace_pending:
+        for path in sorted(target.rglob("*")):
+            if not trace_pending:
+                break
+            if not path.is_file() or path.is_symlink():
+                continue
+            parts = path.relative_to(target).parts
+            if parts[0] == "docs" or any(part.startswith(".") for part in parts):
+                continue
+            if any(part in DOCS_CHECK_EXCLUDED_DIRS for part in parts):
+                continue
+            try:
+                if path.stat().st_size > DOCS_CHECK_SYMBOL_MAX_FILE_BYTES:
+                    continue
+                content = path.read_text(encoding="utf-8")
+            except (OSError, UnicodeDecodeError):
+                continue
+            for basename, symbols in list(trace_pending.items()):
+                if any(symbol in content for symbol in symbols):
+                    del trace_pending[basename]
+        for basename in trace_pending:
+            warnings.append(
+                f"WARN: docs/INDEX.md: 条目 {basename} 镜像为已实施-仅追溯"
+                "但关键符号在 docs/ 之外零命中，需复核代码是否仍是真源"
+            )
+
+    # C6：横幅为有效的活文档长期未触碰告警；无 git 历史或 git 不可用时静默跳过。
+    now = dt.datetime.now(dt.timezone.utc)
+    for relative, banner in banners.items():
+        if "有效" not in banner:
+            continue
+        result = git_command(target, "log", "-1", "--format=%ci", "--", relative)
+        if result.returncode != 0 or not result.stdout.strip():
+            continue
+        try:
+            touched = dt.datetime.strptime(
+                result.stdout.decode("utf-8", errors="replace").strip(),
+                "%Y-%m-%d %H:%M:%S %z",
+            )
+        except ValueError:
+            continue
+        if (now - touched) > dt.timedelta(days=DOCS_CHECK_STALE_DAYS):
+            warnings.append(
+                f"WARN: {relative}: 横幅为有效但超过 {DOCS_CHECK_STALE_DAYS} 天未触碰"
+                f"（最后提交 {touched.date().isoformat()}），需确认是否仍然有效"
+            )
+
+    strict = bool(getattr(args, "strict", False))
+    failed = bool(failures) or (strict and bool(warnings))
+    status = "failed" if failed else "passed"
+    return (1 if failed else 0), {
+        "status": status,
+        "strict": strict,
+        "checked": {
+            "live_docs": len(live_docs),
+            "archived_docs": len(archived_names),
+            "markdown_files": len(markdown_files),
+        },
+        "failures": failures,
+        "warnings": warnings,
+        "summary": (
+            f"docs-check {status}：活文档 {len(live_docs)} 份、归档 {len(archived_names)} 份、"
+            f"扫描 markdown {len(markdown_files)} 份，违规 {len(failures)} 条、警告 {len(warnings)} 条"
+        ),
+    }
+
+
 def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
     config = project_config(target)
@@ -2000,12 +2508,18 @@ def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             == file_fingerprint(installed_script)
         )
     )
+    strict_parse_ok = True
+    try:
+        build_parser().parse_args(["docs-check", "--strict"])
+    except SystemExit:
+        strict_parse_ok = False
     checks = {
         "script_version": script_version_valid,
         "command_parser": all(
             name in build_parser().format_help()
-            for name in ("knowledge", "plan", "acceptance", "project", "release", "self-test")
+            for name in ("knowledge", "plan", "acceptance", "project", "release", "docs-check", "self-test")
         ),
+        "docs_check_strict_flag": strict_parse_ok,
         "direct_mode_default": (
             True
             if source_distribution
@@ -2019,9 +2533,9 @@ def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             if source_distribution
             else config.get("schema_version") == CONFIG_SCHEMA
         ),
-        "v2_acceptance_contract": (
-            ACCEPTANCE_INPUT_SCHEMA.endswith("/v2")
-            and ACCEPTANCE_RECORD_SCHEMA.endswith("/v2")
+        "v3_acceptance_contract": (
+            ACCEPTANCE_INPUT_SCHEMA.endswith("/v3")
+            and ACCEPTANCE_RECORD_SCHEMA.endswith("/v3")
         ),
     }
     passed = all(checks.values())
@@ -2082,7 +2596,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     project = commands.add_parser(
         "project",
-        help="2.0.0 安装、单向升级、检查和卸载",
+        help=f"{VERSION} 安装、单向升级、检查和卸载",
     )
     project.add_argument(
         "action",
@@ -2091,6 +2605,10 @@ def build_parser() -> argparse.ArgumentParser:
     add_target(project)
     project.add_argument("--apply", action="store_true")
     project.add_argument("--purge-runtime", action="store_true")
+    project.add_argument(
+        "--source",
+        help="init/upgrade 的来源包目录（默认使用当前控制器所在源包）",
+    )
 
     release = commands.add_parser("release", help="版本真源一致性检查")
     release.add_argument("action", choices=("sync",), nargs="?", default="sync")
@@ -2098,8 +2616,19 @@ def build_parser() -> argparse.ArgumentParser:
     release.add_argument("--apply", action="store_true")
     release.add_argument("--target-version")
 
-    self_test = commands.add_parser("self-test", help="运行 2.0.0 内置自检")
+    self_test = commands.add_parser("self-test", help=f"运行 {VERSION} 内置自检")
     add_target(self_test)
+
+    docs_check = commands.add_parser(
+        "docs-check",
+        help="docs/plans 文档可发现性常驻检查",
+    )
+    add_target(docs_check)
+    docs_check.add_argument(
+        "--strict",
+        action="store_true",
+        help="WARN 也使退出码非 0（供 CI 使用）",
+    )
     return parser
 
 
@@ -2134,6 +2663,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             code, payload = command_project(args)
         elif args.command == "release":
             code, payload = command_release(args)
+        elif args.command == "docs-check":
+            code, payload = command_docs_check(args)
         else:
             code, payload = command_self_test(args)
         emit(payload, args.json)

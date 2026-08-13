@@ -1,16 +1,16 @@
 {
   "schema_version": "docs-harness/project-config/v6",
-  "version": "2.0.0",
-  "installed_script_fingerprint": "sha256:94ad0bf341899d0fa87d8ab1185b5b8ca4db3be5b29b84574a102efc3c329757",
+  "version": "2.3.0",
+  "installed_script_fingerprint": "sha256:fa08bcc0662ad6ea2b3a1d8082e94b734a51d95f3946d139486f720f224de029",
   "installed_plan_template_fingerprints": {
-    "levels/brief.json": "sha256:8dd0430e8a537b29993c2cc24b28e346b8b1e953e853249bcbb6a3024e266980",
-    "levels/full.json": "sha256:9b08b9ff92c479c75be24c175d2a856b26818a005d27c2d363e88eb21409da58",
-    "profiles/general.json": "sha256:6d7795ce462e7ad8dbdce74ac4a4fdc7279b6ac499b23539a24ebf7c5babfe11",
-    "profiles/frontend-ui.json": "sha256:49b3beeb171d584140f77ffdaa85f5929de0d7d753e271f2bdc1113226af2b03",
-    "profiles/backend-service.json": "sha256:18fe7209b6aa0f39a2f2cac6c70a5b3f1c846f9805ecd9bf68c5b8e1267ec71a",
-    "profiles/bugfix.json": "sha256:fe63a3a1790f9aac56f44da8753c117b90546beb3332e18628a6402d19ed1f3d",
-    "profiles/architecture.json": "sha256:71606c4af81cc0464fc398a5f2eda8caf30f9cf3b3b449f456a70b7e920d2836",
-    "profiles/migration-release.json": "sha256:b61690767e9b8ac7ee674bbb63d6b2cb681a22aeea5cb74079a3c1e63890b4e8"
+    "levels/brief.json": "sha256:bd555a9a864fe08985a4e17684a61352f23246dbfed2ca73f4c6574d36af4164",
+    "levels/full.json": "sha256:06fa51963fadc588bfb959255d77a814610912bb8850cb1659a57de981ac10ef",
+    "profiles/general.json": "sha256:95526cf07bfe071713ed8897bad04c4b26cd632e3482eaeb4555a1ac8f1775f8",
+    "profiles/frontend-ui.json": "sha256:1bbf28080878eb1c83e8d95159718626d7e969fb34e223873c5914b94a320dc4",
+    "profiles/backend-service.json": "sha256:e39f7561f5dc1185e47b1a778f1435429cb07aa6ae9d9a44b63b39e1ae5bfaa3",
+    "profiles/bugfix.json": "sha256:59197739bb0f98f1601769788476dd2b4e6315a9c8f44a8339fb8a5a1a68124b",
+    "profiles/architecture.json": "sha256:fd0ed527438bd0bb93465b1314008d4363c75c6214675ed1bafef89bb474de07",
+    "profiles/migration-release.json": "sha256:36774b1a4610850d6f95a5fcf61a2fece22c74f0c82e1bc3c3940062faa3af41"
   },
   "direct_mode": {
     "default": true

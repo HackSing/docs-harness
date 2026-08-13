@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v2",
-  "version": "2.0.0",
+  "version": "2.3.0",
   "cases": [
     {
       "id": "direct-default-no-state",
@@ -40,7 +40,7 @@
     },
     {
       "id": "plan-bugfix-exact-repro",
-      "expected": ["exact-reproduction", "event-timeline", "first-divergence", "root-cause-evidence", "regression-paths"]
+      "expected": ["exact-reproduction", "event-timeline", "first-divergence", "root-cause-evidence", "regression-paths", "affected-modules", "verification-scope", "controlled-full-regression-trigger", "failure-attribution"]
     },
     {
       "id": "plan-architecture-adr",
@@ -60,11 +60,11 @@
     },
     {
       "id": "acceptance-layer-honesty",
-      "expected": ["L1-not-L3", "source-not-package", "package-not-install", "L5-user-only"]
+      "expected": ["focused-test=L2", "repository-full-test=L2", "local-runtime=L3", "package-or-install=L4", "real-device=L5", "layers-not-substitutable", "user-confirmation-separate"]
     },
     {
       "id": "acceptance-failure-minimal",
-      "expected": ["status+layer+reason+next_action", "no-gate", "no-receipt-history", "no-contract-snapshot"]
+      "expected": ["status+layer+evidence_layer+reason+next_action", "structured-failure-attributions", "change-related|unrelated|pre-existing|environment|flaky", "per-failure-evidence", "no-gate"]
     },
     {
       "id": "user-acceptance-handoff",

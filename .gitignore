@@ -9,3 +9,4 @@ test_output.log
 /.docs-harness/knowledge-jobs/
 /.docs-harness/task-inputs/
 /.docs-harness/quality-ledger/
+/.qoder/repowiki/

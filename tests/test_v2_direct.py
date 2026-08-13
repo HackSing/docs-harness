@@ -3,6 +3,8 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -70,7 +72,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         rules_root.mkdir(parents=True, exist_ok=True)
         current_rules = installed_rules if live_rules is None else live_rules
         for name, content in current_rules.items():
-            (rules_root / name).write_text(content, encoding="utf-8")
+            (rules_root / name).write_text(content, encoding="utf-8", newline="")
         installed_fingerprints = {
             name: "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
             for name, content in installed_rules.items()
@@ -116,7 +118,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             check=False,
         )
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
-        public_commands = {"knowledge", "plan", "acceptance", "project", "release", "self-test"}
+        public_commands = {"knowledge", "plan", "acceptance", "project", "release", "docs-check", "self-test"}
         for command in public_commands:
             self.assertIn(command, help_result.stdout)
         for command in ("run", "context", "progress", "verify", "task", "background", "authorization"):
@@ -213,8 +215,10 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
 
     def test_controller_source_has_no_legacy_state_machine_implementation(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
-        self.assertLess(HARNESS.stat().st_size, 90_000)
-        self.assertLess(len(source.splitlines()), 2_500)
+        # docs-check 常驻能力进控制器后单文件分发体积上浮；红线随 2.3.0 调整，
+        # 拆分独立模块会破坏单文件安装指纹模型。
+        self.assertLess(HARNESS.stat().st_size, 120_000)
+        self.assertLess(len(source.splitlines()), 3_000)
         for symbol in (
             "def command_run(",
             "def command_context(",
@@ -232,6 +236,36 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         ):
             self.assertNotIn(symbol, source)
 
+    def test_docs_check_skips_without_docs_system(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        payload = self.run_cli("docs-check", "--target", str(self.project))
+        self.assertEqual(payload["status"], "skipped")
+        self.assertEqual(payload["failures"], [])
+
+    def test_docs_check_reports_banner_and_stale_archive_reference(self) -> None:
+        docs = self.project / "docs"
+        plans = docs / "plans"
+        archive = plans / "archive"
+        archive.mkdir(parents=True)
+        (docs / "INDEX.md").write_text(
+            "# 索引\n\n- plans/no-banner.md（关键符号：无）\n"
+            "- plans/archive/old-plan.md（已归档）\n",
+            encoding="utf-8",
+        )
+        (plans / "no-banner.md").write_text("# 无横幅文档\n", encoding="utf-8")
+        (archive / "old-plan.md").write_text(
+            "> 状态：已废弃-被 no-banner.md 取代（2026-08-13 核对）\n\n旧文档。\n",
+            encoding="utf-8",
+        )
+        (docs / "guide.md").write_text(
+            "# 指南\n\n参见 docs/plans/old-plan.md 的旧路径。\n", encoding="utf-8"
+        )
+        payload = self.run_cli("docs-check", "--target", str(self.project), expected=1)
+        self.assertEqual(payload["status"], "failed")
+        failures = payload["failures"]
+        self.assertTrue(any("缺少状态横幅" in item for item in failures))
+        self.assertTrue(any("引用已归档文档旧路径" in item for item in failures))
+
     def test_plan_select_uses_effects_not_task_text(self) -> None:
         none = self.run_cli("plan", "select", "--target", str(self.project))
         self.assertEqual(none["plan_level"], "none")
@@ -244,6 +278,98 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         field_ids = {item["id"] for item in full["fields"]}
         self.assertIn("adr_decision", field_ids)
         self.assertNotIn("state_matrix", field_ids)
+
+    def test_bugfix_profile_requires_structured_verification_contract(self) -> None:
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project),
+            "--level", "full", "--profile", "bugfix",
+        )
+        fields = {item["id"]: item for item in selection["fields"]}
+        for field_id in (
+            "affected_modules",
+            "verification_scope",
+            "full_regression_trigger",
+            "failure_attribution",
+        ):
+            self.assertIn(field_id, fields)
+            self.assertTrue(fields[field_id]["required"])
+            self.assertTrue(fields[field_id]["guidance"])
+
+        content = {item["id"]: f"已填写 {item['label']}" for item in selection["fields"]}
+        content.update(
+            {
+                "affected_modules": ["service/session", "tests/session"],
+                "verification_scope": {
+                    "mode": "affected_modules",
+                    "commands": ["python -m unittest tests.test_session"],
+                    "reused_passed_evidence": ["上一轮相同输入快照的类型检查"],
+                },
+                "full_regression_trigger": {
+                    "required": False,
+                    "reason_codes": [],
+                    "rationale": "改动与调用链均限制在 session 模块",
+                },
+                "failure_attribution": {
+                    "categories": [
+                        "change_related",
+                        "unrelated",
+                        "pre_existing",
+                        "environment",
+                        "flaky",
+                    ],
+                    "separate_non_change_failures": True,
+                    "evidence_required": True,
+                },
+            }
+        )
+        selection_path = self.write_json("bugfix-selection.json", selection)
+        content_path = self.write_json("bugfix-content.json", content)
+        payload = self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path), "--content", str(content_path),
+            "--output", "docs/plans/bugfix.json",
+        )
+        self.assertEqual(payload["execution_projection"]["affected_modules"], content["affected_modules"])
+        self.assertEqual(
+            payload["execution_projection"]["verification_scope"]["mode"],
+            "affected_modules",
+        )
+
+        full_content = dict(content)
+        full_content["verification_scope"] = {
+            "mode": "repository_full",
+            "commands": ["npm test"],
+            "reused_passed_evidence": [],
+        }
+        full_content["full_regression_trigger"] = {
+            "required": True,
+            "reason_codes": ["public_contract_change"],
+            "rationale": "验收输入 Schema 是对外公共契约",
+        }
+        full_content_path = self.write_json("bugfix-full-content.json", full_content)
+        full_payload = self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path), "--content", str(full_content_path),
+            "--output", "docs/plans/bugfix-full.json",
+        )
+        self.assertEqual(
+            full_payload["execution_projection"]["full_regression_trigger"]["reason_codes"],
+            ["public_contract_change"],
+        )
+
+        invalid = dict(content)
+        invalid["verification_scope"] = {
+            "mode": "repository_full",
+            "commands": ["npm test"],
+            "reused_passed_evidence": [],
+        }
+        invalid_path = self.write_json("bugfix-invalid.json", invalid)
+        rejected = self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path), "--content", str(invalid_path),
+            "--output", "docs/plans/bugfix-invalid.json", expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_plan_content")
 
     def test_plan_create_validates_and_freezes_only_selected_fields(self) -> None:
         selection = self.run_cli(
@@ -332,7 +458,9 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(payload["version"], "2.0.0")
+        self.assertEqual(
+            payload["version"], (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+        )
         self.assertEqual(config["schema_version"], "docs-harness/project-config/v6")
         self.assertEqual(set(config), self.V6_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
@@ -370,6 +498,92 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
                 self.assertEqual(payload["changes"], [])
             if command[2] == "self-test":
                 self.assertEqual(payload["status"], "passed")
+
+    def run_installed(self, *args: str, expected: int = 0) -> dict[str, object]:
+        installed = self.project / "scripts" / "harness.py"
+        result = subprocess.run(
+            [sys.executable, str(installed), *args, "--json"],
+            cwd=self.project,
+            capture_output=True,
+            text=True,
+            check=False,
+            env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        )
+        self.assertEqual(result.returncode, expected, f"{result.stdout}\n{result.stderr}")
+        return json.loads(result.stdout)
+
+    def test_upgrade_source_flag_repairs_installed_copy(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        template = self.project / "plan-templates" / "levels" / "brief.json"
+        template.unlink()
+        payload = self.run_installed(
+            "project", "upgrade", "--target", str(self.project), expected=2
+        )
+        self.assertEqual(payload["code"], "invalid_source")
+        payload = self.run_installed(
+            "project",
+            "upgrade",
+            "--target",
+            str(self.project),
+            "--source",
+            str(ROOT),
+            "--apply",
+        )
+        self.assertTrue(template.is_file())
+        self.assertEqual(payload["source"], str(ROOT))
+        self.assertFalse(payload["source_is_target"])
+        self.assertIn("plan-templates/levels/brief.json", payload["changed"])
+        payload = self.run_installed(
+            "project", "upgrade", "--target", str(self.project)
+        )
+        self.assertTrue(payload["source_is_target"])
+        payload = self.run_installed(
+            "project",
+            "check",
+            "--target",
+            str(self.project),
+            "--source",
+            str(ROOT),
+            expected=2,
+        )
+        self.assertEqual(payload["code"], "invalid_request")
+        payload = self.run_installed(
+            "project",
+            "upgrade",
+            "--target",
+            str(self.project),
+            "--source",
+            str(self.project / "missing-source"),
+            expected=2,
+        )
+        self.assertEqual(payload["code"], "invalid_source")
+
+    def test_upgrade_source_flag_rejects_version_mismatched_source(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        fake = Path(self.temp.name) / "fake-source"
+        (fake / "scripts").mkdir(parents=True)
+        shutil.copytree(ROOT / "plan-templates", fake / "plan-templates")
+        script = (ROOT / "scripts" / "harness.py").read_text(encoding="utf-8")
+        fake_script = re.sub(
+            r'^VERSION = "[^"]+"',
+            'VERSION = "0.0.0-fake"',
+            script,
+            count=1,
+            flags=re.MULTILINE,
+        )
+        (fake / "scripts" / "harness.py").write_text(
+            fake_script, encoding="utf-8", newline=""
+        )
+        payload = self.run_installed(
+            "project",
+            "upgrade",
+            "--target",
+            str(self.project),
+            "--source",
+            str(fake),
+            expected=2,
+        )
+        self.assertEqual(payload["code"], "source_version_mismatch")
 
     def test_unknown_legacy_config_schema_fails_before_install_writes(self) -> None:
         self.write_json(
@@ -607,7 +821,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         record = self.write_json(
             "contract.json",
             {
-                "schema_version": "docs-harness/acceptance-input/v2",
+                "schema_version": "docs-harness/acceptance-input/v3",
                 "objective": "验证退出流程",
                 "acceptance_type": "contract_check",
                 "status": "passed",
@@ -627,7 +841,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         record = self.write_json(
             "empty-contract.json",
             {
-                "schema_version": "docs-harness/acceptance-input/v2",
+                "schema_version": "docs-harness/acceptance-input/v3",
                 "objective": "不能空验收",
                 "acceptance_type": "contract_check",
                 "status": "passed",
@@ -652,7 +866,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         record = self.write_json(
             "git-contract.json",
             {
-                "schema_version": "docs-harness/acceptance-input/v2",
+                "schema_version": "docs-harness/acceptance-input/v3",
                 "objective": "验证 Git Runtime 定位",
                 "acceptance_type": "contract_check",
                 "status": "passed",
@@ -670,17 +884,53 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(len(records), 1)
         self.assertFalse((self.project / ".docs-harness" / "v2").exists())
 
-    def test_behavior_failure_returns_only_reason_and_next_action(self) -> None:
+    def test_behavior_failure_returns_structured_attributions(self) -> None:
+        (self.project / "failure.log").write_text(
+            "current change failure\npre-existing warning\n", encoding="utf-8"
+        )
         record = self.write_json(
             "failed.json",
             {
-                "schema_version": "docs-harness/acceptance-input/v2",
+                "schema_version": "docs-harness/acceptance-input/v3",
                 "objective": "退出后不重复注入",
                 "acceptance_type": "behavior_acceptance",
                 "status": "failed",
                 "layer": "L3",
+                "evidence_layer": "local_runtime",
                 "reason": "退出托盘后旧文本再次注入",
                 "next_action": "修复重复 finalize 后重跑同一流程",
+                "failure_attributions": [
+                    {
+                        "category": "change_related",
+                        "summary": "退出流程仍重复 finalize",
+                        "blocking": True,
+                        "evidence_refs": ["failure.log"],
+                    },
+                    {
+                        "category": "pre_existing",
+                        "summary": "启动阶段存在既有警告",
+                        "blocking": False,
+                        "evidence_refs": ["failure.log"],
+                    },
+                    {
+                        "category": "unrelated",
+                        "summary": "无关模块存在独立告警",
+                        "blocking": False,
+                        "evidence_refs": ["failure.log"],
+                    },
+                    {
+                        "category": "environment",
+                        "summary": "测试环境缺少可选设备",
+                        "blocking": False,
+                        "evidence_refs": ["failure.log"],
+                    },
+                    {
+                        "category": "flaky",
+                        "summary": "相同输入下偶发超时",
+                        "blocking": True,
+                        "evidence_refs": ["failure.log"],
+                    },
+                ],
             },
         )
         payload = self.run_cli(
@@ -688,19 +938,102 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         )
         self.assertEqual(
             set(payload),
-            {"status", "layer", "reason", "next_action"},
+            {
+                "status",
+                "layer",
+                "evidence_layer",
+                "reason",
+                "next_action",
+                "failure_attributions",
+            },
         )
         self.assertEqual(payload["layer"], "local_runtime")
+        self.assertEqual(payload["evidence_layer"], "local_runtime")
+        self.assertEqual(
+            [item["category"] for item in payload["failure_attributions"]],
+            ["change_related", "pre_existing", "unrelated", "environment", "flaky"],
+        )
+
+    def test_failed_acceptance_requires_structured_attribution(self) -> None:
+        record = self.write_json(
+            "failed-without-attribution.json",
+            {
+                "schema_version": "docs-harness/acceptance-input/v3",
+                "objective": "验证失败必须归因",
+                "acceptance_type": "behavior_acceptance",
+                "status": "failed",
+                "layer": "L2",
+                "evidence_layer": "focused_test",
+                "reason": "聚焦测试失败",
+                "next_action": "分析失败来源",
+            },
+        )
+        payload = self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(record), expected=2,
+        )
+        self.assertEqual(payload["code"], "invalid_acceptance_input")
+
+    def test_behavior_evidence_layers_are_distinct_and_fixed(self) -> None:
+        (self.project / "acceptance.log").write_text("passed\n", encoding="utf-8")
+        cases = {
+            "focused_test": "L2",
+            "repository_full_test": "L2",
+            "local_runtime": "L3",
+            "package_or_install": "L4",
+            "real_device": "L5",
+        }
+        for evidence_layer, layer in cases.items():
+            with self.subTest(evidence_layer=evidence_layer):
+                record = self.write_json(
+                    f"{evidence_layer}.json",
+                    {
+                        "schema_version": "docs-harness/acceptance-input/v3",
+                        "objective": f"验证 {evidence_layer}",
+                        "acceptance_type": "behavior_acceptance",
+                        "status": "passed",
+                        "layer": layer,
+                        "evidence_layer": evidence_layer,
+                        "method": f"执行 {evidence_layer} 验收",
+                        "evidence_refs": ["acceptance.log"],
+                    },
+                )
+                payload = self.run_cli(
+                    "acceptance", "record", "--target", str(self.project),
+                    "--input", str(record),
+                )
+                self.assertEqual(payload["accepted_layer"], layer)
+                self.assertEqual(payload["evidence_layer"], evidence_layer)
+
+        mismatch = self.write_json(
+            "mismatched-layer.json",
+            {
+                "schema_version": "docs-harness/acceptance-input/v3",
+                "objective": "不得用全量测试冒充包验收",
+                "acceptance_type": "behavior_acceptance",
+                "status": "passed",
+                "layer": "L4",
+                "evidence_layer": "repository_full_test",
+                "method": "运行仓库全量测试",
+                "evidence_refs": ["acceptance.log"],
+            },
+        )
+        rejected = self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(mismatch), expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_acceptance_input")
 
     def test_l1_cannot_claim_behavior_acceptance(self) -> None:
         record = self.write_json(
             "static-only.json",
             {
-                "schema_version": "docs-harness/acceptance-input/v2",
+                "schema_version": "docs-harness/acceptance-input/v3",
                 "objective": "验证退出流程",
                 "acceptance_type": "behavior_acceptance",
                 "status": "passed",
                 "layer": "L1",
+                "evidence_layer": "focused_test",
                 "method": "静态检查",
                 "evidence_refs": ["type-check.txt"],
             },
@@ -714,11 +1047,12 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         record = self.write_json(
             "behavior-passed.json",
             {
-                "schema_version": "docs-harness/acceptance-input/v2",
+                "schema_version": "docs-harness/acceptance-input/v3",
                 "objective": "验证退出流程",
                 "acceptance_type": "behavior_acceptance",
                 "status": "passed",
                 "layer": "L2",
+                "evidence_layer": "focused_test",
                 "method": "运行聚焦回归",
                 "evidence_refs": ["missing-test-result.txt"],
             },
@@ -732,7 +1066,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         record = self.write_json(
             "pending.json",
             {
-                "schema_version": "docs-harness/acceptance-input/v2",
+                "schema_version": "docs-harness/acceptance-input/v3",
                 "objective": "验证麦克风权限体验",
                 "acceptance_type": "user_acceptance",
                 "status": "user_pending",
@@ -753,7 +1087,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         record = self.write_json(
             "user-accepted.json",
             {
-                "schema_version": "docs-harness/acceptance-input/v2",
+                "schema_version": "docs-harness/acceptance-input/v3",
                 "objective": "确认麦克风体验",
                 "acceptance_type": "user_acceptance",
                 "status": "passed",

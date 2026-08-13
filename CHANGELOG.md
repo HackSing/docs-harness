@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.3.0 - 2026-08-13
+
+- docs-check 与「文档可发现性规范」上游化：新增 docs/plans 状态横幅、INDEX.md 符号索引闭环、归档死链、关键符号存活与时效的常驻检查命令 docs-check（含 --strict CI 模式）；受管 AGENTS.md 区块随安装注入同一套规范，plan create 输出附 docs_hygiene_hint 落盘指引；文档体系未建立的项目 docs-check 自动 skipped。
+- CLAUDE.md 受管区块改为与 AGENTS.md 共享同一内容源（_managed_content 单点生成），不再是单行指针；两份文档由同一生成器产出，消除双文档措辞漂移。
+- 修复受管区块再生成时标记前累积反斜杠的缺陷：受管块改为拼接生成，不再在 f-string 内联标记。
+
+## 2.2.0 - 2026-08-13
+
+- 受管 `AGENTS.md` 区块新增通用工程规范：工作流规则、编码质量规范、防御代码准入、提示词与代码流程同步、测试与验收范围（聚焦优先，按风险扩展）与收尾要求；project init/upgrade 的目标项目自动获得同一套执行纪律。
+- 工作流规则改为"每条规则自带触发条件"：验收先行与根因优先在标准明确、修复局部可逆时直接执行，仅当验收有歧义、根因跨模块或修复不可逆时才请求用户确认；分批交付随首批报告批次划分，不再默认前置确认。绝对化措辞收敛为带边界的硬规则，工具 handler/状态机/workflow 改动的消费链证据保留为不可豁免项。
+- 新增"防御代码准入"：修复落在状态或数据的所有者层，优先恢复不变量；新增 fallback、retry、兼容分支、catch-and-continue 或重复校验必须有接口契约或可复现证据；无证据的潜在风险只进收尾报告不进代码；禁止以"更保险""顺手加固"为理由扩大修改面。
+- 受管区块措辞从 Codex 泛化为 agent（多 agent 宿主共用同一份受管 `AGENTS.md`），高风险动作表述改为"使用原生授权与沙箱"。
+
+## 2.1.0 - 2026-08-10
+
+- Bugfix Profile 新增结构化 `affected_modules`、`verification_scope`、`full_regression_trigger` 与 `failure_attribution`。仓库级全量测试只接受跨模块、公共契约、共享基础设施、依赖/共享夹具或发布门禁原因码；受影响模块模式不得伪造全量触发依据，四项合同进入执行投影。
+- Acceptance 输入与记录升级为 v3，新增不可互相替代的 `focused_test`、`repository_full_test`、`local_runtime`、`package_or_install`、`real_device` 证据层，并固定映射到 L2–L5；真实设备行为证据与用户主观确认继续分离。
+- 失败验收必须提交 `failure_attributions[]`，逐项记录 `change_related|unrelated|pre_existing|environment|flaky`、摘要、阻断性和项目内证据引用；缺失、重复、未知类别或证据不存在均拒绝记录。
+
 ## 2.0.0 - 2026-08-09
 
 - 默认产品合同改为 Codex 直接执行：普通问答、只读检查、代码修改、构建和测试不再要求 `run`、Gate、通用 Plan、旧 Verify 或 Readmission；受管 `AGENTS.md`/`CLAUDE.md` 与 SKILL 明确尊重用户“不使用 Harness”的选择。

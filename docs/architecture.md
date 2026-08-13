@@ -1,6 +1,6 @@
-# Docs Harness 2.0.0 架构
+# Docs Harness 2.1.0 架构
 
-本文件只描述当前产品架构。1.x 控制器状态机已经退出 2.0.0 可运行架构。
+本文件只描述当前产品架构。1.x 控制器状态机已经退出 2.x 可运行架构。
 
 ## 1. 默认架构
 
@@ -47,12 +47,12 @@ Harness 调用数为 0。
 ### 2.4 验收记录
 
 ```text
-已发生的测试/运行/构建/安装/用户交接事实
+已发生的聚焦/全量测试、运行、包/安装、真实设备或用户交接事实
 → acceptance record
-→ 最小状态与证据引用
+→ 固定 evidence_layer、最小状态、分项失败归因与证据引用
 ```
 
-记录器不替 Codex 决定测试，不自动启动环境，也不把 Contract Check 提升为 Behavior Acceptance。
+记录器不替 Codex 决定测试，不自动启动环境，也不把 Contract Check 提升为 Behavior Acceptance。`focused_test`、`repository_full_test`、`local_runtime`、`package_or_install` 与 `real_device` 分别记录，不能互相提升或替代；用户主观确认仍是独立合同。
 
 ## 3. 存储边界
 
@@ -73,7 +73,7 @@ Harness 调用数为 0。
 
 ## 6. 1.x 退出与迁移隔离
 
-旧 Run、Gate、Evidence、Verify、Readmission、后台 Job 和 Receipt 的运行实现与 CLI 入口已经删除；`--legacy-opt-in` 不存在。旧规则和 Runtime 只由 upgrade 迁移器按所有权识别并清理。2.0.0 Runtime 只用于可选 `acceptance record`，不承担任务准入或项目管理。
+旧 Run、Gate、Evidence、Verify、Readmission、后台 Job 和 Receipt 的运行实现与 CLI 入口已经删除；`--legacy-opt-in` 不存在。旧规则和 Runtime 只由 upgrade 迁移器按所有权识别并清理。2.x Runtime 只用于可选 `acceptance record`，不承担任务准入或项目管理。
 
 ## 7. 事实来源
 

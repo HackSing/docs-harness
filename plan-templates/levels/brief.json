@@ -2,7 +2,7 @@
   "schema_version": "docs-harness/plan-template/v2",
   "kind": "level",
   "id": "brief",
-  "version": "2.0.0",
+  "version": "2.3.0",
   "fields": [
     {"id": "objective", "label": "目标", "required": true},
     {"id": "scope", "label": "范围", "required": true},
