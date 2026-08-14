@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Docs Harness 2.4.0：默认直跑，按需知识、方案模板、真实验收与单向迁移。"""
+"""Docs Harness 2.4.1：默认直跑，按需知识、方案模板、真实验收与单向迁移。"""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Any, Sequence
 
 
-VERSION = "2.4.0"
+VERSION = "2.4.1"
 CONFIG_SCHEMA = "docs-harness/project-config/v7"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
     f"docs-harness/project-config/v{version}" for version in range(1, 7)
@@ -112,6 +112,11 @@ DOCS_CHECK_BANNER_MARKER = "状态："
 DOCS_CHECK_BANNER_STATES = ("有效", "已实施-仅追溯", "已废弃")
 DOCS_CHECK_ARCHIVE_EXEMPTION = "已归档"
 DOCS_CHECK_EXCLUDED_DIRS = {"node_modules", ".worktrees", "deliverables", "output", "artifacts"}
+DOCS_CHECK_ARTIFACT_DIRS = {"dist", "build", "dist-electron", "release", "zbuddy-output", "test-results", "coverage", "软著"}
+DOCS_CHECK_SOURCE_SUFFIXES = {
+    ".go", ".ts", ".tsx", ".js", ".jsx", ".cjs", ".mjs", ".py",
+    ".ps1", ".psm1", ".bat", ".cmd", ".sh", ".json", ".toml", ".yaml", ".yml",
+}
 DOCS_CHECK_STALE_DAYS = 90
 DOCS_CHECK_SYMBOL_MAX_FILE_BYTES = 2_000_000
 
@@ -2404,19 +2409,27 @@ def docs_check_banner(path: Path) -> str | None:
     return None
 
 
+def docs_check_walk_files(target: Path, prune_dirs: set[str]) -> list[Path]:
+    """剪枝遍历：不进入隐藏目录、符号链接目录与指定目录，避免枚举 node_modules 等巨大子树。"""
+    files: list[Path] = []
+    for root, dirs, names in os.walk(target):
+        dirs[:] = [
+            name for name in dirs
+            if not name.startswith(".") and name not in prune_dirs
+            and not (Path(root) / name).is_symlink()
+        ]
+        files.extend(
+            Path(root) / name for name in names if not name.startswith(".")
+        )
+    return sorted(files)
+
+
 def docs_check_markdown_files(target: Path) -> list[Path]:
     """全仓 .md 文件，排除 VCS 元数据、依赖、构建产物与隐藏目录。"""
-    files: list[Path] = []
-    for path in target.rglob("*.md"):
-        if path.is_symlink():
-            continue
-        parts = path.relative_to(target).parts
-        if any(part.startswith(".") for part in parts):
-            continue
-        if any(part in DOCS_CHECK_EXCLUDED_DIRS for part in parts):
-            continue
-        files.append(path)
-    return sorted(files)
+    return [
+        path for path in docs_check_walk_files(target, DOCS_CHECK_EXCLUDED_DIRS)
+        if path.suffix == ".md" and not path.is_symlink()
+    ]
 
 
 def command_docs_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
@@ -2506,7 +2519,8 @@ def command_docs_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                     f"（正确路径 docs/plans/archive/{basename}）"
                 )
 
-    # C5：镜像为已实施-仅追溯的条目，其关键符号必须在 docs/ 之外的仓库内容中至少命中 1 处。
+    # C5：镜像为已实施-仅追溯的条目，其关键符号必须在 docs/ 之外的源码内容中至少命中 1 处。
+    # 源码白名单遍历：构建产物里的旧符号不算「代码仍是真源」的证据，二进制/资产文件也无须读入。
     trace_pending: dict[str, list[str]] = {}
     for line in index_lines:
         if "关键符号" not in line or "已实施-仅追溯" not in line:
@@ -2517,15 +2531,16 @@ def command_docs_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         if symbols:
             trace_pending[basename] = symbols
     if trace_pending:
-        for path in sorted(target.rglob("*")):
+        prune = DOCS_CHECK_EXCLUDED_DIRS | DOCS_CHECK_ARTIFACT_DIRS
+        for path in docs_check_walk_files(target, prune):
             if not trace_pending:
                 break
             if not path.is_file() or path.is_symlink():
                 continue
             parts = path.relative_to(target).parts
-            if parts[0] == "docs" or any(part.startswith(".") for part in parts):
+            if parts[0] == "docs":
                 continue
-            if any(part in DOCS_CHECK_EXCLUDED_DIRS for part in parts):
+            if path.suffix.lower() not in DOCS_CHECK_SOURCE_SUFFIXES:
                 continue
             try:
                 if path.stat().st_size > DOCS_CHECK_SYMBOL_MAX_FILE_BYTES:

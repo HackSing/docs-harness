@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.4.1 - 2026-08-14
+
+- docs-check C5（关键符号存活性）改为剪枝遍历 + 源码白名单：新增 `docs_check_walk_files` 不进入隐藏/符号链接/剪枝目录，取代 `rglob("*")` 全量枚举与逐条目双 stat，ZBuddy 仓实测 32.3s→4.6s；新增 `DOCS_CHECK_SOURCE_SUFFIXES` 扩展名白名单与 `DOCS_CHECK_ARTIFACT_DIRS` 产物目录黑名单，构建产物里的旧符号不再算「代码仍是真源」证据；C3 死链扫描复用剪枝遍历，结果集等价。
+- C6（横幅时效）实测后保持不动：单次 `git log` 子进程约 25ms，代价可忽略，不满足优化触发条件。
+
 ## 2.4.0 - 2026-08-13
 
 - pre-commit 钩子机制回灌为默认安装能力：新增 `scripts/githooks/pre-commit` 与 `scripts/githooks/setup.sh` 模板并进入 `project init|upgrade` 安装面，与方案模板共用同一套指纹归属预检（用户修改拒绝覆盖）、预览 diff、复制与卸载（按指纹只删未改过的钩子）路径；钩子随包分发但不自动执行 `git config core.hooksPath`，init/upgrade 输出附 `githook_activation_hint`，由用户显式执行一次 `scripts/githooks/setup.sh` 激活。

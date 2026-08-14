@@ -126,7 +126,7 @@ python3 scripts/harness.py self-test --target <project>
 
 pre-2.0 项目必须用新取得的当前来源包执行 upgrade；不能调用目标项目里仍是旧版本的 scripts/harness.py 来完成换代；`--source` 允许项目内安装副本显式指定同版本完整源包执行 init/upgrade，来源包版本必须与当前控制器一致，跨版本升级仍须直接运行源包内的控制器。安装后的项目脚本可用于 project check、project diff、知识查询、方案和验收。`project uninstall` 删除所有权明确的受管文件并保留全部用户文档；`docs-check` 对 docs/plans 体系做状态横幅、索引条目与归档链接的常驻检查，`--strict` 供 CI 将 WARN 计入失败。
 
-2.4.0 安装内容包括：
+2.4.1 安装内容包括：
 
 - 受管 `AGENTS.md` 与 `CLAUDE.md` 区块（`AGENTS.md` 区块含工作流规则、编码质量规范、防御代码准入、提示词与代码流程同步、测试与验收范围等通用工程规范）；
 - `scripts/harness.py`；

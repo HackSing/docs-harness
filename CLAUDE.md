@@ -1,9 +1,9 @@
 # CLAUDE.md
 
 <!-- docs-harness:claude-bridge:start -->
-## Docs Harness 2.3.0：默认直跑，能力按需
+## Docs Harness 2.4.1：默认直跑，能力按需
 
-Docs Harness 当前版本：2.3.0
+Docs Harness 当前版本：2.4.1
 
 - 普通问答、只读检查、代码修改、构建和测试默认由 agent 直接完成；Harness 不作为任务入口，也不创建任务控制状态。
 - 用户明确说“不使用 Harness”时必须直接执行，不得暗中恢复旧流程。
@@ -78,6 +78,8 @@ Docs Harness 当前版本：2.3.0
 2. **索引带符号**：`docs/INDEX.md` 条目带 2-4 个唯一性强的代码符号（取正文反引号标识符按频次排序，剔除 runId 类全仓通用词）+ 状态镜像，使 grep 符号能同时命中源码、索引与文档。
 3. **废弃归档**：废弃/被吸收文档移入 `docs/plans/archive/` 并退出活索引；移动必须 sweep 全仓 `.md` 相对链接，不留死链；新文档取代旧文档时，旧文档横幅同步改为"已废弃-被本文件取代"。
 4. **WARN 消费**：agent 在某领域执行任务收尾时，若 docs-check 输出与该领域相关的 WARN，必须在收尾报告中向用户转达，不得静默略过。
+
+提交时由入库 pre-commit 钩子强制 docs-check（`scripts/githooks/`，新克隆机器先执行 `setup.sh` 激活）。
 
 ## 收尾
 

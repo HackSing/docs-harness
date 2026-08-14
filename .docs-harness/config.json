@@ -1,16 +1,20 @@
 {
-  "schema_version": "docs-harness/project-config/v6",
-  "version": "2.3.0",
-  "installed_script_fingerprint": "sha256:fa08bcc0662ad6ea2b3a1d8082e94b734a51d95f3946d139486f720f224de029",
+  "schema_version": "docs-harness/project-config/v7",
+  "version": "2.4.1",
+  "installed_script_fingerprint": "sha256:10765591dc768afb042611bd654d33ba8fcc29126b97249f6088ccb9430c30f6",
   "installed_plan_template_fingerprints": {
-    "levels/brief.json": "sha256:bd555a9a864fe08985a4e17684a61352f23246dbfed2ca73f4c6574d36af4164",
-    "levels/full.json": "sha256:06fa51963fadc588bfb959255d77a814610912bb8850cb1659a57de981ac10ef",
-    "profiles/general.json": "sha256:95526cf07bfe071713ed8897bad04c4b26cd632e3482eaeb4555a1ac8f1775f8",
-    "profiles/frontend-ui.json": "sha256:1bbf28080878eb1c83e8d95159718626d7e969fb34e223873c5914b94a320dc4",
-    "profiles/backend-service.json": "sha256:e39f7561f5dc1185e47b1a778f1435429cb07aa6ae9d9a44b63b39e1ae5bfaa3",
-    "profiles/bugfix.json": "sha256:59197739bb0f98f1601769788476dd2b4e6315a9c8f44a8339fb8a5a1a68124b",
-    "profiles/architecture.json": "sha256:fd0ed527438bd0bb93465b1314008d4363c75c6214675ed1bafef89bb474de07",
-    "profiles/migration-release.json": "sha256:36774b1a4610850d6f95a5fcf61a2fece22c74f0c82e1bc3c3940062faa3af41"
+    "levels/brief.json": "sha256:f3cbc14837d7c7f33a375a3ae91a24871f48ec5e064e976167709e46989ad1dd",
+    "levels/full.json": "sha256:ddf48ffcf65dadf5c8c65907c98f44503c7b2bfe52043d86e632a70d1a21730d",
+    "profiles/general.json": "sha256:2168e8bdca574eefc577479b1c69a54c569457054b1f019e50b34a6a7ae4aa8b",
+    "profiles/frontend-ui.json": "sha256:c0db686552c5c7461c5fe40f12d22c04fa8ae3733f468625967f611d2f01966f",
+    "profiles/backend-service.json": "sha256:7be24a1e9e02304a3bc51ca7c8f3b4b8a087ae813e7500efc992dfde0992c982",
+    "profiles/bugfix.json": "sha256:ca85ab1b141c27ce01c4e6cac64b4c0c03f50729f6a8ea1fac0ca3caccc363a8",
+    "profiles/architecture.json": "sha256:c47629464a4235ad0cbcf94e78b25ffc2bd90f3e4fe47825c378c97036e7d8cc",
+    "profiles/migration-release.json": "sha256:1c630de9302a77dab9aadf657834ea4450267e401c4b8d25d8f143f54bb6b9b7"
+  },
+  "installed_githook_fingerprints": {
+    "pre-commit": "sha256:5c9e34005b05555b996a1ce7d95abc84be40b16cec8f0d28241bbe44eefac2b0",
+    "setup.sh": "sha256:2fccbf9824b64255bae2c538e332099a2965ffa147bacbc05dd0ad7844bb9462"
   },
   "direct_mode": {
     "default": true
@@ -21,15 +25,9 @@
     "docs_preexisting_at_install": true
   },
   "migration": {
-    "source_version": "1.8.2",
+    "source_version": "2.3.0",
     "legacy_document_system": "removed",
-    "removed_paths": [
-      ".docs-harness/background",
-      ".docs-harness/knowledge-jobs",
-      ".docs-harness/runs",
-      ".docs-harness/task-inputs",
-      ".git/docs-harness/runs"
-    ],
+    "removed_paths": [],
     "preserved_paths": []
   },
   "installed_at": "2026-08-09T07:09:45+00:00"
