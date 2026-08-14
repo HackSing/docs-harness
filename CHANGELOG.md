@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.4.0 - 2026-08-13
+
+- pre-commit 钩子机制回灌为默认安装能力：新增 `scripts/githooks/pre-commit` 与 `scripts/githooks/setup.sh` 模板并进入 `project init|upgrade` 安装面，与方案模板共用同一套指纹归属预检（用户修改拒绝覆盖）、预览 diff、复制与卸载（按指纹只删未改过的钩子）路径；钩子随包分发但不自动执行 `git config core.hooksPath`，init/upgrade 输出附 `githook_activation_hint`，由用户显式执行一次 `scripts/githooks/setup.sh` 激活。
+- 项目配置 Schema 升级 `project-config/v7`：仅新增 `installed_githook_fingerprints` 字段；v6 并入已知旧 Schema 集合，`project upgrade` 将 v6 配置平滑重写为 v7，迁移记录保留来源版本。
+- `project check` 新增 `githook_drift` 红级检查；受管 AGENTS.md/CLAUDE.md 区块的「文档可发现性规范」补充 pre-commit 强制说明。
+
 ## 2.3.0 - 2026-08-13
 
 - docs-check 与「文档可发现性规范」上游化：新增 docs/plans 状态横幅、INDEX.md 符号索引闭环、归档死链、关键符号存活与时效的常驻检查命令 docs-check（含 --strict CI 模式）；受管 AGENTS.md 区块随安装注入同一套规范，plan create 输出附 docs_hygiene_hint 落盘指引；文档体系未建立的项目 docs-check 自动 skipped。

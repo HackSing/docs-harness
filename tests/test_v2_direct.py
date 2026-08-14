@@ -19,11 +19,12 @@ HARNESS = ROOT / "scripts" / "harness.py"
 class DocsHarnessV2DirectTest(unittest.TestCase):
     maxDiff = None
 
-    V6_CONFIG_KEYS = {
+    CURRENT_CONFIG_KEYS = {
         "schema_version",
         "version",
         "installed_script_fingerprint",
         "installed_plan_template_fingerprints",
+        "installed_githook_fingerprints",
         "direct_mode",
         "knowledge",
         "migration",
@@ -453,7 +454,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(self.snapshot_project(), before)
         self.assertEqual(list(outside.iterdir()), [])
 
-    def test_project_init_installs_pure_v6_without_legacy_rules(self) -> None:
+    def test_project_init_installs_pure_v7_without_legacy_rules(self) -> None:
         payload = self.run_cli("project", "init", "--target", str(self.project))
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
@@ -461,8 +462,8 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(
             payload["version"], (ROOT / "VERSION").read_text(encoding="utf-8").strip()
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v6")
-        self.assertEqual(set(config), self.V6_CONFIG_KEYS)
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v7")
+        self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["direct_mode"], {"default": True})
         self.assertEqual(
@@ -563,6 +564,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         fake = Path(self.temp.name) / "fake-source"
         (fake / "scripts").mkdir(parents=True)
         shutil.copytree(ROOT / "plan-templates", fake / "plan-templates")
+        shutil.copytree(ROOT / "scripts" / "githooks", fake / "scripts" / "githooks")
         script = (ROOT / "scripts" / "harness.py").read_text(encoding="utf-8")
         fake_script = re.sub(
             r'^VERSION = "[^"]+"',
@@ -614,6 +616,105 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertFalse((self.project / "scripts" / "harness.py").exists())
         self.assertFalse((self.project / ".docs-harness" / "config.json").exists())
         self.assertFalse((self.project / "plan-templates").exists())
+
+    def githook_digest(self, name: str) -> str:
+        path = self.project / "scripts" / "githooks" / name
+        return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+
+    def test_project_init_installs_githooks_with_activation_hint(self) -> None:
+        payload = self.run_cli("project", "init", "--target", str(self.project))
+        for name in ("pre-commit", "setup.sh"):
+            installed = self.project / "scripts" / "githooks" / name
+            self.assertTrue(installed.is_file())
+            self.assertFalse(installed.is_symlink())
+            self.assertEqual(
+                installed.read_bytes(),
+                (ROOT / "scripts" / "githooks" / name).read_bytes(),
+            )
+            self.assertIn(f"scripts/githooks/{name}", payload["changed"])
+        config = json.loads(
+            (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
+        )
+        fingerprints = config["installed_githook_fingerprints"]
+        self.assertEqual(set(fingerprints), {"pre-commit", "setup.sh"})
+        for name, fingerprint in fingerprints.items():
+            self.assertEqual(fingerprint, self.githook_digest(name))
+        self.assertIn("scripts/githooks/setup.sh", payload["githook_activation_hint"])
+        check = self.run_cli("project", "check", "--target", str(self.project))
+        self.assertEqual(check["status"], "passed")
+
+    def test_upgrade_rejects_user_modified_githook_before_any_write(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        hook = self.project / "scripts" / "githooks" / "pre-commit"
+        hook.write_bytes(hook.read_bytes() + b"# user tweak\n")
+        before = self.snapshot_project()
+        payload = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply", expected=2
+        )
+        self.assertEqual(payload["code"], "install_conflict")
+        self.assertEqual(self.snapshot_project(), before)
+
+    def test_upgrade_githooks_idempotent(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        repeated = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply"
+        )
+        self.assertEqual(repeated["changed"], [])
+        diff = self.run_cli("project", "diff", "--target", str(self.project))
+        self.assertEqual(diff["changes"], [])
+
+    def test_uninstall_removes_only_unmodified_githooks(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        modified = self.project / "scripts" / "githooks" / "setup.sh"
+        modified.write_bytes(modified.read_bytes() + b"# user tweak\n")
+        preview = self.run_cli("project", "uninstall", "--target", str(self.project))
+        self.assertIn("owned scripts/githooks files", preview["would_remove"])
+        payload = self.run_cli(
+            "project", "uninstall", "--target", str(self.project), "--apply"
+        )
+        self.assertIn("scripts/githooks/pre-commit", payload["removed"])
+        self.assertNotIn("scripts/githooks/setup.sh", payload["removed"])
+        self.assertFalse((self.project / "scripts" / "githooks" / "pre-commit").exists())
+        self.assertTrue(modified.is_file())
+        self.assertTrue((self.project / "scripts" / "githooks").is_dir())
+
+    def test_upgrade_v6_config_is_smoothly_rewritten_to_v7(self) -> None:
+        self.write_json(
+            ".docs-harness/config.json",
+            {
+                "schema_version": "docs-harness/project-config/v6",
+                "version": "2.3.0",
+                "installed_script_fingerprint": "sha256:" + "0" * 64,
+                "installed_plan_template_fingerprints": {},
+                "direct_mode": {"default": True},
+                "knowledge": {
+                    "mode": "on_demand",
+                    "read_only": True,
+                    "docs_preexisting_at_install": False,
+                },
+                "migration": {"source_version": "2.2.0"},
+                "installed_at": "2026-08-13T00:00:00Z",
+            },
+        )
+        payload = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply"
+        )
+        self.assertEqual(payload["from_version"], "2.3.0")
+        config = json.loads(
+            (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v7")
+        self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
+        self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
+        self.assertEqual(config["migration"]["source_version"], "2.3.0")
+        self.assertEqual(
+            set(config["installed_githook_fingerprints"]), {"pre-commit", "setup.sh"}
+        )
+        for name in ("pre-commit", "setup.sh"):
+            self.assertEqual(
+                config["installed_githook_fingerprints"][name],
+                self.githook_digest(name),
+            )
 
     def test_upgrade_v5_preview_apply_cleanup_and_repeat_are_one_way(self) -> None:
         owned_rule = "---\nstatus: active\nrule_id: DH-LEGACY\n---\n\n# 旧规则\n"
@@ -690,8 +791,8 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v6")
-        self.assertEqual(set(config), self.V6_CONFIG_KEYS)
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v7")
+        self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["direct_mode"], {"default": True})
         self.assertEqual(config["knowledge"]["mode"], "on_demand")

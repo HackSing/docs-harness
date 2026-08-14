@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Docs Harness 2.3.0：默认直跑，按需知识、方案模板、真实验收与单向迁移。"""
+"""Docs Harness 2.4.0：默认直跑，按需知识、方案模板、真实验收与单向迁移。"""
 
 from __future__ import annotations
 
@@ -19,10 +19,10 @@ from pathlib import Path
 from typing import Any, Sequence
 
 
-VERSION = "2.3.0"
-CONFIG_SCHEMA = "docs-harness/project-config/v6"
+VERSION = "2.4.0"
+CONFIG_SCHEMA = "docs-harness/project-config/v7"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
-    f"docs-harness/project-config/v{version}" for version in range(1, 6)
+    f"docs-harness/project-config/v{version}" for version in range(1, 7)
 }
 PLAN_TEMPLATE_SCHEMA = "docs-harness/plan-template/v2"
 PLAN_SELECTION_SCHEMA = "docs-harness/plan-selection/v2"
@@ -42,6 +42,8 @@ PLAN_TEMPLATE_RELATIVE_FILES = (
     "profiles/architecture.json",
     "profiles/migration-release.json",
 )
+GIT_HOOKS_RELATIVE = "scripts/githooks"
+GIT_HOOK_RELATIVE_FILES = ("pre-commit", "setup.sh")
 PLAN_LEVELS = ("none", "brief", "full")
 PLAN_PROFILES = (
     "general",
@@ -351,6 +353,8 @@ _GENERIC_STANDARDS = """
 3. **废弃归档**：废弃/被吸收文档移入 `docs/plans/archive/` 并退出活索引；移动必须 sweep 全仓 `.md` 相对链接，不留死链；新文档取代旧文档时，旧文档横幅同步改为"已废弃-被本文件取代"。
 4. **WARN 消费**：agent 在某领域执行任务收尾时，若 docs-check 输出与该领域相关的 WARN，必须在收尾报告中向用户转达，不得静默略过。
 
+提交时由入库 pre-commit 钩子强制 docs-check（`scripts/githooks/`，新克隆机器先执行 `setup.sh` 激活）。
+
 ## 收尾
 
 报告实际改动路径、执行命令与退出结果、验收层、未覆盖项和剩余风险。没有证据时不得声称完成。"""
@@ -442,6 +446,17 @@ def template_fingerprints(root: Path) -> dict[str, str]:
     return {relative: file_fingerprint(root / relative) for relative in PLAN_TEMPLATE_RELATIVE_FILES}
 
 
+def githook_fingerprints(root: Path) -> dict[str, str]:
+    """git 钩子文件指纹；任一文件缺失或非常规文件时返回空（与方案模板口径一致）。"""
+    fingerprints: dict[str, str] = {}
+    for relative in GIT_HOOK_RELATIVE_FILES:
+        path = root / relative
+        if not path.is_file() or path.is_symlink():
+            return {}
+        fingerprints[relative] = file_fingerprint(path)
+    return fingerprints
+
+
 def validate_project_source(source_root: Path) -> None:
     source_hint = (
         f"若你正从项目内已安装的副本运行 init/upgrade，请改用完整的 Docs Harness {VERSION} 源包，"
@@ -454,6 +469,10 @@ def validate_project_source(source_root: Path) -> None:
     if not template_fingerprints(source_root / PLAN_TEMPLATES_RELATIVE):
         raise HarnessError(
             f"来源包缺少完整 {VERSION} 方案模板（{source_hint}）", code="invalid_source"
+        )
+    if not githook_fingerprints(source_root / GIT_HOOKS_RELATIVE):
+        raise HarnessError(
+            f"来源包缺少完整 {VERSION} git 钩子（{source_hint}）", code="invalid_source"
         )
 
 
@@ -515,6 +534,7 @@ def portable_install_paths() -> list[str]:
         "CLAUDE.md",
         ".docs-harness/config.json",
         *(f"{PLAN_TEMPLATES_RELATIVE}/{relative}" for relative in PLAN_TEMPLATE_RELATIVE_FILES),
+        *(f"{GIT_HOOKS_RELATIVE}/{relative}" for relative in GIT_HOOK_RELATIVE_FILES),
     ]
 
 
@@ -1394,6 +1414,7 @@ def v2_config(
     *,
     source_script: Path,
     source_templates: dict[str, str],
+    source_githooks: dict[str, str],
     existing: dict[str, Any] | None,
     docs_preexisted: bool,
     cleanup: dict[str, Any],
@@ -1436,6 +1457,7 @@ def v2_config(
         "version": VERSION,
         "installed_script_fingerprint": file_fingerprint(source_script),
         "installed_plan_template_fingerprints": source_templates,
+        "installed_githook_fingerprints": source_githooks,
         "direct_mode": {"default": True},
         "knowledge": {
             "mode": "on_demand",
@@ -1451,12 +1473,42 @@ def v2_config(
     }
 
 
+def preflight_owned_files(
+    target: Path,
+    install_relative: str,
+    source_fingerprints: dict[str, str],
+    installed_fingerprints: Any,
+    *,
+    label: str,
+) -> None:
+    """指纹归属文件的接管预检：方案模板与 git 钩子共用同一口径。"""
+    if not isinstance(installed_fingerprints, dict):
+        raise HarnessError(f"{label}安装指纹无效", code="install_conflict")
+    for relative, source_fingerprint in source_fingerprints.items():
+        path = target / install_relative / relative
+        if path.is_symlink() or (path.exists() and not path.is_file()):
+            raise HarnessError(
+                f"{label} {relative} 不是可接管常规文件",
+                code="install_conflict",
+            )
+        if path.is_file():
+            allowed = {source_fingerprint}
+            old = installed_fingerprints.get(relative)
+            if isinstance(old, str):
+                allowed.add(old)
+            if file_fingerprint(path) not in allowed:
+                raise HarnessError(
+                    f"{label} {relative} 已存在且归属不明，拒绝覆盖",
+                    code="install_conflict",
+                )
+
+
 def install_preflight(
     target: Path,
     source_root: Path,
     existing: dict[str, Any] | None,
     cleanup: dict[str, Any],
-) -> tuple[Path, dict[str, str]]:
+) -> tuple[Path, dict[str, str], dict[str, str]]:
     if cleanup["conflicts"]:
         raise HarnessError(
             "旧文档系统存在不安全路径，升级未写入",
@@ -1480,6 +1532,7 @@ def install_preflight(
     validate_project_source(source_root)
     source_script = source_root / "scripts" / "harness.py"
     source_templates = template_fingerprints(source_root / PLAN_TEMPLATES_RELATIVE)
+    source_githooks = githook_fingerprints(source_root / GIT_HOOKS_RELATIVE)
     for relative in portable_install_paths():
         assert_no_symlink_ancestors(target, relative, code="install_conflict")
     target_script = target / "scripts" / "harness.py"
@@ -1500,28 +1553,20 @@ def install_preflight(
                 "scripts/harness.py 存在用户修改，拒绝覆盖",
                 code="install_conflict",
             )
-    installed_templates = (
-        existing.get("installed_plan_template_fingerprints", {}) if existing else {}
+    preflight_owned_files(
+        target,
+        PLAN_TEMPLATES_RELATIVE,
+        source_templates,
+        existing.get("installed_plan_template_fingerprints", {}) if existing else {},
+        label="方案模板",
     )
-    if not isinstance(installed_templates, dict):
-        raise HarnessError("方案模板安装指纹无效", code="install_conflict")
-    for relative, source_fingerprint in source_templates.items():
-        path = target / PLAN_TEMPLATES_RELATIVE / relative
-        if path.is_symlink() or (path.exists() and not path.is_file()):
-            raise HarnessError(
-                f"方案模板 {relative} 不是可接管常规文件",
-                code="install_conflict",
-            )
-        if path.is_file():
-            allowed = {source_fingerprint}
-            old = installed_templates.get(relative)
-            if isinstance(old, str):
-                allowed.add(old)
-            if file_fingerprint(path) not in allowed:
-                raise HarnessError(
-                    f"方案模板 {relative} 已存在且归属不明，拒绝覆盖",
-                    code="install_conflict",
-                )
+    preflight_owned_files(
+        target,
+        GIT_HOOKS_RELATIVE,
+        source_githooks,
+        existing.get("installed_githook_fingerprints", {}) if existing else {},
+        label="git 钩子",
+    )
     for relative, begin, end in (
         ("AGENTS.md", MANAGED_BEGIN, MANAGED_END),
         ("CLAUDE.md", CLAUDE_BEGIN, CLAUDE_END),
@@ -1543,7 +1588,7 @@ def install_preflight(
             code="git_delivery_ignored",
             exit_code=3,
         )
-    return source_script, source_templates
+    return source_script, source_templates, source_githooks
 
 
 def project_changes(target: Path, source_root: Path) -> list[dict[str, Any]]:
@@ -1597,6 +1642,17 @@ def project_changes(target: Path, source_root: Path) -> list[dict[str, Any]]:
             changes.append(
                 {"path": f"{PLAN_TEMPLATES_RELATIVE}/{relative}", "action": "update"}
             )
+    source_githooks = githook_fingerprints(source_root / GIT_HOOKS_RELATIVE)
+    for relative, fingerprint in source_githooks.items():
+        path = target / GIT_HOOKS_RELATIVE / relative
+        if not path.is_file():
+            changes.append(
+                {"path": f"{GIT_HOOKS_RELATIVE}/{relative}", "action": "create"}
+            )
+        elif file_fingerprint(path) != fingerprint:
+            changes.append(
+                {"path": f"{GIT_HOOKS_RELATIVE}/{relative}", "action": "update"}
+            )
     cleanup = legacy_cleanup_plan(target)
     changes.extend(
         {"path": path, "action": "remove_owned_legacy"}
@@ -1622,6 +1678,7 @@ def project_changes(target: Path, source_root: Path) -> list[dict[str, Any]]:
     expected_config = v2_config(
         source_script=source_script,
         source_templates=source_templates,
+        source_githooks=source_githooks,
         existing=existing,
         docs_preexisted=(target / "docs").is_dir(),
         cleanup=cleanup,
@@ -1639,12 +1696,13 @@ def apply_project_install(
 ) -> tuple[list[str], dict[str, Any]]:
     existing = project_config(target)
     cleanup = legacy_cleanup_plan(target)
-    source_script, source_templates = install_preflight(
+    source_script, source_templates, source_githooks = install_preflight(
         target, source_root, existing, cleanup
     )
     config_value = v2_config(
         source_script=source_script,
         source_templates=source_templates,
+        source_githooks=source_githooks,
         existing=existing,
         docs_preexisted=(target / "docs").is_dir(),
         cleanup=cleanup,
@@ -1688,6 +1746,14 @@ def apply_project_install(
             path.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(source_template_root / relative, path)
             changed.append(f"{PLAN_TEMPLATES_RELATIVE}/{relative}")
+    source_githook_root = source_root / GIT_HOOKS_RELATIVE
+    for relative, fingerprint in source_githooks.items():
+        path = target / GIT_HOOKS_RELATIVE / relative
+        if not path.is_file() or file_fingerprint(path) != fingerprint:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_githook_root / relative, path)
+            path.chmod(path.stat().st_mode | 0o111)
+            changed.append(f"{GIT_HOOKS_RELATIVE}/{relative}")
     config_path = target / ".docs-harness" / "config.json"
     if existing != config_value:
         atomic_write_json(config_path, config_value)
@@ -1704,7 +1770,7 @@ def project_findings(target: Path) -> list[dict[str, str]]:
             {
                 "severity": "red",
                 "code": "missing_config",
-                "message": "缺少 project-config/v6",
+                "message": "缺少 project-config/v7",
             }
         ]
     if config.get("version") != VERSION:
@@ -1810,6 +1876,15 @@ def project_findings(target: Path) -> list[dict[str, str]]:
                 "severity": "red",
                 "code": "plan_template_drift",
                 "message": "方案模板缺失或漂移",
+            }
+        )
+    live_githooks = githook_fingerprints(target / GIT_HOOKS_RELATIVE)
+    if live_githooks != config.get("installed_githook_fingerprints"):
+        findings.append(
+            {
+                "severity": "red",
+                "code": "githook_drift",
+                "message": "git 钩子缺失或漂移",
             }
         )
     cleanup = legacy_cleanup_plan(target)
@@ -1963,6 +2038,11 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             **delivery,
             "planned_changes": changes,
             "changed": changed,
+            "githook_activation_hint": (
+                "git 钩子已安装到 scripts/githooks/（不自动修改 git 配置）；"
+                "如需启用入库 pre-commit（提交时强制 docs-check），"
+                "请执行一次 scripts/githooks/setup.sh"
+            ),
             "findings": findings,
             "legacy_document_cleanup": cleanup_applied,
             "preserved_existing_docs": True,
@@ -2003,6 +2083,7 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 ".docs-harness/config.json",
                 "owned scripts/harness.py",
                 "owned plan-templates files",
+                "owned scripts/githooks files",
                 *cleanup["remove_files"],
                 *cleanup["remove_directories"],
             ],
@@ -2057,6 +2138,21 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         ):
             with contextlib.suppress(OSError):
                 directory.rmdir()
+    installed_githooks = (
+        config.get("installed_githook_fingerprints", {}) if config else {}
+    )
+    if isinstance(installed_githooks, dict):
+        for relative, fingerprint in installed_githooks.items():
+            path = target / GIT_HOOKS_RELATIVE / str(relative)
+            if (
+                relative in GIT_HOOK_RELATIVE_FILES
+                and path.is_file()
+                and file_fingerprint(path) == fingerprint
+            ):
+                path.unlink()
+                removed.append(f"{GIT_HOOKS_RELATIVE}/{relative}")
+        with contextlib.suppress(OSError):
+            (target / GIT_HOOKS_RELATIVE).rmdir()
     config_path = target / ".docs-harness" / "config.json"
     if config_path.is_file():
         config_path.unlink()
@@ -2528,7 +2624,7 @@ def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "plan_templates_valid": bool(
             template_fingerprints(SCRIPT_ROOT / PLAN_TEMPLATES_RELATIVE)
         ),
-        "project_config_v6": (
+        "project_config_v7": (
             True
             if source_distribution
             else config.get("schema_version") == CONFIG_SCHEMA

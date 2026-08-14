@@ -46,7 +46,8 @@
 - fresh init 不创建知识正文或后台 Job；
 - pre-2.0 upgrade preview 零写入，apply 只清理所有权明确的旧工件并保留项目内容；
 - 旧命令和 `--legacy-opt-in` 不存在于 CLI 或控制器；
-- 重复 upgrade 幂等，符号链接和归属冲突在任何安装写入前失败关闭；
+- 重复 upgrade 幂等，符号链接和归属冲突在任何安装写入前失败关闭；\r
+- `scripts/githooks/` 钩子默认安装：init 落地两个钩子文件、用户修改的钩子 upgrade 拒绝覆盖、uninstall 按指纹只删未改过的钩子、v6 旧配置平滑升级（`tests/test_v2_direct.py` 的 githook 合同用例）；
 - 发布包只包含当前 2.1.0 对外文档。
 
 ## 5. 迁移回归
