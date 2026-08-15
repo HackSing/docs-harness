@@ -1,0 +1,127 @@
+> 状态：已实施-仅追溯（代码已是真源，2026-08-15 核对）
+<!-- docs-harness:plan-document/v1 -->
+
+# Docs Harness 2.7.0 三资产多重执行保障方案
+
+- 冻结合同：`sha256:873cd6a78c94d796e66c7973e36f49c1e0b05d31ef54bc2f25376ba01dcf8602`
+- 关键符号：`command_assets_check`、`acceptance_refs`、`knowledge_impact`、`validate_plan_governance`
+
+## 背景
+
+Docs Harness 2.6.0 已具备 Plan、Knowledge、Acceptance 各自的资产生命周期，但 pre-commit 只执行 Plan 的 docs-check，复杂任务收尾仍依赖智能体手动运行多个 check，Plan settle 也不能机械验证关联 Acceptance 与 Knowledge 声明。Kimi CLI 独立审查确认这是现有治理缺口，并建议以统一检查、Plan 自声明合同和分层执行机制闭环。
+
+## 目标
+
+在保持 direct-first、简单任务零资产、按需启用且不从 Git diff 推断资产义务的前提下，建立统一 assets-check、三资产提交防线、Full Plan 治理字段、Acceptance 反向登记、plan settle 治理终验和 GitHub 严格 CI，使已有资产与声明关系受到持续机械治理。
+
+## 非目标
+
+- 不恢复 1.x Run、Gate、Job 或第二套授权状态机
+- 不强制简单或中等任务创建资产
+- 不自动判断 Knowledge 内容语义正确性
+- 不从 Git diff 或提交信息推断必须创建哪类资产
+- 不在本任务中提交或推送 Git 改动
+
+## 成功标准
+
+- assets-check 一次覆盖 Plan、Knowledge、Acceptance 及跨资产关系，零资产通过并统一 FAIL/WARN/strict 退出语义
+- pre-commit 使用 fast 模式覆盖三类资产机械完整性，GitHub CI 使用 strict 完整模式
+- Full Plan 使用 acceptance_required 与单字段 knowledge_impact，Acceptance 创建与 supersede 自动维护 Plan.acceptance_refs
+- plan settle 按明确顺序验证 Acceptance 终态和 Knowledge 治理输入，同时兼容 2.6.0 Plan v2
+- 聚焦测试、仓库全量测试、self-test、pack:check、strict assets-check 与 fresh install 验证通过
+
+## 执行范围
+
+- scripts/managed_assets.py、scripts/knowledge_assets.py、scripts/acceptance_assets.py
+- scripts/harness.py 与 scripts/githooks/pre-commit
+- plan-templates/levels/full.json 与相关受管配置/版本真源
+- tests/test_v2_direct.py 与 GitHub Actions workflow
+- README、AGENTS.md、SKILL.md、CHANGELOG、architecture/contracts/testing 文档
+
+## 执行内容
+
+- 下沉统一 CheckResult 结构并实现 command_assets_check，拆分 docs-check fast/slow 检查
+- pre-commit 切换 assets-check --fast，新建 GitHub strict workflow
+- 升级 Plan 模板与资产 Schema，增加治理字段、acceptance_refs 与兼容读取
+- 在 acceptance create/supersede 维护反向登记，在 plan settle 执行治理终验
+- 增加跨资产 WARN/FAIL，更新文档、版本与安装消费链
+
+## 验收方案
+
+- 聚焦测试验证零资产、资产篡改、WARN/strict、fast 不依赖 Git、跨资产一致性
+- 聚焦测试验证 acceptance_required、failed 终态、knowledge_impact 两分支、v2 兼容及 supersede 反向移除
+- 运行受影响模块完整测试并因公共 CLI、配置、安装协议变化运行仓库级全量回归
+- 运行 self-test、pack:check、strict assets-check、git diff --check 与 fresh install 验证
+- 逐条记录 Acceptance 真实证据，先 acceptance settle，再 plan settle
+
+## 约束
+
+- 保留当前 2.6.0 未提交工作树，不重置或覆盖已有改动
+- 不新增第三方依赖
+- 检查逻辑必须复用，避免在 harness.py 平行复制领域规则
+- 错误必须给出真实原因和下一步命令
+- Plan v2 冻结合约不得被回填改写
+
+## 风险与回滚
+
+- 跨模块写入 Plan 可能造成指纹或投影漂移，使用既有原子写与专门回归测试控制
+- strict CI 初期可能暴露较多 WARN，按规则修复而不静默降级
+- 按四批独立验证；失败时只反向撤销本批新增调用与受管文件，不使用 git reset
+
+## 当前约束
+
+- PLAN_SCHEMA 当前为 docs-harness/plan/v2，CONFIG_SCHEMA 为 project-config/v8
+- docs-check 已有 warnings/strict，但 Knowledge 与 Acceptance check 只有 failures
+- pre-commit 当前只运行 docs-check
+- Acceptance 仅持有 plan_ref，Plan 没有反向引用
+- 仓库当前没有 .github workflow
+
+## 候选方案
+
+- 只把三个 check 串进钩子，成本低但不能治理跨资产闭环
+- plan settle 时全量反查 Acceptance，改动少但关系不显式且每次扫描
+- Acceptance 创建时维护 Plan 反向登记，关系显式且 settle 读取稳定
+
+## 真实取舍
+
+采用反向登记和单字段 knowledge_impact。接受 Acceptance 生命周期对 Plan 的受控写入成本，换取稳定可审计关系；接受宽松启用可能被声明规避，通过机械矛盾 WARN 而不是恢复强制状态机。
+
+## 最终决策
+
+按 Kimi 审查方案实施 2.7.0：统一 assets-check、fast pre-commit、strict CI、Plan v3 治理合同、Acceptance 反向登记与跨资产检查；Acceptance 任一已结项状态满足 Plan 的流程闭环，failed 产生 WARN 而不伪装通过。
+
+## 边界与接口
+
+- assets-check 为编排层，领域校验继续归 Knowledge/Acceptance/Plan 所有者
+- acceptance_refs 只由 Harness 写入，模型通过 acceptance create 建立关系
+- plan settle 通过 --governance-input 接收 Knowledge 更新引用或 unchanged_reason
+- docs-check 保持兼容入口，fast 只关闭符号存活与 Git 时效慢检查
+
+## 兼容与迁移
+
+- Plan v2 按旧规则读取与结算，不回填 governance 或 acceptance_refs
+- Plan v3 才强制治理终验
+- 2.6.0 Acceptance 指向 v2 Plan 时缺反向登记只 WARN
+- project upgrade 将模板、受管文件与 config v8 升至 v9，Knowledge/Acceptance Schema 不变
+
+## 回滚或替代路径
+
+批次一和二可独立撤销命令编排与钩子入口；批次三如失败，保留 v2 读取并停止创建 v3 Plan；已产生资产不删除。版本发布前不提交，保持每批 diff 可审查。
+
+## 架构验收
+
+- 统一检查不复制既有领域校验
+- fast 模式不执行源码全仓扫描或 git log
+- Plan v2/v3 双读边界有测试
+- Acceptance 反向登记与移除均保持 Plan 指纹和 Markdown/INDEX 一致
+- 所有新跨资产错误包含明确下一步
+
+## ADR 处理
+
+本次不另建 ADR；已批准的产品和架构决策冻结在本 Plan，README、architecture 和 contracts 成为实施后的现行事实。若未来引入自动语义判定或外部资产存储，再单独立 ADR。
+
+<!-- docs-harness:plan-governance:start -->
+## 资产治理
+
+- 关联验收：无
+<!-- docs-harness:plan-governance:end -->

@@ -1,0 +1,100 @@
+{
+  "schema_version": "docs-harness/plan/v2",
+  "plan_level": "full",
+  "plan_profile": "architecture",
+  "secondary_profiles": [
+    "migration_release"
+  ],
+  "template_versions": [
+    "level/full@2.4.1",
+    "profile/architecture@2.4.1",
+    "profile/migration_release@2.4.1"
+  ],
+  "selection_fingerprint": "sha256:afdbeb1a05c3b3dadfcc3024d1c5fb08669723ba1b771df8943642f66ca2c412",
+  "content": {
+    "background": "Docs Harness 2.4.1 已能选择和冻结结构化方案，也能检查已有 docs/plans Markdown，但安装不会初始化方案目录，plan create 只写 JSON，任务收尾不会更新状态、索引或归档，导致方案管理链路断裂。",
+    "objective": "建立从项目安装、任务方案生成、执行引用、完成收尾、废弃归档到 docs-check/pre-commit 治理的完整方案管理能力，并在 Avatanel 完成一次真实升级验收。",
+    "non_goals": [
+      "不恢复 1.x 的任务准入、Gate、后台 Job 或全任务控制状态",
+      "不为简单任务强制创建方案",
+      "不自动提交或推送 Docs Harness 与 Avatanel"
+    ],
+    "success_criteria": [
+      "init/upgrade 对缺失体系创建 docs/plans、archive 和 docs/INDEX 方案索引区块，且保留项目现有文档",
+      "plan create 冻结 JSON 的同时生成可审查 Markdown，并自动登记带状态和 2-4 个关键符号的索引条目",
+      "plan settle 能将方案标记为已实施或废弃归档，并同步索引、伴随 JSON 和 Markdown 引用",
+      "docs-check 不再把未初始化体系视为正常安装态，并能验证方案文档生命周期",
+      "受影响模块测试、self-test、docs-check、npm pack dry-run 通过",
+      "Avatanel 升级后零漂移、自检通过，并具备初始化后的方案目录和索引"
+    ],
+    "execution_scope": [
+      "scripts/harness.py 的 project/plan/docs-check 消费链",
+      "plan-templates、tests/test_v2_direct.py、受管 AGENTS/CLAUDE 提示词",
+      "README、SKILL、architecture、testing、CHANGELOG 与版本真源",
+      "Avatanel 的正式 project upgrade 与安装态验证"
+    ],
+    "implementation": [
+      "定义方案文档目录、索引区块、状态和结构化接口的单一常量与辅助函数",
+      "让 project init/upgrade 幂等初始化文档结构，预览和 diff 能观察缺失项",
+      "扩展 plan create 自动生成 Markdown 与索引；新增 plan settle 管理已实施和废弃归档",
+      "强化 docs-check 对结构、状态、索引、归档和符号的检查，并同步 pre-commit 提示",
+      "补齐合同测试和产品文档，升级版本后应用到 Avatanel"
+    ],
+    "acceptance_plan": [
+      "先运行聚焦的新合同测试覆盖初始化、创建、完成、归档和冲突保护",
+      "再运行 tests/test_v2_direct.py 受影响模块完整测试",
+      "运行 self-test、docs-check --strict、git diff --check 与 npm pack --dry-run",
+      "对 Avatanel 执行 upgrade preview/apply、project diff/check、self-test、docs-check，并核对 Git 边界"
+    ],
+    "constraints": [
+      "只覆盖所有权明确的受管区块和 Harness 生成的方案文件",
+      "现有 docs/INDEX 和项目正文必须保留",
+      "业务文档与安装交付状态分别报告"
+    ],
+    "risks_and_rollback": [
+      "索引更新可能误改用户正文：使用独立受管区块并对畸形标记失败关闭",
+      "归档可能产生死链：只重写明确匹配的 Markdown 相对链接并由 docs-check 复核",
+      "下游升级不通过时保留 Avatanel 原现场，不提交，按 project diff 定位并回退源实现"
+    ],
+    "current_constraints": [
+      "plan create 当前要求显式 selection/content/output 并冻结 JSON",
+      "docs-check 当前在 docs/plans 或 docs/INDEX 缺失时 skipped",
+      "项目安装必须保留现有文档，不能接管或覆盖用户正文"
+    ],
+    "alternatives": [
+      "仅在安装时创建空目录，继续人工维护 Markdown",
+      "只增强 docs-check，把缺失目录改为失败",
+      "将初始化、生成、收尾、归档和检查作为一个端到端能力实现"
+    ],
+    "tradeoffs": "选择端到端能力会扩大控制器与测试面，但能消除当前每个阶段都依赖 agent 临场补动作的断链；通过受管索引区块、伴随文档和幂等操作控制风险。",
+    "decision": "采用端到端方案管理：JSON 保留为冻结执行合同，Markdown 作为可审查项目资产，docs/INDEX 作为发现入口，plan settle 作为显式生命周期动作。",
+    "boundaries_interfaces": [
+      "project init/upgrade 只初始化缺失结构或更新受管索引区块",
+      "plan create 只在 docs/plans 下创建新方案，不覆盖不同内容",
+      "plan settle 只处理 Harness 生成且可验证的方案对",
+      "docs-check 只读验证，不承担修复"
+    ],
+    "compatibility_migration": "保留 plan create 的 JSON 输出与 execution_projection；新增 Markdown、索引和 settle 为可见增强。已有 2.x 项目通过 upgrade 补齐结构，已有用户文档不被删除。",
+    "rollback_strategy": "源码改动分批锁定；若新生命周期合同失败，回退对应批次即可，Avatanel 不提交，因此可在保留既有 1.7.4→2.4.1 迁移改动的前提下重新升级。",
+    "architecture_acceptance": [
+      "生产者 plan create 的 JSON、Markdown和索引由 docs-check、settle、pre-commit 完整消费",
+      "project install 的结构由 project diff/check 和下游升级验证",
+      "提示词明确创建与收尾步骤，不要求弱模型自行推断"
+    ],
+    "adr_decision": "本次是既有 Plan 能力的完整化，不改变系统边界或引入外部依赖，先以产品方案和合同文档记录，不单独新增 ADR。",
+    "source_target": "源为 /Users/aiware/projects/docs-harness，验证目标为 /Users/aiware/projects/avatanel。",
+    "versions_artifacts": "基于 Docs Harness 2.4.1 开发；按新增能力更新版本真源、控制器、模板、文档和 npm 包清单。",
+    "compatibility_rollout": "先在源仓库用临时项目合同测试，再升级已有 Avatanel 2.4.1 安装态，验证增量补齐而非重装覆盖。",
+    "data_safety": "不删除 Avatanel 业务文档，不覆盖已有 docs/plans 文件，不修改归属不明索引正文，不自动执行 Git 提交或推送。",
+    "monitoring_stop": "出现受管标记冲突、已有不同内容方案、project diff 非零、红级 check 或业务路径变更时停止扩展并归因。",
+    "rollback": "源码工作区保留可审查 diff；Avatanel 只保留未提交升级改动，可通过修正源后再次 preview/apply 收敛。",
+    "delivery_layers": [
+      "源代码与合同测试",
+      "Docs Harness 自检和包清单",
+      "Avatanel 本地安装态",
+      "Git 提交与远端交付不在本次授权范围"
+    ]
+  },
+  "frozen_at": "2026-08-14T14:50:39+00:00",
+  "plan_fingerprint": "sha256:affaa7bea9962c4ecbff217c2d00a3b90806523de85dfbf96dc0d936ad47fb0c"
+}

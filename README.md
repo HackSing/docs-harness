@@ -1,153 +1,333 @@
-# Docs Harness 2.3.0
+<div align="center">
 
-Docs Harness 2.x 的核心变化是：**Codex 默认直接工作，Harness 只在确实能增加价值时提供一项独立能力。**
+# Docs Harness
 
-1.x 把任务准入、Gate、上下文、Plan、Evidence、Verify 和 Readmission 串成一条强制流程。实际项目审查发现，这条控制链会把大量项目管理工作、重复状态和补证动作放进模型上下文，导致用户任务更慢、注意力被分散。2.0.0 不再优化这条强制链，而是改变默认产品合同。
+**面向 AI Agent 的轻量项目文档治理工具**
 
-## 默认任务流程
+默认直接完成任务；仅在确有长期价值时，管理 Plan、Knowledge、Acceptance 三类项目资产的完整生命周期。
+
+[![Version](https://img.shields.io/badge/version-2.7.1-2563eb.svg)](CHANGELOG.md)
+[![Assets Check](https://github.com/HackSing/docs-harness/actions/workflows/assets-check.yml/badge.svg)](https://github.com/HackSing/docs-harness/actions/workflows/assets-check.yml)
+[![Python](https://img.shields.io/badge/python-3.9%2B-3776ab.svg)](https://www.python.org/)
+[![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-16a34a.svg)](scripts/harness.py)
+
+[快速开始](#快速开始) · [工作方式](#工作方式) · [命令参考](#命令参考) · [设计文档](docs/README.md) · [更新日志](CHANGELOG.md)
+
+</div>
+
+---
+
+## 为什么需要 Docs Harness
+
+AI Agent 可以直接读取代码、修改文件和运行测试，但复杂项目中的方案、事实和验收结果经常散落在对话里，难以长期发现、更新和审查。
+
+Docs Harness 将这些内容沉淀为项目内、可版本管理的资产，同时避免把所有任务都变成重型流程：
+
+- 普通问答、只读检查、局部修改、构建和测试默认直接执行，Harness 调用数可以为 0；
+- 复杂、跨模块、高风险任务按需创建方案和验收资产；
+- 只有具备当前源码或项目文档证据的可复用事实才进入 Knowledge；
+- 已有资产受到 Schema、指纹、引用、状态、索引和归档检查；
+- 不建立第二套任务审批、授权或运行状态机。
+
+> 核心原则：**宽松启用，严格治理；没有证据，不宣称完成。**
+
+## 核心能力
+
+| 能力 | 解决的问题 | 默认行为 |
+|---|---|---|
+| Direct-first | 避免简单任务被流程拖慢 | Agent 直接执行，不创建任务控制状态 |
+| Plan 生命周期 | 方案容易丢失、过期或无法追溯 | 按需创建冻结 JSON、Markdown 和索引 |
+| Knowledge 生命周期 | 项目事实缺少来源、更新和冲突管理 | 只记录有 `source_refs` 的可复用事实 |
+| Acceptance 生命周期 | 测试、运行、安装和用户验收容易混为一谈 | 按标准和证据层逐条记录真实结果 |
+| `assets-check` | 三类资产分散检查，关系容易漂移 | 本地、pre-commit 和 CI 多层持续检查 |
+| 安全升级 | 旧版本或用户修改可能被误覆盖 | preview 优先，只覆盖指纹归属明确的文件 |
+
+## 快速开始
+
+### 环境要求
+
+- Git；
+- Python 3.9 或更高版本；
+- Node.js 与 npm 仅用于开发者运行仓库测试，不是目标项目的运行依赖。
+
+Docs Harness 当前通过源码分发，`package.json` 标记为 `private`，不提供 npm registry 安装入口。
+
+### 1. 获取源码
+
+```bash
+git clone https://github.com/HackSing/docs-harness.git
+cd docs-harness
+```
+
+### 2. 初始化新项目
+
+```bash
+python3 /path/to/docs-harness/scripts/harness.py \
+  project init --target /path/to/project --json
+```
+
+初始化会安装受管入口、控制器、资产模块、方案模板和 Git Hook 文件，并创建：
+
+```text
+docs/
+├── INDEX.md
+├── plans/
+├── knowledge/
+└── acceptance/
+```
+
+它不会生成虚构的项目事实或验收结果，不修改业务代码，也不会自动提交或推送。
+
+### 3. 升级已有项目
+
+先预览，再应用：
+
+```bash
+python3 /path/to/docs-harness/scripts/harness.py \
+  project upgrade --target /path/to/project --json
+
+python3 /path/to/docs-harness/scripts/harness.py \
+  project upgrade --target /path/to/project --apply --json
+```
+
+跨版本升级必须使用新版本源码中的控制器。升级会保留项目正文、三类用户资产、质量账本以及已修改或归属不明的文件。
+
+### 4. 启用提交前检查
+
+```bash
+cd /path/to/project
+sh scripts/githooks/setup.sh
+```
+
+该命令将仓库本地 `core.hooksPath` 设置为 `scripts/githooks`。之后每次提交都会运行：
+
+```bash
+python3 scripts/harness.py assets-check --target . --fast
+```
+
+### 5. 验证安装
+
+```bash
+python3 scripts/harness.py project diff --target . --json
+python3 scripts/harness.py project check --target . --json
+python3 scripts/harness.py self-test --target . --json
+python3 scripts/harness.py assets-check --target . --strict --json
+```
+
+理想结果是 `project diff` 返回 `changes=[]`，其余检查没有红色问题。`project check` 返回退出码 3、状态为 `needs_delivery` 时，表示受管文件尚未提交，不代表安装失败；提交后才能取得 `clone_ready=true`。
+
+## 工作方式
+
+### 默认任务路径
 
 ```text
 用户提出任务
-→ Codex 直接理解和读取必要文件
-→ 需要时单独查询知识或生成方案
-→ Codex 执行任务
-→ 运行能直接覆盖本次变化的最小真实验收
-→ 自动不了的部分准备好环境并交给用户验收
-→ 明确回复已验证、待用户验证和未验证层级
+    ↓
+Agent 读取必要事实并直接工作
+    ↓
+仅在需要时创建或消费项目资产
+    ↓
+运行最小充分的真实验证
+    ↓
+明确报告已验证、待用户验证和未覆盖层
 ```
 
-普通任务 Harness 调用数应为 0。没有安装 Docs Harness，Codex 也必须能完整完成普通问答、只读检查、代码修改、构建和测试。
+简单任务不要求 Plan、Knowledge 或 Acceptance。复杂任务通过三类资产形成可追溯闭环：
 
-## 默认模式与三项按需能力
-
-| 能力 | 何时使用 | 不做什么 |
-|---|---|---|
-| 直接模式 | 默认所有普通任务 | 不创建任务包、Gate、Plan 或 Verify 循环 |
-| `knowledge query` | 缺少项目事实会改变目标、范围、方案或验收 | 不自动注入、不全量加载、不自动维护知识 |
-| `plan select/create` | 复杂、跨模块、高风险或用户明确要求方案 | 不要求简单任务填表，不拼接多份完整模板 |
-| `acceptance record` | 已经执行真实测试、运行、构建、安装或用户验收 | 不用合同检查代替功能正确性 |
-
-这些能力可以单独启用或全部关闭。关闭后仍回到 Codex 直接执行，不需要恢复 1.x 强制流程。
-
-## 快速使用
-
-### 按需查项目知识
-
-先搜索当前源码、符号和运行态。仍缺架构、产品原因或历史约束时：
-
-```bash
-python3 scripts/harness.py knowledge query --target . \
-  --query "语音退出流程由哪些模块负责" --json
+```text
+Knowledge：提供有来源、可冲突检测的项目事实
+       ↓
+Plan：基于当前事实形成可执行方案
+       ↓
+Acceptance：验证实施后产生的真实结果
+       ↓
+当前源码与事实经证据确认后更新 Knowledge
 ```
 
-可用 `--scope` 限定知识文件，用 `--limit` 和 `--max-chars` 控制返回量。响应只包含可消费事实、引用、约束、冲突状态和省略数量。
+### Plan 生命周期
 
-### 选择方案模板
+```text
+初始化 → 选择模板 → 创建 JSON/Markdown → 执行引用
+→ settle 收尾 → 废弃/替代 → 归档 → docs-check
+```
+
+复杂任务先选择 Level 与 Profile：
 
 ```bash
 python3 scripts/harness.py plan select --target . \
-  --complexity complex --surface frontend_ui --json
+  --complexity complex --surface architecture --json
 ```
 
-方案深度：
+- Level：`none | brief | full`；
+- Profile：`general | frontend_ui | backend_service | bugfix | architecture | migration_release`；
+- Full Plan 必须声明 `acceptance_required=true|false` 与 `knowledge_impact=updated|unchanged`。
 
-- `none`：无方案，直接执行；
-- `brief`：目标、范围、步骤、验收；
-- `full`：全面通用结构，并叠加真实相关的领域字段。
-
-领域 Profile：
-
-- `general`：通用复杂任务；
-- `frontend_ui`：用户流程、完整状态、交互、视觉、可访问性和真实页面验收；
-- `backend_service`：接口、数据、一致性、失败、幂等、安全、性能和服务验收；
-- `bugfix`：精确复现、完整时间线、首次偏离、根因、受影响模块、验证范围、全量触发依据和失败归因；
-- `architecture`：候选、取舍、决策、边界、兼容、迁移、回滚和 ADR 处理；
-- `migration_release`：版本、产物、灰度、数据安全、停止条件、回滚和交付层。
-
-选择不读取任务关键词猜测，而由用户明确选择或宿主按复杂度、实际修改面和验收难度提交结构化信号。模型填好选择返回的字段后冻结：
+创建和结项：
 
 ```bash
 python3 scripts/harness.py plan create --target . \
   --selection selection.json --content content.json \
   --output docs/plans/task.json --json
+
+python3 scripts/harness.py plan settle --target . \
+  --plan docs/plans/task.json --status implemented \
+  --governance-input plan-governance.json --json
 ```
 
-### 风险与授权边界
+`plan create` 会同时生成冻结 JSON、可读 Markdown，并维护 `docs/INDEX.md`。已实施方案留在活目录作为追溯记录；废弃或被替代的方案成对移入 `docs/plans/archive/`。
 
-Docs Harness 不提供第二套 Gate、preflight 或授权系统。Git 写入、删除、发布、安装和外部写入等高风险动作完全使用 Codex 原生授权与沙箱；Harness 不介入，也不向模型注入额外控制内容。
+### Knowledge 生命周期
 
-### 记录真实验收
+```text
+初始化 → 从当前真源创建 → 登记来源与关键符号 → query 消费
+→ update 与冲突检测 → deprecated/superseded → 归档 → knowledge check
+```
+
+按需查询：
 
 ```bash
+python3 scripts/harness.py knowledge query --target . \
+  --query "运行时所有权由哪些模块负责" --json
+```
+
+创建、更新和检查：
+
+```bash
+python3 scripts/harness.py knowledge create --target . \
+  --input knowledge.json --output docs/knowledge/runtime-owner.json --json
+
+python3 scripts/harness.py knowledge update --target . \
+  --input knowledge-v2.json \
+  --knowledge docs/knowledge/runtime-owner.json --json
+
+python3 scripts/harness.py knowledge check --target . --json
+```
+
+每条事实必须引用项目内已存在的 `source_refs`。当前源码、运行态和真实产物始终高于 Knowledge 资产；Harness 不凭模型猜测自动写入事实。
+
+### Acceptance 生命周期
+
+```text
+初始化 → 创建目标与 criteria → 绑定 Plan/Knowledge
+→ record 真实结果 → pending/passed/failed → reaccept/替代
+→ settle/归档 → acceptance check
+```
+
+```bash
+python3 scripts/harness.py acceptance create --target . \
+  --input acceptance-target.json \
+  --output docs/acceptance/task.json --json
+
 python3 scripts/harness.py acceptance record --target . \
-  --input acceptance.json --json
+  --input acceptance-result.json \
+  --acceptance docs/acceptance/task.json --json
+
+python3 scripts/harness.py acceptance settle --target . \
+  --acceptance docs/acceptance/task.json --status passed --json
 ```
 
-验收层级互不替代：
+验收层级不能相互替代：
 
-| 层级 | 能证明什么 |
+| 层级 | 证据范围 |
 |---|---|
-| L1 | 源码、类型、编译或静态合同一致 |
-| L2 | 聚焦测试或仓库级全量测试行为成立，两者证据面仍分开 |
-| L3 | 本地应用或服务真实流程成立 |
-| L4 | 构建、包或安装产物成立 |
-| L5 | 真实设备行为成立，或用户可见、权限和主观体验经用户确认 |
+| L1 | 源码、类型、编译或静态合同 |
+| L2 | 聚焦测试或仓库级全量测试 |
+| L3 | 本地应用或服务真实流程 |
+| L4 | 构建、包或安装产物 |
+| L5 | 真实设备行为，或与其分离的用户确认 |
 
-Behavior Acceptance 必须声明 `evidence_layer`，固定为 `focused_test|repository_full_test|local_runtime|package_or_install|real_device`，分别映射到 L2/L2/L3/L4/L5。层级不可替代：仓库全量通过不能证明包/安装或真实设备，真实设备证据也不能冒充用户主观确认。
+Behavior Acceptance 使用 `focused_test | repository_full_test | local_runtime | package_or_install | real_device` 作为 `evidence_layer`。只有收到用户明确确认后，才能使用 `--user-confirmed` 登记 User Acceptance 通过。
 
-失败输入必须提供 `failure_attributions[]`，每项独立记录 `category`、`summary`、`blocking` 和 `evidence_refs`；类别只允许 `change_related|unrelated|pre_existing|environment|flaky`。独立 CLI 不接受 `user_acceptance + passed` 的自我声明，只记录 `user_pending`。
+## 多重治理机制
 
-Contract Check 只证明范围、格式或授权一致，永远不返回 `behavior_verified`。失败响应只包含真实失败原因和下一步。Codex 无法完成 L5 时，必须先准备运行环境，再返回最短用户验收步骤。
-
-## ADR 规则
-
-只有会长期约束架构边界、公共接口、兼容、安全、数据或基础设施的决策才写 ADR。普通 Bug、局部重构、临时实验和 UI 样式不写。
-
-主 Codex 负责读取相关源码和既有 ADR、比较候选、写入最终 ADR。复杂、高风险、跨模块或不可逆决策可选使用只读子智能体复审；子智能体不直接写文件。已接受 ADR 不原地改写决策，后续通过新 ADR 的 `Supersedes` 建立替代关系。
-
-## 2.0.0 单向迁移边界
-
-2.0.0 不兼容运行旧文档系统。`run|context|progress|verify|task|background|authorization` 与 `--legacy-opt-in` 均已从 CLI 和控制器删除；旧 Gate、规则、后台 Job 和 Runtime 不再参与任务。升级会清理所有权明确的旧工件，保留项目文档和归属不明内容，详见 [2.0.0 迁移指南](docs/migrations/v2.0.0.md)。
-
-## 安装与升级
-
-```bash
-python3 <docs-harness-2.3.0-source>/scripts/harness.py project init --target <project> --json
-python3 <docs-harness-2.3.0-source>/scripts/harness.py project upgrade --target <project> --json
-python3 <docs-harness-2.3.0-source>/scripts/harness.py project upgrade --target <project> --apply --json
-python3 scripts/harness.py project upgrade --target <project> --source <docs-harness-2.3.0-source> --apply --json
-python3 scripts/harness.py project check --target <project> --json
-python3 scripts/harness.py project diff --target <project> --json
-python3 scripts/harness.py project uninstall --target <project> --json
-python3 scripts/harness.py project uninstall --target <project> --apply --json
-python3 scripts/harness.py docs-check --target <project>
-python3 scripts/harness.py self-test --target <project>
+```text
+创建/更新边界校验
+        ↓
+settle 关系终验
+        ↓
+assets-check 统一检查
+        ↓
+pre-commit --fast
+        ↓
+GitHub Actions --strict
 ```
 
-pre-2.0 项目必须用新取得的当前来源包执行 upgrade；不能调用目标项目里仍是旧版本的 scripts/harness.py 来完成换代；`--source` 允许项目内安装副本显式指定同版本完整源包执行 init/upgrade，来源包版本必须与当前控制器一致，跨版本升级仍须直接运行源包内的控制器。安装后的项目脚本可用于 project check、project diff、知识查询、方案和验收。`project uninstall` 删除所有权明确的受管文件并保留全部用户文档；`docs-check` 对 docs/plans 体系做状态横幅、索引条目与归档链接的常驻检查，`--strict` 供 CI 将 WARN 计入失败。
+`assets-check` 聚合 Plan、Knowledge、Acceptance 及其跨资产关系：
 
-2.4.1 安装内容包括：
+- FAIL 始终返回失败；
+- WARN 默认提示，在 `--strict` 下返回失败；
+- `--fast` 跳过 Plan 的源码符号存活与 Git 时效慢检查；
+- 零资产项目只要目录结构完整即可通过；
+- 不根据 Git diff、提交信息或任务关键词推断“必须创建资产”。
 
-- 受管 `AGENTS.md` 与 `CLAUDE.md` 区块（`AGENTS.md` 区块含工作流规则、编码质量规范、防御代码准入、提示词与代码流程同步、测试与验收范围等通用工程规范）；
-- `scripts/harness.py`；
-- `plan-templates/` 版本化模板；
-- `scripts/githooks/` 入库 git 钩子（`pre-commit` 在提交时强制 `docs-check`，`setup.sh` 用于激活）；
-- `.docs-harness/config.json`（`project-config/v7`）。
+## 命令参考
 
-安装不自动执行 `git config core.hooksPath`；需要启用钩子时，在新克隆机器上执行一次 `scripts/githooks/setup.sh`（写入 `core.hooksPath=scripts/githooks`）。
+| 命令 | 用途 |
+|---|---|
+| `project init` | 初始化受管入口和三类资产目录 |
+| `project upgrade` | 预览或应用单向升级 |
+| `project diff` | 只读查看安装态与来源包差异 |
+| `project check` | 检查版本、指纹、结构和 Git 交付状态 |
+| `project uninstall` | 预览或移除所有权明确的受管程序 |
+| `knowledge create/update/query/settle/check` | 管理 Knowledge 生命周期 |
+| `plan select/create/settle` | 管理 Plan 生命周期 |
+| `acceptance create/record/settle/check` | 管理 Acceptance 生命周期 |
+| `docs-check` | 检查 Plan 文档、索引、符号与链接 |
+| `assets-check` | 统一检查三类资产和跨资产关系 |
+| `self-test` | 运行安装副本的内置合同检查 |
+| `release sync` | 检查版本真源是否一致 |
 
-fresh init 不创建项目知识正文，不自动派发知识、ADR、Changelog、TODO 或后台治理 Job，不修改 `.gitignore`，不提交、不推送、不发布。旧项目 upgrade 会先只读预览，再删除指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；项目正文、质量账本、已修改或归属不明文件一律保留并报告。
+完整输入 Schema、状态机和退出语义见 [docs/contracts.md](docs/contracts.md)。
 
-## 验证与发布边界
+## 安全与兼容边界
 
-源码、聚焦测试、全量回归、npm 包、fresh clone、Git 提交、远端推送、下游同步、本机安装和用户可见验收是不同层。任何一层通过都不能代替后续层。
+- `project init` 直接初始化目标项目；`upgrade` 与 `uninstall` 默认只预览，只有 `--apply` 才写入；
+- 不使用旧项目中的旧控制器执行跨版本升级；
+- 用户修改或归属不明的文件失败关闭，不强制覆盖；
+- pre-2.0 项目只通过当前控制器执行单向迁移，不继续运行旧任务控制流程；
+- Git 提交、推送、发布、签名、设备和用户可见验收是独立交付层。
+
+1.x 项目迁移请先阅读 [2.0.0 单向迁移指南](docs/migrations/v2.0.0.md)。
+
+## 仓库结构
+
+```text
+docs-harness/
+├── scripts/harness.py           # CLI 控制器
+├── scripts/*_assets.py          # Knowledge/Acceptance 与共享资产逻辑
+├── scripts/asset_checks.py      # 统一检查和跨资产关系
+├── scripts/plan_governance.py   # Plan v3 治理合同
+├── scripts/githooks/            # 入库 Git Hook
+├── plan-templates/              # Level 与 Profile 模板
+├── docs/                        # 产品、合同、测试和三类资产
+├── tests/                       # Python unittest 回归
+└── .github/workflows/           # GitHub 严格检查
+```
+
+## 开发与验证
 
 ```bash
 npm test
 npm run self-test
 npm run pack:check
+python3 scripts/harness.py assets-check --target . --strict --json
 ```
 
-本地版本号为 2.3.0 不等于已经提交、推送、发布、同步到 ZBuddy 或完成真实用户验收。
+发布检查覆盖仓库回归、源码自检、严格资产检查、打包和下游升级。最新命令、结果与未覆盖层记录在 [测试策略与证据](docs/testing.md)；源码测试、Git 提交、远端 CI、下游同步、安装包和用户验收不能互相替代。
 
-文档入口见 [docs/README.md](docs/README.md)，详细合同见 [docs/contracts.md](docs/contracts.md)，完整产品与实施依据见 [2.0.0 方案](docs/plans/docs-harness-v2.0.0-direct-first-plan.md)。
+## 文档
+
+- [文档导航](docs/README.md)
+- [架构设计](docs/architecture.md)
+- [CLI 与资产合同](docs/contracts.md)
+- [测试策略与证据](docs/testing.md)
+- [更新日志](CHANGELOG.md)
+- [Docs Harness 2.7.0 实施方案](docs/plans/docs-harness-assets-governance-2.7.0.md)
+
+## 参与项目
+
+欢迎通过 [Issues](https://github.com/HackSing/docs-harness/issues) 报告可复现问题，并通过 Pull Request 提交聚焦、带测试和文档同步的改动。请勿在 Issue、日志或验收资产中提交密钥、Token、私人对话或原始用户数据。
+
+## 许可证
+
+当前仓库尚未包含开源许可证文件。公开分发或接受外部贡献前，请由项目所有者选择并添加适用的 `LICENSE`。

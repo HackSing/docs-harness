@@ -1,19 +1,20 @@
 # CLAUDE.md
 
 <!-- docs-harness:claude-bridge:start -->
-## Docs Harness 2.4.1：默认直跑，能力按需
+## Docs Harness 2.7.1：默认直跑，能力按需
 
-Docs Harness 当前版本：2.4.1
+Docs Harness 当前版本：2.7.1
 
 - 普通问答、只读检查、代码修改、构建和测试默认由 agent 直接完成；Harness 不作为任务入口，也不创建任务控制状态。
 - 用户明确说“不使用 Harness”时必须直接执行，不得暗中恢复旧流程。
-- 只有缺少的项目事实会改变目标、范围、方案或验收时才运行只读 knowledge query。
-- 简单任务不生成方案；复杂、跨模块、高风险或用户明确要求时才运行 plan select，按 Level 与实际修改面 Profile 生成方案。
+- 只有缺少的项目事实会改变目标、范围、方案或验收时才运行 knowledge query；需要长期维护的事实才进入 Knowledge 资产生命周期。
+- 简单任务不生成方案；复杂、跨模块、高风险或用户明确要求时依次运行 plan select/create，方案会自动落入 docs/plans 并登记 docs/INDEX；Full Plan 声明验收与知识影响，任务收尾按 Knowledge → Acceptance → Plan 顺序结算。
+- 复杂任务在 Plan 后创建 Acceptance 目标，执行中逐条记录真实证据并结项；简单任务仍可直接验证，不强制创建资产。
 - 验收以真实功能为中心：能运行聚焦测试、接口、页面、应用、构建或安装流程时运行最小充分流程；不能独立判断时准备最低成本环境，再交给用户做最短确认。
 - 高风险动作使用原生授权与沙箱，不建立第二套 Harness Gate 或授权协议。
 - 需要项目架构或模块事实时，优先按需阅读 .qoder/repowiki/zh/content/ 和 .qoder/repowiki/knowledge/zh/；不得全量注入。
 - pre-2.0 项目只通过 project upgrade 单向迁移；迁移后不保留旧运行能力。
-- 不自动更新知识库、ADR、Changelog、TODO 或质量账本。ADR 由主 agent 编写，复杂决策可选只读子智能体复审。
+- 不在没有证据或没有明确维护任务时自动更新 Knowledge、ADR、Changelog、TODO 或质量账本。ADR 由主 agent 编写，复杂决策可选只读子智能体复审。
 
 ## 工作流规则
 
@@ -72,14 +73,32 @@ Docs Harness 当前版本：2.4.1
 
 ## 文档可发现性规范（plans 文档）
 
-新增、实质修改或废弃 `docs/plans/` 文档时，同一次提交内完成以下闭环（可用 `python scripts/harness.py docs-check` 校验）：
+新增、实质修改或废弃 `docs/plans/` 文档时，同一次提交内完成以下闭环（用 `python scripts/harness.py docs-check` 校验；起草与反复调整期间不运行 docs-check，提交前或 plan settle 时执行一次即可，pre-commit 与 CI 的 assets-check 已包含该检查）：
 
 1. **状态横幅**：文件前 3 行内标注三值之一——`有效（现行事实/实施中）`、`已实施-仅追溯（代码已是真源，YYYY-MM-DD 核对）`、`已废弃-被 <文件> 取代（YYYY-MM-DD 核对）`。判定纪律：代码中找不到符号只能证明概念已死，不能证明 plan 过期（合法待实施方案同样没有代码）；证据不足标"存疑"，交用户裁决。
 2. **索引带符号**：`docs/INDEX.md` 条目带 2-4 个唯一性强的代码符号（取正文反引号标识符按频次排序，剔除 runId 类全仓通用词）+ 状态镜像，使 grep 符号能同时命中源码、索引与文档。
 3. **废弃归档**：废弃/被吸收文档移入 `docs/plans/archive/` 并退出活索引；移动必须 sweep 全仓 `.md` 相对链接，不留死链；新文档取代旧文档时，旧文档横幅同步改为"已废弃-被本文件取代"。
-4. **WARN 消费**：agent 在某领域执行任务收尾时，若 docs-check 输出与该领域相关的 WARN，必须在收尾报告中向用户转达，不得静默略过。
+4. **WARN 消费**：agent 在某领域执行任务收尾时，若 assets-check 输出与该领域相关的 WARN，必须在收尾报告中向用户转达，不得静默略过。
 
-提交时由入库 pre-commit 钩子强制 docs-check（`scripts/githooks/`，新克隆机器先执行 `setup.sh` 激活）。
+复杂任务的方案生命周期必须闭环：先运行 `plan select`，再用 `plan create --output docs/plans/<name>.json`
+冻结执行合同；该命令会自动生成同名 Markdown 并维护 `docs/INDEX.md`。实施完成后必须运行
+`plan settle --status implemented --plan docs/plans/<name>.json`；方案被取代或废弃时使用
+`--status deprecated`，必要时通过 `--replacement` 记录替代方案。不要手工复制一份平行方案。
+Full Plan 必须明确填写 `acceptance_required=true|false` 与单字段
+`knowledge_impact=updated|unchanged`；前者为 true 时先完成 Acceptance 结项，后者在
+`plan settle --governance-input <json>` 中提供活跃 Knowledge 引用或不更新理由。
+
+Knowledge 资产只记录有当前源码或项目文档证据支持的可复用事实：先按需 `knowledge query`，
+需要沉淀时使用 `knowledge create`，事实变化使用 `knowledge update`，被替代或废弃时运行
+`knowledge settle`，收尾用 `knowledge check` 暴露指纹、引用和同键冲突。不得凭模型猜测自动写知识。
+
+复杂任务先用 `acceptance create` 建立可关联 Plan/Knowledge 的验收目标，再执行真实验证并逐条
+`acceptance record --acceptance <asset>`；失败修复后显式 `--reaccept`，最终用 `acceptance settle`
+结项或归档，并运行 `acceptance check`。只有收到用户明确确认原话后，才能用 `--user-confirmed`
+记录 User Acceptance 通过；合同、测试、运行、安装和用户可见层不得相互替代。
+
+收尾统一运行 `assets-check`，不要求智能体手动拼接三个 check。提交时由入库 pre-commit 钩子执行
+`assets-check --fast`；GitHub CI 执行 `assets-check --strict`（新克隆机器先运行 `setup.sh` 激活钩子）。
 
 ## 收尾
 

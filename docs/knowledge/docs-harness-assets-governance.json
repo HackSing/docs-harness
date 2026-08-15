@@ -1,0 +1,37 @@
+{
+  "schema_version": "docs-harness/knowledge-asset/v1",
+  "title": "Docs Harness 三资产治理执行机制",
+  "key_symbols": [
+    "run_assets_check",
+    "acceptance_refs",
+    "knowledge_impact",
+    "prepare_settlement"
+  ],
+  "summary": "2.7.0 对已有 Plan、Knowledge、Acceptance 资产建立统一检查、反向关系和分层提交防线。",
+  "facts": [
+    {
+      "id": "assets.check.execution",
+      "statement": "assets-check 聚合三类资产与跨资产关系；pre-commit 使用 fast，GitHub CI 使用 strict。",
+      "source_refs": [
+        "scripts/asset_checks.py",
+        "scripts/githooks/pre-commit",
+        ".github/workflows/assets-check.yml"
+      ]
+    },
+    {
+      "id": "plan.governance.v3",
+      "statement": "Full Plan 使用 acceptance_required 和单字段 knowledge_impact，Acceptance 反向登记由 Harness 自动维护，结算顺序为 Knowledge、Acceptance、Plan。",
+      "source_refs": [
+        "scripts/plan_governance.py",
+        "plan-templates/levels/full.json",
+        "docs/contracts.md"
+      ]
+    }
+  ],
+  "status": "active",
+  "revision": 1,
+  "revision_history": [],
+  "created_at": "2026-08-14T16:57:22+00:00",
+  "updated_at": "2026-08-14T16:57:22+00:00",
+  "asset_fingerprint": "sha256:b7f51a73056eb7fd883ea5aa7e04a074d5088ad8961e7c8931724db720ea61cc"
+}

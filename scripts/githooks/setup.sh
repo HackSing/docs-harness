@@ -1,5 +1,5 @@
 #!/bin/sh
-# 新克隆机器执行一次：启用入库的 git 钩子（pre-commit 会在每次提交时自动运行 docs-check）
+# 新克隆机器执行一次：启用入库的 git 钩子（pre-commit 自动运行 assets-check --fast）
 set -e
 cd "$(git rev-parse --show-toplevel)"
 git config core.hooksPath scripts/githooks

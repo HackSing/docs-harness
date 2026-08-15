@@ -1,0 +1,194 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "Docs Harness 2.7.0 三资产治理实施验收",
+  "key_symbols": [
+    "command_assets_check",
+    "acceptance_refs",
+    "knowledge_impact",
+    "validate_plan_governance"
+  ],
+  "objective": "验证统一资产检查、跨资产结算关系、兼容迁移和交付消费链真实成立。",
+  "plan_ref": "docs/plans/docs-harness-assets-governance-2.7.0.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "assets.check",
+      "title": "三类资产与跨资产检查按 FAIL/WARN/strict 合同运行",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260814T165944-659acbb805",
+          "objective_fingerprint": "sha256:427c720cfd191a268b2524ae596f3b51acd620c34d51d468831ee77dadfe030e",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "运行 assets-check 聚焦用例，覆盖零资产、篡改、孤儿索引、WARN 与 strict",
+          "evidence_refs": [
+            "docs/testing.md",
+            "tests/test_v2_direct.py"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-14T16:59:44+00:00"
+        }
+      ]
+    },
+    {
+      "id": "plan.governance",
+      "title": "Plan v3、Acceptance 反向登记与治理结算闭环成立",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260814T170059-4a2147928c",
+          "objective_fingerprint": "sha256:e8f9ece043f1e69f0aa5b2380468a86c9cc0d176e2b58e9e4dbb8201d710d9a4",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "运行 Plan v3 治理结算、failed WARN 和 supersede 反向移除聚焦用例",
+          "evidence_refs": [
+            "docs/testing.md",
+            "scripts/plan_governance.py",
+            "tests/test_v2_direct.py"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-14T17:00:59+00:00"
+        }
+      ]
+    },
+    {
+      "id": "compatibility.v2",
+      "title": "Plan v2 与 2.6.0 资产保持兼容",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260814T170059-1752c32a36",
+          "objective_fingerprint": "sha256:25308cba716d290f6d37e36338f17912c254d389071d408cbf7821860756db75",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "运行显式构造 Plan v2 冻结合约并完成 settle 的兼容用例",
+          "evidence_refs": [
+            "docs/testing.md",
+            "tests/test_v2_direct.py"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-14T17:00:59+00:00"
+        }
+      ]
+    },
+    {
+      "id": "repository.regression",
+      "title": "仓库级全量回归通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "repository_full_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260814T170059-51e221ceab",
+          "objective_fingerprint": "sha256:bae9a7c31d044894a29332e9aad386f9c98999ca14fa95fc8eaad6004a193804",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "repository_full_test",
+          "method": "运行 npm test，63 项测试全部通过",
+          "evidence_refs": [
+            "docs/testing.md"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-14T17:00:59+00:00"
+        }
+      ]
+    },
+    {
+      "id": "package.install",
+      "title": "打包与 fresh install 消费链通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L4",
+      "evidence_layer": "package_or_install",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260814T170059-8c664140bd",
+          "objective_fingerprint": "sha256:f37fe18a520aa0ea4bf2dfcf16f98420e44e3c9a9d3eb01b35ab99cb078218c2",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L4",
+          "evidence_layer": "package_or_install",
+          "method": "运行 npm pack dry-run，并在临时目录完成 init、diff、check、self-test、strict assets-check 与 pre-commit",
+          "evidence_refs": [
+            "docs/testing.md",
+            "package.json"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-14T17:00:59+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 7,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:65301f0bb79ba0d236dd52d28e3c01f2630a19af2a828279c0d2caa0b42ce5c2",
+      "updated_at": "2026-08-14T16:31:08+00:00"
+    },
+    {
+      "revision": 2,
+      "asset_fingerprint": "sha256:6982a02c22bc2265e4dd1aca9c2c8f98c801ae5063b5bfe9bea5a6a38fb9b374",
+      "updated_at": "2026-08-14T16:59:44+00:00"
+    },
+    {
+      "revision": 3,
+      "asset_fingerprint": "sha256:eb658df72939ef36a46e17b496a563918ae6407a58fdb504979c10ce434badb3",
+      "updated_at": "2026-08-14T17:00:59+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:e5559abd90a96862e3552c036da8c5f5acf9dc7c354cab9258d551cbb261834a",
+      "updated_at": "2026-08-14T17:00:59+00:00"
+    },
+    {
+      "revision": 5,
+      "asset_fingerprint": "sha256:b68952c886da6bc052508297bb35f7b05c27ee503c3061f4193e603649d8a089",
+      "updated_at": "2026-08-14T17:00:59+00:00"
+    },
+    {
+      "revision": 6,
+      "asset_fingerprint": "sha256:8a8803c58b86755b9bc5e13a673ebc581034d15147a250f7a515c7da59fab94e",
+      "updated_at": "2026-08-14T17:00:59+00:00"
+    }
+  ],
+  "created_at": "2026-08-14T16:31:08+00:00",
+  "updated_at": "2026-08-14T17:01:00+00:00",
+  "settled_at": "2026-08-14T17:01:00+00:00",
+  "asset_fingerprint": "sha256:3aa3890d726ef3afb87ab087079a759cb4364a705bfa80733926751025075de0",
+  "replacement": null
+}

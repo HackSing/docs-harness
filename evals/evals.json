@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v2",
-  "version": "2.4.1",
+  "version": "2.7.1",
   "cases": [
     {
       "id": "direct-default-no-state",
@@ -16,11 +16,11 @@
     },
     {
       "id": "knowledge-explicit-bounded",
-      "expected": ["facts+refs+constraints+conflicts+omitted", "current-source-authoritative", "character-budget", "no-write"]
+      "expected": ["facts+refs+constraints+conflicts+omitted", "managed-assets-first", "current-source-authoritative", "character-budget", "query-no-write"]
     },
     {
       "id": "knowledge-no-runtime-conflict-proof",
-      "expected": ["conflict_check=not_evaluated_against_runtime", "no-false-conflict-complete"]
+      "expected": ["conflict_check=managed_knowledge_assets_evaluated", "same-fact-id-conflicts-visible", "runtime-still-authoritative"]
     },
     {
       "id": "plan-simple-none",
@@ -72,7 +72,7 @@
     },
     {
       "id": "install-no-automatic-knowledge",
-      "expected": ["direct-mode-default", "config-v6", "no-docs-scaffold", "no-bootstrap-job", "no-rules", "plan-templates-installed"]
+      "expected": ["direct-mode-default", "config-v8", "three-asset-scaffolds", "no-generated-facts-or-results", "no-bootstrap-job", "no-rules", "asset-modules-installed"]
     },
     {
       "id": "pre-v2-one-way-migration",

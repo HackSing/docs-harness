@@ -23,6 +23,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         "schema_version",
         "version",
         "installed_script_fingerprint",
+        "installed_module_fingerprints",
         "installed_plan_template_fingerprints",
         "installed_githook_fingerprints",
         "direct_mode",
@@ -73,7 +74,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         rules_root.mkdir(parents=True, exist_ok=True)
         current_rules = installed_rules if live_rules is None else live_rules
         for name, content in current_rules.items():
-            (rules_root / name).write_text(content, encoding="utf-8", newline="")
+            (rules_root / name).write_text(content, encoding="utf-8")
         installed_fingerprints = {
             name: "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
             for name, content in installed_rules.items()
@@ -119,7 +120,10 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             check=False,
         )
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
-        public_commands = {"knowledge", "plan", "acceptance", "project", "release", "docs-check", "self-test"}
+        public_commands = {
+            "knowledge", "plan", "acceptance", "project", "release",
+            "docs-check", "assets-check", "self-test",
+        }
         for command in public_commands:
             self.assertIn(command, help_result.stdout)
         for command in ("run", "context", "progress", "verify", "task", "background", "authorization"):
@@ -180,6 +184,81 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(payload["facts"], [])
         self.assertEqual(payload["refs"], [])
 
+    def knowledge_input(self, title: str, statement: str) -> dict[str, object]:
+        return {
+            "schema_version": "docs-harness/knowledge-input/v1",
+            "title": title,
+            "key_symbols": ["KnowledgeOwner", "current_fact"],
+            "summary": "当前项目事实。",
+            "facts": [
+                {
+                    "id": "runtime.owner",
+                    "statement": statement,
+                    "source_refs": ["src/runtime.txt:1"],
+                }
+            ],
+        }
+
+    def test_knowledge_asset_create_update_query_and_check(self) -> None:
+        source = self.project / "src/runtime.txt"
+        source.parent.mkdir(parents=True)
+        source.write_text("KnowledgeOwner owns the runtime.\n", encoding="utf-8")
+        first = self.write_json("inputs/knowledge.json", self.knowledge_input("运行时所有权", "KnowledgeOwner 拥有运行时。"))
+        created = self.run_cli(
+            "knowledge", "create", "--target", str(self.project),
+            "--input", str(first.relative_to(self.project)),
+            "--output", "docs/knowledge/runtime-owner.json",
+        )
+        self.assertEqual(created["revision"], 1)
+        self.assertTrue((self.project / "docs/knowledge/runtime-owner.md").is_file())
+        index = (self.project / "docs/INDEX.md").read_text(encoding="utf-8")
+        self.assertIn("knowledge/runtime-owner.md", index)
+
+        queried = self.run_cli(
+            "knowledge", "query", "--target", str(self.project),
+            "--query", "KnowledgeOwner",
+        )
+        self.assertEqual(queried["facts"][0]["fact_id"], "runtime.owner")
+        self.assertEqual(len(queried["facts"]), 1)
+        self.assertFalse(any(ref.startswith("docs/INDEX.md") for ref in queried["refs"]))
+        self.assertEqual(queried["conflicts"], [])
+
+        second = self.write_json("inputs/knowledge-v2.json", self.knowledge_input("运行时所有权", "KnowledgeOwner 是运行时唯一所有者。"))
+        updated = self.run_cli(
+            "knowledge", "update", "--target", str(self.project),
+            "--input", str(second.relative_to(self.project)),
+            "--knowledge", "docs/knowledge/runtime-owner.json",
+        )
+        self.assertEqual(updated["revision"], 2)
+        checked = self.run_cli("knowledge", "check", "--target", str(self.project))
+        self.assertEqual(checked["status"], "passed")
+
+    def test_knowledge_conflict_is_visible_and_settle_archives(self) -> None:
+        source = self.project / "src/runtime.txt"
+        source.parent.mkdir(parents=True)
+        source.write_text("source\n", encoding="utf-8")
+        for name, statement in (("owner-a", "A owns runtime."), ("owner-b", "B owns runtime.")):
+            input_path = self.write_json(f"inputs/{name}.json", self.knowledge_input(name, statement))
+            self.run_cli(
+                "knowledge", "create", "--target", str(self.project),
+                "--input", str(input_path.relative_to(self.project)),
+                "--output", f"docs/knowledge/{name}.json",
+            )
+        checked = self.run_cli("knowledge", "check", "--target", str(self.project), expected=1)
+        self.assertEqual(checked["conflicts"][0]["fact_id"], "runtime.owner")
+        settled = self.run_cli(
+            "knowledge", "settle", "--target", str(self.project),
+            "--knowledge", "docs/knowledge/owner-a.json",
+            "--status", "superseded",
+            "--replacement", "docs/knowledge/owner-b.json",
+        )
+        self.assertEqual(settled["status"], "superseded")
+        self.assertTrue((self.project / "docs/knowledge/archive/owner-a.json").is_file())
+        self.assertEqual(
+            self.run_cli("knowledge", "check", "--target", str(self.project))["status"],
+            "passed",
+        )
+
     def test_package_exposes_only_current_public_docs(self) -> None:
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         files = package["files"]
@@ -216,10 +295,15 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
 
     def test_controller_source_has_no_legacy_state_machine_implementation(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
-        # docs-check 常驻能力进控制器后单文件分发体积上浮；红线随 2.3.0 调整，
-        # 拆分独立模块会破坏单文件安装指纹模型。
-        self.assertLess(HARNESS.stat().st_size, 120_000)
-        self.assertLess(len(source.splitlines()), 3_000)
+        # 2.7.0 将资产领域逻辑拆到受管模块；控制器保留历史安装/迁移编排，
+        # 继续设硬上限，新增领域模块各自遵守 400 行红线。
+        self.assertLess(HARNESS.stat().st_size, 155_000)
+        self.assertLess(len(source.splitlines()), 3_700)
+        for module in (
+            "managed_assets.py", "asset_checks.py", "plan_governance.py",
+            "knowledge_assets.py", "acceptance_assets.py",
+        ):
+            self.assertLess(len((ROOT / "scripts" / module).read_text(encoding="utf-8").splitlines()), 400)
         for symbol in (
             "def command_run(",
             "def command_context(",
@@ -237,11 +321,110 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         ):
             self.assertNotIn(symbol, source)
 
-    def test_docs_check_skips_without_docs_system(self) -> None:
+    def test_project_init_bootstraps_docs_system(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
         payload = self.run_cli("docs-check", "--target", str(self.project))
-        self.assertEqual(payload["status"], "skipped")
+        self.assertEqual(payload["status"], "passed")
         self.assertEqual(payload["failures"], [])
+        self.assertTrue((self.project / "docs/plans/README.md").is_file())
+        self.assertTrue((self.project / "docs/plans/archive/.gitkeep").is_file())
+        self.assertTrue((self.project / "docs/knowledge/README.md").is_file())
+        self.assertTrue((self.project / "docs/acceptance/README.md").is_file())
+        index = (self.project / "docs/INDEX.md").read_text(encoding="utf-8")
+        self.assertIn("docs-harness:plans-index:start", index)
+        self.assertIn("docs-harness:plans-index:end", index)
+        self.assertIn("docs-harness:knowledge-index:start", index)
+        self.assertIn("docs-harness:acceptance-index:start", index)
+
+    def test_docs_check_fails_when_docs_system_is_missing(self) -> None:
+        payload = self.run_cli("docs-check", "--target", str(self.project), expected=1)
+        self.assertEqual(payload["status"], "failed")
+        self.assertTrue(any("project init/upgrade" in item for item in payload["failures"]))
+
+    def test_assets_check_passes_for_initialized_zero_asset_project(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        payload = self.run_cli("assets-check", "--target", str(self.project))
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["checked"]["knowledge"], 0)
+        self.assertEqual(payload["checked"]["acceptance"], 0)
+
+    def test_assets_check_rejects_tampered_knowledge_asset(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        source = self.project / "src/runtime.txt"
+        source.parent.mkdir(parents=True)
+        source.write_text("KnowledgeOwner owns the runtime.\n", encoding="utf-8")
+        value = self.write_json(
+            "inputs/knowledge.json",
+            self.knowledge_input("运行时所有权", "KnowledgeOwner 拥有运行时。"),
+        )
+        self.run_cli(
+            "knowledge", "create", "--target", str(self.project),
+            "--input", str(value.relative_to(self.project)),
+            "--output", "docs/knowledge/runtime-owner.json",
+        )
+        asset_path = self.project / "docs/knowledge/runtime-owner.json"
+        asset = json.loads(asset_path.read_text(encoding="utf-8"))
+        asset["summary"] = "已被手工篡改"
+        self.write_json("docs/knowledge/runtime-owner.json", asset)
+        payload = self.run_cli(
+            "assets-check", "--target", str(self.project), expected=1
+        )
+        self.assertTrue(any("资产指纹无效" in item for item in payload["failures"]))
+
+    def test_assets_check_rejects_orphan_managed_index_entry(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        index_path = self.project / "docs/INDEX.md"
+        index = index_path.read_text(encoding="utf-8")
+        index = index.replace(
+            "<!-- docs-harness:knowledge-index:end -->",
+            "- [孤儿知识](knowledge/orphan.md) — 状态：有效；关键符号：`A`、`B`\n"
+            "<!-- docs-harness:knowledge-index:end -->",
+        )
+        index_path.write_text(index, encoding="utf-8")
+        payload = self.run_cli(
+            "assets-check", "--target", str(self.project), "--fast", expected=1
+        )
+        self.assertTrue(any("没有对应活资产" in item for item in payload["failures"]))
+
+    def test_assets_check_strict_blocks_slow_warning_but_fast_skips_it(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project),
+            "--level", "brief", "--profile", "general",
+        )
+        selection_path = self.write_json("selection.json", selection)
+        content_path = self.write_json(
+            "content.json",
+            {
+                "title": "慢检查告警方案",
+                "key_symbols": ["AbsentPlanSymbol", "AbsentPlanConsumer"],
+                "objective": "验证 strict 与 fast 边界",
+                "scope": ["scripts/harness.py"],
+                "steps": ["创建", "结项"],
+                "acceptance": ["strict 阻断慢检查 WARN"],
+            },
+        )
+        self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path), "--content", str(content_path),
+            "--output", "docs/plans/slow-warning.json",
+        )
+        selection_path.unlink()
+        content_path.unlink()
+        self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/slow-warning.json", "--status", "implemented",
+        )
+        normal = self.run_cli("assets-check", "--target", str(self.project))
+        self.assertTrue(any("零命中" in item for item in normal["warnings"]))
+        strict = self.run_cli(
+            "assets-check", "--target", str(self.project), "--strict", expected=1
+        )
+        self.assertEqual(strict["status"], "failed")
+        fast = self.run_cli(
+            "assets-check", "--target", str(self.project), "--fast", "--strict"
+        )
+        self.assertEqual(fast["status"], "passed")
 
     def test_docs_check_reports_banner_and_stale_archive_reference(self) -> None:
         docs = self.project / "docs"
@@ -279,6 +462,324 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         field_ids = {item["id"] for item in full["fields"]}
         self.assertIn("adr_decision", field_ids)
         self.assertNotIn("state_matrix", field_ids)
+        self.assertTrue(fields := {item["id"]: item for item in full["fields"]})
+        self.assertTrue(fields["acceptance_required"]["guidance"])
+        self.assertTrue(fields["knowledge_impact"]["guidance"])
+
+    def full_plan_content(
+        self,
+        selection: dict[str, object],
+        *,
+        acceptance_required: bool,
+        knowledge_impact: str,
+    ) -> dict[str, object]:
+        fields = selection["fields"]
+        assert isinstance(fields, list)
+        content: dict[str, object] = {
+            item["id"]: f"已填写 {item['label']}"
+            for item in fields
+            if isinstance(item, dict)
+        }
+        content.update({
+            "title": "三资产治理方案",
+            "key_symbols": ["PlanGovernance", "AcceptanceBackref"],
+            "acceptance_required": acceptance_required,
+            "knowledge_impact": knowledge_impact,
+        })
+        return content
+
+    def create_full_plan(
+        self,
+        *,
+        acceptance_required: bool,
+        knowledge_impact: str,
+        basename: str = "governed",
+    ) -> Path:
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project),
+            "--level", "full", "--profile", "general",
+        )
+        selection_path = self.write_json(f"inputs/{basename}-selection.json", selection)
+        content_path = self.write_json(
+            f"inputs/{basename}-content.json",
+            self.full_plan_content(
+                selection,
+                acceptance_required=acceptance_required,
+                knowledge_impact=knowledge_impact,
+            ),
+        )
+        self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path.relative_to(self.project)),
+            "--content", str(content_path.relative_to(self.project)),
+            "--output", f"docs/plans/{basename}.json",
+        )
+        return self.project / f"docs/plans/{basename}.json"
+
+    def test_plan_v3_acceptance_backref_and_governance_settlement(self) -> None:
+        plan_path = self.create_full_plan(
+            acceptance_required=True,
+            knowledge_impact="unchanged",
+        )
+        frozen = json.loads(plan_path.read_text(encoding="utf-8"))
+        self.assertEqual(frozen["schema_version"], "docs-harness/plan/v3")
+        self.assertEqual(frozen["acceptance_refs"], [])
+        self.assertTrue(frozen["governance"]["acceptance_required"])
+
+        target = self.acceptance_target("contract_check")
+        target["plan_ref"] = "docs/plans/governed.json"
+        acceptance_input = self.write_json("inputs/governed-acceptance.json", target)
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(acceptance_input.relative_to(self.project)),
+            "--output", "docs/acceptance/governed.json",
+        )
+        frozen = json.loads(plan_path.read_text(encoding="utf-8"))
+        self.assertEqual(frozen["acceptance_refs"], ["docs/acceptance/governed.json"])
+        markdown = plan_path.with_suffix(".md").read_text(encoding="utf-8")
+        self.assertIn("docs/acceptance/governed.json", markdown)
+
+        governance_input = self.write_json(
+            "inputs/governance.json",
+            {
+                "schema_version": "docs-harness/plan-governance-input/v1",
+                "unchanged_reason": "本次只改变资产治理流程，不产生新的项目事实。",
+            },
+        )
+        rejected = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/governed.json", "--status", "implemented",
+            "--governance-input", str(governance_input.relative_to(self.project)),
+            expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_plan_governance")
+        self.assertIn("acceptance", rejected["message"])
+
+        evidence = self.project / "contract-evidence.txt"
+        evidence.write_text("contract passed\n", encoding="utf-8")
+        record = self.write_json(
+            "inputs/governed-record.json",
+            {
+                "schema_version": "docs-harness/acceptance-input/v3",
+                "criterion_id": "flow.result",
+                "objective": "逐条记录功能流程证据。",
+                "acceptance_type": "contract_check",
+                "status": "passed",
+                "layer": "L1",
+                "method": "检查治理合同",
+                "evidence_refs": ["contract-evidence.txt"],
+            },
+        )
+        self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(record.relative_to(self.project)),
+            "--acceptance", "docs/acceptance/governed.json",
+        )
+        self.run_cli(
+            "acceptance", "settle", "--target", str(self.project),
+            "--acceptance", "docs/acceptance/governed.json", "--status", "passed",
+        )
+        settled = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/governed.json", "--status", "implemented",
+            "--governance-input", str(governance_input.relative_to(self.project)),
+        )
+        self.assertEqual(settled["warnings"], [])
+        frozen = json.loads(plan_path.read_text(encoding="utf-8"))
+        self.assertTrue(frozen["governance"]["governance_settled_at"])
+        self.assertEqual(
+            frozen["governance"]["unchanged_reason"],
+            "本次只改变资产治理流程，不产生新的项目事实。",
+        )
+
+    def test_plan_v3_updated_knowledge_requires_active_refs(self) -> None:
+        self.create_full_plan(
+            acceptance_required=False,
+            knowledge_impact="updated",
+            basename="knowledge-updated",
+        )
+        missing = self.write_json(
+            "inputs/missing-knowledge-governance.json",
+            {
+                "schema_version": "docs-harness/plan-governance-input/v1",
+                "updated_knowledge_refs": [],
+            },
+        )
+        rejected = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/knowledge-updated.json", "--status", "implemented",
+            "--governance-input", str(missing.relative_to(self.project)), expected=2,
+        )
+        self.assertIn("updated_knowledge_refs", rejected["message"])
+        source = self.project / "src/runtime.txt"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("KnowledgeOwner owns the runtime.\n", encoding="utf-8")
+        value = self.write_json(
+            "inputs/knowledge.json",
+            self.knowledge_input("运行时所有权", "KnowledgeOwner 拥有运行时。"),
+        )
+        self.run_cli(
+            "knowledge", "create", "--target", str(self.project),
+            "--input", str(value.relative_to(self.project)),
+            "--output", "docs/knowledge/runtime-owner.json",
+        )
+        valid = self.write_json(
+            "inputs/valid-knowledge-governance.json",
+            {
+                "schema_version": "docs-harness/plan-governance-input/v1",
+                "updated_knowledge_refs": ["docs/knowledge/runtime-owner.json"],
+            },
+        )
+        settled = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/knowledge-updated.json", "--status", "implemented",
+            "--governance-input", str(valid.relative_to(self.project)),
+        )
+        self.assertEqual(settled["status"], "implemented")
+
+    def test_plan_v3_allows_failed_terminal_acceptance_with_warning(self) -> None:
+        self.create_full_plan(
+            acceptance_required=True,
+            knowledge_impact="unchanged",
+            basename="failed-acceptance",
+        )
+        target = self.acceptance_target("contract_check")
+        target["plan_ref"] = "docs/plans/failed-acceptance.json"
+        target_input = self.write_json("inputs/failed-target.json", target)
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(target_input.relative_to(self.project)),
+            "--output", "docs/acceptance/failed-target.json",
+        )
+        evidence = self.project / "failed-contract.txt"
+        evidence.write_text("contract failed\n", encoding="utf-8")
+        record = self.write_json(
+            "inputs/failed-record.json",
+            {
+                "schema_version": "docs-harness/acceptance-input/v3",
+                "criterion_id": "flow.result",
+                "objective": "逐条记录功能流程证据。",
+                "acceptance_type": "contract_check",
+                "status": "failed",
+                "layer": "L1",
+                "reason": "治理合同未通过",
+                "next_action": "收尾报告说明失败结果",
+                "failure_attributions": [{
+                    "category": "change_related",
+                    "summary": "合同结果不符合预期",
+                    "blocking": True,
+                    "evidence_refs": ["failed-contract.txt"]
+                }]
+            },
+        )
+        self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(record.relative_to(self.project)),
+            "--acceptance", "docs/acceptance/failed-target.json", expected=3,
+        )
+        self.run_cli(
+            "acceptance", "settle", "--target", str(self.project),
+            "--acceptance", "docs/acceptance/failed-target.json", "--status", "failed",
+        )
+        governance_input = self.write_json(
+            "inputs/failed-governance.json",
+            {
+                "schema_version": "docs-harness/plan-governance-input/v1",
+                "unchanged_reason": "失败验收不产生 Knowledge 更新。",
+            },
+        )
+        settled = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/failed-acceptance.json", "--status", "implemented",
+            "--governance-input", str(governance_input.relative_to(self.project)),
+        )
+        self.assertTrue(any("failed" in item for item in settled["warnings"]))
+
+    def test_acceptance_supersede_removes_plan_backref(self) -> None:
+        plan_path = self.create_full_plan(
+            acceptance_required=False,
+            knowledge_impact="unchanged",
+            basename="supersede-backref",
+        )
+        for name in ("old", "new"):
+            target = self.acceptance_target("contract_check")
+            target["plan_ref"] = "docs/plans/supersede-backref.json"
+            target_input = self.write_json(f"inputs/{name}-target.json", target)
+            self.run_cli(
+                "acceptance", "create", "--target", str(self.project),
+                "--input", str(target_input.relative_to(self.project)),
+                "--output", f"docs/acceptance/{name}.json",
+            )
+        self.run_cli(
+            "acceptance", "settle", "--target", str(self.project),
+            "--acceptance", "docs/acceptance/old.json", "--status", "superseded",
+            "--replacement", "docs/acceptance/new.json",
+        )
+        frozen = json.loads(plan_path.read_text(encoding="utf-8"))
+        self.assertEqual(frozen["acceptance_refs"], ["docs/acceptance/new.json"])
+
+    def test_assets_check_warns_when_plan_declaration_conflicts_with_refs(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.create_full_plan(
+            acceptance_required=False,
+            knowledge_impact="unchanged",
+            basename="declaration-conflict",
+        )
+        target = self.acceptance_target("contract_check")
+        target["plan_ref"] = "docs/plans/declaration-conflict.json"
+        target_input = self.write_json("inputs/conflict-target.json", target)
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(target_input.relative_to(self.project)),
+            "--output", "docs/acceptance/declaration-conflict.json",
+        )
+        payload = self.run_cli("assets-check", "--target", str(self.project), "--fast")
+        self.assertTrue(any("acceptance_required=false" in item for item in payload["warnings"]))
+        strict = self.run_cli(
+            "assets-check", "--target", str(self.project), "--fast", "--strict",
+            expected=1,
+        )
+        self.assertEqual(strict["status"], "failed")
+
+    def test_assets_check_fails_when_settled_knowledge_is_archived(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.create_full_plan(
+            acceptance_required=False,
+            knowledge_impact="updated",
+            basename="archived-knowledge",
+        )
+        source = self.project / "src/runtime.txt"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("KnowledgeOwner owns the runtime.\n", encoding="utf-8")
+        value = self.write_json(
+            "inputs/archived-knowledge.json",
+            self.knowledge_input("运行时所有权", "KnowledgeOwner 拥有运行时。"),
+        )
+        self.run_cli(
+            "knowledge", "create", "--target", str(self.project),
+            "--input", str(value.relative_to(self.project)),
+            "--output", "docs/knowledge/archive-me.json",
+        )
+        governance = self.write_json(
+            "inputs/archive-governance.json",
+            {
+                "schema_version": "docs-harness/plan-governance-input/v1",
+                "updated_knowledge_refs": ["docs/knowledge/archive-me.json"],
+            },
+        )
+        self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/archived-knowledge.json", "--status", "implemented",
+            "--governance-input", str(governance.relative_to(self.project)),
+        )
+        self.run_cli(
+            "knowledge", "settle", "--target", str(self.project),
+            "--knowledge", "docs/knowledge/archive-me.json", "--status", "deprecated",
+        )
+        payload = self.run_cli(
+            "assets-check", "--target", str(self.project), "--fast", expected=1
+        )
+        self.assertTrue(any("结算 Knowledge" in item for item in payload["failures"]))
 
     def test_bugfix_profile_requires_structured_verification_contract(self) -> None:
         selection = self.run_cli(
@@ -299,6 +800,10 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         content = {item["id"]: f"已填写 {item['label']}" for item in selection["fields"]}
         content.update(
             {
+                "title": "Session Bugfix 方案",
+                "key_symbols": ["SessionService", "SessionStore"],
+                "acceptance_required": False,
+                "knowledge_impact": "unchanged",
                 "affected_modules": ["service/session", "tests/session"],
                 "verification_scope": {
                     "mode": "affected_modules",
@@ -379,6 +884,8 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         )
         selection_path = self.write_json("selection.json", selection)
         content = {
+            "title": "前端确认状态修复方案",
+            "key_symbols": ["ConfirmPage", "confirmState"],
             "objective": "修复前端确认状态",
             "scope": ["web/confirm.tsx"],
             "steps": ["复现", "修复", "走真实页面流程"],
@@ -394,6 +901,11 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         frozen = json.loads((self.project / "docs/plans/fix.json").read_text(encoding="utf-8"))
         self.assertEqual(frozen["content"], content)
         self.assertNotIn("state_matrix", frozen["content"])
+        document = self.project / "docs/plans/fix.md"
+        self.assertIn("docs-harness:plan-document/v1", document.read_text(encoding="utf-8"))
+        index = (self.project / "docs/INDEX.md").read_text(encoding="utf-8")
+        self.assertIn("plans/fix.md", index)
+        self.assertIn("`ConfirmPage`", index)
 
         before = (self.project / "docs/plans/fix.json").read_bytes()
         repeated = self.run_cli(
@@ -403,6 +915,130 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         )
         self.assertEqual(repeated["status"], "frozen")
         self.assertEqual((self.project / "docs/plans/fix.json").read_bytes(), before)
+        index = (self.project / "docs/INDEX.md").read_text(encoding="utf-8")
+        self.assertEqual(index.count("plans/fix.md"), 1)
+
+    def test_plan_settle_implements_and_archives_managed_plan(self) -> None:
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project),
+            "--level", "brief", "--profile", "general",
+        )
+        selection_path = self.write_json("selection.json", selection)
+        content = {
+            "title": "可归档任务方案",
+            "key_symbols": ["PlanOwner", "PlanConsumer"],
+            "objective": "验证方案生命周期",
+            "scope": ["scripts/harness.py"],
+            "steps": ["创建", "完成", "归档"],
+            "acceptance": ["docs-check 通过"],
+        }
+        content_path = self.write_json("content.json", content)
+        self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path), "--content", str(content_path),
+            "--output", "docs/plans/lifecycle.json",
+        )
+        implemented = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/lifecycle.json", "--status", "implemented",
+        )
+        self.assertEqual(implemented["status"], "implemented")
+        document = self.project / "docs/plans/lifecycle.md"
+        self.assertIn("已实施-仅追溯", document.read_text(encoding="utf-8"))
+        index = (self.project / "docs/INDEX.md").read_text(encoding="utf-8")
+        self.assertIn("状态：已实施-仅追溯", index)
+
+        deprecated = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/lifecycle.json", "--status", "deprecated",
+            "--replacement", "next-plan.md",
+        )
+        self.assertEqual(deprecated["status"], "deprecated")
+        self.assertFalse(document.exists())
+        self.assertTrue((self.project / "docs/plans/archive/lifecycle.md").is_file())
+        self.assertTrue((self.project / "docs/plans/archive/lifecycle.json").is_file())
+        index = (self.project / "docs/INDEX.md").read_text(encoding="utf-8")
+        self.assertNotIn("plans/lifecycle.md", index)
+        checked = self.run_cli("docs-check", "--target", str(self.project))
+        self.assertEqual(checked["status"], "passed")
+
+    def test_plan_settle_migrates_pre_250_frozen_identity(self) -> None:
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project),
+            "--level", "brief", "--profile", "general",
+        )
+        selection_path = self.write_json("selection.json", selection)
+        content_path = self.write_json(
+            "content.json",
+            {
+                "title": "旧冻结方案",
+                "key_symbols": ["LegacyPlan", "PlanConsumer"],
+                "objective": "兼容旧方案",
+                "scope": ["scripts/harness.py"],
+                "steps": ["迁移"],
+                "acceptance": ["完成状态可写入"],
+            },
+        )
+        self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path), "--content", str(content_path),
+            "--output", "docs/plans/legacy.json",
+        )
+        frozen_path = self.project / "docs/plans/legacy.json"
+        frozen = json.loads(frozen_path.read_text(encoding="utf-8"))
+        frozen["schema_version"] = "docs-harness/plan/v2"
+        frozen.pop("acceptance_refs")
+        frozen.pop("governance", None)
+        frozen["content"].pop("title")
+        frozen["content"].pop("key_symbols")
+        unsigned = dict(frozen)
+        unsigned.pop("plan_fingerprint")
+        frozen["plan_fingerprint"] = "sha256:" + hashlib.sha256(
+            json.dumps(unsigned, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        self.write_json("docs/plans/legacy.json", frozen)
+        payload = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/legacy.json", "--status", "implemented",
+        )
+        self.assertEqual(payload["status"], "implemented")
+        self.assertIn(
+            "已实施-仅追溯",
+            (self.project / "docs/plans/legacy.md").read_text(encoding="utf-8"),
+        )
+
+    def test_plan_settle_rejects_tampered_frozen_fingerprint(self) -> None:
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project),
+            "--level", "brief", "--profile", "general",
+        )
+        selection_path = self.write_json("selection.json", selection)
+        content_path = self.write_json(
+            "content.json",
+            {
+                "title": "指纹保护方案",
+                "key_symbols": ["PlanFingerprint", "PlanConsumer"],
+                "objective": "拒绝篡改",
+                "scope": ["scripts/harness.py"],
+                "steps": ["校验"],
+                "acceptance": ["篡改被拒绝"],
+            },
+        )
+        self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path), "--content", str(content_path),
+            "--output", "docs/plans/tampered-fingerprint.json",
+        )
+        frozen_path = self.project / "docs/plans/tampered-fingerprint.json"
+        frozen = json.loads(frozen_path.read_text(encoding="utf-8"))
+        frozen["content"]["objective"] = "已被篡改"
+        self.write_json("docs/plans/tampered-fingerprint.json", frozen)
+        payload = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/tampered-fingerprint.json",
+            "--status", "implemented", expected=2,
+        )
+        self.assertEqual(payload["code"], "invalid_plan_ref")
 
     def test_plan_create_rejects_re_fingerprinted_unregistered_fields(self) -> None:
         selection = self.run_cli(
@@ -454,7 +1090,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(self.snapshot_project(), before)
         self.assertEqual(list(outside.iterdir()), [])
 
-    def test_project_init_installs_pure_v7_without_legacy_rules(self) -> None:
+    def test_project_init_installs_pure_v9_without_legacy_rules(self) -> None:
         payload = self.run_cli("project", "init", "--target", str(self.project))
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
@@ -462,20 +1098,29 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(
             payload["version"], (ROOT / "VERSION").read_text(encoding="utf-8").strip()
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v7")
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v9")
         self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["direct_mode"], {"default": True})
         self.assertEqual(
             set(config["knowledge"]),
-            {"mode", "read_only", "docs_preexisting_at_install"},
+            {"mode", "query", "docs_preexisting_at_install"},
         )
-        self.assertEqual(config["knowledge"]["mode"], "on_demand")
-        self.assertTrue(config["knowledge"]["read_only"])
+        self.assertEqual(config["knowledge"]["mode"], "asset_lifecycle")
+        self.assertEqual(config["knowledge"]["query"], "on_demand")
         self.assertFalse((self.project / ".docs-harness" / "harness-home" / "rules").exists())
         self.assertFalse(
             any("harness-home/rules" in item["path"] for item in payload["planned_changes"])
         )
+        self.assertTrue((self.project / "docs/plans/README.md").is_file())
+        self.assertTrue((self.project / "docs/plans/archive/.gitkeep").is_file())
+        self.assertTrue((self.project / "docs/knowledge/archive/.gitkeep").is_file())
+        self.assertTrue((self.project / "docs/acceptance/archive/.gitkeep").is_file())
+        for module in (
+            "managed_assets.py", "asset_checks.py", "plan_governance.py",
+            "knowledge_assets.py", "acceptance_assets.py",
+        ):
+            self.assertTrue((self.project / "scripts" / module).is_file())
 
     def test_installed_controller_can_check_diff_and_self_test_itself(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
@@ -499,6 +1144,64 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
                 self.assertEqual(payload["changes"], [])
             if command[2] == "self-test":
                 self.assertEqual(payload["status"], "passed")
+
+    def test_installed_controller_runs_knowledge_and_acceptance_lifecycles(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        source = self.project / "src/owner.txt"
+        source.parent.mkdir(parents=True)
+        source.write_text("InstalledOwner owns lifecycle.\n", encoding="utf-8")
+        knowledge = self.write_json(
+            "inputs/installed-knowledge.json",
+            {
+                "schema_version": "docs-harness/knowledge-input/v1",
+                "title": "安装副本知识",
+                "key_symbols": ["InstalledOwner", "lifecycle_owner"],
+                "summary": "安装副本可维护知识。",
+                "facts": [
+                    {
+                        "id": "lifecycle.owner",
+                        "statement": "InstalledOwner 拥有生命周期。",
+                        "source_refs": ["src/owner.txt"],
+                    }
+                ],
+            },
+        )
+        self.run_installed(
+            "knowledge", "create", "--target", str(self.project),
+            "--input", str(knowledge.relative_to(self.project)),
+            "--output", "docs/knowledge/installed.json",
+        )
+        acceptance = self.write_json(
+            "inputs/installed-acceptance.json",
+            {
+                "schema_version": "docs-harness/acceptance-target-input/v1",
+                "title": "安装副本验收",
+                "key_symbols": ["InstalledOwner", "installed_acceptance"],
+                "objective": "验证安装副本资产能力。",
+                "knowledge_refs": ["docs/knowledge/installed.json"],
+                "criteria": [
+                    {
+                        "id": "install.contract",
+                        "title": "安装合同有效",
+                        "acceptance_type": "contract_check",
+                        "layer": "L1",
+                    }
+                ],
+            },
+        )
+        self.run_installed(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(acceptance.relative_to(self.project)),
+            "--output", "docs/acceptance/installed.json",
+        )
+        self.assertEqual(
+            self.run_installed("knowledge", "check", "--target", str(self.project))["status"],
+            "passed",
+        )
+        self.assertEqual(
+            self.run_installed("acceptance", "check", "--target", str(self.project))["status"],
+            "passed",
+        )
 
     def run_installed(self, *args: str, expected: int = 0) -> dict[str, object]:
         installed = self.project / "scripts" / "harness.py"
@@ -565,6 +1268,11 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         (fake / "scripts").mkdir(parents=True)
         shutil.copytree(ROOT / "plan-templates", fake / "plan-templates")
         shutil.copytree(ROOT / "scripts" / "githooks", fake / "scripts" / "githooks")
+        for module in (
+            "managed_assets.py", "asset_checks.py", "plan_governance.py",
+            "knowledge_assets.py", "acceptance_assets.py",
+        ):
+            shutil.copy2(ROOT / "scripts" / module, fake / "scripts" / module)
         script = (ROOT / "scripts" / "harness.py").read_text(encoding="utf-8")
         fake_script = re.sub(
             r'^VERSION = "[^"]+"',
@@ -573,9 +1281,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             count=1,
             flags=re.MULTILINE,
         )
-        (fake / "scripts" / "harness.py").write_text(
-            fake_script, encoding="utf-8", newline=""
-        )
+        (fake / "scripts" / "harness.py").write_text(fake_script, encoding="utf-8")
         payload = self.run_installed(
             "project",
             "upgrade",
@@ -606,7 +1312,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
     def test_uninstall_removes_only_owned_install_and_preserves_project_docs(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
         user_doc = self.project / "docs" / "product.md"
-        user_doc.parent.mkdir(parents=True)
+        user_doc.parent.mkdir(parents=True, exist_ok=True)
         user_doc.write_text("# 用户文档\n", encoding="utf-8")
         payload = self.run_cli(
             "project", "uninstall", "--target", str(self.project), "--apply"
@@ -640,8 +1346,41 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         for name, fingerprint in fingerprints.items():
             self.assertEqual(fingerprint, self.githook_digest(name))
         self.assertIn("scripts/githooks/setup.sh", payload["githook_activation_hint"])
+        pre_commit = (self.project / "scripts/githooks/pre-commit").read_text(encoding="utf-8")
+        self.assertIn("assets-check --target . --fast", pre_commit)
         check = self.run_cli("project", "check", "--target", str(self.project))
         self.assertEqual(check["status"], "passed")
+
+    def test_pre_commit_blocks_tampered_knowledge_asset(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        subprocess.run(
+            ["git", "init"], cwd=self.project, capture_output=True, check=True
+        )
+        source = self.project / "src/runtime.txt"
+        source.parent.mkdir(parents=True)
+        source.write_text("KnowledgeOwner owns the runtime.\n", encoding="utf-8")
+        value = self.write_json(
+            "inputs/knowledge.json",
+            self.knowledge_input("运行时所有权", "KnowledgeOwner 拥有运行时。"),
+        )
+        self.run_installed(
+            "knowledge", "create", "--target", str(self.project),
+            "--input", str(value.relative_to(self.project)),
+            "--output", "docs/knowledge/runtime-owner.json",
+        )
+        asset_path = self.project / "docs/knowledge/runtime-owner.json"
+        asset = json.loads(asset_path.read_text(encoding="utf-8"))
+        asset["summary"] = "已被手工篡改"
+        self.write_json("docs/knowledge/runtime-owner.json", asset)
+        result = subprocess.run(
+            ["sh", "scripts/githooks/pre-commit"],
+            cwd=self.project,
+            capture_output=True,
+            check=False,
+        )
+        output = (result.stdout + result.stderr).decode("utf-8", errors="replace")
+        self.assertEqual(result.returncode, 1, output)
+        self.assertIn("assets-check", output)
 
     def test_upgrade_rejects_user_modified_githook_before_any_write(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
@@ -652,6 +1391,19 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             "project", "upgrade", "--target", str(self.project), "--apply", expected=2
         )
         self.assertEqual(payload["code"], "install_conflict")
+        self.assertEqual(self.snapshot_project(), before)
+
+    def test_project_check_and_upgrade_reject_asset_module_drift(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        module = self.project / "scripts" / "knowledge_assets.py"
+        module.write_bytes(module.read_bytes() + b"# user tweak\n")
+        checked = self.run_cli("project", "check", "--target", str(self.project), expected=1)
+        self.assertIn("asset_module_drift", {item["code"] for item in checked["findings"]})
+        before = self.snapshot_project()
+        rejected = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply", expected=2
+        )
+        self.assertEqual(rejected["code"], "install_conflict")
         self.assertEqual(self.snapshot_project(), before)
 
     def test_upgrade_githooks_idempotent(self) -> None:
@@ -678,7 +1430,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertTrue(modified.is_file())
         self.assertTrue((self.project / "scripts" / "githooks").is_dir())
 
-    def test_upgrade_v6_config_is_smoothly_rewritten_to_v7(self) -> None:
+    def test_upgrade_v6_config_is_smoothly_rewritten_to_v8(self) -> None:
         self.write_json(
             ".docs-harness/config.json",
             {
@@ -703,7 +1455,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v7")
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v9")
         self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["migration"]["source_version"], "2.3.0")
@@ -715,6 +1467,52 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
                 config["installed_githook_fingerprints"][name],
                 self.githook_digest(name),
             )
+
+    def test_upgrade_accepts_exact_241_templates_with_historical_bad_config_fingerprint(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        legacy_brief = (
+            '{\n  "schema_version": "docs-harness/plan-template/v2",\n'
+            '  "kind": "level",\n  "id": "brief",\n  "version": "2.4.1",\n'
+            '  "fields": [\n'
+            '    {"id": "objective", "label": "目标", "required": true},\n'
+            '    {"id": "scope", "label": "范围", "required": true},\n'
+            '    {"id": "steps", "label": "关键步骤", "required": true},\n'
+            '    {"id": "acceptance", "label": "验收方案", "required": true}\n'
+            '  ]\n}\n'
+        )
+        brief = self.project / "plan-templates" / "levels" / "brief.json"
+        brief.write_text(legacy_brief, encoding="utf-8")
+        config_path = self.project / ".docs-harness" / "config.json"
+        config = json.loads(config_path.read_text(encoding="utf-8"))
+        config["schema_version"] = "docs-harness/project-config/v7"
+        config["version"] = "2.4.1"
+        config["installed_plan_template_fingerprints"]["levels/brief.json"] = (
+            "sha256:f3cbc14837d7c7f33a375a3ae91a24871f48ec5e064e976167709e46989ad1dd"
+        )
+        self.write_json(".docs-harness/config.json", config)
+
+        payload = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply"
+        )
+
+        self.assertEqual(payload["from_version"], "2.4.1")
+        self.assertEqual(
+            brief.read_bytes(),
+            (ROOT / "plan-templates" / "levels" / "brief.json").read_bytes(),
+        )
+
+    def test_upgrade_still_rejects_modified_legacy_template(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        brief = self.project / "plan-templates" / "levels" / "brief.json"
+        brief.write_bytes(brief.read_bytes() + b"\n")
+        before = self.snapshot_project()
+
+        payload = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply", expected=2
+        )
+
+        self.assertEqual(payload["code"], "install_conflict")
+        self.assertEqual(self.snapshot_project(), before)
 
     def test_upgrade_v5_preview_apply_cleanup_and_repeat_are_one_way(self) -> None:
         owned_rule = "---\nstatus: active\nrule_id: DH-LEGACY\n---\n\n# 旧规则\n"
@@ -791,12 +1589,12 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v7")
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v9")
         self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["direct_mode"], {"default": True})
-        self.assertEqual(config["knowledge"]["mode"], "on_demand")
-        self.assertTrue(config["knowledge"]["read_only"])
+        self.assertEqual(config["knowledge"]["mode"], "asset_lifecycle")
+        self.assertEqual(config["knowledge"]["query"], "on_demand")
 
         repeated = self.run_cli(
             "project", "upgrade", "--target", str(self.project), "--apply"
@@ -1201,6 +1999,137 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             "acceptance", "record", "--target", str(self.project), "--input", str(record), expected=3
         )
         self.assertEqual(payload["code"], "user_confirmation_required")
+
+    def acceptance_target(self, acceptance_type: str = "behavior_acceptance") -> dict[str, object]:
+        layer = {
+            "contract_check": "L1",
+            "behavior_acceptance": "L2",
+            "user_acceptance": "L5",
+        }[acceptance_type]
+        criterion: dict[str, object] = {
+            "id": "flow.result",
+            "title": "功能流程结果符合预期",
+            "acceptance_type": acceptance_type,
+            "layer": layer,
+        }
+        if acceptance_type == "behavior_acceptance":
+            criterion["evidence_layer"] = "focused_test"
+        return {
+            "schema_version": "docs-harness/acceptance-target-input/v1",
+            "title": "功能流程验收",
+            "key_symbols": ["AcceptanceOwner", "flow_result"],
+            "objective": "逐条记录功能流程证据。",
+            "criteria": [criterion],
+        }
+
+    def test_acceptance_asset_create_record_reaccept_settle_and_check(self) -> None:
+        target_input = self.write_json("inputs/acceptance-target.json", self.acceptance_target())
+        created = self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(target_input.relative_to(self.project)),
+            "--output", "docs/acceptance/flow.json",
+        )
+        self.assertEqual(created["criteria"], 1)
+        evidence = self.project / "focused-test.log"
+        evidence.write_text("passed\n", encoding="utf-8")
+        passed_input = self.write_json(
+            "inputs/acceptance-passed.json",
+            {
+                "schema_version": "docs-harness/acceptance-input/v3",
+                "criterion_id": "flow.result",
+                "objective": "逐条记录功能流程证据。",
+                "acceptance_type": "behavior_acceptance",
+                "status": "passed",
+                "layer": "L2",
+                "evidence_layer": "focused_test",
+                "method": "运行聚焦测试",
+                "evidence_refs": ["focused-test.log"],
+            },
+        )
+        recorded = self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(passed_input.relative_to(self.project)),
+            "--acceptance", "docs/acceptance/flow.json",
+        )
+        self.assertEqual(recorded["status"], "passed")
+        settled = self.run_cli(
+            "acceptance", "settle", "--target", str(self.project),
+            "--acceptance", "docs/acceptance/flow.json", "--status", "passed",
+        )
+        self.assertEqual(settled["status"], "passed")
+
+        failed_input = self.write_json(
+            "inputs/acceptance-failed.json",
+            {
+                "schema_version": "docs-harness/acceptance-input/v3",
+                "criterion_id": "flow.result",
+                "objective": "逐条记录功能流程证据。",
+                "acceptance_type": "behavior_acceptance",
+                "status": "failed",
+                "layer": "L2",
+                "evidence_layer": "focused_test",
+                "reason": "回归失败",
+                "next_action": "修复后重验",
+                "failure_attributions": [
+                    {
+                        "category": "change_related",
+                        "summary": "功能结果不符合预期",
+                        "blocking": True,
+                        "evidence_refs": ["focused-test.log"],
+                    }
+                ],
+            },
+        )
+        rejected = self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(failed_input.relative_to(self.project)),
+            "--acceptance", "docs/acceptance/flow.json", expected=1,
+        )
+        self.assertEqual(rejected["code"], "acceptance_reaccept_required")
+        reaccepted = self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(failed_input.relative_to(self.project)),
+            "--acceptance", "docs/acceptance/flow.json", "--reaccept", expected=3,
+        )
+        self.assertEqual(reaccepted["status"], "failed")
+        self.assertEqual(
+            self.run_cli("acceptance", "check", "--target", str(self.project))["status"],
+            "passed",
+        )
+
+    def test_user_acceptance_pass_requires_explicit_confirmation_gate(self) -> None:
+        target_input = self.write_json("inputs/user-target.json", self.acceptance_target("user_acceptance"))
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(target_input.relative_to(self.project)),
+            "--output", "docs/acceptance/user-flow.json",
+        )
+        record = self.write_json(
+            "inputs/user-passed.json",
+            {
+                "schema_version": "docs-harness/acceptance-input/v3",
+                "criterion_id": "flow.result",
+                "objective": "逐条记录功能流程证据。",
+                "acceptance_type": "user_acceptance",
+                "status": "passed",
+                "layer": "L5",
+                "method": "用户明确确认",
+                "evidence_refs": [],
+                "confirmation": "用户确认功能流程符合预期。",
+            },
+        )
+        rejected = self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(record.relative_to(self.project)),
+            "--acceptance", "docs/acceptance/user-flow.json", expected=3,
+        )
+        self.assertEqual(rejected["code"], "user_confirmation_required")
+        accepted = self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(record.relative_to(self.project)),
+            "--acceptance", "docs/acceptance/user-flow.json", "--user-confirmed",
+        )
+        self.assertEqual(accepted["status"], "passed")
 
 if __name__ == "__main__":
     unittest.main()

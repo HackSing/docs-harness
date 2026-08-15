@@ -1,5 +1,32 @@
 # Changelog
 
+## 2.7.1 - 2026-08-15
+
+- 受管入口「文档可发现性规范」明确 docs-check 运行时机：方案起草与反复调整期间不运行 docs-check，闭环校验在提交前或 plan settle 时执行一次即可，pre-commit 与 CI 的 assets-check 已包含该检查；消除 agent 将"同一次提交内完成闭环"误读为编辑粒度触发、导致方案起草期反复全仓扫描空跑的问题。docs-check 实现与 pre-commit/CI 触发点不变。
+
+## 2.7.0 - 2026-08-15
+
+- 新增统一 `assets-check [--fast] [--strict]`：聚合 Plan、Knowledge、Acceptance 领域检查与跨资产关系，结构/Schema/指纹/索引/引用破坏为 FAIL，声明矛盾和长期 pending 等为 WARN；零资产但安装结构完整的项目通过。
+- pre-commit 从只运行 `docs-check` 升级为 `assets-check --fast`，覆盖三类资产机械完整性；新增 GitHub Actions `assets-check --strict` + `npm test` 完整防线，慢速符号存活与 Git 时效检查只在非 fast 路径运行。
+- Plan 模板与资产升级到 v3：Full Plan 必填 `acceptance_required` 和单字段 `knowledge_impact`，`plan settle --governance-input` 机械验证已结项 Acceptance、活跃 Knowledge 引用或 unchanged 理由；Plan v2 保持只读兼容且不回填。
+- Acceptance 创建时自动维护 v3 Plan 的 `acceptance_refs[]`，superseded 时移除旧反向引用；failed Acceptance 可作为真实终态完成流程闭环，但 Plan settle 输出 WARN，不伪装验收通过。
+- 新增 `asset_checks.py` 与 `plan_governance.py`，统一检查编排、跨资产规则、Plan 指纹与反向登记；安装配置升级为 `project-config/v9`，受管提示词明确 Knowledge → Acceptance → Plan 结算顺序。
+- 修复 2.4.1 发布配置记录的方案模板指纹与实际发布文件不一致、导致合法项目无法升级的问题：仅对白名单中的 2.4.1 官方文件指纹恢复归属，任意用户修改仍按 `install_conflict` 失败关闭；Avatanel 与 ZBuddy 已完成 2.7.0 下游升级验证。
+
+## 2.6.0 - 2026-08-14
+
+- Plan、Knowledge、Acceptance 形成三类独立受管资产生命周期：Knowledge 新增带 source_refs 的 create/update/query/settle/check、revision 与同键冲突检测；Acceptance 新增目标 create、关联 Plan/Knowledge、逐 criterion record、结项后 reaccept、settle/check 与 superseded 归档。
+- 用户验收通过新增显式 `--user-confirmed` 门禁，仅允许写入关联 Acceptance 且输入含用户确认；独立 `acceptance record` 继续拒绝 agent 自行声明用户已验收。合同、聚焦/全量测试、运行、包/安装和用户可见层保持分离。
+- `project init|upgrade` 幂等初始化 `docs/plans/`、`docs/knowledge/`、`docs/acceptance/` 及独立 INDEX 区块；项目配置升级为 v8，新增三个受管资产模块指纹，diff/check/self-test/package/uninstall 全链路消费，卸载默认保留用户资产。
+- 新增 `managed_assets.py`、`knowledge_assets.py`、`acceptance_assets.py`，将路径、指纹、投影、索引和归档复用层与领域规则分离；托管提示词同步 Knowledge → Plan → Acceptance → Knowledge 的按需闭环。
+
+## 2.5.0 - 2026-08-14
+
+- 建立完整方案生命周期：`plan create` 固定在 `docs/plans/` 同时生成冻结 JSON、可审查 Markdown 与 `docs/INDEX.md` 状态/关键符号条目；新增 `plan settle`，支持已实施追溯和废弃归档，同步移动伴随文件、退出活索引并更新明确 Markdown 链接。
+- `project init|upgrade` 幂等初始化 `docs/plans/README.md`、`docs/plans/archive/.gitkeep` 与独立受管方案索引区块，保留项目既有文档正文；`project diff|check`、Git 交付路径和下游升级共同消费该结构。
+- `docs-check` 不再把缺失方案体系视为正常 skipped：缺失结构返回失败；目录 README 不再误判为活方案；索引强制 2–4 个关键符号，Harness 生成的 Markdown 必须有同名冻结 JSON。
+- brief/full 模板新增必填 `title` 与 `key_symbols`，受管 AGENTS.md/CLAUDE.md 明确 `select → create → execute → settle` 顺序，避免代码流程与提示词脱节。
+
 ## 2.4.1 - 2026-08-14
 
 - docs-check C5（关键符号存活性）改为剪枝遍历 + 源码白名单：新增 `docs_check_walk_files` 不进入隐藏/符号链接/剪枝目录，取代 `rglob("*")` 全量枚举与逐条目双 stat，ZBuddy 仓实测 32.3s→4.6s；新增 `DOCS_CHECK_SOURCE_SUFFIXES` 扩展名白名单与 `DOCS_CHECK_ARTIFACT_DIRS` 产物目录黑名单，构建产物里的旧符号不再算「代码仍是真源」证据；C3 死链扫描复用剪枝遍历，结果集等价。

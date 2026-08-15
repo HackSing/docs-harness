@@ -1,6 +1,6 @@
-# Docs Harness 2.1.0 产品合同
+# Docs Harness 2.7.1 产品合同
 
-本文件只描述 2.1.0 当前能力。1.x 的 Run、Gate、Evidence、Verify、Readmission、规则和后台 Job 已从可运行合同移除；旧项目统一按 [2.0.0 单向迁移指南](migrations/v2.0.0.md) 升级。
+本文件只描述 2.7.1 当前能力。1.x 的 Run、Gate、Evidence、Verify、Readmission、规则和后台 Job 已从可运行合同移除；旧项目统一按 [2.0.0 单向迁移指南](migrations/v2.0.0.md) 升级。
 
 ## 1. 默认合同
 
@@ -8,12 +8,13 @@
 
 用户明确关闭 Harness 时必须尊重。Harness 未安装、不可用或全部可选能力关闭时，普通问答、只读检查、代码修改、构建和测试仍能完整进行。
 
-2.1.0 只有三项相互独立的按需能力：
+2.7.1 保留三组相互独立、可串联的按需资产能力，并增加统一检查入口：
 
 ```text
-knowledge query
-plan select | plan create
-acceptance record
+knowledge create | update | query | settle | check
+plan select | plan create | plan settle
+acceptance create | record | settle | check
+assets-check [--fast] [--strict]
 ```
 
 ## 2. 按需知识合同
@@ -29,7 +30,7 @@ acceptance record
 - `--limit`：1–10 条；
 - `--max-chars`：500–12000 字符。
 
-默认排除 `docs/plans/`、`docs/reviews/` 和 `docs/history/`。显式 scope 可以读取当前任务指定的方案，但历史目录始终不参与自动候选。
+默认排除 `docs/plans/`、`docs/knowledge/`、`docs/reviews/` 和 `docs/history/` 的普通文档扫描；受管 Knowledge JSON 由结构化查询器优先读取，历史目录不参与候选。
 
 ### 2.3 模型可见输出
 
@@ -40,13 +41,21 @@ acceptance record
   "refs": ["path:line"],
   "constraints": [],
   "conflicts": [],
-  "conflict_check": "not_evaluated_against_runtime",
+  "conflict_check": "managed_knowledge_assets_evaluated",
   "omitted": {"count": 0, "reason": null},
   "source_priority": "current_source_and_runtime_remain_authoritative"
 }
 ```
 
-未与真实运行态比对时必须明确 `conflict_check=not_evaluated_against_runtime`。该命令只读，不写知识正文、运行状态或长期记忆。
+`query` 只读，当前源码和运行态仍高于所有 Knowledge 资产。它优先返回受管事实，再用剩余预算检索普通项目文档；同一 fact id 在活跃资产中出现不同 statement 时，`conflicts` 必须显式返回。
+
+### 2.4 Knowledge 资产生命周期
+
+`knowledge create` 只接受 `docs-harness/knowledge-input/v1`，输出固定为 `docs/knowledge/<name>.json`。输入必须含单行标题、2–4 个关键符号、摘要和非空 facts；每条 fact 使用稳定 id、单行 statement 和至少一个项目内已存在的 `source_refs`。
+
+JSON `docs-harness/knowledge-asset/v1` 是事实真源，Markdown 是可读投影，`docs/INDEX.md` 是发现入口。`knowledge update` 校验当前资产指纹后递增 revision，并保存上一修订指纹；手工篡改、证据缺失、同键冲突均由 `knowledge check` 失败关闭。
+
+`knowledge settle --status deprecated|superseded` 将同名 JSON/Markdown 移入 archive、退出活索引并更新明确链接；superseded 必须提供有效 replacement。Harness 不在没有证据或没有明确维护任务时自动创建、修改 Knowledge。
 
 ## 3. 方案合同
 
@@ -65,9 +74,9 @@ acceptance record
 
 ### 3.2 冻结与执行
 
-`plan create` 只接受未篡改的 `docs-harness/plan-selection/v2`、只含已注册字段的内容 JSON，以及项目内无符号链接逃逸的输出路径。
+`plan create` 只接受未篡改的 `docs-harness/plan-selection/v2`、只含已注册字段的内容 JSON，以及 `docs/plans/<name>.json` 输出路径。所有 brief/full 方案必须提供单行 `title` 与 2–4 个唯一 `key_symbols`。
 
-成功结果写入 `docs-harness/plan/v2` 与选择指纹。`full + bugfix` 额外要求以下结构化字段：
+成功结果同时写入冻结的 `docs-harness/plan/v3` JSON、同名可审查 Markdown，以及 `docs/INDEX.md` 受管区块内的状态/关键符号条目。v2 方案保持只读兼容且不回填新字段；已有不同内容的 JSON 或 Markdown 均失败关闭。所有 Full Plan 必须声明 `acceptance_required=true|false` 和 `knowledge_impact=updated|unchanged`；`full + bugfix` 还要求以下结构化字段：
 
 ```json
 {
@@ -92,13 +101,19 @@ acceptance record
 
 `repository_full` 只接受 `cross_module_change|public_contract_change|shared_infrastructure_change|dependency_or_shared_fixture_change|release_gate` 原因码；`affected_modules` 模式必须声明 `required=false` 且不得携带全量原因码。上述四项进入 `execution_projection`，其余模板选择过程、候选讨论或控制器状态不进入执行上下文。
 
-### 3.3 ADR
+### 3.3 生命周期收尾
+
+`plan settle --status implemented` 对 v3 Full Plan 先执行治理终验：`acceptance_required=true` 时至少一个关联 Acceptance 必须已经结项；`knowledge_impact=updated` 时治理输入必须列出存在且 active 的 Knowledge，`unchanged` 时必须提供单行理由。Acceptance 以 failed 结项仍可表达“已实施但验收失败”，但输出 WARN。验证后 Markdown 与索引同步为“已实施-仅追溯”。`--status deprecated` 将同名 JSON/Markdown 移入 `docs/plans/archive/`、移出活索引，并更新明确匹配的 Markdown 链接；`--replacement` 可记录替代方案。
+
+### 3.4 ADR
 
 架构 Profile 必须包含 `adr_decision`。主 Codex 是唯一写作者；复杂、高风险、跨模块或不可逆决策可以使用只读子智能体复审。已接受 ADR 不原地改写决策，后续通过新 ADR 的 `Supersedes` 保留历史。
 
 ## 4. 真实验收合同
 
-`acceptance record` 使用 `docs-harness/acceptance-input/v3`，只登记已经发生的验收，不自动执行测试，也不决定应该跑全量还是聚焦验证。
+`acceptance create` 使用 `docs-harness/acceptance-target-input/v1`，输出固定为 `docs/acceptance/<name>.json`。目标包含标题、2–4 个关键符号、objective 和非空 criteria；可用 `plan_ref` 与 `knowledge_refs` 关联上游受管资产。引用 v3 Plan 时 Harness 自动维护其 `acceptance_refs[]`，模型无需手填；Acceptance superseded 时移除旧反向引用。每条 criterion 固定 id、类型、L 层与必要的 evidence_layer。
+
+`acceptance record` 继续使用 `docs-harness/acceptance-input/v3`，只登记已经发生的验收，不自动执行测试，也不决定应该跑全量还是聚焦验证。带 `--acceptance` 时必须提供 criterion_id，记录进入 `docs-harness/acceptance-asset/v1` 并更新该标准和总体聚合状态；不带资产时保留 2.0 的独立 Runtime 记录兼容路径。
 
 三种验收类型必须分开：
 
@@ -126,28 +141,40 @@ Behavior Acceptance 必须声明下列 `evidence_layer`，且只能使用固定 
 | `package_or_install` | L4 | 包、安装器或已安装产物 |
 | `real_device` | L5 | 真实设备上的客观行为 |
 
-L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 客观行为，但不能替代 User Acceptance；独立 CLI 不接受 `user_acceptance + passed`，只能记录 `user_pending`。
+L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 客观行为，但不能替代 User Acceptance；独立记录路径不接受 `user_acceptance + passed`。只有关联 Acceptance、输入含明确 confirmation，且 agent 已收到用户确认原话后显式使用 `--user-confirmed`，才能登记用户验收通过。
 
-通过必须提供实际方法和项目内已存在的常规证据文件。失败必须提供总体原因、下一步和非空 `failure_attributions[]`；每项包含 `category`、`summary`、`blocking` 与非空 `evidence_refs`，类别只允许 `change_related|unrelated|pre_existing|environment|flaky`。归因重复、类别未知或证据不存在时拒绝记录。`user_pending` 必须包含已自动验证内容、待用户检查项、最短步骤和 `environment_ready=true`。
+通过必须提供实际方法和项目内已存在的常规证据文件；User Acceptance 的明确 confirmation 是独立证据门禁。失败必须提供总体原因、下一步和非空 `failure_attributions[]`；每项包含 `category`、`summary`、`blocking` 与非空 `evidence_refs`，类别只允许 `change_related|unrelated|pre_existing|environment|flaky`。归因重复、类别未知或证据不存在时拒绝记录。`user_pending` 必须包含已自动验证内容、待用户检查项、最短步骤和 `environment_ready=true`。
 
-## 5. 风险、授权与数据边界
+结项后的资产再次记录必须显式 `--reaccept`；`acceptance settle --status passed|failed` 必须与逐条标准聚合状态一致，`superseded` 需要 replacement 并归档。`acceptance check` 校验指纹、投影、索引、上游引用和通过证据。
+
+## 5. 统一资产检查合同
+
+`assets-check` 聚合 Plan、Knowledge、Acceptance 领域检查及跨资产正反向关系。结构、Schema、指纹、索引、活引用和已结算合同破坏属于 FAIL；声明矛盾、pending 验收指向归档 Plan、长期未结项等属于 WARN。默认只有 FAIL 返回非零，`--strict` 使 WARN 也失败；`--fast` 跳过 Plan 符号存活和 Git 历史时效检查，供 pre-commit 使用。
+
+零资产但三类安装结构完整的项目检查通过。命令不得从 Git diff、提交信息或任务文本推断必须创建资产。
+
+## 6. 风险、授权与数据边界
 
 Docs Harness 不提供任务级 Gate、动作 preflight、授权文件、Host Adapter 或 usage metrics。Git 写入、删除、发布、安装和外部系统写入使用 Codex 原生授权与沙箱。
 
 Harness 不采集用户授权、不解析 Codex usage、不保存原始用户聊天或模型推理。需要评估产品效果时，另行进行明确的只读抽样审查，不能让每个业务任务承担遥测成本。
 
-## 6. 安装合同
+## 7. 安装合同
 
 项目安装只提供：
 
 - 受管的 direct-first `AGENTS.md` 与 `CLAUDE.md` 区块；
-- `scripts/harness.py`；
+- `scripts/harness.py` 与受管资产生命周期模块；
 - 版本化 `plan-templates/`；
-- `.docs-harness/config.json`（`docs-harness/project-config/v6`）。
+- `scripts/githooks/`；
+- `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、各自 archive 与 `docs/INDEX.md` 独立索引区块；
+- `.docs-harness/config.json`（`docs-harness/project-config/v9`）。
 
-fresh init 不创建项目知识正文、规则目录或任务 Runtime，不自动启动知识、ADR、Changelog、TODO 或后台治理 Job。upgrade 清理指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；项目文档、质量账本、已修改或归属不明文件保留。
+fresh init 初始化三类空资产目录与受管索引区块，但不生成项目事实、验收结论、规则目录或任务 Runtime，不自动启动知识、ADR、Changelog、TODO 或后台治理 Job。upgrade 先补齐三类体系，再清理指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；三类用户资产、项目文档、质量账本、已修改或归属不明文件保留。
 
-## 7. 迁移与移除边界
+2.4.1 曾发布错误的方案模板配置指纹。upgrade 只把与 2.4.1 官方发布文件逐字匹配的已知指纹作为兼容归属；内容有任何额外修改仍拒绝覆盖。成功升级后统一写回当前真实文件指纹，不长期保留双重归属状态。
+
+## 8. 迁移与移除边界
 
 `run|context|progress|verify|task|background|authorization`、`--legacy-opt-in` 和知识维护 Job 已从 2.x CLI 与控制器删除。2.x 不读取、创建、继续或验证 1.x 任务状态；旧项目只通过 `project upgrade` 执行单向迁移。
 

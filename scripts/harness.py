@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Docs Harness 2.4.1：默认直跑，按需知识、方案模板、真实验收与单向迁移。"""
+"""Docs Harness 2.7.1：默认直跑，按需管理三类资产生命周期。"""
 
 from __future__ import annotations
 
@@ -13,23 +13,49 @@ import os
 import re
 import shutil
 import subprocess
+import sys
 import tempfile
 import uuid
 from pathlib import Path
 from typing import Any, Sequence
+SCRIPT_MODULE_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_MODULE_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_MODULE_DIR))
 
-
-VERSION = "2.4.1"
-CONFIG_SCHEMA = "docs-harness/project-config/v7"
+from managed_assets import AssetError, apply_structure, structure_changes
+from asset_checks import run_assets_check
+from plan_governance import (
+    PLAN_SCHEMA_V3, PlanGovernanceError, governance_from_content, legacy_plan_template_fingerprints, new_plan_fields,
+    prepare_settlement as prepare_plan_settlement, render_governance_block, update_plan_markdown,
+    validate_plan as validate_governed_plan,
+)
+from knowledge_assets import (
+    KNOWLEDGE_SPEC,
+    check as check_knowledge_assets,
+    create as create_knowledge_asset,
+    query as query_knowledge_assets,
+    settle as settle_knowledge_asset,
+    update as update_knowledge_asset,
+)
+from acceptance_assets import (
+    ACCEPTANCE_EVIDENCE_LAYERS,
+    ACCEPTANCE_LAYERS,
+    ACCEPTANCE_SPEC,
+    check as check_acceptance_assets,
+    create as create_acceptance_asset,
+    record as record_acceptance_asset,
+    settle as settle_acceptance_asset,
+)
+VERSION = "2.7.1"
+CONFIG_SCHEMA = "docs-harness/project-config/v9"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
-    f"docs-harness/project-config/v{version}" for version in range(1, 7)
+    f"docs-harness/project-config/v{version}" for version in range(1, 9)
 }
-PLAN_TEMPLATE_SCHEMA = "docs-harness/plan-template/v2"
+PLAN_TEMPLATE_SCHEMA = "docs-harness/plan-template/v3"
 PLAN_SELECTION_SCHEMA = "docs-harness/plan-selection/v2"
-PLAN_SCHEMA = "docs-harness/plan/v2"
+PLAN_SCHEMA = PLAN_SCHEMA_V3
 ACCEPTANCE_INPUT_SCHEMA = "docs-harness/acceptance-input/v3"
 ACCEPTANCE_RECORD_SCHEMA = "docs-harness/acceptance-record/v3"
-
 SCRIPT_ROOT = Path(__file__).resolve().parents[1]
 PLAN_TEMPLATES_RELATIVE = "plan-templates"
 PLAN_TEMPLATE_RELATIVE_FILES = (
@@ -44,6 +70,18 @@ PLAN_TEMPLATE_RELATIVE_FILES = (
 )
 GIT_HOOKS_RELATIVE = "scripts/githooks"
 GIT_HOOK_RELATIVE_FILES = ("pre-commit", "setup.sh")
+MANAGED_MODULE_RELATIVE_FILES = (
+    "managed_assets.py",
+    "asset_checks.py",
+    "plan_governance.py",
+    "knowledge_assets.py",
+    "acceptance_assets.py",
+)
+PLAN_DOCS_RELATIVE = "docs/plans"
+PLAN_ARCHIVE_RELATIVE = "docs/plans/archive"
+PLAN_INDEX_RELATIVE = "docs/INDEX.md"
+PLAN_README_RELATIVE = "docs/plans/README.md"
+PLAN_ARCHIVE_KEEP_RELATIVE = "docs/plans/archive/.gitkeep"
 PLAN_LEVELS = ("none", "brief", "full")
 PLAN_PROFILES = (
     "general",
@@ -61,13 +99,19 @@ PROFILE_FILES = {
     "architecture": "profiles/architecture.json",
     "migration_release": "profiles/migration-release.json",
 }
-
 MANAGED_BEGIN = "<!-- docs-harness:managed-entry:start -->"
 MANAGED_END = "<!-- docs-harness:managed-entry:end -->"
 CLAUDE_BEGIN = "<!-- docs-harness:claude-bridge:start -->"
 CLAUDE_END = "<!-- docs-harness:claude-bridge:end -->"
 MANAGED_VERSION_BEGIN = "<!-- docs-harness:managed-version:start -->"
 MANAGED_VERSION_END = "<!-- docs-harness:managed-version:end -->"
+PLAN_INDEX_BEGIN = "<!-- docs-harness:plans-index:start -->"
+PLAN_INDEX_END = "<!-- docs-harness:plans-index:end -->"
+PLAN_DOCUMENT_MARKER = "<!-- docs-harness:plan-document/v1 -->"
+PLAN_STATUS_ACTIVE = "有效（实施中）"
+PLAN_STATUS_IMPLEMENTED = "已实施-仅追溯"
+PLAN_STATUS_DEPRECATED = "已废弃"
+PLAN_SETTLE_STATUSES = ("implemented", "deprecated")
 LEGACY_INDEX_PATHS = ("docs/INDEX.md", "docs/modules/INDEX.md")
 LEGACY_RULES_RELATIVE = ".docs-harness/harness-home/rules"
 LEGACY_RUNTIME_NAMES = (
@@ -79,20 +123,6 @@ LEGACY_RUNTIME_NAMES = (
 )
 KNOWLEDGE_MAP_RELATIVE = "docs/knowledge-map.json"
 REPOWIKI_RELATIVE = ".qoder/repowiki"
-ACCEPTANCE_LAYERS = {
-    "L1": "source_contract",
-    "L2": "focused_behavior",
-    "L3": "local_runtime",
-    "L4": "package_or_install",
-    "L5": "user_visible",
-}
-ACCEPTANCE_EVIDENCE_LAYERS = {
-    "focused_test": "L2",
-    "repository_full_test": "L2",
-    "local_runtime": "L3",
-    "package_or_install": "L4",
-    "real_device": "L5",
-}
 FULL_REGRESSION_REASON_CODES = {
     "cross_module_change",
     "public_contract_change",
@@ -119,8 +149,17 @@ DOCS_CHECK_SOURCE_SUFFIXES = {
 }
 DOCS_CHECK_STALE_DAYS = 90
 DOCS_CHECK_SYMBOL_MAX_FILE_BYTES = 2_000_000
+PLAN_README_CONTENT = """# 任务方案
 
+本目录保存需要长期审查和追溯的复杂任务方案。Harness 生成的方案由同名 JSON
+冻结执行合同、Markdown 提供可读正文，并通过 `docs/INDEX.md` 维护状态和关键符号。
 
+已废弃方案移入 `archive/`；已实施方案保留在根目录并标记为仅追溯。
+"""
+PLAN_INDEX_SCAFFOLD = """# 项目文档索引
+
+项目文档从这里进入；Docs Harness 只维护下方任务方案区块。
+"""
 class HarnessError(Exception):
     def __init__(
         self,
@@ -351,14 +390,32 @@ _GENERIC_STANDARDS = """
 
 ## 文档可发现性规范（plans 文档）
 
-新增、实质修改或废弃 `docs/plans/` 文档时，同一次提交内完成以下闭环（可用 `python scripts/harness.py docs-check` 校验）：
+新增、实质修改或废弃 `docs/plans/` 文档时，同一次提交内完成以下闭环（用 `python scripts/harness.py docs-check` 校验；起草与反复调整期间不运行 docs-check，提交前或 plan settle 时执行一次即可，pre-commit 与 CI 的 assets-check 已包含该检查）：
 
 1. **状态横幅**：文件前 3 行内标注三值之一——`有效（现行事实/实施中）`、`已实施-仅追溯（代码已是真源，YYYY-MM-DD 核对）`、`已废弃-被 <文件> 取代（YYYY-MM-DD 核对）`。判定纪律：代码中找不到符号只能证明概念已死，不能证明 plan 过期（合法待实施方案同样没有代码）；证据不足标"存疑"，交用户裁决。
 2. **索引带符号**：`docs/INDEX.md` 条目带 2-4 个唯一性强的代码符号（取正文反引号标识符按频次排序，剔除 runId 类全仓通用词）+ 状态镜像，使 grep 符号能同时命中源码、索引与文档。
 3. **废弃归档**：废弃/被吸收文档移入 `docs/plans/archive/` 并退出活索引；移动必须 sweep 全仓 `.md` 相对链接，不留死链；新文档取代旧文档时，旧文档横幅同步改为"已废弃-被本文件取代"。
-4. **WARN 消费**：agent 在某领域执行任务收尾时，若 docs-check 输出与该领域相关的 WARN，必须在收尾报告中向用户转达，不得静默略过。
+4. **WARN 消费**：agent 在某领域执行任务收尾时，若 assets-check 输出与该领域相关的 WARN，必须在收尾报告中向用户转达，不得静默略过。
 
-提交时由入库 pre-commit 钩子强制 docs-check（`scripts/githooks/`，新克隆机器先执行 `setup.sh` 激活）。
+复杂任务的方案生命周期必须闭环：先运行 `plan select`，再用 `plan create --output docs/plans/<name>.json`
+冻结执行合同；该命令会自动生成同名 Markdown 并维护 `docs/INDEX.md`。实施完成后必须运行
+`plan settle --status implemented --plan docs/plans/<name>.json`；方案被取代或废弃时使用
+`--status deprecated`，必要时通过 `--replacement` 记录替代方案。不要手工复制一份平行方案。
+Full Plan 必须明确填写 `acceptance_required=true|false` 与单字段
+`knowledge_impact=updated|unchanged`；前者为 true 时先完成 Acceptance 结项，后者在
+`plan settle --governance-input <json>` 中提供活跃 Knowledge 引用或不更新理由。
+
+Knowledge 资产只记录有当前源码或项目文档证据支持的可复用事实：先按需 `knowledge query`，
+需要沉淀时使用 `knowledge create`，事实变化使用 `knowledge update`，被替代或废弃时运行
+`knowledge settle`，收尾用 `knowledge check` 暴露指纹、引用和同键冲突。不得凭模型猜测自动写知识。
+
+复杂任务先用 `acceptance create` 建立可关联 Plan/Knowledge 的验收目标，再执行真实验证并逐条
+`acceptance record --acceptance <asset>`；失败修复后显式 `--reaccept`，最终用 `acceptance settle`
+结项或归档，并运行 `acceptance check`。只有收到用户明确确认原话后，才能用 `--user-confirmed`
+记录 User Acceptance 通过；合同、测试、运行、安装和用户可见层不得相互替代。
+
+收尾统一运行 `assets-check`，不要求智能体手动拼接三个 check。提交时由入库 pre-commit 钩子执行
+`assets-check --fast`；GitHub CI 执行 `assets-check --strict`（新克隆机器先运行 `setup.sh` 激活钩子）。
 
 ## 收尾
 
@@ -383,13 +440,14 @@ Docs Harness 当前版本：{VERSION}
 
 - 普通问答、只读检查、代码修改、构建和测试默认由 agent 直接完成；Harness 不作为任务入口，也不创建任务控制状态。
 - 用户明确说“不使用 Harness”时必须直接执行，不得暗中恢复旧流程。
-- 只有缺少的项目事实会改变目标、范围、方案或验收时才运行只读 knowledge query。
-- 简单任务不生成方案；复杂、跨模块、高风险或用户明确要求时才运行 plan select，按 Level 与实际修改面 Profile 生成方案。
+- 只有缺少的项目事实会改变目标、范围、方案或验收时才运行 knowledge query；需要长期维护的事实才进入 Knowledge 资产生命周期。
+- 简单任务不生成方案；复杂、跨模块、高风险或用户明确要求时依次运行 plan select/create，方案会自动落入 docs/plans 并登记 docs/INDEX；Full Plan 声明验收与知识影响，任务收尾按 Knowledge → Acceptance → Plan 顺序结算。
+- 复杂任务在 Plan 后创建 Acceptance 目标，执行中逐条记录真实证据并结项；简单任务仍可直接验证，不强制创建资产。
 - 验收以真实功能为中心：能运行聚焦测试、接口、页面、应用、构建或安装流程时运行最小充分流程；不能独立判断时准备最低成本环境，再交给用户做最短确认。
 - 高风险动作使用原生授权与沙箱，不建立第二套 Harness Gate 或授权协议。
 {knowledge_line}
 - pre-2.0 项目只通过 project upgrade 单向迁移；迁移后不保留旧运行能力。
-- 不自动更新知识库、ADR、Changelog、TODO 或质量账本。ADR 由主 agent 编写，复杂决策可选只读子智能体复审。
+- 不在没有证据或没有明确维护任务时自动更新 Knowledge、ADR、Changelog、TODO 或质量账本。ADR 由主 agent 编写，复杂决策可选只读子智能体复审。
 {_GENERIC_STANDARDS}"""
 
 
@@ -424,6 +482,104 @@ def remove_managed_block(text: str, begin: str, end: str) -> str:
         return text
     pattern = r"\n*" + re.escape(begin) + r".*?" + re.escape(end) + r"\n*"
     return re.sub(pattern, "\n", text, flags=re.DOTALL).strip() + "\n"
+
+
+def plan_index_entry_lines(text: str) -> list[str]:
+    """读取受管方案索引条目；区块外项目正文不参与管理。"""
+    validate_managed_markers(text, PLAN_INDEX_BEGIN, PLAN_INDEX_END)
+    if PLAN_INDEX_BEGIN not in text:
+        return []
+    body = text.split(PLAN_INDEX_BEGIN, 1)[1].split(PLAN_INDEX_END, 1)[0]
+    return [line for line in body.splitlines() if line.startswith("- [")]
+
+
+def render_plan_index_block(entries: Sequence[str]) -> str:
+    body = "\n".join(entries)
+    suffix = f"\n{body}" if body else ""
+    return (
+        f"{PLAN_INDEX_BEGIN}\n## 任务方案\n{suffix}\n"
+        f"{PLAN_INDEX_END}"
+    )
+
+
+def update_plan_index_text(
+    text: str,
+    *,
+    basename: str | None = None,
+    entry: str | None = None,
+) -> str:
+    """按文件名替换或删除一个方案条目，并保留项目自己的索引正文。"""
+    entries = plan_index_entry_lines(text)
+    if basename:
+        link_tokens = (f"(plans/{basename}.md)", f"(plans/archive/{basename}.md)")
+        entries = [line for line in entries if not any(token in line for token in link_tokens)]
+    if entry:
+        entries.append(entry)
+    block = render_plan_index_block(entries)
+    return replace_managed_block(text, PLAN_INDEX_BEGIN, PLAN_INDEX_END, block)
+
+
+def validate_plan_docs_paths(target: Path) -> None:
+    for relative in (
+        PLAN_INDEX_RELATIVE,
+        PLAN_README_RELATIVE,
+        PLAN_ARCHIVE_KEEP_RELATIVE,
+    ):
+        assert_no_symlink_ancestors(target, relative, code="plan_docs_conflict")
+        path = target / relative
+        if path.is_symlink() or (path.exists() and not path.is_file()):
+            raise HarnessError(
+                f"方案文档路径不是常规文件：{relative}",
+                code="plan_docs_conflict",
+            )
+    index_path = target / PLAN_INDEX_RELATIVE
+    if index_path.is_file():
+        validate_managed_markers(
+            index_path.read_text(encoding="utf-8"), PLAN_INDEX_BEGIN, PLAN_INDEX_END
+        )
+
+
+def plan_docs_structure_changes(target: Path) -> list[dict[str, str]]:
+    validate_plan_docs_paths(target)
+    changes: list[dict[str, str]] = []
+    if not (target / PLAN_README_RELATIVE).is_file():
+        changes.append({"path": PLAN_README_RELATIVE, "action": "create"})
+    if not (target / PLAN_ARCHIVE_KEEP_RELATIVE).is_file():
+        changes.append({"path": PLAN_ARCHIVE_KEEP_RELATIVE, "action": "create"})
+    index_path = target / PLAN_INDEX_RELATIVE
+    if not index_path.is_file():
+        changes.append({"path": PLAN_INDEX_RELATIVE, "action": "create"})
+    elif PLAN_INDEX_BEGIN not in index_path.read_text(encoding="utf-8"):
+        changes.append({"path": PLAN_INDEX_RELATIVE, "action": "create_plan_index_block"})
+    return changes
+
+
+def apply_plan_docs_structure(target: Path) -> list[str]:
+    """幂等初始化方案目录与受管索引区块，不覆盖现有项目文档。"""
+    changes = plan_docs_structure_changes(target)
+    changed: list[str] = []
+    readme = target / PLAN_README_RELATIVE
+    if not readme.is_file():
+        atomic_write_text(readme, PLAN_README_CONTENT)
+        changed.append(PLAN_README_RELATIVE)
+    keep = target / PLAN_ARCHIVE_KEEP_RELATIVE
+    if not keep.is_file():
+        atomic_write_text(keep, "")
+        changed.append(PLAN_ARCHIVE_KEEP_RELATIVE)
+    index_path = target / PLAN_INDEX_RELATIVE
+    current = (
+        index_path.read_text(encoding="utf-8")
+        if index_path.is_file()
+        else PLAN_INDEX_SCAFFOLD
+    )
+    updated = update_plan_index_text(current)
+    if updated != current or not index_path.is_file():
+        atomic_write_text(index_path, updated)
+        changed.append(PLAN_INDEX_RELATIVE)
+    expected = {item["path"] for item in changes}
+    if not expected.issubset(set(changed)):
+        raise HarnessError("方案文档初始化结果与预览不一致", code="plan_docs_conflict")
+    return changed
 
 
 def template_registry(root: Path) -> dict[str, dict[str, Any]]:
@@ -462,6 +618,36 @@ def githook_fingerprints(root: Path) -> dict[str, str]:
     return fingerprints
 
 
+def managed_module_fingerprints(root: Path) -> dict[str, str]:
+    fingerprints: dict[str, str] = {}
+    for relative in MANAGED_MODULE_RELATIVE_FILES:
+        path = root / relative
+        if not path.is_file() or path.is_symlink():
+            return {}
+        fingerprints[relative] = file_fingerprint(path)
+    return fingerprints
+
+
+def asset_structure_changes(target: Path) -> list[dict[str, str]]:
+    changes: list[dict[str, str]] = []
+    for spec in (KNOWLEDGE_SPEC, ACCEPTANCE_SPEC):
+        try:
+            changes.extend(structure_changes(target, spec))
+        except AssetError as exc:
+            raise translate_asset_error(exc) from exc
+    return changes
+
+
+def apply_asset_structures(target: Path) -> list[str]:
+    changed: list[str] = []
+    for spec in (KNOWLEDGE_SPEC, ACCEPTANCE_SPEC):
+        try:
+            changed.extend(apply_structure(target, spec))
+        except AssetError as exc:
+            raise translate_asset_error(exc) from exc
+    return list(dict.fromkeys(changed))
+
+
 def validate_project_source(source_root: Path) -> None:
     source_hint = (
         f"若你正从项目内已安装的副本运行 init/upgrade，请改用完整的 Docs Harness {VERSION} 源包，"
@@ -470,6 +656,11 @@ def validate_project_source(source_root: Path) -> None:
     if not (source_root / "scripts" / "harness.py").is_file():
         raise HarnessError(
             f"来源包缺少 scripts/harness.py（{source_hint}）", code="invalid_source"
+        )
+    if not managed_module_fingerprints(source_root / "scripts"):
+        raise HarnessError(
+            f"来源包缺少完整 {VERSION} 资产生命周期模块（{source_hint}）",
+            code="invalid_source",
         )
     if not template_fingerprints(source_root / PLAN_TEMPLATES_RELATIVE):
         raise HarnessError(
@@ -535,9 +726,17 @@ def project_config(target: Path) -> dict[str, Any] | None:
 def portable_install_paths() -> list[str]:
     return [
         "scripts/harness.py",
+        *(f"scripts/{relative}" for relative in MANAGED_MODULE_RELATIVE_FILES),
         "AGENTS.md",
         "CLAUDE.md",
         ".docs-harness/config.json",
+        PLAN_INDEX_RELATIVE,
+        PLAN_README_RELATIVE,
+        PLAN_ARCHIVE_KEEP_RELATIVE,
+        KNOWLEDGE_SPEC.readme_path,
+        KNOWLEDGE_SPEC.keep_path,
+        ACCEPTANCE_SPEC.readme_path,
+        ACCEPTANCE_SPEC.keep_path,
         *(f"{PLAN_TEMPLATES_RELATIVE}/{relative}" for relative in PLAN_TEMPLATE_RELATIVE_FILES),
         *(f"{GIT_HOOKS_RELATIVE}/{relative}" for relative in GIT_HOOK_RELATIVE_FILES),
     ]
@@ -573,7 +772,15 @@ def knowledge_candidates(target: Path, scopes: Sequence[str]) -> list[Path]:
             except ValueError:
                 continue
             relative = path.relative_to(target).as_posix()
-            if relative.startswith(("docs/history/", "docs/plans/", "docs/reviews/")):
+            if relative == PLAN_INDEX_RELATIVE or relative.startswith(
+                (
+                    "docs/history/",
+                    "docs/plans/",
+                    "docs/knowledge/",
+                    "docs/acceptance/",
+                    "docs/reviews/",
+                )
+            ):
                 continue
             if scopes and not any(fnmatch.fnmatch(relative, pattern) for pattern in scopes):
                 continue
@@ -602,8 +809,7 @@ def query_tokens(query: str) -> list[str]:
     return list(dict.fromkeys(item for item in tokens if item.strip()))
 
 
-def knowledge_query(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
-    target = safe_target(args.target)
+def validate_knowledge_query_args(args: argparse.Namespace) -> tuple[str, list[str], list[str]]:
     query = (args.query or "").strip()
     if not query:
         raise HarnessError("knowledge query 必须提供具体 --query", code="missing_knowledge_query")
@@ -614,7 +820,16 @@ def knowledge_query(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     scopes = list(dict.fromkeys(args.scope or []))
     if any(Path(scope).is_absolute() or ".." in Path(scope).parts for scope in scopes):
         raise HarnessError("--scope 必须是项目内模式", code="invalid_knowledge_scope")
-    tokens = query_tokens(query)
+    return query, scopes, query_tokens(query)
+
+
+def document_knowledge_query(
+    target: Path,
+    scopes: Sequence[str],
+    tokens: Sequence[str],
+    limit: int,
+    max_chars: int,
+) -> tuple[list[dict[str, str]], int]:
     ranked: list[tuple[int, str, str]] = []
     for path in knowledge_candidates(target, scopes):
         try:
@@ -633,7 +848,7 @@ def knowledge_query(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     used = 0
     omitted = 0
     for _, relative, content in ranked:
-        if len(facts) >= args.limit:
+        if len(facts) >= limit:
             omitted += 1
             continue
         lowered = content.casefold()
@@ -646,7 +861,7 @@ def knowledge_query(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             snippet = "…" + snippet
         if end < len(content):
             snippet += "…"
-        remaining = args.max_chars - used
+        remaining = max_chars - used
         if remaining <= 0:
             omitted += 1
             continue
@@ -658,18 +873,83 @@ def knowledge_query(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         line = content.count("\n", 0, position) + 1
         ref = f"{relative}:{line}"
         facts.append({"text": snippet, "ref": ref})
-        refs.append(ref)
         used += len(snippet)
+    return facts, omitted
+
+
+def translate_asset_error(exc: AssetError) -> HarnessError:
+    return HarnessError(str(exc), code=exc.code, exit_code=1)
+
+
+def knowledge_query(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    target = safe_target(args.target)
+    _, scopes, tokens = validate_knowledge_query_args(args)
+    try:
+        managed = query_knowledge_assets(target, tokens, args.limit, args.max_chars)
+    except AssetError as exc:
+        raise translate_asset_error(exc) from exc
+    used = sum(len(item["text"]) for item in managed["facts"])
+    remaining_limit = max(0, args.limit - len(managed["facts"]))
+    remaining_chars = max(0, args.max_chars - used)
+    document_facts, omitted = document_knowledge_query(
+        target, scopes, tokens, remaining_limit, remaining_chars
+    )
+    facts = [*managed["facts"], *document_facts]
+    refs = [item["ref"] for item in facts]
     return 0, {
         "mode": "knowledge_assist",
         "facts": facts,
         "refs": refs,
         "constraints": [],
-        "conflicts": [],
-        "conflict_check": "not_evaluated_against_runtime",
+        "conflicts": managed["conflicts"],
+        "conflict_check": "managed_knowledge_assets_evaluated",
         "omitted": {"count": omitted, "reason": "limit_or_character_budget" if omitted else None},
         "source_priority": "current_source_and_runtime_remain_authoritative",
     }
+
+
+def knowledge_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    if not args.input or not args.output:
+        raise HarnessError("knowledge create 必须提供 --input 与 --output", code="missing_knowledge_input")
+    target = safe_target(args.target)
+    value = read_json(project_input_path(target, args.input, code="invalid_knowledge_input"))
+    try:
+        return 0, create_knowledge_asset(target, value, args.output, utc_now())
+    except AssetError as exc:
+        raise translate_asset_error(exc) from exc
+
+
+def knowledge_update(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    if not args.input or not args.knowledge:
+        raise HarnessError("knowledge update 必须提供 --input 与 --knowledge", code="missing_knowledge_input")
+    target = safe_target(args.target)
+    value = read_json(project_input_path(target, args.input, code="invalid_knowledge_input"))
+    try:
+        return 0, update_knowledge_asset(target, args.knowledge, value, utc_now())
+    except AssetError as exc:
+        raise translate_asset_error(exc) from exc
+
+
+def knowledge_settle(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    if not args.knowledge or not args.status:
+        raise HarnessError("knowledge settle 必须提供 --knowledge 与 --status", code="missing_knowledge_input")
+    target = safe_target(args.target)
+    try:
+        payload = settle_knowledge_asset(
+            target, args.knowledge, args.status, args.replacement, utc_now(), docs_check_markdown_files(target)
+        )
+    except AssetError as exc:
+        raise translate_asset_error(exc) from exc
+    return 0, payload
+
+
+def knowledge_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    target = safe_target(args.target)
+    try:
+        payload = check_knowledge_assets(target)
+    except AssetError as exc:
+        raise translate_asset_error(exc) from exc
+    return (0 if payload["status"] == "passed" else 1), payload
 
 
 def unique_fields(items: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -872,15 +1152,114 @@ def validate_bugfix_plan_contract(selection: dict[str, Any], content: dict[str, 
         )
 
 
-def plan_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
-    target = safe_target(args.target)
+def plan_title_and_symbols(content: dict[str, Any]) -> tuple[str, list[str]]:
+    title = content.get("title")
+    symbols = content.get("key_symbols")
+    if not isinstance(title, str) or not title.strip() or "\n" in title:
+        raise HarnessError("方案 title 必须是单行非空字符串", code="invalid_plan_content")
+    if (
+        not isinstance(symbols, list)
+        or not 2 <= len(symbols) <= 4
+        or len(symbols) != len(set(symbols))
+        or any(
+            not isinstance(item, str)
+            or not item.strip()
+            or "`" in item
+            or "\n" in item
+            for item in symbols
+        )
+    ):
+        raise HarnessError("方案 key_symbols 必须是 2-4 个唯一单行字符串", code="invalid_plan_content")
+    return title.strip(), [item.strip() for item in symbols]
+
+
+def plan_output_pair(target: Path, raw: str) -> tuple[Path, Path]:
+    output = project_output_path(target, raw, code="invalid_plan_output")
+    relative = output.relative_to(target)
+    if relative.parent.as_posix() != PLAN_DOCS_RELATIVE or output.suffix != ".json":
+        raise HarnessError(
+            "方案输出必须是 docs/plans/<name>.json",
+            code="invalid_plan_output",
+        )
+    document = project_output_path(
+        target,
+        f"{PLAN_DOCS_RELATIVE}/{output.stem}.md",
+        code="invalid_plan_output",
+    )
+    return output, document
+
+
+def render_plan_value(value: Any) -> str:
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, list):
+        return "\n".join(f"- {item}" for item in value)
+    return "```json\n" + json.dumps(value, ensure_ascii=False, indent=2) + "\n```"
+
+
+def render_plan_markdown(
+    selection: dict[str, Any], content: dict[str, Any], frozen: dict[str, Any]
+) -> str:
+    title, symbols = plan_title_and_symbols(content)
+    labels = {item["id"]: item["label"] for item in selection["fields"]}
+    sections = []
+    for field in selection["fields"]:
+        field_id = field["id"]
+        if field_id in {"title", "key_symbols"} or field_id not in content:
+            continue
+        sections.append(f"## {labels[field_id]}\n\n{render_plan_value(content[field_id])}")
+    symbol_text = "、".join(f"`{symbol}`" for symbol in symbols)
+    return (
+        f"> 状态：{PLAN_STATUS_ACTIVE}\n{PLAN_DOCUMENT_MARKER}\n\n# {title}\n\n"
+        f"- 冻结合同：`{frozen['plan_fingerprint']}`\n"
+        f"- 关键符号：{symbol_text}\n\n" + "\n\n".join(sections)
+        + "\n\n" + render_governance_block(frozen) + "\n"
+    )
+
+
+def render_plan_index_entry(
+    *, basename: str, title: str, symbols: Sequence[str], status: str
+) -> str:
+    symbol_text = "、".join(f"`{symbol}`" for symbol in symbols)
+    return (
+        f"- [{title}](plans/{basename}.md) — 状态：{status}；"
+        f"关键符号：{symbol_text}"
+    )
+
+
+def comparable_plan(value: dict[str, Any]) -> dict[str, Any]:
+    comparable = dict(value)
+    comparable.pop("frozen_at", None)
+    comparable.pop("plan_fingerprint", None)
+    return comparable
+
+
+def preflight_plan_artifacts(
+    output: Path, frozen: dict[str, Any]
+) -> dict[str, Any]:
+    if output.is_file():
+        existing = validate_frozen_plan(read_json(output))
+        if comparable_plan(existing) != comparable_plan(frozen):
+            raise HarnessError(
+                "方案输出已存在且内容不同",
+                code="plan_already_frozen",
+                exit_code=3,
+            )
+        frozen = existing
+    return frozen
+
+
+def validate_plan_create_payload(
+    target: Path, args: argparse.Namespace
+) -> tuple[dict[str, Any], dict[str, Any], Path, Path, str, list[str]]:
     if not args.selection or not args.content or not args.output:
         raise HarnessError(
             "plan create 必须提供 --selection、--content 和 --output",
             code="missing_plan_input",
         )
-    selection_path = project_input_path(target, args.selection, code="invalid_plan_selection")
-    selection = validate_selection(read_json(selection_path))
+    selection = validate_selection(
+        read_json(project_input_path(target, args.selection, code="invalid_plan_selection"))
+    )
     if selection["plan_level"] == "none":
         raise HarnessError("plan_level=none 不创建方案文件", code="plan_not_required")
     content = read_json(project_input_path(target, args.content, code="invalid_plan_content"))
@@ -891,15 +1270,20 @@ def plan_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     required = {item["id"] for item in fields if item["required"]}
     if set(content) - allowed:
         raise HarnessError("方案包含未注册字段", code="invalid_plan_content")
-    missing = sorted(
-        field
-        for field in required
-        if field not in content or not nonempty_plan_value(content[field])
-    )
+    missing = sorted(field for field in required if not nonempty_plan_value(content.get(field)))
     if missing:
         raise HarnessError("方案缺少必填字段：" + ", ".join(missing), code="invalid_plan_content")
+    title, symbols = plan_title_and_symbols(content)
     validate_bugfix_plan_contract(selection, content)
-    output = project_output_path(target, args.output, code="invalid_plan_output")
+    try:
+        governance_from_content(selection["plan_level"], content)
+    except PlanGovernanceError as exc:
+        raise HarnessError(str(exc), code=exc.code) from exc
+    output, document = plan_output_pair(target, args.output)
+    return selection, content, output, document, title, symbols
+
+
+def build_frozen_plan(selection: dict[str, Any], content: dict[str, Any]) -> dict[str, Any]:
     frozen: dict[str, Any] = {
         "schema_version": PLAN_SCHEMA,
         "plan_level": selection["plan_level"],
@@ -908,51 +1292,274 @@ def plan_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "template_versions": selection["template_versions"],
         "selection_fingerprint": selection["selection_fingerprint"],
         "content": content,
+        **new_plan_fields(selection["plan_level"], content),
         "frozen_at": utc_now(),
     }
     frozen["plan_fingerprint"] = sha256_json(frozen)
-    if output.is_file():
-        existing = read_json(output)
-        if isinstance(existing, dict):
-            comparable = dict(existing)
-            comparable.pop("frozen_at", None)
-            comparable.pop("plan_fingerprint", None)
-            proposed = dict(frozen)
-            proposed.pop("frozen_at", None)
-            proposed.pop("plan_fingerprint", None)
-            if comparable == proposed:
-                frozen = existing
-            else:
-                raise HarnessError(
-                    "方案输出已存在且内容不同",
-                    code="plan_already_frozen",
-                    exit_code=3,
-                )
-    else:
+    return frozen
+
+
+def write_plan_artifacts(
+    target: Path,
+    output: Path,
+    document: Path,
+    frozen: dict[str, Any],
+    markdown: str,
+    entry: str,
+) -> None:
+    apply_plan_docs_structure(target)
+    if not output.is_file():
         atomic_write_json(output, frozen)
+    if not document.is_file():
+        atomic_write_text(document, markdown)
+    index_path = target / PLAN_INDEX_RELATIVE
+    index = index_path.read_text(encoding="utf-8")
+    updated_index = update_plan_index_text(index, basename=output.stem, entry=entry)
+    if updated_index != index:
+        atomic_write_text(index_path, updated_index)
+
+
+def plan_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    target = safe_target(args.target)
+    selection, content, output, document, title, symbols = validate_plan_create_payload(
+        target, args
+    )
+    frozen = preflight_plan_artifacts(output, build_frozen_plan(selection, content))
+    markdown = render_plan_markdown(selection, content, frozen)
+    if document.is_file() and document.read_text(encoding="utf-8") != markdown:
+        raise HarnessError(
+            "方案 Markdown 已存在且内容不同",
+            code="plan_document_conflict",
+            exit_code=3,
+        )
+    entry = render_plan_index_entry(
+        basename=output.stem, title=title, symbols=symbols, status=PLAN_STATUS_ACTIVE
+    )
+    write_plan_artifacts(target, output, document, frozen, markdown, entry)
     projection_keys = {
-        "objective",
-        "steps",
-        "acceptance",
-        "success_criteria",
-        "implementation",
-        "acceptance_plan",
-        "affected_modules",
-        "verification_scope",
-        "full_regression_trigger",
-        "failure_attribution",
+        "objective", "steps", "acceptance", "success_criteria", "implementation",
+        "acceptance_plan", "affected_modules", "verification_scope",
+        "full_regression_trigger", "failure_attribution",
     }
     projection = {key: value for key, value in content.items() if key in projection_keys}
     return 0, {
         "status": "frozen",
         "plan_ref": output.relative_to(target).as_posix(),
+        "document_ref": document.relative_to(target).as_posix(),
+        "index_ref": PLAN_INDEX_RELATIVE,
         "plan_fingerprint": frozen["plan_fingerprint"],
         "execution_projection": projection,
-        "docs_hygiene_hint": (
-            "若将本方案落成 docs/plans/ markdown：首行写 "
-            "> 状态：有效（提案，待确认） 横幅骨架；同步补 docs/INDEX.md 条目"
-            "（含 2-4 个关键符号与状态镜像）；随后运行 python scripts/harness.py docs-check 校验。"
-        ),
+        "next_action": "execute_plan_then_plan_settle",
+    }
+
+
+def plan_settle_paths(target: Path, raw: str) -> tuple[Path, Path, bool]:
+    relative = Path(raw)
+    if relative.is_absolute() or relative.suffix not in {".json", ".md"}:
+        raise HarnessError("--plan 必须指向项目内方案 JSON 或 Markdown", code="invalid_plan_ref")
+    basename = relative.stem
+    if not basename or "/" in basename:
+        raise HarnessError("方案文件名无效", code="invalid_plan_ref")
+    root_json = target / PLAN_DOCS_RELATIVE / f"{basename}.json"
+    root_markdown = target / PLAN_DOCS_RELATIVE / f"{basename}.md"
+    archive_json = target / PLAN_ARCHIVE_RELATIVE / f"{basename}.json"
+    archive_markdown = target / PLAN_ARCHIVE_RELATIVE / f"{basename}.md"
+    if root_json.is_file() and root_markdown.is_file():
+        return root_json, root_markdown, False
+    if archive_json.is_file() and archive_markdown.is_file():
+        return archive_json, archive_markdown, True
+    raise HarnessError("方案 JSON 与 Markdown 伴随文件不完整或不存在", code="invalid_plan_ref")
+
+
+def replace_plan_status_banner(text: str, status: str) -> str:
+    lines = text.splitlines()
+    if PLAN_DOCUMENT_MARKER not in lines[:3]:
+        raise HarnessError("方案缺少 Harness 文档标记", code="invalid_plan_document")
+    for index, line in enumerate(lines[:3]):
+        if DOCS_CHECK_BANNER_MARKER in line:
+            lines[index] = f"> 状态：{status}"
+            return "\n".join(lines) + "\n"
+    raise HarnessError("方案缺少状态横幅", code="invalid_plan_document")
+
+
+def validate_frozen_plan(value: Any) -> dict[str, Any]:
+    try:
+        return validate_governed_plan(value)
+    except PlanGovernanceError as exc:
+        raise HarnessError(str(exc), code=exc.code) from exc
+
+
+def settled_plan_identity(
+    content: dict[str, Any], markdown: str, index: str, basename: str
+) -> tuple[str, list[str]]:
+    """2.5 新合同优先；旧冻结方案从可审查文档与索引迁移读取身份。"""
+    try:
+        return plan_title_and_symbols(content)
+    except HarnessError:
+        title_match = re.search(r"(?m)^#\s+(.+)$", markdown)
+        entries = [
+            line for line in plan_index_entry_lines(index)
+            if f"(plans/{basename}.md)" in line
+        ]
+        symbols = (
+            re.findall(r"`([^`]+)`", entries[0].split("关键符号", 1)[1])
+            if entries and "关键符号" in entries[0]
+            else []
+        )
+        if title_match and 2 <= len(symbols) <= 4:
+            return title_match.group(1).strip(), symbols
+        raise HarnessError(
+            "旧方案缺少可迁移的标题或 2-4 个关键符号",
+            code="invalid_plan_ref",
+        )
+
+
+def rewrite_archived_plan_links(target: Path, basename: str) -> list[str]:
+    replacements = (
+        (f"docs/plans/{basename}.md", f"docs/plans/archive/{basename}.md"),
+        (f"plans/{basename}.md", f"plans/archive/{basename}.md"),
+    )
+    changed: list[str] = []
+    for path in docs_check_markdown_files(target):
+        before = path.read_text(encoding="utf-8")
+        after = before
+        for old, new in replacements:
+            after = after.replace(old, new)
+        if after != before:
+            atomic_write_text(path, after)
+            changed.append(path.relative_to(target).as_posix())
+    return changed
+
+
+def settle_implemented_plan(
+    target: Path,
+    plan_json: Path,
+    document: Path,
+    markdown: str,
+    index: str,
+    title: str,
+    symbols: Sequence[str],
+    frozen: dict[str, Any],
+) -> list[str]:
+    basename = plan_json.stem
+    today = dt.date.today().isoformat()
+    status = f"{PLAN_STATUS_IMPLEMENTED}（代码已是真源，{today} 核对）"
+    projected = update_plan_markdown(markdown, frozen)
+    updated = replace_plan_status_banner(projected, status)
+    entry = render_plan_index_entry(
+        basename=basename, title=title, symbols=symbols, status=status
+    )
+    index_path = target / PLAN_INDEX_RELATIVE
+    updated_index = update_plan_index_text(index, basename=basename, entry=entry)
+    changed: list[str] = []
+    before_frozen = read_json(plan_json)
+    if before_frozen != frozen:
+        atomic_write_json(plan_json, frozen)
+        changed.append(plan_json.relative_to(target).as_posix())
+    for path, before, after in ((document, markdown, updated), (index_path, index, updated_index)):
+        if before != after:
+            atomic_write_text(path, after)
+            changed.append(path.relative_to(target).as_posix())
+    return changed
+
+
+def settle_deprecated_plan(
+    target: Path,
+    plan_json: Path,
+    document: Path,
+    archived: bool,
+    markdown: str,
+    index: str,
+    replacement: str,
+) -> tuple[Path, Path, list[str]]:
+    if "\n" in replacement:
+        raise HarnessError("--replacement 必须是单行方案引用", code="invalid_plan_transition")
+    basename = plan_json.stem
+    today = dt.date.today().isoformat()
+    status = (
+        f"{PLAN_STATUS_DEPRECATED}-被 {replacement} 取代（{today} 核对）"
+        if replacement
+        else f"{PLAN_STATUS_DEPRECATED}（{today} 核对，无替代方案）"
+    )
+    updated = replace_plan_status_banner(markdown, status)
+    updated_index = update_plan_index_text(index, basename=basename)
+    changed: list[str] = []
+    if archived:
+        if updated != markdown:
+            atomic_write_text(document, updated)
+            changed.append(document.relative_to(target).as_posix())
+    else:
+        archive_json = target / PLAN_ARCHIVE_RELATIVE / plan_json.name
+        archive_document = target / PLAN_ARCHIVE_RELATIVE / document.name
+        if archive_json.exists() or archive_document.exists():
+            raise HarnessError("归档目标已存在", code="plan_archive_conflict", exit_code=3)
+        atomic_write_text(document, updated)
+        plan_json.replace(archive_json)
+        document.replace(archive_document)
+        plan_json, document = archive_json, archive_document
+        changed.extend(
+            [plan_json.relative_to(target).as_posix(), document.relative_to(target).as_posix()]
+        )
+    if updated_index != index:
+        index_path = target / PLAN_INDEX_RELATIVE
+        atomic_write_text(index_path, updated_index)
+        changed.append(PLAN_INDEX_RELATIVE)
+    changed.extend(rewrite_archived_plan_links(target, basename))
+    return plan_json, document, list(dict.fromkeys(changed))
+
+
+def plan_settle(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    target = safe_target(args.target)
+    if not args.plan or args.status not in PLAN_SETTLE_STATUSES:
+        raise HarnessError(
+            "plan settle 必须提供 --plan 与 --status implemented|deprecated",
+            code="missing_plan_input",
+        )
+    plan_json, document, archived = plan_settle_paths(target, args.plan)
+    frozen = validate_frozen_plan(read_json(plan_json))
+    content = frozen.get("content")
+    if not isinstance(content, dict):
+        raise HarnessError("方案内容无效", code="invalid_plan_ref")
+    apply_plan_docs_structure(target)
+    index = (target / PLAN_INDEX_RELATIVE).read_text(encoding="utf-8")
+    markdown = document.read_text(encoding="utf-8")
+    title, symbols = settled_plan_identity(content, markdown, index, plan_json.stem)
+    if args.status == "implemented":
+        if archived:
+            raise HarnessError("已归档方案不能重新标记为已实施", code="invalid_plan_transition")
+        governance_input = None
+        if args.governance_input:
+            governance_input = read_json(
+                project_input_path(
+                    target, args.governance_input, code="invalid_plan_governance"
+                )
+            )
+        try:
+            frozen, warnings = prepare_plan_settlement(
+                target, frozen, governance_input, utc_now()
+            )
+        except PlanGovernanceError as exc:
+            raise HarnessError(str(exc), code=exc.code) from exc
+        changed = settle_implemented_plan(
+            target, plan_json, document, markdown, index, title, symbols, frozen
+        )
+        return 0, {
+            "status": "implemented",
+            "plan_ref": plan_json.relative_to(target).as_posix(),
+            "document_ref": document.relative_to(target).as_posix(),
+            "changed": changed,
+            "warnings": warnings,
+        }
+    replacement = args.replacement.strip() if isinstance(args.replacement, str) else ""
+    plan_json, document, changed = settle_deprecated_plan(
+        target, plan_json, document, archived, markdown, index, replacement
+    )
+    return 0, {
+        "status": "deprecated",
+        "plan_ref": plan_json.relative_to(target).as_posix(),
+        "document_ref": document.relative_to(target).as_posix(),
+        "replacement": replacement or None,
+        "changed": changed,
     }
 
 
@@ -1008,6 +1615,8 @@ def normalize_failure_attributions(target: Path, raw: Any) -> list[dict[str, Any
 
 def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
+    if not args.input:
+        raise HarnessError("acceptance record 必须提供 --input", code="missing_acceptance_input")
     input_path = project_input_path(target, args.input, code="invalid_acceptance_input")
     value = read_json(input_path)
     if not isinstance(value, dict) or value.get("schema_version") != ACCEPTANCE_INPUT_SCHEMA:
@@ -1063,12 +1672,24 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 "Contract Check 通过必须提供方法和证据",
                 code="invalid_acceptance_input",
             )
+    user_confirmation: dict[str, str] | None = None
     if acceptance_type == "user_acceptance" and status == "passed":
-        raise HarnessError(
-            "独立 CLI 不能自行声明用户已验收",
-            code="user_confirmation_required",
-            exit_code=3,
-        )
+        confirmation = value.get("confirmation")
+        if not (
+            args.acceptance
+            and args.user_confirmed
+            and isinstance(confirmation, str)
+            and confirmation.strip()
+        ):
+            raise HarnessError(
+                "用户验收通过必须关联 Acceptance，并在收到用户明确确认后使用 --user-confirmed",
+                code="user_confirmation_required",
+                exit_code=3,
+            )
+        user_confirmation = {
+            "confirmed_by": "user",
+            "confirmation": confirmation.strip(),
+        }
     if status == "user_pending":
         required_lists = ("automatically_verified", "user_checks", "steps")
         if (
@@ -1132,12 +1753,38 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "failure_attributions": failure_attributions,
         "recorded_at": utc_now(),
     }
+    if user_confirmation:
+        stored["user_confirmation"] = user_confirmation
     if status == "user_pending":
         stored["user_handoff"] = {
             "automatically_verified": value["automatically_verified"],
             "user_checks": value["user_checks"],
             "steps": value["steps"],
             "environment_ready": True,
+        }
+    if args.acceptance:
+        criterion_id = value.get("criterion_id")
+        if not isinstance(criterion_id, str) or not criterion_id.strip():
+            raise HarnessError(
+                "关联 Acceptance 的记录必须提供 criterion_id",
+                code="acceptance_criterion_missing",
+            )
+        try:
+            result = record_acceptance_asset(
+                target,
+                args.acceptance,
+                criterion_id.strip(),
+                stored,
+                utc_now(),
+                bool(args.reaccept),
+            )
+        except AssetError as exc:
+            raise translate_asset_error(exc) from exc
+        return 0 if result["status"] == "passed" else 3, {
+            **result,
+            "record_id": record_id,
+            "accepted_layer": layer if status == "passed" else None,
+            "evidence_layer": evidence_layer,
         }
     atomic_write_json(v2_acceptance_root(target) / f"{record_id}.json", stored)
     if acceptance_type == "contract_check" and status == "passed":
@@ -1173,6 +1820,50 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "accepted_layer": None,
         "next_action": value.get("next_action") or "run_minimum_sufficient_acceptance",
     }
+
+
+def acceptance_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    if not args.input or not args.output:
+        raise HarnessError(
+            "acceptance create 必须提供 --input 与 --output",
+            code="missing_acceptance_target",
+        )
+    target = safe_target(args.target)
+    value = read_json(project_input_path(target, args.input, code="invalid_acceptance_target"))
+    try:
+        return 0, create_acceptance_asset(target, value, args.output, utc_now())
+    except AssetError as exc:
+        raise translate_asset_error(exc) from exc
+
+
+def acceptance_settle(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    if not args.acceptance or not args.status:
+        raise HarnessError(
+            "acceptance settle 必须提供 --acceptance 与 --status",
+            code="missing_acceptance_target",
+        )
+    target = safe_target(args.target)
+    try:
+        payload = settle_acceptance_asset(
+            target,
+            args.acceptance,
+            args.status,
+            args.replacement,
+            utc_now(),
+            docs_check_markdown_files(target),
+        )
+    except AssetError as exc:
+        raise translate_asset_error(exc) from exc
+    return 0, payload
+
+
+def acceptance_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    target = safe_target(args.target)
+    try:
+        payload = check_acceptance_assets(target)
+    except AssetError as exc:
+        raise translate_asset_error(exc) from exc
+    return (0 if payload["status"] == "passed" else 1), payload
 
 
 def migration_display_path(target: Path, path: Path) -> str:
@@ -1418,6 +2109,7 @@ def apply_legacy_cleanup(target: Path, plan: dict[str, Any]) -> list[str]:
 def v2_config(
     *,
     source_script: Path,
+    source_modules: dict[str, str],
     source_templates: dict[str, str],
     source_githooks: dict[str, str],
     existing: dict[str, Any] | None,
@@ -1461,12 +2153,13 @@ def v2_config(
         "schema_version": CONFIG_SCHEMA,
         "version": VERSION,
         "installed_script_fingerprint": file_fingerprint(source_script),
+        "installed_module_fingerprints": source_modules,
         "installed_plan_template_fingerprints": source_templates,
         "installed_githook_fingerprints": source_githooks,
         "direct_mode": {"default": True},
         "knowledge": {
-            "mode": "on_demand",
-            "read_only": True,
+            "mode": "asset_lifecycle",
+            "query": "on_demand",
             "docs_preexisting_at_install": bool(docs_flag),
         },
         "migration": migration,
@@ -1485,6 +2178,7 @@ def preflight_owned_files(
     installed_fingerprints: Any,
     *,
     label: str,
+    compatible_fingerprints: dict[str, str] | None = None,
 ) -> None:
     """指纹归属文件的接管预检：方案模板与 git 钩子共用同一口径。"""
     if not isinstance(installed_fingerprints, dict):
@@ -1501,6 +2195,8 @@ def preflight_owned_files(
             old = installed_fingerprints.get(relative)
             if isinstance(old, str):
                 allowed.add(old)
+            compatible = (compatible_fingerprints or {}).get(relative)
+            allowed.update([compatible] if isinstance(compatible, str) else [])
             if file_fingerprint(path) not in allowed:
                 raise HarnessError(
                     f"{label} {relative} 已存在且归属不明，拒绝覆盖",
@@ -1513,7 +2209,7 @@ def install_preflight(
     source_root: Path,
     existing: dict[str, Any] | None,
     cleanup: dict[str, Any],
-) -> tuple[Path, dict[str, str], dict[str, str]]:
+) -> tuple[Path, dict[str, str], dict[str, str], dict[str, str]]:
     if cleanup["conflicts"]:
         raise HarnessError(
             "旧文档系统存在不安全路径，升级未写入",
@@ -1536,6 +2232,7 @@ def install_preflight(
             )
     validate_project_source(source_root)
     source_script = source_root / "scripts" / "harness.py"
+    source_modules = managed_module_fingerprints(source_root / "scripts")
     source_templates = template_fingerprints(source_root / PLAN_TEMPLATES_RELATIVE)
     source_githooks = githook_fingerprints(source_root / GIT_HOOKS_RELATIVE)
     for relative in portable_install_paths():
@@ -1560,10 +2257,18 @@ def install_preflight(
             )
     preflight_owned_files(
         target,
+        "scripts",
+        source_modules,
+        existing.get("installed_module_fingerprints", {}) if existing else {},
+        label="资产生命周期模块",
+    )
+    preflight_owned_files(
+        target,
         PLAN_TEMPLATES_RELATIVE,
         source_templates,
         existing.get("installed_plan_template_fingerprints", {}) if existing else {},
         label="方案模板",
+        compatible_fingerprints=legacy_plan_template_fingerprints(existing.get("version") if existing else None),
     )
     preflight_owned_files(
         target,
@@ -1572,6 +2277,8 @@ def install_preflight(
         existing.get("installed_githook_fingerprints", {}) if existing else {},
         label="git 钩子",
     )
+    plan_docs_structure_changes(target)
+    asset_structure_changes(target)
     for relative, begin, end in (
         ("AGENTS.md", MANAGED_BEGIN, MANAGED_END),
         ("CLAUDE.md", CLAUDE_BEGIN, CLAUDE_END),
@@ -1593,7 +2300,7 @@ def install_preflight(
             code="git_delivery_ignored",
             exit_code=3,
         )
-    return source_script, source_templates, source_githooks
+    return source_script, source_modules, source_templates, source_githooks
 
 
 def project_changes(target: Path, source_root: Path) -> list[dict[str, Any]]:
@@ -1605,6 +2312,13 @@ def project_changes(target: Path, source_root: Path) -> list[dict[str, Any]]:
         changes.append({"path": "scripts/harness.py", "action": "create"})
     elif file_fingerprint(target_script) != file_fingerprint(source_script):
         changes.append({"path": "scripts/harness.py", "action": "update"})
+    source_modules = managed_module_fingerprints(source_root / "scripts")
+    for relative, fingerprint in source_modules.items():
+        path = target / "scripts" / relative
+        if not path.is_file():
+            changes.append({"path": f"scripts/{relative}", "action": "create"})
+        elif file_fingerprint(path) != fingerprint:
+            changes.append({"path": f"scripts/{relative}", "action": "update"})
     for relative, begin, end, block in (
         ("AGENTS.md", MANAGED_BEGIN, MANAGED_END, managed_agent_block(target)),
         ("CLAUDE.md", CLAUDE_BEGIN, CLAUDE_END, claude_block(target)),
@@ -1658,6 +2372,8 @@ def project_changes(target: Path, source_root: Path) -> list[dict[str, Any]]:
             changes.append(
                 {"path": f"{GIT_HOOKS_RELATIVE}/{relative}", "action": "update"}
             )
+    changes.extend(plan_docs_structure_changes(target))
+    changes.extend(asset_structure_changes(target))
     cleanup = legacy_cleanup_plan(target)
     changes.extend(
         {"path": path, "action": "remove_owned_legacy"}
@@ -1682,6 +2398,7 @@ def project_changes(target: Path, source_root: Path) -> list[dict[str, Any]]:
     existing = project_config(target)
     expected_config = v2_config(
         source_script=source_script,
+        source_modules=source_modules,
         source_templates=source_templates,
         source_githooks=source_githooks,
         existing=existing,
@@ -1701,11 +2418,12 @@ def apply_project_install(
 ) -> tuple[list[str], dict[str, Any]]:
     existing = project_config(target)
     cleanup = legacy_cleanup_plan(target)
-    source_script, source_templates, source_githooks = install_preflight(
+    source_script, source_modules, source_templates, source_githooks = install_preflight(
         target, source_root, existing, cleanup
     )
     config_value = v2_config(
         source_script=source_script,
+        source_modules=source_modules,
         source_templates=source_templates,
         source_githooks=source_githooks,
         existing=existing,
@@ -1713,6 +2431,8 @@ def apply_project_install(
         cleanup=cleanup,
     )
     changed: list[str] = []
+    changed.extend(apply_plan_docs_structure(target))
+    changed.extend(apply_asset_structures(target))
     target_script = target / "scripts" / "harness.py"
     target_script.parent.mkdir(parents=True, exist_ok=True)
     if (
@@ -1722,6 +2442,12 @@ def apply_project_install(
         shutil.copy2(source_script, target_script)
         target_script.chmod(target_script.stat().st_mode | 0o111)
         changed.append("scripts/harness.py")
+    for relative, fingerprint in source_modules.items():
+        path = target / "scripts" / relative
+        if not path.is_file() or file_fingerprint(path) != fingerprint:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source_root / "scripts" / relative, path)
+            changed.append(f"scripts/{relative}")
     for relative, begin, end, block, heading in (
         (
             "AGENTS.md",
@@ -1775,7 +2501,7 @@ def project_findings(target: Path) -> list[dict[str, str]]:
             {
                 "severity": "red",
                 "code": "missing_config",
-                "message": "缺少 project-config/v7",
+                "message": f"缺少 {CONFIG_SCHEMA}",
             }
         ]
     if config.get("version") != VERSION:
@@ -1814,18 +2540,18 @@ def project_findings(target: Path) -> list[dict[str, str]]:
             }
         )
     knowledge = config.get("knowledge")
-    expected_knowledge_keys = {"mode", "read_only", "docs_preexisting_at_install"}
+    expected_knowledge_keys = {"mode", "query", "docs_preexisting_at_install"}
     if not isinstance(knowledge, dict) or not (
         set(knowledge) == expected_knowledge_keys
-        and knowledge.get("mode") == "on_demand"
-        and knowledge.get("read_only") is True
+        and knowledge.get("mode") == "asset_lifecycle"
+        and knowledge.get("query") == "on_demand"
         and isinstance(knowledge.get("docs_preexisting_at_install"), bool)
     ):
         findings.append(
             {
                 "severity": "red",
                 "code": "knowledge_mode_invalid",
-                "message": "知识能力不是按需只读",
+                "message": "知识资产生命周期配置无效",
             }
         )
     script = target / "scripts" / "harness.py"
@@ -1838,6 +2564,15 @@ def project_findings(target: Path) -> list[dict[str, str]]:
                 "severity": "red",
                 "code": "script_drift",
                 "message": "控制器缺失或发生漂移",
+            }
+        )
+    live_modules = managed_module_fingerprints(target / "scripts")
+    if live_modules != config.get("installed_module_fingerprints"):
+        findings.append(
+            {
+                "severity": "red",
+                "code": "asset_module_drift",
+                "message": "资产生命周期模块缺失或漂移",
             }
         )
     for relative, begin, end in (
@@ -1892,6 +2627,57 @@ def project_findings(target: Path) -> list[dict[str, str]]:
                 "message": "git 钩子缺失或漂移",
             }
         )
+    try:
+        structure_changes = plan_docs_structure_changes(target)
+    except HarnessError as exc:
+        findings.append(
+            {
+                "severity": "red",
+                "code": exc.code,
+                "message": str(exc),
+            }
+        )
+    else:
+        if structure_changes:
+            findings.append(
+                {
+                    "severity": "red",
+                    "code": "plan_docs_structure_missing",
+                    "message": ", ".join(item["path"] for item in structure_changes),
+                }
+            )
+    try:
+        managed_asset_changes = asset_structure_changes(target)
+    except HarnessError as exc:
+        findings.append(
+            {"severity": "red", "code": exc.code, "message": str(exc)}
+        )
+    else:
+        if managed_asset_changes:
+            findings.append(
+                {
+                    "severity": "red",
+                    "code": "asset_docs_structure_missing",
+                    "message": ", ".join(item["path"] for item in managed_asset_changes),
+                }
+            )
+        else:
+            for code, label, checker in (
+                ("knowledge_assets_invalid", "Knowledge", check_knowledge_assets),
+                ("acceptance_assets_invalid", "Acceptance", check_acceptance_assets),
+            ):
+                try:
+                    result = checker(target)
+                except AssetError as exc:
+                    result = {"status": "failed", "failures": [str(exc)]}
+                if result["status"] != "passed":
+                    findings.append(
+                        {
+                            "severity": "red",
+                            "code": code,
+                            "message": f"{label} 资产检查失败：" + "; ".join(result["failures"]),
+                        }
+                    )
     cleanup = legacy_cleanup_plan(target)
     if cleanup["conflicts"]:
         findings.append(
@@ -1972,6 +2758,14 @@ def project_delivery(target: Path) -> dict[str, Any]:
 
 
 def project_knowledge_summary(target: Path) -> dict[str, Any]:
+    managed_root = target / KNOWLEDGE_SPEC.root
+    if managed_root.is_dir() and not managed_root.is_symlink():
+        return {
+            "status": "available",
+            "source": "managed_knowledge_assets",
+            "managed_by_harness": True,
+            "active_assets": len(list(managed_root.glob("*.json"))),
+        }
     if (target / REPOWIKI_RELATIVE).is_dir():
         return {
             "status": "available",
@@ -2045,7 +2839,7 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "changed": changed,
             "githook_activation_hint": (
                 "git 钩子已安装到 scripts/githooks/（不自动修改 git 配置）；"
-                "如需启用入库 pre-commit（提交时强制 docs-check），"
+                "如需启用入库 pre-commit（提交时执行 assets-check --fast），"
                 "请执行一次 scripts/githooks/setup.sh"
             ),
             "findings": findings,
@@ -2087,6 +2881,7 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 "Docs Harness managed AGENTS.md/CLAUDE.md blocks",
                 ".docs-harness/config.json",
                 "owned scripts/harness.py",
+                "owned asset lifecycle modules",
                 "owned plan-templates files",
                 "owned scripts/githooks files",
                 *cleanup["remove_files"],
@@ -2123,6 +2918,17 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     ):
         script.unlink()
         removed.append("scripts/harness.py")
+    installed_modules = config.get("installed_module_fingerprints", {}) if config else {}
+    if isinstance(installed_modules, dict):
+        for relative, fingerprint in installed_modules.items():
+            path = target / "scripts" / str(relative)
+            if (
+                relative in MANAGED_MODULE_RELATIVE_FILES
+                and path.is_file()
+                and file_fingerprint(path) == fingerprint
+            ):
+                path.unlink()
+                removed.append(f"scripts/{relative}")
     installed_templates = (
         config.get("installed_plan_template_fingerprints", {}) if config else {}
     )
@@ -2443,14 +3249,16 @@ def command_docs_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     if not index_path.is_file():
         missing.append("docs/INDEX.md")
     if missing:
-        return 0, {
-            "status": "skipped",
-            "reason": "文档体系尚未建立，跳过检查：" + "、".join(missing) + " 不存在",
-            "failures": [],
+        reason = "方案文档体系不完整：" + "、".join(missing) + " 不存在"
+        return 1, {
+            "status": "failed",
+            "reason": reason,
+            "failures": ["FAIL: " + reason + "；请先运行 project init/upgrade --apply"],
             "warnings": [],
         }
     live_docs = sorted(
-        path for path in plans_dir.glob("*.md") if path.is_file() and not path.is_symlink()
+        path for path in plans_dir.glob("*.md")
+        if path.name != "README.md" and path.is_file() and not path.is_symlink()
     )
     archive_dir = plans_dir / "archive"
     archived_names = (
@@ -2491,8 +3299,15 @@ def command_docs_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         entries = [line for line in index_lines if basename in line]
         if not entries:
             failures.append(f"FAIL: docs/INDEX.md: 缺少 {relative} 的条目")
-        elif not any("关键符号" in line for line in entries):
-            failures.append(f"FAIL: docs/INDEX.md: {basename} 条目缺少关键符号")
+        else:
+            symbol_sets = [
+                re.findall(r"`([^`]+)`", line.split("关键符号", 1)[1])
+                for line in entries if "关键符号" in line
+            ]
+            if not any(2 <= len(symbols) <= 4 for symbols in symbol_sets):
+                failures.append(
+                    f"FAIL: docs/INDEX.md: {basename} 条目须包含 2-4 个关键符号"
+                )
     for basename in archived_names:
         leaked = [
             line for line in index_lines
@@ -2501,6 +3316,27 @@ def command_docs_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         if leaked:
             failures.append(
                 f"FAIL: docs/INDEX.md: 归档文档 {basename} 仍出现在活索引条目中"
+            )
+
+    # C7：Harness 生成的 Markdown 与冻结 JSON 必须成对存在。
+    for path in (*live_docs, *(archive_dir / name for name in archived_names)):
+        try:
+            content = path.read_text(encoding="utf-8")
+        except (OSError, UnicodeDecodeError):
+            continue
+        if PLAN_DOCUMENT_MARKER not in content.splitlines()[:3]:
+            continue
+        companion = path.with_suffix(".json")
+        if not companion.is_file() or companion.is_symlink():
+            failures.append(
+                f"FAIL: {path.relative_to(target).as_posix()}: 缺少同名冻结 JSON"
+            )
+            continue
+        try:
+            validate_frozen_plan(read_json(companion))
+        except HarnessError:
+            failures.append(
+                f"FAIL: {companion.relative_to(target).as_posix()}: 冻结合同无效"
             )
 
     # C3：全仓 .md 不得引用已归档文档的旧路径 docs/plans/<basename>。
@@ -2519,18 +3355,21 @@ def command_docs_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                     f"（正确路径 docs/plans/archive/{basename}）"
                 )
 
+    fast = bool(getattr(args, "fast", False))
+
     # C5：镜像为已实施-仅追溯的条目，其关键符号必须在 docs/ 之外的源码内容中至少命中 1 处。
     # 源码白名单遍历：构建产物里的旧符号不算「代码仍是真源」的证据，二进制/资产文件也无须读入。
     trace_pending: dict[str, list[str]] = {}
-    for line in index_lines:
-        if "关键符号" not in line or "已实施-仅追溯" not in line:
-            continue
-        match = re.search(r"plans/([\w.-]+\.md)", line)
-        basename = match.group(1) if match else "(未知条目)"
-        symbols = re.findall(r"`([^`]+)`", line.split("关键符号", 1)[1])
-        if symbols:
-            trace_pending[basename] = symbols
-    if trace_pending:
+    if not fast:
+        for line in index_lines:
+            if "关键符号" not in line or "已实施-仅追溯" not in line:
+                continue
+            match = re.search(r"plans/([\w.-]+\.md)", line)
+            basename = match.group(1) if match else "(未知条目)"
+            symbols = re.findall(r"`([^`]+)`", line.split("关键符号", 1)[1])
+            if symbols:
+                trace_pending[basename] = symbols
+    if not fast and trace_pending:
         prune = DOCS_CHECK_EXCLUDED_DIRS | DOCS_CHECK_ARTIFACT_DIRS
         for path in docs_check_walk_files(target, prune):
             if not trace_pending:
@@ -2558,25 +3397,26 @@ def command_docs_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             )
 
     # C6：横幅为有效的活文档长期未触碰告警；无 git 历史或 git 不可用时静默跳过。
-    now = dt.datetime.now(dt.timezone.utc)
-    for relative, banner in banners.items():
-        if "有效" not in banner:
-            continue
-        result = git_command(target, "log", "-1", "--format=%ci", "--", relative)
-        if result.returncode != 0 or not result.stdout.strip():
-            continue
-        try:
-            touched = dt.datetime.strptime(
-                result.stdout.decode("utf-8", errors="replace").strip(),
-                "%Y-%m-%d %H:%M:%S %z",
-            )
-        except ValueError:
-            continue
-        if (now - touched) > dt.timedelta(days=DOCS_CHECK_STALE_DAYS):
-            warnings.append(
-                f"WARN: {relative}: 横幅为有效但超过 {DOCS_CHECK_STALE_DAYS} 天未触碰"
-                f"（最后提交 {touched.date().isoformat()}），需确认是否仍然有效"
-            )
+    if not fast:
+        now = dt.datetime.now(dt.timezone.utc)
+        for relative, banner in banners.items():
+            if "有效" not in banner:
+                continue
+            result = git_command(target, "log", "-1", "--format=%ci", "--", relative)
+            if result.returncode != 0 or not result.stdout.strip():
+                continue
+            try:
+                touched = dt.datetime.strptime(
+                    result.stdout.decode("utf-8", errors="replace").strip(),
+                    "%Y-%m-%d %H:%M:%S %z",
+                )
+            except ValueError:
+                continue
+            if (now - touched) > dt.timedelta(days=DOCS_CHECK_STALE_DAYS):
+                warnings.append(
+                    f"WARN: {relative}: 横幅为有效但超过 {DOCS_CHECK_STALE_DAYS} 天未触碰"
+                    f"（最后提交 {touched.date().isoformat()}），需确认是否仍然有效"
+                )
 
     strict = bool(getattr(args, "strict", False))
     failed = bool(failures) or (strict and bool(warnings))
@@ -2584,6 +3424,7 @@ def command_docs_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     return (1 if failed else 0), {
         "status": status,
         "strict": strict,
+        "fast": fast,
         "checked": {
             "live_docs": len(live_docs),
             "archived_docs": len(archived_names),
@@ -2596,6 +3437,22 @@ def command_docs_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             f"扫描 markdown {len(markdown_files)} 份，违规 {len(failures)} 条、警告 {len(warnings)} 条"
         ),
     }
+
+
+def command_assets_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    """统一编排三类资产检查；是否启用资产不由本命令推断。"""
+    target = safe_target(args.target)
+    payload = run_assets_check(
+        target,
+        fast=bool(getattr(args, "fast", False)),
+        strict=bool(getattr(args, "strict", False)),
+        plan_checker=lambda current, quick: command_docs_check(argparse.Namespace(
+            target=str(current), strict=False, fast=quick
+        ))[1],
+        knowledge_checker=check_knowledge_assets,
+        acceptance_checker=check_acceptance_assets,
+    )
+    return (0 if payload["status"] == "passed" else 1), payload
 
 
 def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
@@ -2621,16 +3478,17 @@ def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     )
     strict_parse_ok = True
     try:
-        build_parser().parse_args(["docs-check", "--strict"])
+        for command in ("docs-check", "assets-check"):
+            build_parser().parse_args([command, "--strict", "--fast"])
     except SystemExit:
         strict_parse_ok = False
     checks = {
         "script_version": script_version_valid,
         "command_parser": all(
             name in build_parser().format_help()
-            for name in ("knowledge", "plan", "acceptance", "project", "release", "docs-check", "self-test")
+            for name in ("knowledge", "plan", "acceptance", "project", "release", "docs-check", "assets-check", "self-test")
         ),
-        "docs_check_strict_flag": strict_parse_ok,
+        "asset_check_flags": strict_parse_ok,
         "direct_mode_default": (
             True
             if source_distribution
@@ -2639,7 +3497,13 @@ def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "plan_templates_valid": bool(
             template_fingerprints(SCRIPT_ROOT / PLAN_TEMPLATES_RELATIVE)
         ),
-        "project_config_v7": (
+        "asset_modules_valid": bool(managed_module_fingerprints(SCRIPT_ROOT / "scripts")) and (
+            True
+            if source_distribution
+            else config.get("installed_module_fingerprints")
+            == managed_module_fingerprints(SCRIPT_ROOT / "scripts")
+        ),
+        "project_config_v9": (
             True
             if source_distribution
             else config.get("schema_version") == CONFIG_SCHEMA
@@ -2648,6 +3512,8 @@ def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             ACCEPTANCE_INPUT_SCHEMA.endswith("/v3")
             and ACCEPTANCE_RECORD_SCHEMA.endswith("/v3")
         ),
+        "knowledge_lifecycle_v1": KNOWLEDGE_SPEC.schema.endswith("/v1"),
+        "acceptance_lifecycle_v1": ACCEPTANCE_SPEC.schema.endswith("/v1"),
     }
     passed = all(checks.values())
     return (0 if passed else 1), {
@@ -2662,6 +3528,10 @@ def add_target(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--json", action="store_true")
 
 
+def add_check_options(parser: argparse.ArgumentParser) -> None:
+    add_target(parser)
+    parser.add_argument("--strict", action="store_true", help="WARN 也使退出码非 0（供 CI 使用）")
+    parser.add_argument("--fast", action="store_true", help="跳过符号存活性与 Git 时效慢检查")
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="harness",
@@ -2670,16 +3540,21 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=VERSION)
     commands = parser.add_subparsers(dest="command", required=True)
 
-    knowledge = commands.add_parser("knowledge", help="按需、只读查询项目知识")
-    knowledge.add_argument("action", choices=("query",))
+    knowledge = commands.add_parser("knowledge", help="创建、修订、查询并维护项目知识")
+    knowledge.add_argument("action", choices=("create", "update", "query", "settle", "check"))
     add_target(knowledge)
     knowledge.add_argument("--query")
     knowledge.add_argument("--scope", action="append")
     knowledge.add_argument("--limit", type=int, default=5)
     knowledge.add_argument("--max-chars", type=int, default=6000)
+    knowledge.add_argument("--input")
+    knowledge.add_argument("--output")
+    knowledge.add_argument("--knowledge")
+    knowledge.add_argument("--status", choices=("deprecated", "superseded"))
+    knowledge.add_argument("--replacement")
 
-    plan = commands.add_parser("plan", help="按复杂度和修改面选择、冻结方案")
-    plan.add_argument("action", choices=("select", "create"))
+    plan = commands.add_parser("plan", help="选择、冻结并维护任务方案")
+    plan.add_argument("action", choices=("select", "create", "settle"))
     add_target(plan)
     plan.add_argument("--level", choices=PLAN_LEVELS)
     plan.add_argument("--profile", choices=PLAN_PROFILES)
@@ -2696,14 +3571,24 @@ def build_parser() -> argparse.ArgumentParser:
     plan.add_argument("--selection")
     plan.add_argument("--content")
     plan.add_argument("--output")
+    plan.add_argument("--plan")
+    plan.add_argument("--status", choices=PLAN_SETTLE_STATUSES)
+    plan.add_argument("--replacement")
+    plan.add_argument("--governance-input")
 
     acceptance = commands.add_parser(
         "acceptance",
-        help="记录真实行为或用户验收层级",
+        help="创建、记录并维护分层验收资产",
     )
-    acceptance.add_argument("action", choices=("record",))
+    acceptance.add_argument("action", choices=("create", "record", "settle", "check"))
     add_target(acceptance)
-    acceptance.add_argument("--input", required=True)
+    acceptance.add_argument("--input")
+    acceptance.add_argument("--output")
+    acceptance.add_argument("--acceptance")
+    acceptance.add_argument("--status", choices=("passed", "failed", "superseded"))
+    acceptance.add_argument("--replacement")
+    acceptance.add_argument("--user-confirmed", action="store_true")
+    acceptance.add_argument("--reaccept", action="store_true")
 
     project = commands.add_parser(
         "project",
@@ -2734,12 +3619,13 @@ def build_parser() -> argparse.ArgumentParser:
         "docs-check",
         help="docs/plans 文档可发现性常驻检查",
     )
-    add_target(docs_check)
-    docs_check.add_argument(
-        "--strict",
-        action="store_true",
-        help="WARN 也使退出码非 0（供 CI 使用）",
+    add_check_options(docs_check)
+
+    assets_check = commands.add_parser(
+        "assets-check",
+        help="统一检查 Plan、Knowledge、Acceptance 与跨资产关系",
     )
+    add_check_options(assets_check)
     return parser
 
 
@@ -2763,19 +3649,37 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         if args.command == "knowledge":
-            code, payload = knowledge_query(args)
+            knowledge_handlers = {
+                "create": knowledge_create,
+                "update": knowledge_update,
+                "query": knowledge_query,
+                "settle": knowledge_settle,
+                "check": knowledge_check,
+            }
+            code, payload = knowledge_handlers[args.action](args)
         elif args.command == "plan":
-            code, payload = (
-                plan_select(args) if args.action == "select" else plan_create(args)
-            )
+            if args.action == "select":
+                code, payload = plan_select(args)
+            elif args.action == "create":
+                code, payload = plan_create(args)
+            else:
+                code, payload = plan_settle(args)
         elif args.command == "acceptance":
-            code, payload = acceptance_record(args)
+            acceptance_handlers = {
+                "create": acceptance_create,
+                "record": acceptance_record,
+                "settle": acceptance_settle,
+                "check": acceptance_check,
+            }
+            code, payload = acceptance_handlers[args.action](args)
         elif args.command == "project":
             code, payload = command_project(args)
         elif args.command == "release":
             code, payload = command_release(args)
         elif args.command == "docs-check":
             code, payload = command_docs_check(args)
+        elif args.command == "assets-check":
+            code, payload = command_assets_check(args)
         else:
             code, payload = command_self_test(args)
         emit(payload, args.json)

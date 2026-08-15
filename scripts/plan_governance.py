@@ -1,0 +1,287 @@
+"""Plan v3 治理合同、反向引用与结算校验。"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import re
+from pathlib import Path
+from typing import Any
+
+from managed_assets import atomic_write_json, atomic_write_text, canonical_json, fingerprint
+
+
+PLAN_SCHEMA_V2 = "docs-harness/plan/v2"
+PLAN_SCHEMA_V3 = "docs-harness/plan/v3"
+PLAN_SCHEMAS = (PLAN_SCHEMA_V2, PLAN_SCHEMA_V3)
+PLAN_GOVERNANCE_INPUT_SCHEMA = "docs-harness/plan-governance-input/v1"
+ACCEPTANCE_ASSET_SCHEMA = "docs-harness/acceptance-asset/v1"
+KNOWLEDGE_ASSET_SCHEMA = "docs-harness/knowledge-asset/v1"
+GOVERNANCE_BEGIN = "<!-- docs-harness:plan-governance:start -->"
+GOVERNANCE_END = "<!-- docs-harness:plan-governance:end -->"
+LEGACY_PLAN_TEMPLATE_FINGERPRINTS = {
+    "2.4.1": {
+        "levels/brief.json": "sha256:93d23569e7561d1f6295b20d46a0e212974c8d1009211b7885176dc4ca5fd329",
+        "levels/full.json": "sha256:a2c6129588f1a5a2c906afead465fae64635a84f6f918868dbc14f9bc3d42fbe",
+        "profiles/general.json": "sha256:4e7f07d94617a1aeda29085040eb705f56abfbfec3b08f4dd25710d8811462d1",
+        "profiles/frontend-ui.json": "sha256:ac9e8ba805fac007a1e629c86e1d7c60d5368791700f2b84ce2e7505b7beb298",
+        "profiles/backend-service.json": "sha256:8510133adf7a78fc0f5759fa90fdc555e39020487439042cfda57259871d40f2",
+        "profiles/bugfix.json": "sha256:1bd546f481dedba942663ed45013250f3d5d8bb406fffff66704fa0ebff145b1",
+        "profiles/architecture.json": "sha256:1dcad086f31fcb409fca18a935794de20f17e11c151e444fbb8f45a3e35cd557",
+        "profiles/migration-release.json": "sha256:1595b0cc7e04b132bcb8d9eff6245498735af4bf5df3c36a0d1ea844dafa6e73",
+    }
+}
+
+
+def legacy_plan_template_fingerprints(version: Any) -> dict[str, str]:
+    return LEGACY_PLAN_TEMPLATE_FINGERPRINTS.get(version, {})
+
+
+class PlanGovernanceError(Exception):
+    def __init__(self, message: str, code: str = "invalid_plan_governance") -> None:
+        super().__init__(message)
+        self.code = code
+
+
+def plan_fingerprint(value: dict[str, Any]) -> str:
+    unsigned = dict(value)
+    unsigned.pop("plan_fingerprint", None)
+    digest = hashlib.sha256(canonical_json(unsigned).encode("utf-8")).hexdigest()
+    return "sha256:" + digest
+
+
+def seal_plan(value: dict[str, Any]) -> dict[str, Any]:
+    sealed = dict(value)
+    sealed["plan_fingerprint"] = plan_fingerprint(sealed)
+    return sealed
+
+
+def _single_line(value: Any, label: str) -> str:
+    if not isinstance(value, str) or not value.strip() or "\n" in value:
+        raise PlanGovernanceError(f"{label} 必须是单行非空字符串")
+    return value.strip()
+
+
+def governance_from_content(level: str, content: dict[str, Any]) -> dict[str, Any] | None:
+    if level != "full":
+        return None
+    acceptance_required = content.get("acceptance_required")
+    knowledge_impact = content.get("knowledge_impact")
+    if not isinstance(acceptance_required, bool):
+        raise PlanGovernanceError("Full Plan 的 acceptance_required 必须是布尔值")
+    if knowledge_impact not in {"updated", "unchanged"}:
+        raise PlanGovernanceError("Full Plan 的 knowledge_impact 必须是 updated 或 unchanged")
+    return {
+        "acceptance_required": acceptance_required,
+        "knowledge_impact": knowledge_impact,
+        "updated_knowledge_refs": [],
+        "unchanged_reason": None,
+        "governance_settled_at": None,
+    }
+
+
+def _validate_governance_state(governance: dict[str, Any]) -> None:
+    refs = governance.get("updated_knowledge_refs")
+    reason = governance.get("unchanged_reason")
+    settled_at = governance.get("governance_settled_at")
+    if not isinstance(refs, list) or any(
+        not isinstance(item, str) or not re.fullmatch(r"docs/knowledge/[\w.-]+\.json", item)
+        for item in refs
+    ) or len(refs) != len(set(refs)):
+        raise PlanGovernanceError("Plan updated_knowledge_refs 无效", "invalid_plan_ref")
+    if settled_at is not None and not isinstance(settled_at, str):
+        raise PlanGovernanceError("Plan governance_settled_at 无效", "invalid_plan_ref")
+    if governance["knowledge_impact"] == "updated":
+        if settled_at and (not refs or reason is not None):
+            raise PlanGovernanceError("已结算 updated 治理状态无效", "invalid_plan_ref")
+        if not settled_at and (refs or reason is not None):
+            raise PlanGovernanceError("未结算 updated 治理状态无效", "invalid_plan_ref")
+    elif settled_at:
+        _single_line(reason, "unchanged_reason")
+        if refs:
+            raise PlanGovernanceError("unchanged 治理不得登记 Knowledge 引用", "invalid_plan_ref")
+    elif refs or reason is not None:
+        raise PlanGovernanceError("未结算 unchanged 治理状态无效", "invalid_plan_ref")
+
+
+def validate_plan(value: Any) -> dict[str, Any]:
+    if not isinstance(value, dict) or value.get("schema_version") not in PLAN_SCHEMAS:
+        raise PlanGovernanceError("方案冻结合同无效", "invalid_plan_ref")
+    if value.get("plan_fingerprint") != plan_fingerprint(value):
+        raise PlanGovernanceError("方案冻结合同指纹无效", "invalid_plan_ref")
+    if value["schema_version"] == PLAN_SCHEMA_V2:
+        return value
+    refs = value.get("acceptance_refs")
+    if not isinstance(refs, list) or any(
+        not isinstance(item, str) or not re.fullmatch(r"docs/acceptance/[\w.-]+\.json", item)
+        for item in refs
+    ) or len(refs) != len(set(refs)):
+        raise PlanGovernanceError("Plan acceptance_refs 无效", "invalid_plan_ref")
+    expected = governance_from_content(value.get("plan_level", ""), value.get("content", {}))
+    governance = value.get("governance")
+    if expected is None:
+        if governance is not None:
+            raise PlanGovernanceError("非 Full Plan 不得包含 governance", "invalid_plan_ref")
+    elif not isinstance(governance, dict) or any(
+        governance.get(key) != expected[key]
+        for key in ("acceptance_required", "knowledge_impact")
+    ):
+        raise PlanGovernanceError("Plan governance 与 content 声明不一致", "invalid_plan_ref")
+    else:
+        _validate_governance_state(governance)
+    return value
+
+
+def new_plan_fields(level: str, content: dict[str, Any]) -> dict[str, Any]:
+    fields: dict[str, Any] = {"acceptance_refs": []}
+    governance = governance_from_content(level, content)
+    if governance is not None:
+        fields["governance"] = governance
+    return fields
+
+
+def render_governance_block(frozen: dict[str, Any]) -> str:
+    refs = frozen.get("acceptance_refs", [])
+    ref_text = "、".join(f"`{item}`" for item in refs) if refs else "无"
+    lines = [GOVERNANCE_BEGIN, "## 资产治理", "", f"- 关联验收：{ref_text}"]
+    governance = frozen.get("governance")
+    if isinstance(governance, dict):
+        lines.extend([
+            f"- 需要 Acceptance：{str(governance['acceptance_required']).lower()}",
+            f"- Knowledge 影响：{governance['knowledge_impact']}",
+        ])
+    lines.append(GOVERNANCE_END)
+    return "\n".join(lines)
+
+
+def update_plan_markdown(markdown: str, frozen: dict[str, Any]) -> str:
+    fingerprint_line = f"- 冻结合同：`{frozen['plan_fingerprint']}`"
+    if not re.search(r"(?m)^- 冻结合同：`[^`]+`$", markdown):
+        raise PlanGovernanceError("Plan Markdown 缺少冻结合同指纹")
+    updated = re.sub(r"(?m)^- 冻结合同：`[^`]+`$", fingerprint_line, markdown, count=1)
+    block = render_governance_block(frozen)
+    begin_count, end_count = updated.count(GOVERNANCE_BEGIN), updated.count(GOVERNANCE_END)
+    if begin_count != end_count or begin_count > 1:
+        raise PlanGovernanceError("Plan Markdown 治理区块不完整或重复")
+    if begin_count == 1:
+        pattern = re.escape(GOVERNANCE_BEGIN) + r".*?" + re.escape(GOVERNANCE_END)
+        return re.sub(pattern, block, updated, count=1, flags=re.DOTALL)
+    return updated.rstrip() + "\n\n" + block + "\n"
+
+
+def _plan_pair(target: Path, raw: str) -> tuple[Path, Path]:
+    relative = Path(raw)
+    if relative.is_absolute() or relative.parent.as_posix() not in {
+        "docs/plans", "docs/plans/archive",
+    } or relative.suffix != ".json":
+        raise PlanGovernanceError("plan_ref 必须指向项目内 Plan JSON")
+    source = target / relative
+    document = source.with_suffix(".md")
+    if (
+        not source.is_file() or source.is_symlink()
+        or not document.is_file() or document.is_symlink()
+    ):
+        raise PlanGovernanceError(f"Plan 引用不存在：{raw}")
+    return source, document
+
+
+def _update_acceptance_ref(target: Path, plan_ref: str, acceptance_ref: str, add: bool) -> bool:
+    source, document = _plan_pair(target, plan_ref)
+    frozen = validate_plan(json.loads(source.read_text(encoding="utf-8")))
+    if frozen["schema_version"] == PLAN_SCHEMA_V2:
+        return False
+    refs = list(frozen["acceptance_refs"])
+    if add and acceptance_ref not in refs:
+        refs.append(acceptance_ref)
+    elif not add and acceptance_ref in refs:
+        refs.remove(acceptance_ref)
+    else:
+        return False
+    frozen["acceptance_refs"] = refs
+    sealed = seal_plan(frozen)
+    markdown = update_plan_markdown(document.read_text(encoding="utf-8"), sealed)
+    atomic_write_json(source, sealed)
+    atomic_write_text(document, markdown)
+    return True
+
+
+def add_acceptance_ref(target: Path, plan_ref: str, acceptance_ref: str) -> bool:
+    return _update_acceptance_ref(target, plan_ref, acceptance_ref, True)
+
+
+def remove_acceptance_ref(target: Path, plan_ref: str, acceptance_ref: str) -> bool:
+    return _update_acceptance_ref(target, plan_ref, acceptance_ref, False)
+
+
+def _load_linked_asset(target: Path, raw: str, schema: str) -> dict[str, Any]:
+    relative = Path(raw)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise PlanGovernanceError(f"治理引用越出项目：{raw}")
+    path = target / relative
+    if not path.is_file() or path.is_symlink():
+        raise PlanGovernanceError(f"治理引用不存在：{raw}")
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise PlanGovernanceError(f"治理引用无法读取：{raw}") from exc
+    if not isinstance(value, dict) or value.get("schema_version") != schema:
+        raise PlanGovernanceError(f"治理引用 Schema 无效：{raw}")
+    if value.get("asset_fingerprint") != fingerprint(value):
+        raise PlanGovernanceError(f"治理引用指纹无效：{raw}")
+    return value
+
+
+def prepare_settlement(
+    target: Path,
+    frozen: dict[str, Any],
+    governance_input: Any,
+    now: str,
+) -> tuple[dict[str, Any], list[str]]:
+    validate_plan(frozen)
+    if frozen["schema_version"] == PLAN_SCHEMA_V2:
+        return frozen, []
+    governance = frozen.get("governance")
+    if not isinstance(governance, dict):
+        return frozen, []
+    warnings: list[str] = []
+    if governance["acceptance_required"]:
+        acceptances = [
+            _load_linked_asset(target, ref, ACCEPTANCE_ASSET_SCHEMA)
+            for ref in frozen["acceptance_refs"]
+        ]
+        terminal = [item for item in acceptances if item.get("settled_at")]
+        if not terminal:
+            raise PlanGovernanceError(
+                "该方案声明需要 Acceptance，但没有已结项验收。下一步：先执行 acceptance create/record/settle，再重跑 plan settle"
+            )
+        if any(item.get("status") == "failed" for item in terminal):
+            warnings.append("WARN: 关联 Acceptance 以 failed 结项，收尾报告必须说明失败结果")
+    if not isinstance(governance_input, dict) or governance_input.get("schema_version") != PLAN_GOVERNANCE_INPUT_SCHEMA:
+        raise PlanGovernanceError(
+            "Plan v3 缺少治理结算输入。下一步：提供 --governance-input <json>"
+        )
+    allowed = {"schema_version", "updated_knowledge_refs", "unchanged_reason"}
+    if set(governance_input) - allowed:
+        raise PlanGovernanceError("治理结算输入包含未注册字段")
+    if governance["knowledge_impact"] == "updated":
+        refs = governance_input.get("updated_knowledge_refs")
+        if (
+            not isinstance(refs, list) or not refs
+            or any(not isinstance(item, str) for item in refs)
+            or len(refs) != len(set(refs))
+        ):
+            raise PlanGovernanceError("knowledge_impact=updated 必须提供唯一的 updated_knowledge_refs")
+        for ref in refs:
+            value = _load_linked_asset(target, _single_line(ref, "Knowledge 引用"), KNOWLEDGE_ASSET_SCHEMA)
+            if value.get("status") != "active":
+                raise PlanGovernanceError(f"更新后的 Knowledge 必须为 active：{ref}")
+        governance["updated_knowledge_refs"] = refs
+        governance["unchanged_reason"] = None
+    else:
+        governance["updated_knowledge_refs"] = []
+        governance["unchanged_reason"] = _single_line(
+            governance_input.get("unchanged_reason"), "unchanged_reason"
+        )
+    governance["governance_settled_at"] = now
+    frozen["governance"] = governance
+    return seal_plan(frozen), warnings
