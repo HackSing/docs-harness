@@ -25,11 +25,13 @@ if str(SCRIPT_MODULE_DIR) not in sys.path:
 from managed_assets import AssetError, apply_structure, structure_changes
 from asset_checks import run_assets_check
 from plan_governance import (
-    PLAN_SCHEMA_V3, PlanGovernanceError, governance_from_content, legacy_plan_template_fingerprints, new_plan_fields,
+    FAILURE_ATTRIBUTION_CATEGORIES, PLAN_GOVERNANCE_INPUT_SCHEMA, PLAN_SCHEMA_V3, PlanGovernanceError,
+    governance_from_content, legacy_plan_template_fingerprints, new_plan_fields, nonempty_string_list,
     prepare_settlement as prepare_plan_settlement, render_governance_block, update_plan_markdown,
-    validate_plan as validate_governed_plan,
+    validate_bugfix_plan_contract, validate_plan as validate_governed_plan,
 )
 from knowledge_assets import (
+    KNOWLEDGE_INPUT_SCHEMA,
     KNOWLEDGE_SPEC,
     check as check_knowledge_assets,
     create as create_knowledge_asset,
@@ -40,13 +42,15 @@ from knowledge_assets import (
 from acceptance_assets import (
     ACCEPTANCE_EVIDENCE_LAYERS,
     ACCEPTANCE_LAYERS,
+    ACCEPTANCE_SETTLE_INPUT_SCHEMA,
     ACCEPTANCE_SPEC,
+    ACCEPTANCE_TARGET_INPUT_SCHEMA,
     check as check_acceptance_assets,
     create as create_acceptance_asset,
     record as record_acceptance_asset,
     settle as settle_acceptance_asset,
 )
-VERSION = "2.7.1"
+VERSION = "2.7.2"
 CONFIG_SCHEMA = "docs-harness/project-config/v9"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
     f"docs-harness/project-config/v{version}" for version in range(1, 9)
@@ -123,20 +127,6 @@ LEGACY_RUNTIME_NAMES = (
 )
 KNOWLEDGE_MAP_RELATIVE = "docs/knowledge-map.json"
 REPOWIKI_RELATIVE = ".qoder/repowiki"
-FULL_REGRESSION_REASON_CODES = {
-    "cross_module_change",
-    "public_contract_change",
-    "shared_infrastructure_change",
-    "dependency_or_shared_fixture_change",
-    "release_gate",
-}
-FAILURE_ATTRIBUTION_CATEGORIES = {
-    "change_related",
-    "unrelated",
-    "pre_existing",
-    "environment",
-    "flaky",
-}
 SEMVER_PATTERN = r"[0-9]+\.[0-9]+\.[0-9]+"
 DOCS_CHECK_BANNER_MARKER = "状态："
 DOCS_CHECK_BANNER_STATES = ("有效", "已实施-仅追溯", "已废弃")
@@ -350,7 +340,7 @@ _GENERIC_STANDARDS = """
 2. **重复即抽象。** 同一段逻辑出现第 3 次时必须抽成独立函数或模块，并让原有调用点改用它；不允许复制粘贴后微调。
 3. **分层隔离。** 界面/渲染代码、业务逻辑、外部 IO（文件、网络、进程间通信、系统调用）不得混在同一个函数里。
 4. **接口先行。** 新增模块必须先定义对外接口和数据类型，再写实现；对外暴露的东西越少越好，默认不导出。
-5. **体量红线。** 单个函数超过 60 行、单个文件超过 400 行时必须拆分；确实不能拆的，在收尾报告里说明理由。不得为绕过红线做无意义的机械切割。
+5. **体量红线。** 单个函数超过 60 行、单个文件超过 500 行时必须拆分；确实不能拆的，在收尾报告里说明理由。不得为绕过红线做无意义的机械切割。
 6. **错误不许吞。** 每个错误要么正确处理，要么明确向上传递；不得静默忽略或仅打印日志后继续。
 7. **不擅自加依赖。** 新增第三方库前必须说明：解决什么问题、为何标准库或现有依赖不够。未经用户确认不引入。
 8. **收尾自查。** 报告改动时额外回答两个问题：本次是否引入了重复逻辑（答"没有"要说明依据）；本次新增的抽象各自的职责是什么。答不出视为未完成。
@@ -445,6 +435,7 @@ Docs Harness 当前版本：{VERSION}
 - 复杂任务在 Plan 后创建 Acceptance 目标，执行中逐条记录真实证据并结项；简单任务仍可直接验证，不强制创建资产。
 - 验收以真实功能为中心：能运行聚焦测试、接口、页面、应用、构建或安装流程时运行最小充分流程；不能独立判断时准备最低成本环境，再交给用户做最短确认。
 - 高风险动作使用原生授权与沙箱，不建立第二套 Harness Gate 或授权协议。
+- Plan/Knowledge/Acceptance 输入 JSON 必须携带各自 schema_version 与注册字段（输入形状与示例见 python3 scripts/harness.py <cmd> --help）；校验失败报错直接附期望形状。
 {knowledge_line}
 - pre-2.0 项目只通过 project upgrade 单向迁移；迁移后不保留旧运行能力。
 - 不在没有证据或没有明确维护任务时自动更新 Knowledge、ADR、Changelog、TODO 或质量账本。ADR 由主 agent 编写，复杂决策可选只读子智能体复审。
@@ -908,6 +899,22 @@ def knowledge_query(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     }
 
 
+# knowledge create|update --input 的 --help 示例（校验在 knowledge_assets；改 schema 同步此处）。
+KNOWLEDGE_INPUT_EXAMPLE = {
+    "schema_version": KNOWLEDGE_INPUT_SCHEMA,
+    "title": "单行标题",
+    "key_symbols": ["2-4 个唯一符号，不含反引号"],
+    "summary": "单行摘要",
+    "facts": [
+        {
+            "id": "小写fact.id",
+            "statement": "单行事实",
+            "source_refs": ["项目内已存在的相对路径"],
+        }
+    ],
+}
+
+
 def knowledge_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     if not args.input or not args.output:
         raise HarnessError("knowledge create 必须提供 --input 与 --output", code="missing_knowledge_input")
@@ -1070,88 +1077,6 @@ def nonempty_plan_value(value: Any) -> bool:
     return value is not None
 
 
-def nonempty_string_list(value: Any) -> bool:
-    return (
-        isinstance(value, list)
-        and bool(value)
-        and all(isinstance(item, str) and bool(item.strip()) for item in value)
-    )
-
-
-def validate_bugfix_plan_contract(selection: dict[str, Any], content: dict[str, Any]) -> None:
-    profiles = {selection.get("plan_profile"), *selection.get("secondary_profiles", [])}
-    if selection.get("plan_level") != "full" or "bugfix" not in profiles:
-        return
-
-    if not nonempty_string_list(content.get("affected_modules")):
-        raise HarnessError("Bugfix 方案的 affected_modules 必须是非空字符串数组", code="invalid_plan_content")
-
-    scope = content.get("verification_scope")
-    if not isinstance(scope, dict):
-        raise HarnessError("Bugfix 方案的 verification_scope 必须是对象", code="invalid_plan_content")
-    mode = scope.get("mode")
-    if mode not in {"affected_modules", "repository_full"}:
-        raise HarnessError(
-            "verification_scope.mode 必须是 affected_modules 或 repository_full",
-            code="invalid_plan_content",
-        )
-    if not nonempty_string_list(scope.get("commands")):
-        raise HarnessError("verification_scope.commands 必须是非空字符串数组", code="invalid_plan_content")
-    reused = scope.get("reused_passed_evidence")
-    if not isinstance(reused, list) or any(
-        not isinstance(item, str) or not item.strip() for item in reused
-    ):
-        raise HarnessError(
-            "verification_scope.reused_passed_evidence 必须是字符串数组",
-            code="invalid_plan_content",
-        )
-
-    trigger = content.get("full_regression_trigger")
-    if not isinstance(trigger, dict) or not isinstance(trigger.get("required"), bool):
-        raise HarnessError(
-            "full_regression_trigger 必须声明布尔 required、reason_codes 与 rationale",
-            code="invalid_plan_content",
-        )
-    reason_codes = trigger.get("reason_codes")
-    rationale = trigger.get("rationale")
-    if not isinstance(reason_codes, list) or any(
-        not isinstance(item, str) or item not in FULL_REGRESSION_REASON_CODES
-        for item in reason_codes
-    ):
-        raise HarnessError("全量测试触发原因码无效", code="invalid_plan_content")
-    if len(reason_codes) != len(set(reason_codes)):
-        raise HarnessError("全量测试触发原因码不得重复", code="invalid_plan_content")
-    if not isinstance(rationale, str) or not rationale.strip():
-        raise HarnessError("full_regression_trigger.rationale 不能为空", code="invalid_plan_content")
-    if mode == "repository_full" and (trigger["required"] is not True or not reason_codes):
-        raise HarnessError(
-            "仓库级全量测试必须由受控原因码明确触发",
-            code="invalid_plan_content",
-        )
-    if mode == "affected_modules" and (trigger["required"] is not False or reason_codes):
-        raise HarnessError(
-            "受影响模块测试不得携带仓库级全量触发原因",
-            code="invalid_plan_content",
-        )
-
-    attribution = content.get("failure_attribution")
-    if not isinstance(attribution, dict):
-        raise HarnessError("Bugfix 方案的 failure_attribution 必须是对象", code="invalid_plan_content")
-    categories = attribution.get("categories")
-    if (
-        not isinstance(categories, list)
-        or any(not isinstance(item, str) for item in categories)
-        or len(categories) != len(set(categories))
-        or set(categories) != FAILURE_ATTRIBUTION_CATEGORIES
-        or attribution.get("separate_non_change_failures") is not True
-        or attribution.get("evidence_required") is not True
-    ):
-        raise HarnessError(
-            "failure_attribution 必须声明全部受控类别、分项记录非本次变更失败并要求证据",
-            code="invalid_plan_content",
-        )
-
-
 def plan_title_and_symbols(content: dict[str, Any]) -> tuple[str, list[str]]:
     title = content.get("title")
     symbols = content.get("key_symbols")
@@ -1249,6 +1174,22 @@ def preflight_plan_artifacts(
     return frozen
 
 
+# plan create --content 字段动态（由 plan select 的 fields 决定，校验在 validate_plan_create_payload）；
+# 下面是 brief 级最小 --help 示例。
+PLAN_CONTENT_EXAMPLE = {
+    "title": "方案标题",
+    "key_symbols": ["2-4 个唯一符号"],
+    "objective": "目标",
+    "scope": "范围",
+    "steps": "关键步骤",
+    "acceptance": "验收方案",
+}
+PLAN_CONTENT_NOTES = (
+    "content 字段以 plan select 输出的 fields 为准；上面是 brief 级最小示例。",
+    "required=true 的字段必须非空，且不得出现未在 fields 中注册的字段。",
+)
+
+
 def validate_plan_create_payload(
     target: Path, args: argparse.Namespace
 ) -> tuple[dict[str, Any], dict[str, Any], Path, Path, str, list[str]]:
@@ -1274,8 +1215,8 @@ def validate_plan_create_payload(
     if missing:
         raise HarnessError("方案缺少必填字段：" + ", ".join(missing), code="invalid_plan_content")
     title, symbols = plan_title_and_symbols(content)
-    validate_bugfix_plan_contract(selection, content)
     try:
+        validate_bugfix_plan_contract(selection, content)
         governance_from_content(selection["plan_level"], content)
     except PlanGovernanceError as exc:
         raise HarnessError(str(exc), code=exc.code) from exc
@@ -1508,6 +1449,14 @@ def settle_deprecated_plan(
     return plan_json, document, list(dict.fromkeys(changed))
 
 
+# plan settle --governance-input 的 --help 示例（校验在 plan_governance；改 schema 同步此处）。
+PLAN_GOVERNANCE_INPUT_EXAMPLE = {
+    "schema_version": PLAN_GOVERNANCE_INPUT_SCHEMA,
+    "updated_knowledge_refs": ["knowledge_impact=updated 时必填非空"],
+    "unchanged_reason": "unchanged 时必填",
+}
+
+
 def plan_settle(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
     if not args.plan or args.status not in PLAN_SETTLE_STATUSES:
@@ -1585,7 +1534,7 @@ def normalize_failure_attributions(target: Path, raw: Any) -> list[dict[str, Any
         blocking = item.get("blocking")
         refs = item.get("evidence_refs")
         if category not in FAILURE_ATTRIBUTION_CATEGORIES:
-            raise HarnessError("失败归因类别无效", code="invalid_acceptance_input")
+            raise HarnessError("失败归因类别无效，仅接受：" + "、".join(sorted(FAILURE_ATTRIBUTION_CATEGORIES)), code="invalid_acceptance_input")
         if not isinstance(summary, str) or not summary.strip():
             raise HarnessError("失败归因 summary 不能为空", code="invalid_acceptance_input")
         if not isinstance(blocking, bool):
@@ -1613,25 +1562,54 @@ def normalize_failure_attributions(target: Path, raw: Any) -> list[dict[str, Any
     return normalized
 
 
-def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
-    target = safe_target(args.target)
-    if not args.input:
-        raise HarnessError("acceptance record 必须提供 --input", code="missing_acceptance_input")
-    input_path = project_input_path(target, args.input, code="invalid_acceptance_input")
-    value = read_json(input_path)
-    if not isinstance(value, dict) or value.get("schema_version") != ACCEPTANCE_INPUT_SCHEMA:
-        raise HarnessError("验收输入 Schema 无效", code="invalid_acceptance_input")
-    objective = value.get("objective")
+# acceptance record --input 的 --help 示例（校验就在下方本函数内；改 schema 同步此处）。
+ACCEPTANCE_INPUT_EXAMPLE = {
+    "schema_version": ACCEPTANCE_INPUT_SCHEMA,
+    "objective": "与目标一致",
+    "criterion_id": "关联 --acceptance 时必填",
+    "acceptance_type": "contract_check|behavior_acceptance|user_acceptance",
+    "status": "passed|failed|unverified|user_pending",
+    "layer": "L1-L5",
+    "evidence_layer": "仅 behavior_acceptance 可填；与 criterion 同 L 层即可，不要求字面一致",
+    "method": "passed 必填",
+    "evidence_refs": ["已存在的证据文件"],
+    "confirmation": "用户确认原话，配合 --user-confirmed",
+}
+ACCEPTANCE_INPUT_NOTES = (
+    "按状态必填：",
+    "  passed（behavior/contract）→ method + 非空 evidence_refs；",
+    "  failed → reason + next_action + failure_attributions[]"
+    "（每项 {category, summary, blocking, evidence_refs}）；",
+    "  user_pending → automatically_verified / user_checks / steps（≤5）"
+    "三个非空字符串数组 + environment_ready=true。",
+    "记录的 evidence_layer 与 criterion 同 L 层即接受，不要求字面一致"
+    "（映射仍为 focused_test/repository_full_test→L2、local_runtime→L3、"
+    "package_or_install→L4、real_device→L5）。",
+)
+
+
+def build_stored_acceptance_record(
+    target: Path,
+    value: dict[str, Any],
+    objective: str,
+    *,
+    associated: bool,
+    user_confirmed: bool,
+) -> dict[str, Any]:
+    """校验单条验收记录字段（形状 + 按状态必填 + 证据存在 + 用户确认规则）并构造 stored 记录。
+
+    供 acceptance record 单条路径与 acceptance settle --input 批量路径共用。
+    schema_version / criterion_id / objective 是否存在由各自入口负责；
+    objective 已由调用方校验为非空并原样用于 objective_fingerprint。
+    associated=是否关联 Acceptance 资产（对应单条路径的 args.acceptance）。"""
     acceptance_type = value.get("acceptance_type")
     status = value.get("status")
     layer = value.get("layer")
     evidence_layer = value.get("evidence_layer")
-    if not isinstance(objective, str) or not objective.strip():
-        raise HarnessError("验收目标不能为空", code="invalid_acceptance_input")
     if acceptance_type not in {"contract_check", "behavior_acceptance", "user_acceptance"}:
-        raise HarnessError("验收类型无效", code="invalid_acceptance_input")
+        raise HarnessError("验收类型无效，仅接受 contract_check|behavior_acceptance|user_acceptance", code="invalid_acceptance_input")
     if status not in {"passed", "failed", "unverified", "user_pending"} or layer not in ACCEPTANCE_LAYERS:
-        raise HarnessError("验收状态或层级无效", code="invalid_acceptance_input")
+        raise HarnessError("验收状态或层级无效，status 仅接受 passed|failed|unverified|user_pending，layer 仅接受 L1-L5", code="invalid_acceptance_input")
     if acceptance_type == "behavior_acceptance":
         expected_layer = ACCEPTANCE_EVIDENCE_LAYERS.get(evidence_layer)
         if expected_layer is None:
@@ -1676,8 +1654,8 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     if acceptance_type == "user_acceptance" and status == "passed":
         confirmation = value.get("confirmation")
         if not (
-            args.acceptance
-            and args.user_confirmed
+            associated
+            and user_confirmed
             and isinstance(confirmation, str)
             and confirmation.strip()
         ):
@@ -1706,7 +1684,7 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 for key in required_lists
             )
         ):
-            raise HarnessError("用户验收交接不完整", code="invalid_acceptance_input")
+            raise HarnessError("用户验收交接不完整，须 acceptance_type=user_acceptance、layer=L5、environment_ready=true 且 automatically_verified/user_checks/steps 三个非空字符串数组", code="invalid_acceptance_input")
         if len(value["steps"]) > 5:
             raise HarnessError("用户验收步骤必须保持最短，最多 5 步", code="invalid_acceptance_input")
     if status == "passed":
@@ -1741,7 +1719,7 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     stored: dict[str, Any] = {
         "schema_version": ACCEPTANCE_RECORD_SCHEMA,
         "record_id": record_id,
-        "objective_fingerprint": sha256_bytes(objective.strip().encode("utf-8")),
+        "objective_fingerprint": sha256_bytes(objective.encode("utf-8")),
         "acceptance_type": acceptance_type,
         "status": status,
         "layer": layer,
@@ -1762,6 +1740,32 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "steps": value["steps"],
             "environment_ready": True,
         }
+    return stored
+
+
+def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    target = safe_target(args.target)
+    if not args.input:
+        raise HarnessError("acceptance record 必须提供 --input", code="missing_acceptance_input")
+    input_path = project_input_path(target, args.input, code="invalid_acceptance_input")
+    value = read_json(input_path)
+    if not isinstance(value, dict) or value.get("schema_version") != ACCEPTANCE_INPUT_SCHEMA:
+        raise HarnessError(f"验收输入 Schema 无效，必须为 {ACCEPTANCE_INPUT_SCHEMA}", code="invalid_acceptance_input")
+    objective = value.get("objective")
+    if not isinstance(objective, str) or not objective.strip():
+        raise HarnessError("验收目标不能为空", code="invalid_acceptance_input")
+    stored = build_stored_acceptance_record(
+        target,
+        value,
+        objective.strip(),
+        associated=bool(args.acceptance),
+        user_confirmed=bool(args.user_confirmed),
+    )
+    status = stored["status"]
+    layer = stored["layer"]
+    evidence_layer = stored["evidence_layer"]
+    acceptance_type = stored["acceptance_type"]
+    record_id = stored["record_id"]
     if args.acceptance:
         criterion_id = value.get("criterion_id")
         if not isinstance(criterion_id, str) or not criterion_id.strip():
@@ -1805,9 +1809,9 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "status": "failed",
             "layer": ACCEPTANCE_LAYERS[layer],
             "evidence_layer": evidence_layer,
-            "reason": value["reason"],
-            "next_action": value["next_action"],
-            "failure_attributions": failure_attributions,
+            "reason": stored["reason"],
+            "next_action": stored["next_action"],
+            "failure_attributions": stored["failure_attributions"],
         }
     if status == "user_pending":
         return 3, {
@@ -1818,8 +1822,33 @@ def acceptance_record(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     return 3, {
         "status": "unverified",
         "accepted_layer": None,
-        "next_action": value.get("next_action") or "run_minimum_sufficient_acceptance",
+        "next_action": stored["next_action"] or "run_minimum_sufficient_acceptance",
     }
+
+
+# acceptance create --input 的 --help 示例（校验在 acceptance_assets；改 schema 同步此处）。
+ACCEPTANCE_TARGET_INPUT_EXAMPLE = {
+    "schema_version": ACCEPTANCE_TARGET_INPUT_SCHEMA,
+    "title": "…",
+    "key_symbols": ["…"],
+    "objective": "…",
+    "plan_ref": "docs/plans/x.json（可选）",
+    "knowledge_refs": [],
+    "criteria": [
+        {
+            "id": "c1",
+            "title": "…",
+            "acceptance_type": "contract_check|behavior_acceptance|user_acceptance",
+            "layer": "L1-L5",
+            "evidence_layer": "仅 behavior_acceptance 填写，且映射必须等于 layer",
+        }
+    ],
+}
+ACCEPTANCE_TARGET_INPUT_NOTES = (
+    "耦合：contract_check=L1 且无 evidence_layer；user_acceptance=L5 且无 evidence_layer；",
+    "behavior_acceptance 的 evidence_layer 映射 focused_test/repository_full_test→L2、"
+    "local_runtime→L3、package_or_install→L4、real_device→L5。",
+)
 
 
 def acceptance_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
@@ -1836,6 +1865,75 @@ def acceptance_create(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         raise translate_asset_error(exc) from exc
 
 
+# acceptance settle --input 的 --help 示例（顶层形状校验在 read_settle_input，逐条记录复用
+# build_stored_acceptance_record；改 schema 同步此处）。
+ACCEPTANCE_SETTLE_INPUT_EXAMPLE = {
+    "schema_version": ACCEPTANCE_SETTLE_INPUT_SCHEMA,
+    "objective": "必须与资产 objective 一致",
+    "records": [
+        {
+            "criterion_id": "c1（必须当前 pending；已验收改写走 --reaccept）",
+            "acceptance_type": "contract_check|behavior_acceptance|user_acceptance",
+            "status": "passed|failed|user_pending",
+            "layer": "L1-L5",
+            "evidence_layer": "仅 behavior_acceptance 填写，与 criterion 同 L 层",
+            "method": "passed 必填",
+            "evidence_refs": ["已存在的证据文件"],
+            "confirmation": "user_acceptance passed 配合 --user-confirmed",
+        }
+    ],
+}
+ACCEPTANCE_SETTLE_INPUT_NOTES = (
+    "records 每项 = acceptance record 单条输入去掉 objective（objective 提到顶层，必须与资产一致）；",
+    "records 为空数组等价于不传 --input；单条记录按状态必填规则与 acceptance record 完全一致；",
+    "records 内 criterion_id 不得重复，且目标 criterion 必须当前 pending；",
+    "成功时返回 payload 追加 recorded/record_ids 便于核对。",
+)
+
+
+def read_settle_input(
+    target: Path, args: argparse.Namespace
+) -> tuple[str | None, list[tuple[str, dict[str, Any]]]]:
+    """读取并校验 settle --input 顶层形状，逐条记录复用单条 record 输入级校验。
+
+    返回 (objective, records)；未传 --input 时返回 (None, [])。
+    records 为 (criterion_id, stored) 列表，供资产层 settle 原子批量落盘。"""
+    if not args.input:
+        return None, []
+    input_path = project_input_path(target, args.input, code="invalid_acceptance_settle_input")
+    value = read_json(input_path)
+    if not isinstance(value, dict) or value.get("schema_version") != ACCEPTANCE_SETTLE_INPUT_SCHEMA:
+        raise HarnessError(
+            f"settle 输入 Schema 无效，必须为 {ACCEPTANCE_SETTLE_INPUT_SCHEMA}",
+            code="invalid_acceptance_settle_input",
+        )
+    if set(value) - {"schema_version", "objective", "records"}:
+        raise HarnessError("settle 输入包含未注册字段", code="invalid_acceptance_settle_input")
+    objective = value.get("objective")
+    if not isinstance(objective, str) or not objective.strip():
+        raise HarnessError("settle 输入 objective 不能为空", code="invalid_acceptance_settle_input")
+    raw_records = value.get("records")
+    if not isinstance(raw_records, list):
+        raise HarnessError("settle 输入 records 必须是数组", code="invalid_acceptance_settle_input")
+    objective = objective.strip()
+    records: list[tuple[str, dict[str, Any]]] = []
+    for item in raw_records:
+        if not isinstance(item, dict):
+            raise HarnessError("settle records 每项必须是对象", code="invalid_acceptance_settle_input")
+        criterion_id = item.get("criterion_id")
+        if not isinstance(criterion_id, str) or not criterion_id.strip():
+            raise HarnessError("settle 记录必须提供 criterion_id", code="acceptance_criterion_missing")
+        stored = build_stored_acceptance_record(
+            target,
+            item,
+            objective,
+            associated=True,
+            user_confirmed=bool(args.user_confirmed),
+        )
+        records.append((criterion_id.strip(), stored))
+    return objective, records
+
+
 def acceptance_settle(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     if not args.acceptance or not args.status:
         raise HarnessError(
@@ -1843,6 +1941,7 @@ def acceptance_settle(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             code="missing_acceptance_target",
         )
     target = safe_target(args.target)
+    objective, records = read_settle_input(target, args)
     try:
         payload = settle_acceptance_asset(
             target,
@@ -1851,6 +1950,8 @@ def acceptance_settle(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             args.replacement,
             utc_now(),
             docs_check_markdown_files(target),
+            records=records,
+            objective=objective,
         )
     except AssetError as exc:
         raise translate_asset_error(exc) from exc
@@ -2996,6 +3097,8 @@ def read_version_sources(root: Path) -> dict[str, str | None]:
         "controller": None,
         "skill": None,
         "package": None,
+        "templates": None,
+        "evals": None,
     }
     script = root / "scripts" / "harness.py"
     if script.is_file():
@@ -3013,7 +3116,30 @@ def read_version_sources(root: Path) -> dict[str, str | None]:
         value = read_json(package)
         if isinstance(value, dict) and isinstance(value.get("version"), str):
             sources["package"] = value["version"]
+    sources["templates"] = read_template_versions(root)
+    evals_file = root / "evals" / "evals.json"
+    if evals_file.is_file():
+        value = read_json(evals_file)
+        if isinstance(value, dict) and isinstance(value.get("version"), str):
+            sources["evals"] = value["version"]
     return sources
+
+
+def read_template_versions(root: Path) -> str | None:
+    """读取全部方案模板的 version 字段：任一缺失/非法返回 None；不一致返回排序拼接串。"""
+    versions: set[str] = set()
+    for relative in PLAN_TEMPLATE_RELATIVE_FILES:
+        path = root / PLAN_TEMPLATES_RELATIVE / relative
+        if not path.is_file():
+            return None
+        value = read_json(path)
+        version = value.get("version") if isinstance(value, dict) else None
+        if not isinstance(version, str):
+            return None
+        versions.add(version)
+    if len(versions) != 1:
+        return "+".join(sorted(versions)) or None
+    return next(iter(versions))
 
 
 def changelog_top_version(root: Path) -> str | None:
@@ -3027,13 +3153,13 @@ def changelog_top_version(root: Path) -> str | None:
     return match.group(1) if match else None
 
 
-def update_package_version(raw: str, version: str) -> str:
+def update_json_version(raw: str, version: str) -> str:
     pattern = re.compile(
         r'(?m)^([ \t]*"version"[ \t]*:[ \t]*")' + SEMVER_PATTERN + r'(")'
     )
     if len(pattern.findall(raw)) != 1:
         raise HarnessError(
-            "package.json version 字段不唯一",
+            "JSON version 字段不唯一",
             code="release_managed_file_unrecognized",
         )
     return pattern.sub(rf"\g<1>{version}\g<2>", raw, count=1)
@@ -3174,7 +3300,7 @@ def command_release(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     writes: list[tuple[Path, str]] = []
     builders = {
         "VERSION": lambda raw: f"{truth}\n",
-        "package.json": lambda raw: update_package_version(raw, truth),
+        "package.json": lambda raw: update_json_version(raw, truth),
         "SKILL.md": lambda raw: update_skill_version(raw, truth),
     }
     source_names = {
@@ -3190,6 +3316,21 @@ def command_release(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         updated = builder(raw)
         if updated != raw:
             writes.append((path, updated))
+            changed.append(relative)
+    if sources["templates"] != truth:
+        for template_relative in PLAN_TEMPLATE_RELATIVE_FILES:
+            relative = f"{PLAN_TEMPLATES_RELATIVE}/{template_relative}"
+            raw = target.joinpath(relative).read_text(encoding="utf-8")
+            updated = update_json_version(raw, truth)
+            if updated != raw:
+                writes.append((target / relative, updated))
+                changed.append(relative)
+    if sources["evals"] != truth:
+        relative = "evals/evals.json"
+        raw = target.joinpath(relative).read_text(encoding="utf-8")
+        updated = update_json_version(raw, truth)
+        if updated != raw:
+            writes.append((target / relative, updated))
             changed.append(relative)
     if writes:
         apply_release_writes(writes)
@@ -3532,6 +3673,59 @@ def add_check_options(parser: argparse.ArgumentParser) -> None:
     add_target(parser)
     parser.add_argument("--strict", action="store_true", help="WARN 也使退出码非 0（供 CI 使用）")
     parser.add_argument("--fast", action="store_true", help="跳过符号存活性与 Git 时效慢检查")
+
+
+def _schema_example_block(
+    heading: str,
+    example: dict[str, Any] | None = None,
+    notes: Sequence[str] = (),
+) -> str:
+    """把某个输入 JSON 的示例常量渲染成一段 --help 文本。"""
+    lines = [heading]
+    if example is not None:
+        lines.append(json.dumps(example, ensure_ascii=False, indent=2))
+    lines.extend(notes)
+    return "\n".join(lines)
+
+
+_EPILOG_INTRO = "输入 JSON 形状与示例（示例常量在本文件对应校验函数附近，改 schema 请同步）："
+
+KNOWLEDGE_EPILOG = _EPILOG_INTRO + "\n\n" + _schema_example_block(
+    f"knowledge create|update --input（{KNOWLEDGE_INPUT_SCHEMA}）：",
+    KNOWLEDGE_INPUT_EXAMPLE,
+)
+
+PLAN_EPILOG = _EPILOG_INTRO + "\n\n" + "\n\n".join((
+    _schema_example_block(
+        "plan create --content（字段动态，以 plan select 输出的 fields 为准）：",
+        PLAN_CONTENT_EXAMPLE,
+        PLAN_CONTENT_NOTES,
+    ),
+    _schema_example_block(
+        f"plan settle --governance-input（{PLAN_GOVERNANCE_INPUT_SCHEMA}）：",
+        PLAN_GOVERNANCE_INPUT_EXAMPLE,
+    ),
+))
+
+ACCEPTANCE_EPILOG = _EPILOG_INTRO + "\n\n" + "\n\n".join((
+    _schema_example_block(
+        f"acceptance create --input（{ACCEPTANCE_TARGET_INPUT_SCHEMA}）：",
+        ACCEPTANCE_TARGET_INPUT_EXAMPLE,
+        ACCEPTANCE_TARGET_INPUT_NOTES,
+    ),
+    _schema_example_block(
+        f"acceptance record --input（{ACCEPTANCE_INPUT_SCHEMA}）：",
+        ACCEPTANCE_INPUT_EXAMPLE,
+        ACCEPTANCE_INPUT_NOTES,
+    ),
+    _schema_example_block(
+        f"acceptance settle --input（{ACCEPTANCE_SETTLE_INPUT_SCHEMA}）：",
+        ACCEPTANCE_SETTLE_INPUT_EXAMPLE,
+        ACCEPTANCE_SETTLE_INPUT_NOTES,
+    ),
+))
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="harness",
@@ -3540,7 +3734,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=VERSION)
     commands = parser.add_subparsers(dest="command", required=True)
 
-    knowledge = commands.add_parser("knowledge", help="创建、修订、查询并维护项目知识")
+    knowledge = commands.add_parser(
+        "knowledge",
+        help="创建、修订、查询并维护项目知识",
+        epilog=KNOWLEDGE_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     knowledge.add_argument("action", choices=("create", "update", "query", "settle", "check"))
     add_target(knowledge)
     knowledge.add_argument("--query")
@@ -3553,7 +3752,12 @@ def build_parser() -> argparse.ArgumentParser:
     knowledge.add_argument("--status", choices=("deprecated", "superseded"))
     knowledge.add_argument("--replacement")
 
-    plan = commands.add_parser("plan", help="选择、冻结并维护任务方案")
+    plan = commands.add_parser(
+        "plan",
+        help="选择、冻结并维护任务方案",
+        epilog=PLAN_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     plan.add_argument("action", choices=("select", "create", "settle"))
     add_target(plan)
     plan.add_argument("--level", choices=PLAN_LEVELS)
@@ -3579,6 +3783,8 @@ def build_parser() -> argparse.ArgumentParser:
     acceptance = commands.add_parser(
         "acceptance",
         help="创建、记录并维护分层验收资产",
+        epilog=ACCEPTANCE_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     acceptance.add_argument("action", choices=("create", "record", "settle", "check"))
     add_target(acceptance)

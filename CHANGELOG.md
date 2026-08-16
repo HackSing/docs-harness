@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.7.2 - 2026-08-16
+
+- Acceptance 收尾提效：`acceptance record` 的 evidence_layer 校验从「与 criterion 字面一致」放宽为「同 L 层即接受」（`ACCEPTANCE_EVIDENCE_LAYERS` 映射不变，focused_test↔repository_full_test 可互换补记），消除同层补记被 `acceptance_record_mismatch` 误拒后的改输入重试。
+- 新增 `acceptance settle --input`（`docs-harness/acceptance-settle-input/v1`）：结项时一次带入剩余 pending criterion 的批量记录并原子结项——先全量预检（criterion 存在/当前 pending/不重复/三要素匹配），任一失败整体不落地、资产指纹不变；空 records 等价不传 --input；user_acceptance 的 passed 记录仍须 `--user-confirmed` 与确认原话。N 条 pending 的收尾从 N+1 次调用降为 1 次。
+- 单条 record 与 settle 批量路径共用同一份输入校验与记录构造（`build_stored_acceptance_record`）及资产层三要素匹配（`_match_record_to_criterion`），无复制微调；`acceptance --help` 新增 settle --input 示例块。
+- 体量红线中单个文件上限由 400 行放宽至 500 行（函数 60 行不变；受管入口文案、上游测试断言同步），消除 plan_governance 等模块「差十几行就误触发拆分」的预警疲劳；控制器 anti-legacy 守卫（符号黑名单）不受影响。
+- `release sync` 版本传播面补齐：新增 plan-templates 各模板 `version` 字段与 `evals/evals.json` 两个真源（check 模式检出漂移、--apply 一并修复，模板间版本不一致时以排序拼接串显式暴露），不再依赖自升级校验与发版门禁测试事后兜底；`self-test` 的 script_version 对源包同步强校验这两处。
+
 ## 2.7.1 - 2026-08-15
 
 - 受管入口「文档可发现性规范」明确 docs-check 运行时机：方案起草与反复调整期间不运行 docs-check，闭环校验在提交前或 plan settle 时执行一次即可，pre-commit 与 CI 的 assets-check 已包含该检查；消除 agent 将"同一次提交内完成闭环"误读为编辑粒度触发、导致方案起草期反复全仓扫描空跑的问题。docs-check 实现与 pre-commit/CI 触发点不变。

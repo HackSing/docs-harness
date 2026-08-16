@@ -2,7 +2,7 @@
 name: docs-harness
 description: "默认不介入普通任务；仅按需提供项目知识、方案模板和真实验收记录。"
 metadata:
-  version: 2.7.1
+  version: 2.7.2
   status: active
 ---
 
@@ -92,6 +92,10 @@ python3 scripts/harness.py acceptance record --target . \
 ```
 
 Contract Check、Behavior Acceptance 和 User Acceptance 必须分开。Behavior Acceptance 使用 `evidence_layer=focused_test|repository_full_test|local_runtime|package_or_install|real_device`，并固定映射到 L2/L2/L3/L4/L5；任一层不得替代另一层。失败必须用 `failure_attributions[]` 分项记录 `change_related|unrelated|pre_existing|environment|flaky`、阻断性和证据。结项后重验必须显式 `--reaccept`；只有收到用户明确确认后才能用 `--user-confirmed` 登记 User Acceptance 通过。最后运行 `acceptance settle` 与 `acceptance check`。
+
+## 输入形状
+
+三类资产输入 JSON 必须携带各自 `schema_version` 与注册字段；校验失败时报错直接附期望形状。各输入 JSON 的完整字段形状、示例与按状态必填规则统一见 `python3 scripts/harness.py <cmd> --help`：`knowledge create|update` → `docs-harness/knowledge-input/v1`，`acceptance create` → `docs-harness/acceptance-target-input/v1`，`acceptance record` → `docs-harness/acceptance-input/v3`，`plan settle --governance-input` → `docs-harness/plan-governance-input/v1`；`plan create --content` 字段动态，以 `plan select` 输出的 `fields` 为准。
 
 ## ADR
 

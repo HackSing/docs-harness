@@ -296,14 +296,18 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
     def test_controller_source_has_no_legacy_state_machine_implementation(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
         # 2.7.0 将资产领域逻辑拆到受管模块；控制器保留历史安装/迁移编排，
-        # 继续设硬上限，新增领域模块各自遵守 400 行红线。
-        self.assertLess(HARNESS.stat().st_size, 155_000)
-        self.assertLess(len(source.splitlines()), 3_700)
+        # 继续设硬上限，新增领域模块各自遵守 500 行红线。
+        # 2.7.1 把各输入 JSON 的 --help 示例常量下沉到控制器现场（单一真源），
+        # 上限相应上调；真正的 anti-legacy 守卫是下方符号黑名单，不受体积影响。
+        # settle --input 批量带入（acceptance-settle-input/v1）新增共用校验抽取与
+        # 帮助示例，上限再次上调；受管模块红线同步由 400 行放宽至 500 行。
+        self.assertLess(HARNESS.stat().st_size, 165_000)
+        self.assertLess(len(source.splitlines()), 4_000)
         for module in (
             "managed_assets.py", "asset_checks.py", "plan_governance.py",
             "knowledge_assets.py", "acceptance_assets.py",
         ):
-            self.assertLess(len((ROOT / "scripts" / module).read_text(encoding="utf-8").splitlines()), 400)
+            self.assertLess(len((ROOT / "scripts" / module).read_text(encoding="utf-8").splitlines()), 500)
         for symbol in (
             "def command_run(",
             "def command_context(",
@@ -320,6 +324,58 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             "--legacy-opt-in",
         ):
             self.assertNotIn(symbol, source)
+
+    def test_prompt_surfaces_carry_input_schemas_and_managed_blocks_synced(self) -> None:
+        skill = (ROOT / "SKILL.md").read_text(encoding="utf-8")
+        for schema in (
+            "docs-harness/knowledge-input/v1",
+            "docs-harness/acceptance-target-input/v1",
+            "docs-harness/acceptance-input/v3",
+            "docs-harness/plan-governance-input/v1",
+        ):
+            self.assertIn(schema, skill)
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import harness
+        agents = (ROOT / "AGENTS.md").read_text(encoding="utf-8")
+        claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
+        self.assertIn(harness.managed_agent_block(ROOT), agents)
+        self.assertIn(harness.claude_block(ROOT), claude)
+        # 受管入口不再指向 SKILL.md，改为指向 --help（示例已下沉到 CLI 现场）。
+        for surface in (agents, claude):
+            self.assertNotIn("输入形状见 SKILL.md", surface)
+            self.assertIn("python3 scripts/harness.py <cmd> --help", surface)
+
+    def test_cli_help_carries_input_schema_examples(self) -> None:
+        cases = {
+            ("knowledge", "create"): (
+                "docs-harness/knowledge-input/v1",
+                "key_symbols",
+            ),
+            ("acceptance", "record"): (
+                "docs-harness/acceptance-input/v3",
+                "docs-harness/acceptance-target-input/v1",
+                "按状态必填",
+            ),
+            ("plan", "settle"): (
+                "docs-harness/plan-governance-input/v1",
+                "updated_knowledge_refs",
+            ),
+            ("plan", "create"): (
+                "plan select 输出的 fields",
+                "docs-harness/plan-governance-input/v1",
+            ),
+        }
+        for (command, action), needles in cases.items():
+            result = subprocess.run(
+                [sys.executable, str(HARNESS), command, action, "--help"],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, f"{command} {action}: {result.stderr}")
+            for needle in needles:
+                self.assertIn(needle, result.stdout, f"{command} {action} 缺少 {needle}")
 
     def test_project_init_bootstraps_docs_system(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))

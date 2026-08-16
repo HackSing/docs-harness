@@ -101,7 +101,7 @@ def _facts(target: Path, value: Any) -> list[dict[str, Any]]:
 
 def validate_input(target: Path, value: Any) -> dict[str, Any]:
     if not isinstance(value, dict) or value.get("schema_version") != KNOWLEDGE_INPUT_SCHEMA:
-        raise AssetError("Knowledge 输入 Schema 无效", "knowledge_input_invalid")
+        raise AssetError(f"Knowledge 输入 Schema 无效，必须为 {KNOWLEDGE_INPUT_SCHEMA}，仅允许 title/key_symbols/summary/facts", "knowledge_input_invalid")
     allowed = {"schema_version", "title", "key_symbols", "summary", "facts"}
     if set(value) - allowed:
         raise AssetError("Knowledge 输入包含未注册字段", "knowledge_input_invalid")

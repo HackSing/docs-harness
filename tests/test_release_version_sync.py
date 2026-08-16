@@ -29,6 +29,9 @@ class ReleaseVersionConsistencyTest(unittest.TestCase):
         self.assertIn(f"version: {version}", skill_text)
         evals = json.loads((ROOT / "evals" / "evals.json").read_text(encoding="utf-8"))
         self.assertEqual(evals["version"], version)
+        for template in (ROOT / "plan-templates").rglob("*.json"):
+            value = json.loads(template.read_text(encoding="utf-8"))
+            self.assertEqual(value["version"], version, str(template))
 
 
 if __name__ == "__main__":

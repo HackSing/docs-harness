@@ -29,6 +29,8 @@ from plan_governance import (
 
 ACCEPTANCE_TARGET_INPUT_SCHEMA = "docs-harness/acceptance-target-input/v1"
 ACCEPTANCE_ASSET_SCHEMA = "docs-harness/acceptance-asset/v1"
+# settle --input 批量带入 pending 记录的输入 Schema：harness 校验顶层形状，本模块 settle 消费记录。
+ACCEPTANCE_SETTLE_INPUT_SCHEMA = "docs-harness/acceptance-settle-input/v1"
 ACCEPTANCE_SETTLE_STATUSES = ("passed", "failed", "superseded")
 ACCEPTANCE_TYPES = {"contract_check", "behavior_acceptance", "user_acceptance"}
 ACCEPTANCE_LAYERS = {
@@ -132,11 +134,19 @@ def _criterion(value: Any) -> dict[str, Any]:
     layer = value.get("layer")
     evidence_layer = value.get("evidence_layer")
     if acceptance_type not in ACCEPTANCE_TYPES or layer not in ACCEPTANCE_LAYERS:
-        raise AssetError("criterion 类型或层级无效", "acceptance_target_invalid")
+        raise AssetError(
+            "criterion 类型或层级无效，acceptance_type 仅接受 "
+            + "|".join(sorted(ACCEPTANCE_TYPES)) + "，layer 仅接受 L1-L5",
+            "acceptance_target_invalid",
+        )
     if acceptance_type == "contract_check" and (layer != "L1" or evidence_layer is not None):
         raise AssetError("合同检查必须是 L1 且无 evidence_layer", "acceptance_target_invalid")
     if acceptance_type == "behavior_acceptance" and ACCEPTANCE_EVIDENCE_LAYERS.get(evidence_layer) != layer:
-        raise AssetError("行为验收 evidence_layer 与 layer 不匹配", "acceptance_target_invalid")
+        raise AssetError(
+            "行为验收 evidence_layer 与 layer 不匹配，映射为 "
+            + "、".join(f"{k}→{v}" for k, v in sorted(ACCEPTANCE_EVIDENCE_LAYERS.items())),
+            "acceptance_target_invalid",
+        )
     if acceptance_type == "user_acceptance" and (layer != "L5" or evidence_layer is not None):
         raise AssetError("用户验收必须是 L5 且无 evidence_layer", "acceptance_target_invalid")
     return {
@@ -152,7 +162,7 @@ def _criterion(value: Any) -> dict[str, Any]:
 
 def validate_input(target: Path, value: Any) -> dict[str, Any]:
     if not isinstance(value, dict) or value.get("schema_version") != ACCEPTANCE_TARGET_INPUT_SCHEMA:
-        raise AssetError("Acceptance 目标输入 Schema 无效", "acceptance_target_invalid")
+        raise AssetError(f"Acceptance 目标输入 Schema 无效，必须为 {ACCEPTANCE_TARGET_INPUT_SCHEMA}", "acceptance_target_invalid")
     allowed = {"schema_version", "title", "key_symbols", "objective", "plan_ref", "knowledge_refs", "criteria"}
     if set(value) - allowed:
         raise AssetError("Acceptance 目标包含未注册字段", "acceptance_target_invalid")
@@ -295,6 +305,66 @@ def _next_revision(current: dict[str, Any], now: str) -> tuple[int, list[dict[st
     return current["revision"] + 1, history
 
 
+def _find_criterion(current: dict[str, Any], criterion_id: str) -> dict[str, Any]:
+    criterion = next((item for item in current["criteria"] if item["id"] == criterion_id), None)
+    if criterion is None:
+        raise AssetError("criterion_id 不存在", "acceptance_criterion_missing")
+    return criterion
+
+
+def _match_record_to_criterion(criterion: dict[str, Any], record_value: dict[str, Any]) -> None:
+    """校验单条记录与目标 criterion 的三要素（acceptance_type/layer/evidence_layer 同层）。"""
+    for key in ("acceptance_type", "layer"):
+        if criterion[key] != record_value.get(key):
+            raise AssetError(f"验收记录与 criterion 的 {key} 不一致", "acceptance_record_mismatch")
+    criterion_evidence = criterion["evidence_layer"]
+    record_evidence = record_value.get("evidence_layer")
+    if criterion_evidence is None:
+        # contract_check / user_acceptance 无证据层：record 也必须为 None
+        if record_evidence is not None:
+            raise AssetError("验收记录与 criterion 的 evidence_layer 不一致", "acceptance_record_mismatch")
+    else:
+        # behavior_acceptance：同 L 层即接受（focused_test 与 repository_full_test 可互换）
+        if ACCEPTANCE_EVIDENCE_LAYERS.get(record_evidence) != criterion["layer"]:
+            raise AssetError("验收记录与 criterion 的 evidence_layer 不一致", "acceptance_record_mismatch")
+
+
+def _apply_record(criterion: dict[str, Any], record_value: dict[str, Any]) -> None:
+    criterion["records"].append(record_value)
+    criterion["status"] = "passed" if record_value["status"] == "passed" else "failed" if record_value["status"] == "failed" else "pending"
+
+
+def _apply_settle_records(
+    current: dict[str, Any],
+    records: Sequence[tuple[str, dict[str, Any]]],
+) -> tuple[list[str], list[str]]:
+    """settle --input 原子批量：先对当前资产状态全量预检，全部通过后再逐条应用。
+
+    预检阶段只读不改；任一记录 criterion 缺失/非 pending/重复/三要素不符即报错，
+    此时 current 未被改动，调用方也不会写盘。"""
+    prepared: list[tuple[dict[str, Any], dict[str, Any]]] = []
+    seen: set[str] = set()
+    for criterion_id, record_value in records:
+        if criterion_id in seen:
+            raise AssetError("settle 输入 criterion_id 重复", "acceptance_settle_duplicate_criterion")
+        seen.add(criterion_id)
+        criterion = _find_criterion(current, criterion_id)
+        if criterion["status"] != "pending":
+            raise AssetError(
+                "settle 只接受当前 pending 的 criterion，已验收的改写请走 --reaccept",
+                "acceptance_settle_criterion_not_pending",
+            )
+        _match_record_to_criterion(criterion, record_value)
+        prepared.append((criterion, record_value))
+    recorded: list[str] = []
+    record_ids: list[str] = []
+    for criterion, record_value in prepared:
+        _apply_record(criterion, record_value)
+        recorded.append(criterion["id"])
+        record_ids.append(record_value["record_id"])
+    return recorded, record_ids
+
+
 def record(target: Path, raw_asset: str, criterion_id: str, record_value: dict[str, Any], now: str, reaccept: bool) -> dict[str, Any]:
     source, document, archived = asset_pair(target, raw_asset, ACCEPTANCE_SPEC)
     if archived:
@@ -305,14 +375,9 @@ def record(target: Path, raw_asset: str, criterion_id: str, record_value: dict[s
         raise AssetError("已结项 Acceptance 必须显式 --reaccept", "acceptance_reaccept_required")
     if reaccept and current["status"] not in {"failed", "passed"}:
         raise AssetError("只有已通过或失败的 Acceptance 可重验", "acceptance_reaccept_invalid")
-    criterion = next((item for item in current["criteria"] if item["id"] == criterion_id), None)
-    if criterion is None:
-        raise AssetError("criterion_id 不存在", "acceptance_criterion_missing")
-    for key in ("acceptance_type", "layer", "evidence_layer"):
-        if criterion[key] != record_value.get(key):
-            raise AssetError(f"验收记录与 criterion 的 {key} 不一致", "acceptance_record_mismatch")
-    criterion["records"].append(record_value)
-    criterion["status"] = "passed" if record_value["status"] == "passed" else "failed" if record_value["status"] == "failed" else "pending"
+    criterion = _find_criterion(current, criterion_id)
+    _match_record_to_criterion(criterion, record_value)
+    _apply_record(criterion, record_value)
     revision, history = _next_revision(current, now)
     current.update({"status": _aggregate(current["criteria"]), "revision": revision, "revision_history": history, "updated_at": now, "settled_at": None})
     asset = seal_asset(current)
@@ -320,7 +385,16 @@ def record(target: Path, raw_asset: str, criterion_id: str, record_value: dict[s
     return {"status": asset["status"], "acceptance_ref": raw_asset, "criterion_id": criterion_id, "revision": revision}
 
 
-def settle(target: Path, raw_asset: str, status: str, replacement: str | None, now: str, markdown_files: Sequence[Path]) -> dict[str, Any]:
+def settle(
+    target: Path,
+    raw_asset: str,
+    status: str,
+    replacement: str | None,
+    now: str,
+    markdown_files: Sequence[Path],
+    records: Sequence[tuple[str, dict[str, Any]]] = (),
+    objective: str | None = None,
+) -> dict[str, Any]:
     if status not in ACCEPTANCE_SETTLE_STATUSES:
         raise AssetError("Acceptance settle 状态无效", "acceptance_settle_invalid")
     source, document, archived = asset_pair(target, raw_asset, ACCEPTANCE_SPEC)
@@ -328,6 +402,14 @@ def settle(target: Path, raw_asset: str, status: str, replacement: str | None, n
         raise AssetError("Acceptance 已归档", "acceptance_archived")
     current = load_asset(source, ACCEPTANCE_SPEC)
     validate_asset(current)
+    recorded: list[str] = []
+    record_ids: list[str] = []
+    if records:
+        if objective is not None and current.get("objective") != objective:
+            raise AssetError("settle 输入 objective 必须与资产 objective 一致", "invalid_acceptance_settle_input")
+        # 原子：预检全部记录（criterion 存在/pending/不重复/三要素匹配），通过后才逐条落入内存并刷新聚合状态。
+        recorded, record_ids = _apply_settle_records(current, records)
+        current["status"] = _aggregate(current["criteria"])
     if status in {"passed", "failed"} and current["status"] != status:
         raise AssetError("结项状态与逐条验收聚合状态不一致", "acceptance_settle_mismatch")
     if status == "superseded" and not replacement:
@@ -343,12 +425,17 @@ def settle(target: Path, raw_asset: str, status: str, replacement: str | None, n
     asset = seal_asset(current)
     write_asset(target, ACCEPTANCE_SPEC, source, document, asset, render_markdown(asset), STATUS_LABELS[status])
     if status != "superseded":
-        return {"status": status, "acceptance_ref": raw_asset, "revision": revision}
-    archived_source, archived_document = archive_asset(target, ACCEPTANCE_SPEC, source, document)
-    rewritten = rewrite_links(target, ACCEPTANCE_SPEC, source.stem, markdown_files)
-    if current.get("plan_ref"):
-        _change_plan_backref(target, current["plan_ref"], raw_asset, add=False)
-    return {"status": status, "acceptance_ref": archived_source.relative_to(target).as_posix(), "document_ref": archived_document.relative_to(target).as_posix(), "rewritten_links": rewritten}
+        payload = {"status": status, "acceptance_ref": raw_asset, "revision": revision}
+    else:
+        archived_source, archived_document = archive_asset(target, ACCEPTANCE_SPEC, source, document)
+        rewritten = rewrite_links(target, ACCEPTANCE_SPEC, source.stem, markdown_files)
+        if current.get("plan_ref"):
+            _change_plan_backref(target, current["plan_ref"], raw_asset, add=False)
+        payload = {"status": status, "acceptance_ref": archived_source.relative_to(target).as_posix(), "document_ref": archived_document.relative_to(target).as_posix(), "rewritten_links": rewritten}
+    if records:
+        payload["recorded"] = recorded
+        payload["record_ids"] = record_ids
+    return payload
 
 
 def _validate_live_refs(target: Path, asset: dict[str, Any]) -> None:

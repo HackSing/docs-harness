@@ -1,4 +1,4 @@
-"""Plan v3 治理合同、反向引用与结算校验。"""
+"""Plan v3 治理合同、bugfix 校验合同、反向引用与结算校验。"""
 
 from __future__ import annotations
 
@@ -41,6 +41,105 @@ class PlanGovernanceError(Exception):
     def __init__(self, message: str, code: str = "invalid_plan_governance") -> None:
         super().__init__(message)
         self.code = code
+
+
+FULL_REGRESSION_REASON_CODES = {
+    "cross_module_change",
+    "public_contract_change",
+    "shared_infrastructure_change",
+    "dependency_or_shared_fixture_change",
+    "release_gate",
+}
+FAILURE_ATTRIBUTION_CATEGORIES = {
+    "change_related",
+    "unrelated",
+    "pre_existing",
+    "environment",
+    "flaky",
+}
+FAILURE_ATTRIBUTION_SHAPE = json.dumps(
+    {"categories": sorted(FAILURE_ATTRIBUTION_CATEGORIES),
+     "separate_non_change_failures": True, "evidence_required": True},
+    ensure_ascii=False,
+)
+
+
+def nonempty_string_list(value: Any) -> bool:
+    return (
+        isinstance(value, list)
+        and bool(value)
+        and all(isinstance(item, str) and bool(item.strip()) for item in value)
+    )
+
+
+def validate_bugfix_plan_contract(selection: dict[str, Any], content: dict[str, Any]) -> None:
+    profiles = {selection.get("plan_profile"), *selection.get("secondary_profiles", [])}
+    if selection.get("plan_level") != "full" or "bugfix" not in profiles:
+        return
+    if not nonempty_string_list(content.get("affected_modules")):
+        raise PlanGovernanceError(
+            'Bugfix 方案的 affected_modules 必须是非空字符串数组，如 ["service/session"]', "invalid_plan_content")
+    scope = content.get("verification_scope")
+    if not isinstance(scope, dict):
+        raise PlanGovernanceError(
+            'Bugfix 方案的 verification_scope 必须是对象，期望形状 {"mode": "affected_modules|repository_full", '
+            '"commands": [实际命令字符串], "reused_passed_evidence": [可复用已通过证据，可空数组]}',
+            "invalid_plan_content",
+        )
+    mode = scope.get("mode")
+    if mode not in {"affected_modules", "repository_full"}:
+        raise PlanGovernanceError(
+            "verification_scope.mode 必须是 affected_modules 或 repository_full", "invalid_plan_content")
+    if not nonempty_string_list(scope.get("commands")):
+        raise PlanGovernanceError(
+            "verification_scope.commands 必须是非空字符串数组", "invalid_plan_content")
+    reused = scope.get("reused_passed_evidence")
+    if not isinstance(reused, list) or any(not isinstance(item, str) or not item.strip() for item in reused):
+        raise PlanGovernanceError(
+            "verification_scope.reused_passed_evidence 必须是字符串数组（可空数组）", "invalid_plan_content")
+    trigger = content.get("full_regression_trigger")
+    if not isinstance(trigger, dict) or not isinstance(trigger.get("required"), bool):
+        raise PlanGovernanceError(
+            'full_regression_trigger 必须是对象，期望形状 {"required": true|false, "reason_codes": [原因码，可空数组], "rationale": "依据"}',
+            "invalid_plan_content",
+        )
+    reason_codes = trigger.get("reason_codes")
+    rationale = trigger.get("rationale")
+    if not isinstance(reason_codes, list) or any(
+        not isinstance(item, str) or item not in FULL_REGRESSION_REASON_CODES for item in reason_codes
+    ):
+        raise PlanGovernanceError(
+            "full_regression_trigger.reason_codes 仅接受：" + "、".join(sorted(FULL_REGRESSION_REASON_CODES)),
+            "invalid_plan_content",
+        )
+    if len(reason_codes) != len(set(reason_codes)):
+        raise PlanGovernanceError("全量测试触发原因码不得重复", "invalid_plan_content")
+    if not isinstance(rationale, str) or not rationale.strip():
+        raise PlanGovernanceError("full_regression_trigger.rationale 不能为空", "invalid_plan_content")
+    if mode == "repository_full" and (trigger["required"] is not True or not reason_codes):
+        raise PlanGovernanceError(
+            "mode=repository_full 时 full_regression_trigger.required 必须为 true 且 reason_codes 非空", "invalid_plan_content")
+    if mode == "affected_modules" and (trigger["required"] is not False or reason_codes):
+        raise PlanGovernanceError(
+            "mode=affected_modules 时 full_regression_trigger.required 必须为 false 且 reason_codes 必须为空数组", "invalid_plan_content")
+    attribution = content.get("failure_attribution")
+    if not isinstance(attribution, dict):
+        raise PlanGovernanceError(
+            "Bugfix 方案的 failure_attribution 必须是对象，期望形状 " + FAILURE_ATTRIBUTION_SHAPE, "invalid_plan_content")
+    categories = attribution.get("categories")
+    if (
+        not isinstance(categories, list)
+        or any(not isinstance(item, str) for item in categories)
+        or len(categories) != len(set(categories))
+        or set(categories) != FAILURE_ATTRIBUTION_CATEGORIES
+        or attribution.get("separate_non_change_failures") is not True
+        or attribution.get("evidence_required") is not True
+    ):
+        raise PlanGovernanceError(
+            "failure_attribution.categories 必须恰好声明 " + "、".join(sorted(FAILURE_ATTRIBUTION_CATEGORIES))
+            + "，且 separate_non_change_failures 与 evidence_required 均为字面 true",
+            "invalid_plan_content",
+        )
 
 
 def plan_fingerprint(value: dict[str, Any]) -> str:
@@ -258,7 +357,8 @@ def prepare_settlement(
             warnings.append("WARN: 关联 Acceptance 以 failed 结项，收尾报告必须说明失败结果")
     if not isinstance(governance_input, dict) or governance_input.get("schema_version") != PLAN_GOVERNANCE_INPUT_SCHEMA:
         raise PlanGovernanceError(
-            "Plan v3 缺少治理结算输入。下一步：提供 --governance-input <json>"
+            "Plan v3 缺少治理结算输入。下一步：提供 --governance-input，形状 "
+            '{"schema_version": "docs-harness/plan-governance-input/v1", "updated_knowledge_refs": [活跃 Knowledge 引用], "unchanged_reason": "不更新理由"}'
         )
     allowed = {"schema_version", "updated_knowledge_refs", "unchanged_reason"}
     if set(governance_input) - allowed:
