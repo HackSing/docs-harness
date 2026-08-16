@@ -121,8 +121,8 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         )
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
         public_commands = {
-            "knowledge", "plan", "acceptance", "project", "release",
-            "docs-check", "assets-check", "self-test",
+            "knowledge", "plan", "acceptance", "adr", "project", "release",
+            "assets-check", "self-test",
         }
         for command in public_commands:
             self.assertIn(command, help_result.stdout)
@@ -301,11 +301,13 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         # 上限相应上调；真正的 anti-legacy 守卫是下方符号黑名单，不受体积影响。
         # settle --input 批量带入（acceptance-settle-input/v1）新增共用校验抽取与
         # 帮助示例，上限再次上调；受管模块红线同步由 400 行放宽至 500 行。
-        self.assertLess(HARNESS.stat().st_size, 165_000)
-        self.assertLess(len(source.splitlines()), 4_000)
+        # 2.8.0 接入第四类资产 ADR（命令组、config v10、项目文档脚手架与检查），
+        # 上限随注册面上调。
+        self.assertLess(HARNESS.stat().st_size, 175_000)
+        self.assertLess(len(source.splitlines()), 4_200)
         for module in (
             "managed_assets.py", "asset_checks.py", "plan_governance.py",
-            "knowledge_assets.py", "acceptance_assets.py",
+            "knowledge_assets.py", "acceptance_assets.py", "adr_assets.py",
         ):
             self.assertLess(len((ROOT / "scripts" / module).read_text(encoding="utf-8").splitlines()), 500)
         for symbol in (
@@ -379,7 +381,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
 
     def test_project_init_bootstraps_docs_system(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
-        payload = self.run_cli("docs-check", "--target", str(self.project))
+        payload = self.run_cli("plan", "check", "--target", str(self.project))
         self.assertEqual(payload["status"], "passed")
         self.assertEqual(payload["failures"], [])
         self.assertTrue((self.project / "docs/plans/README.md").is_file())
@@ -392,10 +394,180 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertIn("docs-harness:knowledge-index:start", index)
         self.assertIn("docs-harness:acceptance-index:start", index)
 
-    def test_docs_check_fails_when_docs_system_is_missing(self) -> None:
-        payload = self.run_cli("docs-check", "--target", str(self.project), expected=1)
+    def test_plan_check_fails_when_docs_system_is_missing(self) -> None:
+        payload = self.run_cli("plan", "check", "--target", str(self.project), expected=1)
         self.assertEqual(payload["status"], "failed")
         self.assertTrue(any("project init/upgrade" in item for item in payload["failures"]))
+
+    def test_docs_check_command_removed(self) -> None:
+        result = subprocess.run(
+            [sys.executable, str(HARNESS), "docs-check", "--target", str(self.project)],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 2)
+        self.assertIn("invalid choice", result.stderr)
+
+    def _adr_input(self, title: str = "测试决策", **overrides: object) -> dict[str, object]:
+        value: dict[str, object] = {
+            "schema_version": "docs-harness/adr-input/v1",
+            "title": title,
+            "key_symbols": ["ADR_SPEC", "adr_create"],
+            "context": "背景",
+            "decision": "决策",
+            "consequences": "影响",
+        }
+        value.update(overrides)
+        return value
+
+    def test_adr_lifecycle_create_check_settle(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.assertTrue((self.project / "docs/adr/README.md").is_file())
+        content = self.write_json("inputs/adr.json", self._adr_input())
+        created = self.run_cli(
+            "adr", "create", "--target", str(self.project),
+            "--input", str(content), "--output", "docs/adr/first.json",
+        )
+        self.assertEqual(created["status"], "created")
+        self.assertTrue((self.project / "docs/adr/first.md").is_file())
+        index = (self.project / "docs/INDEX.md").read_text(encoding="utf-8")
+        self.assertIn("docs-harness:adr-index:start", index)
+        self.assertIn("first.md", index)
+        checked = self.run_cli("adr", "check", "--target", str(self.project))
+        self.assertEqual(checked["status"], "passed")
+        # 定稿不可改：同名输出拒绝
+        self.run_cli(
+            "adr", "create", "--target", str(self.project),
+            "--input", str(content), "--output", "docs/adr/first.json", expected=1,
+        )
+        # superseded 必须提供 replacement
+        self.run_cli(
+            "adr", "settle", "--target", str(self.project),
+            "--adr", "docs/adr/first.json", "--status", "superseded", expected=1,
+        )
+        second = self.write_json(
+            "inputs/adr2.json",
+            self._adr_input(title="第二决策", supersedes=["docs/adr/first.json"]),
+        )
+        self.run_cli(
+            "adr", "create", "--target", str(self.project),
+            "--input", str(second), "--output", "docs/adr/second.json",
+        )
+        settled = self.run_cli(
+            "adr", "settle", "--target", str(self.project),
+            "--adr", "docs/adr/first.json", "--status", "superseded",
+            "--replacement", "docs/adr/second.json",
+        )
+        self.assertEqual(settled["status"], "superseded")
+        self.assertTrue((self.project / "docs/adr/archive/first.json").is_file())
+        self.assertNotIn(
+            "adr/first.md",
+            (self.project / "docs/INDEX.md").read_text(encoding="utf-8"),
+        )
+        checked = self.run_cli("adr", "check", "--target", str(self.project))
+        self.assertEqual(checked["status"], "passed")
+        assets = self.run_cli("assets-check", "--target", str(self.project))
+        self.assertEqual(assets["status"], "passed")
+        self.assertEqual(assets["checked"]["adr"], 2)
+
+    def test_adr_rejects_tampered_asset(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        content = self.write_json("inputs/adr.json", self._adr_input())
+        self.run_cli(
+            "adr", "create", "--target", str(self.project),
+            "--input", str(content), "--output", "docs/adr/first.json",
+        )
+        asset_path = self.project / "docs/adr/first.json"
+        asset = json.loads(asset_path.read_text(encoding="utf-8"))
+        asset["decision"] = "手工篡改的决策"
+        asset_path.write_text(json.dumps(asset, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+        payload = self.run_cli("adr", "check", "--target", str(self.project), expected=1)
+        self.assertEqual(payload["status"], "failed")
+        self.assertTrue(any("指纹" in item for item in payload["failures"]))
+
+    def test_adr_rejects_unknown_supersedes_ref(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        content = self.write_json(
+            "inputs/adr.json", self._adr_input(supersedes=["docs/adr/ghost.json"])
+        )
+        self.run_cli(
+            "adr", "create", "--target", str(self.project),
+            "--input", str(content), "--output", "docs/adr/first.json", expected=1,
+        )
+
+    def test_adr_check_ignores_preexisting_unmarked_documents(self) -> None:
+        adr_dir = self.project / "docs" / "adr"
+        adr_dir.mkdir(parents=True)
+        (adr_dir / "ADR-0001.md").write_text("# 既有手写决策\n", encoding="utf-8")
+        (adr_dir / "INDEX.md").write_text("# 既有索引\n", encoding="utf-8")
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.assertEqual(
+            (adr_dir / "ADR-0001.md").read_text(encoding="utf-8"), "# 既有手写决策\n"
+        )
+        checked = self.run_cli("adr", "check", "--target", str(self.project))
+        self.assertEqual(checked["status"], "passed")
+        payload = self.run_cli("project", "check", "--target", str(self.project))
+        self.assertNotIn("adr_assets_invalid", [f["code"] for f in payload["findings"]])
+
+    def test_init_creates_project_doc_scaffolds_idempotently(self) -> None:
+        (self.project / "README.md").write_text("# 我的项目\n\n自定义正文。\n", encoding="utf-8")
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.assertEqual(
+            (self.project / "README.md").read_text(encoding="utf-8"),
+            "# 我的项目\n\n自定义正文。\n",
+        )
+        self.assertTrue((self.project / "CHANGELOG.md").is_file())
+        self.assertTrue((self.project / "TODO.md").is_file())
+        self.assertTrue((self.project / "docs/adr/README.md").is_file())
+        before = self.snapshot_project()
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.assertEqual(self.snapshot_project(), before)
+
+    def test_project_check_flags_missing_and_malformed_project_docs(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        payload = self.run_cli("project", "check", "--target", str(self.project))
+        self.assertNotIn("project_todo_missing", [f["code"] for f in payload["findings"]])
+        (self.project / "TODO.md").unlink()
+        payload = self.run_cli("project", "check", "--target", str(self.project), expected=1)
+        self.assertIn("project_todo_missing", [f["code"] for f in payload["findings"]])
+        (self.project / "TODO.md").write_text(
+            "# TODO\n\n## 待办\n\n- [ ] 随便写的一条\n", encoding="utf-8"
+        )
+        payload = self.run_cli("project", "check", "--target", str(self.project))
+        codes = {f["code"]: f["severity"] for f in payload["findings"]}
+        self.assertEqual(codes.get("project_todo_format"), "yellow")
+
+    def test_release_sync_strict_requires_changelog_top_version(self) -> None:
+        version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+        (self.project / "scripts").mkdir(parents=True)
+        shutil.copy2(ROOT / "scripts" / "harness.py", self.project / "scripts" / "harness.py")
+        shutil.copytree(ROOT / "plan-templates", self.project / "plan-templates")
+        (self.project / "evals").mkdir()
+        shutil.copy2(ROOT / "evals" / "evals.json", self.project / "evals" / "evals.json")
+        (self.project / "VERSION").write_text(f"{version}\n", encoding="utf-8")
+        (self.project / "package.json").write_text(
+            json.dumps({"version": version}) + "\n", encoding="utf-8"
+        )
+        (self.project / "SKILL.md").write_text(
+            f"---\nmetadata:\n  version: {version}\n---\n", encoding="utf-8"
+        )
+        (self.project / "CHANGELOG.md").write_text(
+            "# Changelog\n\n## 0.0.1 - 2026-01-01\n\n- 旧条目\n", encoding="utf-8"
+        )
+        relaxed = self.run_cli("release", "sync", "--target", str(self.project))
+        self.assertEqual(relaxed["status"], "consistent")
+        strict = self.run_cli(
+            "release", "sync", "--target", str(self.project), "--strict", expected=1
+        )
+        self.assertEqual(strict["status"], "inconsistent")
+        self.assertTrue(strict["strict_failures"])
+        (self.project / "CHANGELOG.md").write_text(
+            f"# Changelog\n\n## {version} - 2026-08-16\n\n- 新条目\n", encoding="utf-8"
+        )
+        fixed = self.run_cli("release", "sync", "--target", str(self.project), "--strict")
+        self.assertEqual(fixed["status"], "consistent")
 
     def test_assets_check_passes_for_initialized_zero_asset_project(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
@@ -482,7 +654,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         )
         self.assertEqual(fast["status"], "passed")
 
-    def test_docs_check_reports_banner_and_stale_archive_reference(self) -> None:
+    def test_plan_check_reports_banner_and_stale_archive_reference(self) -> None:
         docs = self.project / "docs"
         plans = docs / "plans"
         archive = plans / "archive"
@@ -500,7 +672,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         (docs / "guide.md").write_text(
             "# 指南\n\n参见 docs/plans/old-plan.md 的旧路径。\n", encoding="utf-8"
         )
-        payload = self.run_cli("docs-check", "--target", str(self.project), expected=1)
+        payload = self.run_cli("plan", "check", "--target", str(self.project), expected=1)
         self.assertEqual(payload["status"], "failed")
         failures = payload["failures"]
         self.assertTrue(any("缺少状态横幅" in item for item in failures))
@@ -986,7 +1158,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             "objective": "验证方案生命周期",
             "scope": ["scripts/harness.py"],
             "steps": ["创建", "完成", "归档"],
-            "acceptance": ["docs-check 通过"],
+            "acceptance": ["plan check 通过"],
         }
         content_path = self.write_json("content.json", content)
         self.run_cli(
@@ -1015,7 +1187,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertTrue((self.project / "docs/plans/archive/lifecycle.json").is_file())
         index = (self.project / "docs/INDEX.md").read_text(encoding="utf-8")
         self.assertNotIn("plans/lifecycle.md", index)
-        checked = self.run_cli("docs-check", "--target", str(self.project))
+        checked = self.run_cli("plan", "check", "--target", str(self.project))
         self.assertEqual(checked["status"], "passed")
 
     def test_plan_settle_migrates_pre_250_frozen_identity(self) -> None:
@@ -1146,7 +1318,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(self.snapshot_project(), before)
         self.assertEqual(list(outside.iterdir()), [])
 
-    def test_project_init_installs_pure_v9_without_legacy_rules(self) -> None:
+    def test_project_init_installs_pure_v10_without_legacy_rules(self) -> None:
         payload = self.run_cli("project", "init", "--target", str(self.project))
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
@@ -1154,7 +1326,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(
             payload["version"], (ROOT / "VERSION").read_text(encoding="utf-8").strip()
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v9")
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v10")
         self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["direct_mode"], {"default": True})
@@ -1326,7 +1498,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         shutil.copytree(ROOT / "scripts" / "githooks", fake / "scripts" / "githooks")
         for module in (
             "managed_assets.py", "asset_checks.py", "plan_governance.py",
-            "knowledge_assets.py", "acceptance_assets.py",
+            "knowledge_assets.py", "acceptance_assets.py", "adr_assets.py",
         ):
             shutil.copy2(ROOT / "scripts" / module, fake / "scripts" / module)
         script = (ROOT / "scripts" / "harness.py").read_text(encoding="utf-8")
@@ -1511,7 +1683,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v9")
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v10")
         self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["migration"]["source_version"], "2.3.0")
@@ -1645,7 +1817,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v9")
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v10")
         self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["direct_mode"], {"default": True})

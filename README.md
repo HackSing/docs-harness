@@ -4,9 +4,9 @@
 
 **面向 AI Agent 的轻量项目文档治理工具**
 
-默认直接完成任务；仅在确有长期价值时，管理 Plan、Knowledge、Acceptance 三类项目资产的完整生命周期。
+默认直接完成任务；仅在确有长期价值时，管理 Plan、Knowledge、Acceptance、ADR 四类项目资产的完整生命周期。
 
-[![Version](https://img.shields.io/badge/version-2.7.1-2563eb.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.8.0-2563eb.svg)](CHANGELOG.md)
 [![Assets Check](https://github.com/HackSing/docs-harness/actions/workflows/assets-check.yml/badge.svg)](https://github.com/HackSing/docs-harness/actions/workflows/assets-check.yml)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776ab.svg)](https://www.python.org/)
 [![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-16a34a.svg)](scripts/harness.py)
@@ -39,7 +39,7 @@ Docs Harness 将这些内容沉淀为项目内、可版本管理的资产，同�
 | Plan 生命周期 | 方案容易丢失、过期或无法追溯 | 按需创建冻结 JSON、Markdown 和索引 |
 | Knowledge 生命周期 | 项目事实缺少来源、更新和冲突管理 | 只记录有 `source_refs` 的可复用事实 |
 | Acceptance 生命周期 | 测试、运行、安装和用户验收容易混为一谈 | 按标准和证据层逐条记录真实结果 |
-| `assets-check` | 三类资产分散检查，关系容易漂移 | 本地、pre-commit 和 CI 多层持续检查 |
+| `assets-check` | 四类资产分散检查，关系容易漂移 | 本地、pre-commit 和 CI 多层持续检查 |
 | 安全升级 | 旧版本或用户修改可能被误覆盖 | preview 优先，只覆盖指纹归属明确的文件 |
 
 ## 快速开始
@@ -90,7 +90,7 @@ python3 /path/to/docs-harness/scripts/harness.py \
   project upgrade --target /path/to/project --apply --json
 ```
 
-跨版本升级必须使用新版本源码中的控制器。升级会保留项目正文、三类用户资产、质量账本以及已修改或归属不明的文件。
+跨版本升级必须使用新版本源码中的控制器。升级会保留项目正文、四类用户资产、质量账本以及已修改或归属不明的文件。
 
 ### 4. 启用提交前检查
 
@@ -132,7 +132,7 @@ Agent 读取必要事实并直接工作
 明确报告已验证、待用户验证和未覆盖层
 ```
 
-简单任务不要求 Plan、Knowledge 或 Acceptance。复杂任务通过三类资产形成可追溯闭环：
+简单任务不要求 Plan、Knowledge 或 Acceptance。复杂任务通过资产形成可追溯闭环，长期架构决策用 ADR 登记：
 
 ```text
 Knowledge：提供有来源、可冲突检测的项目事实
@@ -148,7 +148,7 @@ Acceptance：验证实施后产生的真实结果
 
 ```text
 初始化 → 选择模板 → 创建 JSON/Markdown → 执行引用
-→ settle 收尾 → 废弃/替代 → 归档 → docs-check
+→ settle 收尾 → 废弃/替代 → 归档 → plan check
 ```
 
 复杂任务先选择 Level 与 Profile：
@@ -264,18 +264,18 @@ GitHub Actions --strict
 
 | 命令 | 用途 |
 |---|---|
-| `project init` | 初始化受管入口和三类资产目录 |
+| `project init` | 初始化受管入口、四类资产目录与项目级文档骨架 |
 | `project upgrade` | 预览或应用单向升级 |
 | `project diff` | 只读查看安装态与来源包差异 |
-| `project check` | 检查版本、指纹、结构和 Git 交付状态 |
+| `project check` | 检查版本、指纹、结构、项目文档和 Git 交付状态 |
 | `project uninstall` | 预览或移除所有权明确的受管程序 |
 | `knowledge create/update/query/settle/check` | 管理 Knowledge 生命周期 |
-| `plan select/create/settle` | 管理 Plan 生命周期 |
+| `plan select/create/settle/check` | 管理 Plan 生命周期，check 检查 Plan 文档、索引、符号与链接 |
 | `acceptance create/record/settle/check` | 管理 Acceptance 生命周期 |
-| `docs-check` | 检查 Plan 文档、索引、符号与链接 |
-| `assets-check` | 统一检查三类资产和跨资产关系 |
+| `adr create/settle/check` | 管理架构决策记录（ADR）生命周期（定稿不可改） |
+| `assets-check` | 统一检查四类资产和跨资产关系 |
 | `self-test` | 运行安装副本的内置合同检查 |
-| `release sync` | 检查版本真源是否一致 |
+| `release sync` | 检查版本真源是否一致（--strict 强制 CHANGELOG 顶部版本一致） |
 
 完整输入 Schema、状态机和退出语义见 [docs/contracts.md](docs/contracts.md)。
 
@@ -294,12 +294,12 @@ GitHub Actions --strict
 ```text
 docs-harness/
 ├── scripts/harness.py           # CLI 控制器
-├── scripts/*_assets.py          # Knowledge/Acceptance 与共享资产逻辑
+├── scripts/*_assets.py          # Knowledge/Acceptance/ADR 与共享资产逻辑
 ├── scripts/asset_checks.py      # 统一检查和跨资产关系
 ├── scripts/plan_governance.py   # Plan v3 治理合同
 ├── scripts/githooks/            # 入库 Git Hook
 ├── plan-templates/              # Level 与 Profile 模板
-├── docs/                        # 产品、合同、测试和三类资产
+├── docs/                        # 产品、合同、测试和四类资产
 ├── tests/                       # Python unittest 回归
 └── .github/workflows/           # GitHub 严格检查
 ```

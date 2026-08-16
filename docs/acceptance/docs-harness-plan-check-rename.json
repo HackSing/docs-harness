@@ -1,0 +1,166 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "docs-check 更名为 plan check 验收",
+  "key_symbols": [
+    "command_plan_check",
+    "plan_check_markdown_files",
+    "command_assets_check"
+  ],
+  "objective": "plan check 行为等价原 docs-check，旧命令删除，全仓引用同步，测试与检查全绿",
+  "plan_ref": "docs/plans/docs-harness-plan-check-rename.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "改名相关聚焦测试全绿（含 docs-check 未知命令负向用例）",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260816T060920-b22eef07c3",
+          "objective_fingerprint": "sha256:eba5365a18b543cb281526423b382b10db4b8be5bdde488be2d816eb8c6c4026",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "python3 -m unittest tests.test_v2_direct -v：67 项全绿，含 test_plan_check_* 改名用例与 test_docs_check_command_removed 负向用例",
+          "evidence_refs": [
+            "tests/test_v2_direct.py"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-16T06:09:20+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "全量 npm test 通过（CLI 公共契约变更）",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "repository_full_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260816T060920-c7e40b5879",
+          "objective_fingerprint": "sha256:eba5365a18b543cb281526423b382b10db4b8be5bdde488be2d816eb8c6c4026",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "repository_full_test",
+          "method": "npm test：68 项全绿（test_v2_direct 67 + test_release_version_sync 1），退出码 0",
+          "evidence_refs": [
+            "tests/test_v2_direct.py",
+            "tests/test_release_version_sync.py"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-16T06:09:20+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "assets-check --strict 通过（含 C5 符号存活，验证 INDEX 同步）",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260816T060920-c14f6584df",
+          "objective_fingerprint": "sha256:eba5365a18b543cb281526423b382b10db4b8be5bdde488be2d816eb8c6c4026",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "python3 scripts/harness.py assets-check --target . --strict：passed，违规 0、警告 0（C5 符号存活零 WARN，INDEX 已同步 command_plan_check）",
+          "evidence_refs": [
+            "docs/INDEX.md",
+            "scripts/harness.py"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-16T06:09:20+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "title": "self-test 通过",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260816T060920-3ee4f34a89",
+          "objective_fingerprint": "sha256:eba5365a18b543cb281526423b382b10db4b8be5bdde488be2d816eb8c6c4026",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "python3 scripts/harness.py self-test --target .：2.8.0 passed，全部 checks 为 True",
+          "evidence_refs": [
+            "scripts/harness.py"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-16T06:09:20+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c5",
+      "title": "冒烟：plan check 跑通且 docs-check 退出码 2",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260816T060920-6f056136b4",
+          "objective_fingerprint": "sha256:eba5365a18b543cb281526423b382b10db4b8be5bdde488be2d816eb8c6c4026",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "冒烟：plan check --target . 退出码 0 且 summary 为 plan check passed；docs-check --target . 退出码 2（argparse invalid choice）",
+          "evidence_refs": [
+            "scripts/harness.py",
+            "CHANGELOG.md"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-16T06:09:20+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 2,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:59d74a16ecfbf49a4e47fe1e257919fb088d8d297f525680d3ecf96a96fe1615",
+      "updated_at": "2026-08-16T06:00:03+00:00"
+    }
+  ],
+  "created_at": "2026-08-16T06:00:03+00:00",
+  "updated_at": "2026-08-16T06:09:20+00:00",
+  "settled_at": "2026-08-16T06:09:20+00:00",
+  "asset_fingerprint": "sha256:81bb0cf7b954b0a17eec9b9b91f3f354c5cc197c8100709260c0698b4267b513",
+  "replacement": null
+}

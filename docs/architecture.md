@@ -103,6 +103,7 @@ Plan/Knowledge 引用 + 验收目标与标准 → acceptance create
 - `scripts/plan_governance.py`
 - `scripts/knowledge_assets.py`
 - `scripts/acceptance_assets.py`
+- `scripts/adr_assets.py`
 - `docs/contracts.md`
 - `SKILL.md`
 - `package.json`

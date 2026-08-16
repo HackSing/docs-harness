@@ -1,0 +1,141 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "项目级文档治理验收（ADR 资产 + 脚手架与检查）",
+  "key_symbols": [
+    "adr_assets",
+    "ADR_SPEC",
+    "changelog_top_version"
+  ],
+  "objective": "ADR 第四类受管资产生命周期跑通，CHANGELOG/TODO/README 脚手架与检查生效，全仓测试与检查全绿",
+  "plan_ref": "docs/plans/docs-harness-project-docs-governance.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "聚焦测试：adr 生命周期/篡改拒绝/脚手架幂等/release sync --strict/project check findings 用例全绿",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260816T160137-12952de66f",
+          "objective_fingerprint": "sha256:5475773f8689b6c8522abead4b9d27149843470b1ca593d190ffce18256032cc",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "python3 -m unittest tests.test_v2_direct：74 项全绿，含 adr 生命周期/篡改拒绝/未知 supersedes 拒绝/未标记文档豁免/脚手架幂等/project check findings/release sync --strict 用例",
+          "evidence_refs": [
+            "tests/test_v2_direct.py",
+            "scripts/adr_assets.py"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-16T16:01:37+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "全量 npm test 通过（新命令组 + config v10 公共契约）",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "repository_full_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260816T160137-3c544b74db",
+          "objective_fingerprint": "sha256:5475773f8689b6c8522abead4b9d27149843470b1ca593d190ffce18256032cc",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "repository_full_test",
+          "method": "npm test：74 项全绿（test_v2_direct 73 + test_release_version_sync 1），退出码 0",
+          "evidence_refs": [
+            "tests/test_v2_direct.py",
+            "tests/test_release_version_sync.py"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-16T16:01:37+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "assets-check --strict 与 self-test 通过",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260816T160137-b850adb059",
+          "objective_fingerprint": "sha256:5475773f8689b6c8522abead4b9d27149843470b1ca593d190ffce18256032cc",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "assets-check --strict passed（违规 0、警告 0，ADR 纳入 checked）；self-test 2.8.0 passed 全部 checks True",
+          "evidence_refs": [
+            "scripts/asset_checks.py",
+            "scripts/harness.py"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-16T16:01:37+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "title": "L3 冒烟：fresh init 四类骨架齐备且二次 init 幂等零覆盖；v9 项目 upgrade 到 v10 平滑",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260816T160137-773f2c88be",
+          "objective_fingerprint": "sha256:5475773f8689b6c8522abead4b9d27149843470b1ca593d190ffce18256032cc",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "临时目录 fresh init 四类骨架齐备且二次 init 快照一致（测试覆盖）；ZBuddy/avatanel/dsh-buddy 三个 v9 配置项目 upgrade 到 v10 均 needs_delivery 成功，各项目安装副本 assets-check --strict 与 self-test 全 passed（ZBuddy 既有 44 份手写 ADR 由 marker_scoped 豁免，零覆盖）",
+          "evidence_refs": [
+            "scripts/harness.py",
+            "scripts/managed_assets.py",
+            "CHANGELOG.md"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-16T16:01:37+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 2,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:f0b1ace65d8d53af02de2c6e047f647fffdb8455ec59262ffb6147a7df641c66",
+      "updated_at": "2026-08-16T15:18:36+00:00"
+    }
+  ],
+  "created_at": "2026-08-16T15:18:36+00:00",
+  "updated_at": "2026-08-16T16:01:37+00:00",
+  "settled_at": "2026-08-16T16:01:37+00:00",
+  "asset_fingerprint": "sha256:09563252779217fbde485cf4ff166fdf69ff5383bac4214a809f482f4792dbdd",
+  "replacement": null
+}

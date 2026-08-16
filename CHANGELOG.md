@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.8.0 - 2026-08-17
+
+- 破坏性变更：顶级命令 `docs-check` 删除，Plan 域文档可发现性检查收编为 `plan check`（与 `knowledge check` / `acceptance check` 对称），无兼容别名；直接调用 `docs-check` 将由 argparse 报错（退出码 2）。官方 pre-commit 与 CI 均只调 `assets-check`，不受影响；自定义脚本需改用 `plan check`。
+- 内部标识符同步更名：`command_docs_check` → `command_plan_check`，`docs_check_*` helper → `plan_check_*`，`DOCS_CHECK_*` 常量 → `PLAN_CHECK_*`，错误码 `docs_check_unreadable` → `plan_check_unreadable`；检查规则 C1-C7 与 fast/strict 语义零变更。
+- 受管入口、SKILL.md、README.md 现行用法同步为 `plan check`；`docs/INDEX.md` 历史条目关键符号同步为 `command_plan_check`；历史文档正文（旧 CHANGELOG 条目、审计与已实施方案）保留原样。
+- 新增 ADR 第四类受管资产：`adr create/settle/check`（docs-harness/adr-input/v1、adr-asset/v1），`docs/adr/` + archive + README + INDEX 受管区块；决策定稿不可改（无 update），失效用 `adr settle --status deprecated|superseded`（superseded 需 `--replacement`）归档；指纹防篡改、supersedes 引用校验复用 managed_assets 通用层。ADR 检查按 projection marker 界定所有权（`AssetSpec.marker_scoped`）：目录中既有的手写 ADR 文档不受 JSON 成对要求约束，与 Harness 资产共存。
+- init/upgrade 缺失即建项目级 `CHANGELOG.md`、`TODO.md`、`README.md` 骨架，已存在文件零覆盖；`project check` 对缺失的 CHANGELOG/TODO 出 red、TODO 条目格式问题出 yellow；`release sync --strict` 强制 CHANGELOG 顶部版本与 VERSION 一致。
+- 安装配置升级为 `project-config/v10`（新增 adr_assets 模块指纹），v1-v9 单向平滑升级；uninstall/diff/check/self-test 全链路消费。
+
 ## 2.7.2 - 2026-08-16
 
 - Acceptance 收尾提效：`acceptance record` 的 evidence_layer 校验从「与 criterion 字面一致」放宽为「同 L 层即接受」（`ACCEPTANCE_EVIDENCE_LAYERS` 映射不变，focused_test↔repository_full_test 可互换补记），消除同层补记被 `acceptance_record_mismatch` 误拒后的改输入重试。

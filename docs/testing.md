@@ -12,7 +12,7 @@
 - 完整回归：`npm test`，仅在行为代码、依赖、公共夹具或跨模块风险要求时运行；
 - 控制器自检：`npm run self-test`；
 - 发布包清单：`npm run pack:check`；
-- 版本一致性：`python3 scripts/harness.py release sync --target . --json`。
+- 版本一致性：`python3 scripts/harness.py release sync --target . --json`（`--strict` 同时强制 CHANGELOG 顶部版本与 VERSION 一致）。
 - 统一资产检查：本地/钩子运行 `assets-check --fast`，发布与 CI 运行 `assets-check --strict`。
 
 ## 3. 验证选择矩阵

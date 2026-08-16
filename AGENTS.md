@@ -1,9 +1,9 @@
 # AGENTS.md
 
 <!-- docs-harness:managed-entry:start -->
-## Docs Harness 2.7.2：默认直跑，能力按需
+## Docs Harness 2.8.0：默认直跑，能力按需
 
-Docs Harness 当前版本：2.7.2
+Docs Harness 当前版本：2.8.0
 
 - 普通问答、只读检查、代码修改、构建和测试默认由 agent 直接完成；Harness 不作为任务入口，也不创建任务控制状态。
 - 用户明确说“不使用 Harness”时必须直接执行，不得暗中恢复旧流程。
@@ -12,10 +12,10 @@ Docs Harness 当前版本：2.7.2
 - 复杂任务在 Plan 后创建 Acceptance 目标，执行中逐条记录真实证据并结项；简单任务仍可直接验证，不强制创建资产。
 - 验收以真实功能为中心：能运行聚焦测试、接口、页面、应用、构建或安装流程时运行最小充分流程；不能独立判断时准备最低成本环境，再交给用户做最短确认。
 - 高风险动作使用原生授权与沙箱，不建立第二套 Harness Gate 或授权协议。
-- Plan/Knowledge/Acceptance 输入 JSON 必须携带各自 schema_version 与注册字段（输入形状与示例见 python3 scripts/harness.py <cmd> --help）；校验失败报错直接附期望形状。
+- Plan/Knowledge/Acceptance/ADR 输入 JSON 必须携带各自 schema_version 与注册字段（输入形状与示例见 python3 scripts/harness.py <cmd> --help）；校验失败报错直接附期望形状。
 - 需要项目架构或模块事实时，优先按需阅读 .qoder/repowiki/zh/content/ 和 .qoder/repowiki/knowledge/zh/；不得全量注入。
 - pre-2.0 项目只通过 project upgrade 单向迁移；迁移后不保留旧运行能力。
-- 不在没有证据或没有明确维护任务时自动更新 Knowledge、ADR、Changelog、TODO 或质量账本。ADR 由主 agent 编写，复杂决策可选只读子智能体复审。
+- 不在没有证据或没有明确维护任务时自动更新 Knowledge、Changelog、TODO 或质量账本。架构决策由主 agent 通过 adr create 登记（定稿不可改，复杂决策可选只读子智能体复审）；决策失效时用 adr settle 废弃或标记被替代。
 
 ## 工作流规则
 
@@ -74,7 +74,7 @@ Docs Harness 当前版本：2.7.2
 
 ## 文档可发现性规范（plans 文档）
 
-新增、实质修改或废弃 `docs/plans/` 文档时，同一次提交内完成以下闭环（用 `python scripts/harness.py docs-check` 校验；起草与反复调整期间不运行 docs-check，提交前或 plan settle 时执行一次即可，pre-commit 与 CI 的 assets-check 已包含该检查）：
+新增、实质修改或废弃 `docs/plans/` 文档时，同一次提交内完成以下闭环（用 `python scripts/harness.py plan check` 校验；起草与反复调整期间不运行 plan check，提交前或 plan settle 时执行一次即可，pre-commit 与 CI 的 assets-check 已包含该检查）：
 
 1. **状态横幅**：文件前 3 行内标注三值之一——`有效（现行事实/实施中）`、`已实施-仅追溯（代码已是真源，YYYY-MM-DD 核对）`、`已废弃-被 <文件> 取代（YYYY-MM-DD 核对）`。判定纪律：代码中找不到符号只能证明概念已死，不能证明 plan 过期（合法待实施方案同样没有代码）；证据不足标"存疑"，交用户裁决。
 2. **索引带符号**：`docs/INDEX.md` 条目带 2-4 个唯一性强的代码符号（取正文反引号标识符按频次排序，剔除 runId 类全仓通用词）+ 状态镜像，使 grep 符号能同时命中源码、索引与文档。

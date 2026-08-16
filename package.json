@@ -1,6 +1,6 @@
 {
   "name": "docs-harness",
-  "version": "2.7.2",
+  "version": "2.8.0",
   "private": true,
   "description": "默认直跑，并按需管理 Plan、Knowledge、Acceptance 全生命周期资产的 Docs Harness。",
   "files": [
@@ -29,6 +29,7 @@
     "docs/acceptance/README.md",
     "docs/acceptance/docs-harness-assets-governance-2.7.0.json",
     "docs/acceptance/docs-harness-assets-governance-2.7.0.md",
+    "docs/adr/README.md",
     "evals/",
     "plan-templates/",
     "scripts/githooks/",
@@ -38,6 +39,7 @@
     "scripts/plan_governance.py",
     "scripts/knowledge_assets.py",
     "scripts/acceptance_assets.py",
+    "scripts/adr_assets.py",
     "tests/test_release_version_sync.py",
     "tests/test_v2_direct.py"
   ],

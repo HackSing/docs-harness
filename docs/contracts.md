@@ -8,12 +8,13 @@
 
 用户明确关闭 Harness 时必须尊重。Harness 未安装、不可用或全部可选能力关闭时，普通问答、只读检查、代码修改、构建和测试仍能完整进行。
 
-2.7.1 保留三组相互独立、可串联的按需资产能力，并增加统一检查入口：
+2.8.0 保留四组相互独立、可串联的按需资产能力，并增加统一检查入口：
 
 ```text
 knowledge create | update | query | settle | check
-plan select | plan create | plan settle
+plan select | plan create | plan settle | plan check
 acceptance create | record | settle | check
+adr create | settle | check
 assets-check [--fast] [--strict]
 ```
 
@@ -147,11 +148,15 @@ L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 �
 
 结项后的资产再次记录必须显式 `--reaccept`；`acceptance settle --status passed|failed` 必须与逐条标准聚合状态一致，`superseded` 需要 replacement 并归档。`acceptance check` 校验指纹、投影、索引、上游引用和通过证据。
 
+## 4a. 架构决策（ADR）合同
+
+`adr create` 使用 `docs-harness/adr-input/v1`，输出固定为 `docs/adr/<name>.json`：标题、2–4 个关键符号、context、decision、consequences 与可选 `supersedes`（每项必须是已存在的 ADR 资产）。ADR 定稿后不可更新（无 update action，revision 恒为 1）；失效时 `adr settle --status deprecated|superseded` 归档并退出活索引，superseded 必须提供活跃 ADR 作为 replacement。`adr check` 校验指纹、投影、索引与 supersedes 引用有效性。
+
 ## 5. 统一资产检查合同
 
-`assets-check` 聚合 Plan、Knowledge、Acceptance 领域检查及跨资产正反向关系。结构、Schema、指纹、索引、活引用和已结算合同破坏属于 FAIL；声明矛盾、pending 验收指向归档 Plan、长期未结项等属于 WARN。默认只有 FAIL 返回非零，`--strict` 使 WARN 也失败；`--fast` 跳过 Plan 符号存活和 Git 历史时效检查，供 pre-commit 使用。
+`assets-check` 聚合 Plan、Knowledge、Acceptance、ADR 领域检查及跨资产正反向关系。结构、Schema、指纹、索引、活引用和已结算合同破坏属于 FAIL；声明矛盾、pending 验收指向归档 Plan、长期未结项等属于 WARN。默认只有 FAIL 返回非零，`--strict` 使 WARN 也失败；`--fast` 跳过 Plan 符号存活和 Git 历史时效检查，供 pre-commit 使用。
 
-零资产但三类安装结构完整的项目检查通过。命令不得从 Git diff、提交信息或任务文本推断必须创建资产。
+零资产但四类安装结构完整的项目检查通过。命令不得从 Git diff、提交信息或任务文本推断必须创建资产。
 
 ## 6. 风险、授权与数据边界
 
@@ -167,10 +172,11 @@ Harness 不采集用户授权、不解析 Codex usage、不保存原始用户聊
 - `scripts/harness.py` 与受管资产生命周期模块；
 - 版本化 `plan-templates/`；
 - `scripts/githooks/`；
-- `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、各自 archive 与 `docs/INDEX.md` 独立索引区块；
-- `.docs-harness/config.json`（`docs-harness/project-config/v9`）。
+- `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、`docs/adr/`、各自 archive 与 `docs/INDEX.md` 独立索引区块；
+- 缺失时的项目级 `CHANGELOG.md`、`TODO.md`、`README.md` 骨架（已存在绝不覆盖）；
+- `.docs-harness/config.json`（`docs-harness/project-config/v10`）。
 
-fresh init 初始化三类空资产目录与受管索引区块，但不生成项目事实、验收结论、规则目录或任务 Runtime，不自动启动知识、ADR、Changelog、TODO 或后台治理 Job。upgrade 先补齐三类体系，再清理指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；三类用户资产、项目文档、质量账本、已修改或归属不明文件保留。
+fresh init 初始化四类空资产目录、受管索引区块与缺失的项目级文档骨架，但不生成项目事实、验收结论、规则目录或任务 Runtime，不自动启动知识、ADR、Changelog、TODO 或后台治理 Job。upgrade 先补齐四类体系，再清理指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；四类用户资产、项目文档、质量账本、已修改或归属不明文件保留。`release sync --strict` 要求 CHANGELOG 顶部版本与 VERSION 一致；`project check` 对缺失的 CHANGELOG/TODO 出 red、TODO 条目格式问题出 yellow。
 
 2.4.1 曾发布错误的方案模板配置指纹。upgrade 只把与 2.4.1 官方发布文件逐字匹配的已知指纹作为兼容归属；内容有任何额外修改仍拒绝覆盖。成功升级后统一写回当前真实文件指纹，不长期保留双重归属状态。
 

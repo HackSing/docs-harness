@@ -1,0 +1,54 @@
+{
+  "schema_version": "docs-harness/plan/v3",
+  "plan_level": "full",
+  "plan_profile": "architecture",
+  "secondary_profiles": [],
+  "template_versions": [
+    "level/full@2.8.0",
+    "profile/architecture@2.8.0"
+  ],
+  "selection_fingerprint": "sha256:486f4bbdceb939cc5d515c87e5c94936020a192c971004ffb7e70f1b1451760f",
+  "content": {
+    "title": "Docs Harness 项目级文档治理：ADR 受管资产 + CHANGELOG/TODO/README 脚手架与检查",
+    "key_symbols": [
+      "adr_assets",
+      "ADR_SPEC",
+      "changelog_top_version",
+      "apply_project_install"
+    ],
+    "background": "用户要求 Docs Harness 成为项目级文档 harness。当前 init/upgrade 只写 Harness 自有资产目录（plans/knowledge/acceptance），不生成项目级 README/CHANGELOG/TODO；受管入口文案提到 ADR 但无任何结构（无 docs/adr/、模板、索引、检查）。经与用户确认治理形态：ADR 做第四类受管资产（全生命周期），CHANGELOG/TODO 做脚手架+检查（不进资产生命周期），README 只做缺失时极简骨架，CHANGELOG 与 release sync 在 --strict 下强制版本一致。",
+    "objective": "① 新增 ADR 第四类受管资产：adr_assets.py 模块（docs-harness/adr-input/v1、adr-asset/v1），docs/adr/ + archive + README + INDEX 区块，adr create/settle(deprecated|superseded,--replacement)/check 命令，指纹防篡改，语义同构 Knowledge（决策定稿后不可改，只能被取代）；② init/upgrade 缺失时生成 CHANGELOG.md、TODO.md、README.md 极简骨架，已存在绝不覆盖；③ release sync 增加 --strict：CHANGELOG 顶部版本与 VERSION 不一致即 FAIL；④ project check 纳入 CHANGELOG/TODO 存在性与格式 findings（red/yellow）；⑤ 全部注册面同步：模块指纹清单、project-config v10、uninstall 所有权、self-test、package.json files、受管提示词、SKILL/README/contracts/architecture/testing 文档、测试。",
+    "non_goals": "CHANGELOG/TODO/README 不做 create/update/settle 资产生命周期（只追加/高频流动/项目特异，指纹与修订语义无收益）；不改 Plan/Knowledge/Acceptance 现有语义；assets-check 职责不扩（项目文档检查归 project check，CHANGELOG 版本一致性归 release sync --strict）；不自动生成 CHANGELOG 条目内容（agent 写，Harness 只校验）；下游项目升级不在本方案执行，发布后再单独跑。",
+    "success_criteria": "adr create/settle/check 全生命周期在真实临时项目跑通；init 空项目后 CHANGELOG/TODO/README/docs/adr 结构齐备，已有文件零覆盖；release sync --strict 在 CHANGELOG 版本滞后时退出码非 0；project check 对缺失/格式错误的 CHANGELOG/TODO 出 red；npm test 全绿；assets-check --strict 与 self-test 通过；旧项目（v9 配置）可平滑 upgrade 到 v10。",
+    "execution_scope": "scripts/adr_assets.py（新增）、scripts/harness.py（注册面、adr 命令组、release sync --strict、project check findings、init/upgrade 脚手架、受管入口文案、self-test）、scripts/managed_assets.py（如需通用化小改）、tests/test_v2_direct.py、tests/test_release_version_sync.py、package.json、AGENTS.md、CLAUDE.md、SKILL.md、README.md、docs/contracts.md、docs/architecture.md、docs/testing.md、docs/INDEX.md、CHANGELOG.md、VERSION 及 release sync 传播面、docs/knowledge 既有治理事实。",
+    "implementation": "批1 ADR 资产模块：新建 scripts/adr_assets.py 镜像 knowledge_assets.py 结构（AssetSpec kind=adr、root=docs/adr、marker docs-harness:adr-document/v1），输入字段 title/key_symbols/context/decision/consequences/supersedes（可选，引用既有 ADR）；无 update action（决策不可改），settle 支持 deprecated/superseded + --replacement；check 复用 check_assets + 校验 supersede 引用有效。批2 harness.py 注册：MANAGED_MODULE_RELATIVE_FILES 加 adr_assets.py；asset_structure_changes/apply_asset_structures 的 spec 组加 ADR_SPEC；新增 adr 顶级命令组（create/settle/check）与 dispatch；project-config v9→v10（KNOWN_LEGACY_CONFIG_SCHEMAS 扩到 v9，v2_config 增 adr 模块指纹与 docs/adr 结构）；uninstall 所有权清单、project diff/self-test 同步；command_assets_check 注入 adr_checker。批3 项目文档脚手架与检查：apply_project_install 增加缺失即建 CHANGELOG.md（# Changelog 骨架）、TODO.md（带格式说明：每条 - [ ] 事项（owner，YYYY-MM-DD））、README.md（项目名+一句话占位骨架）；release sync 加 --strict（changelog_top_version != VERSION 时 FAIL）；project check findings 增加 CHANGELOG/TODO 缺失（red）与 TODO 条目格式（yellow）。批4 提示词与文档：受管入口更新（ADR 有结构了，改写 ADR 条目为 adr create/supersede 流程；CHANGELOG/TODO 维护纪律不变）；SKILL.md 命令清单、README.md 命令表与生命周期图、docs/contracts.md CLI 合同、docs/architecture.md 模块清单、docs/testing.md 验收清单同步。批5 测试与发布：test_v2_direct 新增 adr 生命周期、脚手架幂等、release sync --strict、project check findings 用例；test_release_version_sync 同步；package.json files 加 scripts/adr_assets.py 与 docs/adr/README.md；并入未发布的 2.8.0（CHANGELOG 2.8.0 条目补充本轮内容），release sync --apply 传播；assets-check --strict、self-test、npm test 全绿后 acceptance settle + plan settle，knowledge_impact=updated（更新 docs/knowledge/docs-harness-assets-governance 治理事实）。",
+    "acceptance_plan": "acceptance create 建目标后逐条 record：① 聚焦测试：adr create/settle/check、supersede 引用、指纹篡改拒绝、脚手架幂等不覆盖、release sync --strict、project check findings 用例全绿；② 全量 npm test（公共契约：新命令组 + config v10，满足全量触发条件）；③ assets-check --strict 与 self-test 通过；④ L3 真实冒烟：临时目录 fresh init 验证四类文档骨架齐备，二次 init 幂等零覆盖；旧 v9 项目 upgrade 到 v10 平滑通过。最后 acceptance settle、plan settle（附 updated_knowledge_refs）。",
+    "acceptance_required": true,
+    "knowledge_impact": "updated",
+    "constraints": "ADR 复用 managed_assets.py 通用层，不得平行再写一份文件层；adr_assets.py 结构与 knowledge_assets.py 对齐；脚手架只在缺失时创建，任何已有项目文件零覆盖零修改；config 升级单向 v9→v10，KNOWN_LEGACY 兼容旧版；受管块三处逐字节一致。",
+    "risks_and_rollback": "风险：config v10 升级面涉及 install/diff/check/uninstall/self-test 五处消费链，漏一处即指纹不一致——由 npm test 全量与 self-test 兜住；并入未发布的 2.8.0 会使已升级的三个下游项目（ZBuddy/avatanel/dsh-buddy 工作区未提交）指纹漂移，发布后需重新 upgrade 修复（等版本 repair 路径已有测试覆盖）；managed_assets.py 若为 ADR 通用化改动会影响既有三类资产——优先不改通用层，确需改动时跑三类资产既有测试回归。回滚：全部本地编辑，git revert。",
+    "current_constraints": "managed_assets.py 通用层已承载三类资产，ADR 必须复用而非平行实现；project-config v9 已发布到三个下游项目，升级路径必须平滑；受管入口文案提到 ADR 但无结构，提示词与代码已存在错位；2.8.0 未发布，可并入。",
+    "alternatives": "A. ADR 也只做脚手架+检查（不做资产生命周期）：实现最轻，但 ADR 的 supersede/防篡改/索引闭环正是决策记录的核心价值，降级后 ADR 沦为普通 md；B. 四类文档全部做成受管资产：CHANGELOG 只追加、TODO 高频流动，生命周期语义与指纹防篡改对它们收益低摩擦大；C. 项目文档检查并入 assets-check：混淆资产检查与项目文档检查职责，assets-check 语义被稀释。",
+    "tradeoffs": "分层治理的代价是两套机制并存（资产生命周期 vs 脚手架+检查），概念数增加；换来的是每类文档的治理强度与其变更频率匹配。ADR 复用 Knowledge 同构语义降低学习成本，但 adr_assets.py 与 knowledge_assets.py 结构相似度高，需接受模板化重复（通用层已抽象文件操作，领域规则本就各写一份）。",
+    "decision": "采用分层治理：ADR 为第四类受管资产（adr create/settle/check，无 update，supersede 闭环），CHANGELOG/TODO 缺失即建脚手架 + project check 格式与存在性检查，CHANGELOG 顶部版本由 release sync --strict 强制与 VERSION 一致，README 仅缺失时生成极简骨架。全部并入未发布的 2.8.0。",
+    "boundaries_interfaces": "adr_assets.py 对外只暴露 ADR_SPEC/ADR_INPUT_SCHEMA/create/settle/check/validate_asset，与 knowledge_assets.py 接口形状一致；harness.py 新增 adr 命令组（create/settle/check，--input/--output/--adr/--status/--replacement）；release sync 新增 --strict flag；project check findings 新增 project_docs 类别；docs/INDEX.md 新增 adr-index 受管区块；project-config/v10 新增 adr 模块指纹。",
+    "compatibility_migration": "project-config v9→v10 单向升级，KNOWN_LEGACY_CONFIG_SCHEMAS 扩至 v9；v9 项目 upgrade 时补齐 docs/adr 结构、adr_assets.py 模块与 CHANGELOG/TODO/README 缺失骨架，已有文件零覆盖；adr 命令对 v9 及以下项目可用但结构缺失时按既有「资产结构不完整」语义报错提示 upgrade。",
+    "rollback_strategy": "全部为本地文本与新增文件编辑，git revert 单提交即可回滚；ADR 资产目录为新结构，回滚不影响既有三类资产；config v10 未发布前回滚无下游影响（三个下游项目的 2.8.0 升级未提交，重新 upgrade 即可对齐）。",
+    "architecture_acceptance": "adr 生命周期端到端用例（create→check→supersede→archive→索引闭环）+ 指纹篡改拒绝 + 脚手架幂等 + release sync --strict 正反对例 + project check findings 用例，npm test 全绿；fresh init 冒烟验证四类骨架齐备且二次 init 零覆盖；v9→v10 upgrade 冒烟通过。",
+    "adr_decision": "本方案自身即一条架构决策，实施完成后用新建的 adr 命令登记首条 ADR：项目级文档采用分层治理（ADR 全生命周期受管，CHANGELOG/TODO 脚手架+检查，README 仅骨架），作为该机制的首次真实使用与验收证据之一。"
+  },
+  "acceptance_refs": [
+    "docs/acceptance/docs-harness-project-docs-governance.json"
+  ],
+  "governance": {
+    "acceptance_required": true,
+    "knowledge_impact": "updated",
+    "updated_knowledge_refs": [
+      "docs/knowledge/docs-harness-assets-governance.json"
+    ],
+    "unchanged_reason": null,
+    "governance_settled_at": "2026-08-16T16:01:50+00:00"
+  },
+  "frozen_at": "2026-08-16T15:05:30+00:00",
+  "plan_fingerprint": "sha256:0a0bd38b2b5d89e369e8f1c86c29a5cedf1d90c248000e459f31d7c1544d5b3d"
+}
