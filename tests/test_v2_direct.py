@@ -16,6 +16,28 @@ ROOT = Path(__file__).resolve().parents[1]
 HARNESS = ROOT / "scripts" / "harness.py"
 
 
+def _symlinks_supported() -> bool:
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "target").mkdir()
+        try:
+            (root / "link").symlink_to(root / "target", target_is_directory=True)
+        except OSError:
+            return False
+    return True
+
+
+# Windows 默认需要开发者模式或 SeCreateSymbolicLinkPrivilege 才能创建 symlink，
+# 无权限环境下 symlink 安全测试无法搭建现场，只能跳过。
+REQUIRES_SYMLINK = unittest.skipUnless(
+    _symlinks_supported(),
+    "当前环境无 symlink 创建权限（Windows 需开发者模式或 SeCreateSymbolicLinkPrivilege）",
+)
+
+# Windows 上 npm 是 npm.CMD，CreateProcess 不做 PATHEXT 解析，须经 cmd 调起。
+NPM_COMMAND = ["cmd", "/c", "npm"] if os.name == "nt" else ["npm"]
+
+
 class DocsHarnessV2DirectTest(unittest.TestCase):
     maxDiff = None
 
@@ -74,7 +96,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         rules_root.mkdir(parents=True, exist_ok=True)
         current_rules = installed_rules if live_rules is None else live_rules
         for name, content in current_rules.items():
-            (rules_root / name).write_text(content, encoding="utf-8")
+            (rules_root / name).write_bytes(content.encode("utf-8"))
         installed_fingerprints = {
             name: "sha256:" + hashlib.sha256(content.encode("utf-8")).hexdigest()
             for name, content in installed_rules.items()
@@ -169,6 +191,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(payload["facts"], [])
         self.assertFalse(any("docs/history/" in ref for ref in payload["refs"]))
 
+    @REQUIRES_SYMLINK
     def test_knowledge_query_does_not_follow_external_docs_symlink(self) -> None:
         outside = Path(self.temp.name) / "outside-docs"
         outside.mkdir()
@@ -278,8 +301,10 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             }
             <= set(files)
         )
+        if shutil.which("npm") is None:
+            self.skipTest("npm 不在 PATH 中")
         packed = subprocess.run(
-            ["npm", "pack", "--dry-run", "--json"],
+            [*NPM_COMMAND, "pack", "--dry-run", "--json"],
             cwd=ROOT,
             capture_output=True,
             text=True,
@@ -1306,6 +1331,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertFalse((self.project / "scripts" / "harness.py").exists())
         self.assertFalse((self.project / ".docs-harness" / "config.json").exists())
 
+    @REQUIRES_SYMLINK
     def test_project_init_rejects_external_scripts_parent_symlink(self) -> None:
         outside = Path(self.temp.name) / "outside-scripts"
         outside.mkdir()
@@ -1894,6 +1920,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             },
         )
 
+    @REQUIRES_SYMLINK
     def test_upgrade_rejects_unsafe_legacy_rule_symlink_before_any_write(self) -> None:
         self.write_v5_install(installed_rules={})
         outside = Path(self.temp.name) / "outside-rule.md"
@@ -1913,6 +1940,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertFalse((self.project / "AGENTS.md").exists())
         self.assertFalse((self.project / "plan-templates").exists())
 
+    @REQUIRES_SYMLINK
     def test_upgrade_rejects_symlinked_runtime_root_before_any_write(self) -> None:
         initialized = subprocess.run(
             ["git", "init", str(self.project)],
