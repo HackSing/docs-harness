@@ -333,6 +333,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         for module in (
             "managed_assets.py", "asset_checks.py", "plan_governance.py",
             "knowledge_assets.py", "acceptance_assets.py", "adr_assets.py",
+            "script_hygiene.py",
         ):
             self.assertLess(len((ROOT / "scripts" / module).read_text(encoding="utf-8").splitlines()), 500)
         for symbol in (
@@ -600,6 +601,10 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(payload["status"], "passed")
         self.assertEqual(payload["checked"]["knowledge"], 0)
         self.assertEqual(payload["checked"]["acceptance"], 0)
+        self.assertEqual(
+            payload["checked"]["script_hygiene"], 0,
+            "非 git 目标应跳过 ScriptHygiene（checked=0，不产生 WARN）",
+        )
 
     def test_assets_check_rejects_tampered_knowledge_asset(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
@@ -638,6 +643,26 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             "assets-check", "--target", str(self.project), "--fast", expected=1
         )
         self.assertTrue(any("没有对应活资产" in item for item in payload["failures"]))
+
+    def test_assets_check_rejects_mixed_line_ending_script(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        (self.project / "deploy.sh").write_bytes(b"#!/bin/sh\r\necho mixed\n")
+        (self.project / "clean.sh").write_bytes(b"#!/bin/sh\necho clean\n")
+        for args in (("git", "init"), ("git", "add", "deploy.sh", "clean.sh")):
+            subprocess.run(args, cwd=self.project, capture_output=True, check=True)
+        payload = self.run_cli(
+            "assets-check", "--target", str(self.project), "--fast", expected=1
+        )
+        self.assertTrue(
+            any(
+                "ScriptHygiene" in item and "deploy.sh" in item
+                for item in payload["failures"]
+            )
+        )
+        self.assertFalse(
+            any("clean.sh" in item for item in payload["failures"]),
+            "纯 LF 脚本不应被误判为混合行尾",
+        )
 
     def test_assets_check_strict_blocks_slow_warning_but_fast_skips_it(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
@@ -1344,7 +1369,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(self.snapshot_project(), before)
         self.assertEqual(list(outside.iterdir()), [])
 
-    def test_project_init_installs_pure_v10_without_legacy_rules(self) -> None:
+    def test_project_init_installs_pure_v11_without_legacy_rules(self) -> None:
         payload = self.run_cli("project", "init", "--target", str(self.project))
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
@@ -1352,7 +1377,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(
             payload["version"], (ROOT / "VERSION").read_text(encoding="utf-8").strip()
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v10")
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v11")
         self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["direct_mode"], {"default": True})
@@ -1525,6 +1550,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         for module in (
             "managed_assets.py", "asset_checks.py", "plan_governance.py",
             "knowledge_assets.py", "acceptance_assets.py", "adr_assets.py",
+            "script_hygiene.py",
         ):
             shutil.copy2(ROOT / "scripts" / module, fake / "scripts" / module)
         script = (ROOT / "scripts" / "harness.py").read_text(encoding="utf-8")
@@ -1709,7 +1735,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v10")
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v11")
         self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["migration"]["source_version"], "2.3.0")
@@ -1843,7 +1869,7 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v10")
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v11")
         self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["direct_mode"], {"default": True})

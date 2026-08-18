@@ -1,6 +1,6 @@
 {
   "name": "docs-harness",
-  "version": "2.8.0",
+  "version": "2.9.0",
   "private": true,
   "description": "默认直跑，并按需管理 Plan、Knowledge、Acceptance 全生命周期资产的 Docs Harness。",
   "files": [

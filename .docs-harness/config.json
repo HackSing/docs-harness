@@ -1,27 +1,29 @@
 {
-  "schema_version": "docs-harness/project-config/v9",
-  "version": "2.7.2",
-  "installed_script_fingerprint": "sha256:7d88bd6b64c6f4c1757ce636f607275205ec65238ed1a9327c501c5cfb31c5e5",
+  "schema_version": "docs-harness/project-config/v11",
+  "version": "2.9.0",
+  "installed_script_fingerprint": "sha256:f617e3c446c0bcb37b6a06dea13a4af5aaea899afcc8c8fee7df0c287698333d",
   "installed_module_fingerprints": {
-    "managed_assets.py": "sha256:67036e922fc32c1c1cd1e80d71409f54b0a248b92ad4068b5b62607969f30f79",
-    "asset_checks.py": "sha256:4d38f2667fa413c6de2c712ea229d095c74c660775a901f79e4ce10c6174d4ba",
-    "plan_governance.py": "sha256:853a01f60e67ad87c734e2e0094b977208879f65c3d552a5adbbe9e72562d4e0",
-    "knowledge_assets.py": "sha256:35007eff1a9a8d3f181b65ebfeb04441ffe9772f5e390fea7a9b914122ef8e12",
-    "acceptance_assets.py": "sha256:027c332ce5a77bc6fa4a10a314162a791827c6f30ebe7af3c17a83f7db6e6ab5"
+    "managed_assets.py": "sha256:97a9a37eac3ba9248c656758f121d3f34d82eb1dba34afdc2cbe7e7a1f2e02d0",
+    "asset_checks.py": "sha256:1a61857dfcffcc1371a925d66b26f7683b7983b58da7ffae7f223fc487a6db98",
+    "plan_governance.py": "sha256:9475bc78b4c65f34599071e2545a3f1b2ca21093733474e9956d94fbbe9236cf",
+    "knowledge_assets.py": "sha256:4ecaf11237aab51be99f823481fcbf6d8e617a65542fc3b853d0b0436ea0ced3",
+    "acceptance_assets.py": "sha256:79634e578100d23a9ba7772084071dedc0c12ee9c8ef5375420e0186ea54bd2f",
+    "adr_assets.py": "sha256:98b69a5960b779273822673581ab58413056de0bf0e200e15f9dbf0a0584c399",
+    "script_hygiene.py": "sha256:2b445a5594e4cb35bfea7ce6a6d757647521f8fd42e2d1e21a1ce473a4f6b4d6"
   },
   "installed_plan_template_fingerprints": {
-    "levels/brief.json": "sha256:c750c65edaa702a033e92dca6f2a9058c744e77ada605398924fcd46de506cda",
-    "levels/full.json": "sha256:8f819fc72b2281865badd1936774003a232a85f6f5c3d7091845f32ef37e7348",
-    "profiles/general.json": "sha256:257ac7a7d199cabe3f96176caec8af538a8aaa837d63bb2eb7630a19cab5c207",
-    "profiles/frontend-ui.json": "sha256:fc55dbd67b9a8806a6129a120947296bdcf27bda344bce5267cb9c7d745bbf7b",
-    "profiles/backend-service.json": "sha256:e4e5b6eac81c4b868209d686753ab7712773d6124054392014848595b28d6be2",
-    "profiles/bugfix.json": "sha256:42eb2bdfe2164ef5d5d5c84537ef9e0aad4680350b145f3eb3dfbf0854cf366e",
-    "profiles/architecture.json": "sha256:17aa8f3fde2507cfcc5f05f0041c862a91f44350c229b4d604331941a50bf43c",
-    "profiles/migration-release.json": "sha256:3418bb4385dc5d2def6b8372dfcb9f18d38730cf47cb0ac245a5ab6b355e3ef3"
+    "levels/brief.json": "sha256:4df504141d4c0b8f136bcd16c1dfcd83ecf4ce5e8cfe0069b9810cbcb576e719",
+    "levels/full.json": "sha256:c664c4eb32547a672d7089251e9fe3f74b410e4077c59ebae877e43a0302b298",
+    "profiles/general.json": "sha256:58fa0b60da03685ada78a8f9a4fc8ca88a47ca88678b5a4ca7bf018103ee9208",
+    "profiles/frontend-ui.json": "sha256:55779254fc34f529402de60483f45761e5a581d8440b1a784207fdc263aca6dd",
+    "profiles/backend-service.json": "sha256:af3b489d5f0b4ad8af21d6e7eecbf90378922e7b3c02dfd7b20da993421ceac6",
+    "profiles/bugfix.json": "sha256:ee7274631e01b15c7c7e52f19f22a27a2fa0b4c0475fc30f4fb76b74d0b605a9",
+    "profiles/architecture.json": "sha256:bc736e1802811b8b7b9af72474f2ac1c0df0041f887904566b865166cc4a27eb",
+    "profiles/migration-release.json": "sha256:18a866b6313acc27cbc6bd2efa2597ddb7d8286c0764307a0b56866856f95e85"
   },
   "installed_githook_fingerprints": {
-    "pre-commit": "sha256:74328d35afaecc36554b9145d306b5a6b7e15301ee9b576c5f400cbc90c0639b",
-    "setup.sh": "sha256:8d209ab68fc4e69210e3c653e19e24a1d3a3b0d3f3bafddf6157a4edbefbd0c4"
+    "pre-commit": "sha256:d8ff0f28fa574193d297bf1e31ef1f266d4853474ab598a9980549a07651e0af",
+    "setup.sh": "sha256:c4b4b513f5ac3f1bf6aa1a0121dbdf133fd6fadd6f1335b2876e904765624aaf"
   },
   "direct_mode": {
     "default": true
@@ -32,7 +34,7 @@
     "docs_preexisting_at_install": true
   },
   "migration": {
-    "source_version": "2.6.0",
+    "source_version": "2.7.2",
     "legacy_document_system": "removed",
     "removed_paths": [],
     "preserved_paths": []

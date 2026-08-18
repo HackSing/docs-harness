@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Docs Harness 2.7.1：默认直跑，按需管理三类资产生命周期。"""
+"""Docs Harness 2.9.0：默认直跑，按需管理四类资产生命周期。"""
 
 from __future__ import annotations
 
@@ -24,6 +24,7 @@ if str(SCRIPT_MODULE_DIR) not in sys.path:
 
 from managed_assets import AssetError, apply_structure, structure_changes
 from asset_checks import run_assets_check
+from script_hygiene import check_script_line_endings
 from plan_governance import (
     FAILURE_ATTRIBUTION_CATEGORIES, PLAN_GOVERNANCE_INPUT_SCHEMA, PLAN_SCHEMA_V3, PlanGovernanceError,
     governance_from_content, legacy_plan_template_fingerprints, new_plan_fields, nonempty_string_list,
@@ -58,10 +59,10 @@ from adr_assets import (
     create as create_adr_asset,
     settle as settle_adr_asset,
 )
-VERSION = "2.8.0"
-CONFIG_SCHEMA = "docs-harness/project-config/v10"
+VERSION = "2.9.0"
+CONFIG_SCHEMA = "docs-harness/project-config/v11"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
-    f"docs-harness/project-config/v{version}" for version in range(1, 10)
+    f"docs-harness/project-config/v{version}" for version in range(1, 11)
 }
 PLAN_TEMPLATE_SCHEMA = "docs-harness/plan-template/v3"
 PLAN_SELECTION_SCHEMA = "docs-harness/plan-selection/v2"
@@ -89,6 +90,7 @@ MANAGED_MODULE_RELATIVE_FILES = (
     "knowledge_assets.py",
     "acceptance_assets.py",
     "adr_assets.py",
+    "script_hygiene.py",
 )
 PLAN_DOCS_RELATIVE = "docs/plans"
 PLAN_ARCHIVE_RELATIVE = "docs/plans/archive"
@@ -3721,7 +3723,7 @@ def command_plan_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
 
 
 def command_assets_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
-    """统一编排四类资产检查；是否启用资产不由本命令推断。"""
+    """统一编排四类资产与脚本卫生检查；是否启用资产不由本命令推断。"""
     target = safe_target(args.target)
     payload = run_assets_check(
         target,
@@ -3733,6 +3735,7 @@ def command_assets_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
         knowledge_checker=check_knowledge_assets,
         acceptance_checker=check_acceptance_assets,
         adr_checker=check_adr_assets,
+        script_hygiene_checker=check_script_line_endings,
     )
     return (0 if payload["status"] == "passed" else 1), payload
 

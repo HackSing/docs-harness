@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.9.0 - 2026-08-18
+
+- 新增 ScriptHygiene 脚本卫生检查（`scripts/script_hygiene.py`）：对 tracked 脚本（`*.sh`/`*.iss`/`*.bat`/`*.cmd`/`*.ps1`）做全仓字节级混合行尾扫描，同一文件混入 CRLF 与裸 LF 即 FAIL 并指明两种行尾各自行数；目标非 git 仓库或 git 不可用时跳过（checked=0，不产 WARN，避免 `--strict` 对环境性跳过误报——pre-commit/CI 永远在 git 仓库内运行）。动机：入库内容已被 .gitattributes 的 eol 规则规范化，真正的隐患是磁盘工作区的混合行尾脚本——它是字节级编辑事故（转义塌陷、锚点漂移、伪 \r 匹配）的首要来源。各项目仍应在 `.gitattributes` 为脚本类型钉死 eol（如 `*.sh eol=lf`、`*.iss eol=crlf`）从源头预防。
+- 检查作为第五个 checker 并入 `assets-check` 统一编排（`_run_asset_checker` 通用通道，失败/警告聚合与 checked 计数复用现有形状），pre-commit `--fast` 与 CI `--strict` 同一真源，不依赖各机器钩子是否激活。
+- 安装配置升级为 `project-config/v11`（新增 script_hygiene 模块指纹），v1-v10 单向平滑升级；init/upgrade/diff/check/self-test 全链路消费。
+
 ## 2.8.0 - 2026-08-17
 
 - 破坏性变更：顶级命令 `docs-check` 删除，Plan 域文档可发现性检查收编为 `plan check`（与 `knowledge check` / `acceptance check` 对称），无兼容别名；直接调用 `docs-check` 将由 argparse 报错（退出码 2）。官方 pre-commit 与 CI 均只调 `assets-check`，不受影响；自定义脚本需改用 `plan check`。

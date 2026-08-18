@@ -2,11 +2,11 @@
 name: docs-harness
 description: "默认不介入普通任务；仅按需提供项目知识、方案模板和真实验收记录。"
 metadata:
-  version: 2.8.0
+  version: 2.9.0
   status: active
 ---
 
-# Docs Harness 2.8.0
+# Docs Harness 2.9.0
 
 Docs Harness 是可选的项目辅助能力，不是每个任务必须经过的工单系统。
 
@@ -105,15 +105,15 @@ ADR 只用于会长期约束架构边界、公共接口、兼容、安全、数�
 
 旧控制流程已经移除，不存在兼容入口。旧命令和 `--legacy-opt-in` 不属于 2.x CLI；升级旧项目时先读取 `docs/migrations/v2.0.0.md` 并运行 preview，只清理可证明归属的旧工件，项目文档和归属不明内容必须保留。
 
-升级 pre-2.0 项目必须使用当前 2.8.0 来源包中的控制器，不能使用目标项目尚未升级的旧控制器。
+升级 pre-2.0 项目必须使用当前 2.9.0 来源包中的控制器，不能使用目标项目尚未升级的旧控制器。
 
 ## 项目安装
 
 ```bash
-python3 <docs-harness-2.8.0-source>/scripts/harness.py project init --target <project> --json
-python3 <docs-harness-2.8.0-source>/scripts/harness.py project upgrade --target <project> --json
-python3 <docs-harness-2.8.0-source>/scripts/harness.py project upgrade --target <project> --apply --json
-python3 scripts/harness.py project upgrade --target . --source <docs-harness-2.8.0-source> --apply --json
+python3 <docs-harness-2.9.0-source>/scripts/harness.py project init --target <project> --json
+python3 <docs-harness-2.9.0-source>/scripts/harness.py project upgrade --target <project> --json
+python3 <docs-harness-2.9.0-source>/scripts/harness.py project upgrade --target <project> --apply --json
+python3 scripts/harness.py project upgrade --target . --source <docs-harness-2.9.0-source> --apply --json
 python3 scripts/harness.py project check --target . --json
 python3 scripts/harness.py project diff --target . --json
 python3 scripts/harness.py project uninstall --target <project> --json

@@ -6,7 +6,7 @@
 
 默认直接完成任务；仅在确有长期价值时，管理 Plan、Knowledge、Acceptance、ADR 四类项目资产的完整生命周期。
 
-[![Version](https://img.shields.io/badge/version-2.8.0-2563eb.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.9.0-2563eb.svg)](CHANGELOG.md)
 [![Assets Check](https://github.com/HackSing/docs-harness/actions/workflows/assets-check.yml/badge.svg)](https://github.com/HackSing/docs-harness/actions/workflows/assets-check.yml)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776ab.svg)](https://www.python.org/)
 [![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-16a34a.svg)](scripts/harness.py)
