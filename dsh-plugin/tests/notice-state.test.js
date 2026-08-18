@@ -46,6 +46,13 @@ describe('notice state', () => {
     assert.deepEqual(readNotice({ ok: false, error: { code: 'no-session', message: 'no current session' } }), SILENT);
   });
 
+  it('stays silent when the session has no workspace bound yet, which is normal right after launch', () => {
+    assert.deepEqual(
+      readNotice({ ok: false, error: { code: 'unknown-session', message: 'no live session with a workspace' } }),
+      SILENT,
+    );
+  });
+
   it('reports a real failure with the engine\'s own message', () => {
     const notice = readNotice({ ok: false, error: { code: 'python_missing', message: 'Docs Harness needs Python 3' } });
     assert.equal(notice.error, 'Docs Harness needs Python 3');

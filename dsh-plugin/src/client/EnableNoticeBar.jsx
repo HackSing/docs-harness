@@ -45,9 +45,16 @@ export const SILENT = Object.freeze({ prompt: undefined, dir: undefined, version
  */
 export function readNotice(envelope) {
   if (!envelope.ok) {
-    // A missing route means governance is switched off — a deliberate state,
-    // not a failure to report at the user.
-    if (envelope.error?.code === CODE_ABSENT || envelope.error?.code === 'no-session') return SILENT;
+    // A missing route means governance is switched off, and no-session /
+    // unknown-session mean the framework has not bound this session to a
+    // workspace yet (e.g. the very first session right after launch, before
+    // any project directory is open) — three deliberate states, not failures
+    // to report at the user.
+    if (
+      envelope.error?.code === CODE_ABSENT
+      || envelope.error?.code === 'no-session'
+      || envelope.error?.code === 'unknown-session'
+    ) return SILENT;
     return { ...SILENT, error: envelope.error?.message ?? '' };
   }
   const state = envelope.value?.state;
