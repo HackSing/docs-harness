@@ -9,4 +9,4 @@
 # the browser half (exports "./client") load in the web GUI.
 - insert:
     - id: docs-harness
-      name: 'dsh-docs-harness'
+      name: '@aiwaretop/dsh-docs-harness'

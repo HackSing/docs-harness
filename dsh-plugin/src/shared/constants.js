@@ -10,7 +10,7 @@
  */
 
 /** npm package name, also the cordis roster row name and the client bundle id. */
-export const PACKAGE_NAME = 'dsh-docs-harness';
+export const PACKAGE_NAME = '@aiwaretop/dsh-docs-harness';
 
 /** Settings namespace owned by this plugin (the registry enforces `[a-z][a-z0-9-]*`). */
 export const SETTINGS_NAMESPACE = 'docs-harness';

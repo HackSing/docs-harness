@@ -36,7 +36,7 @@ agent 的工具表里根本没有这三个动作,只有 HTTP 路由,而路由只
 某个 profile:
 
 ```bash
-dsh plugin --profile web add dsh-docs-harness
+dsh plugin --profile web add @aiwaretop/dsh-docs-harness
 ```
 
 运行需要用户机器上有 Python 3(`python3` 或 `python` 在 PATH 上)。没有时,启用动作会
