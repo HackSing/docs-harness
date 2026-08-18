@@ -1,6 +1,6 @@
 {
   "name": "@aiwaretop/dsh-docs-harness",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Docs Harness for the dsh GUI: project governance rules injected per session, the plan lifecycle as tools, a live plan progress bubble, and user-driven install/upgrade/removal of the Python engine.",
   "type": "module",
   "license": "MIT",
