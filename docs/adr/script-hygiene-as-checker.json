@@ -1,0 +1,18 @@
+{
+  "schema_version": "docs-harness/adr-asset/v1",
+  "title": "新增 ScriptHygiene 作为 assets-check 第五个 checker，不建独立资产类型",
+  "key_symbols": [
+    "script_hygiene",
+    "run_assets_check",
+    "SCRIPT_GLOBS"
+  ],
+  "context": "入库内容已被 .gitattributes 的 eol 规则规范化，但磁盘工作区的混合行尾脚本（*.sh/*.iss/*.bat/*.cmd/*.ps1）仍是字节级编辑事故（转义塌陷、锚点漂移、伪 \\r 匹配）的首要来源；这类风险没有归属到既有四类受管资产（Plan/Knowledge/Acceptance/ADR）的任何一类，也不具备生命周期语义（无需 create/update/settle，只是机械扫描）。",
+  "decision": "新增 scripts/script_hygiene.py 作为独立静态检查模块，不建第五类生命周期资产；检查作为 assets-check 的第五个 checker 并入统一编排（_run_asset_checker 通用通道，失败/警告聚合与 checked 计数复用现有形状），pre-commit --fast 与 CI --strict 同一真源；目标非 git 仓库或 git 不可用时跳过（checked=0，不产 WARN，避免 --strict 对环境性跳过误报）；安装配置升级为 project-config/v11（新增 script_hygiene 模块指纹）。",
+  "consequences": "优点：复用 assets-check 现有编排、FAIL/WARN 判定与 fast/strict 语义，不新增命令族或资产生命周期学习成本；代价：ScriptHygiene 检查结果不具备资产的指纹防篡改、索引登记与跨资产引用能力，仅是一次性扫描结论，不能被其他资产引用或追溯历史修订；各项目仍需在 .gitattributes 为脚本类型钉死 eol（如 *.sh eol=lf、*.iss eol=crlf）从源头预防，本检查只做事后拦截。",
+  "supersedes": [],
+  "status": "active",
+  "revision": 1,
+  "created_at": "2026-08-18T15:14:51+00:00",
+  "updated_at": "2026-08-18T15:14:51+00:00",
+  "asset_fingerprint": "sha256:4c5a0762d62d9f44a3a6cf1c8bff6bff565579cb539095dbcf57e6a73eed06e3"
+}

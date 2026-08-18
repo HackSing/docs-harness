@@ -41,4 +41,5 @@
 ## 架构决策
 
 - [项目级文档采用分层治理](adr/layered-doc-governance.md) — 状态：有效（现行决策）；关键符号：`ADR_SPEC`、`adr_assets`、`project_doc_scaffolds`
+- [新增 ScriptHygiene 作为 assets-check 第五个 checker，不建独立资产类型](adr/script-hygiene-as-checker.md) — 状态：有效（现行决策）；关键符号：`script_hygiene`、`run_assets_check`、`SCRIPT_GLOBS`
 <!-- docs-harness:adr-index:end -->

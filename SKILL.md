@@ -105,15 +105,15 @@ ADR 只用于会长期约束架构边界、公共接口、兼容、安全、数�
 
 旧控制流程已经移除，不存在兼容入口。旧命令和 `--legacy-opt-in` 不属于 2.x CLI；升级旧项目时先读取 `docs/migrations/v2.0.0.md` 并运行 preview，只清理可证明归属的旧工件，项目文档和归属不明内容必须保留。
 
-升级 pre-2.0 项目必须使用当前 2.9.0 来源包中的控制器，不能使用目标项目尚未升级的旧控制器。
+升级 pre-2.0 项目必须使用当前 2.9.1 来源包中的控制器，不能使用目标项目尚未升级的旧控制器。
 
 ## 项目安装
 
 ```bash
-python3 <docs-harness-2.9.0-source>/scripts/harness.py project init --target <project> --json
-python3 <docs-harness-2.9.0-source>/scripts/harness.py project upgrade --target <project> --json
-python3 <docs-harness-2.9.0-source>/scripts/harness.py project upgrade --target <project> --apply --json
-python3 scripts/harness.py project upgrade --target . --source <docs-harness-2.9.0-source> --apply --json
+python3 <docs-harness-2.9.1-source>/scripts/harness.py project init --target <project> --json
+python3 <docs-harness-2.9.1-source>/scripts/harness.py project upgrade --target <project> --json
+python3 <docs-harness-2.9.1-source>/scripts/harness.py project upgrade --target <project> --apply --json
+python3 scripts/harness.py project upgrade --target . --source <docs-harness-2.9.1-source> --apply --json
 python3 scripts/harness.py project check --target . --json
 python3 scripts/harness.py project diff --target . --json
 python3 scripts/harness.py project uninstall --target <project> --json
@@ -123,6 +123,6 @@ python3 scripts/harness.py assets-check --target . --strict
 python3 scripts/harness.py self-test --target .
 ```
 
-fresh init 写入受管入口、控制器、资产模块、方案模板、git 钩子和 `project-config/v10`，并初始化 Plan/Knowledge/Acceptance/ADR 四类空目录、archive 与独立索引区块，缺失时生成项目级 CHANGELOG.md、TODO.md、README.md 骨架（已存在绝不覆盖）；不安装旧规则，不生成项目事实或验收结论，不自动启动后台治理 Job，不提交、不推送、不发布。upgrade 是单向迁移：先预览，再补齐四类体系并清理所有权明确的旧规则、知识地图、受管版本区块和旧 Runtime，同时保留四类用户资产、项目正文、质量账本以及已修改或归属不明文件。
+fresh init 写入受管入口、控制器、资产模块、方案模板、git 钩子和 `project-config/v11`，并初始化 Plan/Knowledge/Acceptance/ADR 四类空目录、archive 与独立索引区块，缺失时生成项目级 CHANGELOG.md、TODO.md、README.md 骨架（已存在绝不覆盖）；不安装旧规则，不生成项目事实或验收结论，不自动启动后台治理 Job，不提交、不推送、不发布。upgrade 是单向迁移：先预览，再补齐四类体系并清理所有权明确的旧规则、知识地图、受管版本区块和旧 Runtime，同时保留四类用户资产、项目正文、质量账本以及已修改或归属不明文件。
 
 安装态可用 `project check` 核对版本、指纹、方案结构与 Git 交付状态，`project diff` 只读列出与来源包的漂移；两者不做任何写入。`project uninstall` 先预览再删除所有权明确的受管程序，项目方案、质量账本和用户正文一律保留。`plan check` 是 Plan 域文档可发现性检查；收尾统一使用 `assets-check`，pre-commit 使用 `--fast`，CI 使用 `--strict`。缺失资产结构返回失败并提示先运行 init/upgrade。`self-test` 运行内置自检。init、upgrade、uninstall、check、diff 必须使用来源包或安装态中版本不低于目标的控制器；upgrade 不能从模板已缺失或滞后的项目内副本取得来源；从项目内安装副本运行 init/upgrade 时必须用 `--source` 显式指定同版本完整源包，跨版本升级必须直接运行源包内的控制器。

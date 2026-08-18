@@ -1,4 +1,4 @@
-# Docs Harness 2.7.1 测试与验收
+# Docs Harness 2.9.1 测试与验收
 
 ## 1. 普通项目任务
 
@@ -74,3 +74,13 @@
 - L4 fresh install：`/private/tmp/docs-harness-2.7.0-final.ZiMjnn` 从当前源码 init 成功；安装副本 `project diff changes=[]`、`project check`、`self-test`、`assets-check --strict` 和 pre-commit 均退出码 0。
 - L4 下游升级：Avatanel 2.6.0→2.7.0 与 ZBuddy 2.4.1→2.7.0 均完成；两项目 `project diff changes=[]`、`self-test`、`assets-check --strict`、pre-commit 与 `git diff --check` 通过，且 `core.hooksPath=scripts/githooks` 已读回。ZBuddy 同步初始化三套资产目录；两项目 `project check` 仅因未提交受管文件返回 `needs_delivery`（red=0、yellow=0）。
 - GitHub CI：Workflow 已在源码层完成 YAML 解析，但尚未提交或推送，因此没有远端 Actions 运行证据。
+
+## 8. 2.8.0–2.9.1 治理扩展验收证据（2026-08-18）
+
+2.8.0 新增 ADR 第四类受管资产；2.9.0 新增 ScriptHygiene 脚本卫生检查并入 `assets-check` 第五个 checker、安装配置升至 `project-config/v11`；2.9.1 补记两项此前遗漏版本记录的修复并同步文档。
+
+- L1 控制器：`npm run self-test` 退出码 0，`version=2.9.1`，`checks` 全绿（含 `adr_lifecycle_v1`）。
+- L2 聚焦行为：`python3 -m unittest tests.test_v2_direct -v` 共 77 项通过，覆盖 ADR 生命周期、`project-config/v11` 安装、Plan v3 治理与受管块同步等合同用例。
+- L2 统一检查：`python3 scripts/harness.py assets-check --strict --json` 退出码 0，`checked={plans, knowledge:1, acceptance:3, adr:1, script_hygiene:1, cross:8}`，0 failures / 0 warnings。
+- L1 版本一致性：`python3 scripts/harness.py release sync --strict --json` 返回 `consistent`，VERSION/controller/skill/package/templates/evals 六处真源一致。
+- 未覆盖：本节未运行 `npm test` 仓库级全量回归、`npm pack`/fresh install 与下游项目升级验证——本轮改动是文档同步 + 版本号收尾，未触碰 ScriptHygiene/ADR 的行为代码本身，按验证选择矩阵（见第 3 节）不强制升级为全量证据；ScriptHygiene/ADR 首次实现时的完整回归证据见对应版本提交历史。

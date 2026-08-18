@@ -154,7 +154,9 @@ L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 �
 
 ## 5. 统一资产检查合同
 
-`assets-check` 聚合 Plan、Knowledge、Acceptance、ADR 领域检查及跨资产正反向关系。结构、Schema、指纹、索引、活引用和已结算合同破坏属于 FAIL；声明矛盾、pending 验收指向归档 Plan、长期未结项等属于 WARN。默认只有 FAIL 返回非零，`--strict` 使 WARN 也失败；`--fast` 跳过 Plan 符号存活和 Git 历史时效检查，供 pre-commit 使用。
+`assets-check` 聚合 Plan、Knowledge、Acceptance、ADR 领域检查、ScriptHygiene 脚本卫生扫描及跨资产正反向关系（`checked` 字段含 `plans`/`knowledge`/`acceptance`/`adr`/`script_hygiene`/`cross` 六个键）。结构、Schema、指纹、索引、活引用和已结算合同破坏属于 FAIL；声明矛盾、pending 验收指向归档 Plan、长期未结项等属于 WARN。默认只有 FAIL 返回非零，`--strict` 使 WARN 也失败；`--fast` 跳过 Plan 符号存活和 Git 历史时效检查，供 pre-commit 使用。
+
+ScriptHygiene 对 tracked 脚本（`*.sh`/`*.iss`/`*.bat`/`*.cmd`/`*.ps1`）做全仓字节级扫描：同一文件混入 CRLF 与裸 LF 即 FAIL 并指明两种行尾各自行数；目标非 git 仓库或 git 不可用时跳过（`checked=0`，不产 WARN，避免 `--strict` 对环境性跳过误报——pre-commit/CI 永远在 git 仓库内运行）。它不是生命周期资产，没有 create/update/settle 动作。
 
 零资产但四类安装结构完整的项目检查通过。命令不得从 Git diff、提交信息或任务文本推断必须创建资产。
 
@@ -174,7 +176,7 @@ Harness 不采集用户授权、不解析 Codex usage、不保存原始用户聊
 - `scripts/githooks/`；
 - `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、`docs/adr/`、各自 archive 与 `docs/INDEX.md` 独立索引区块；
 - 缺失时的项目级 `CHANGELOG.md`、`TODO.md`、`README.md` 骨架（已存在绝不覆盖）；
-- `.docs-harness/config.json`（`docs-harness/project-config/v10`）。
+- `.docs-harness/config.json`（`docs-harness/project-config/v11`）。
 
 fresh init 初始化四类空资产目录、受管索引区块与缺失的项目级文档骨架，但不生成项目事实、验收结论、规则目录或任务 Runtime，不自动启动知识、ADR、Changelog、TODO 或后台治理 Job。upgrade 先补齐四类体系，再清理指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；四类用户资产、项目文档、质量账本、已修改或归属不明文件保留。`release sync --strict` 要求 CHANGELOG 顶部版本与 VERSION 一致；`project check` 对缺失的 CHANGELOG/TODO 出 red、TODO 条目格式问题出 yellow。
 

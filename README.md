@@ -6,7 +6,7 @@
 
 默认直接完成任务；仅在确有长期价值时，管理 Plan、Knowledge、Acceptance、ADR 四类项目资产的完整生命周期。
 
-[![Version](https://img.shields.io/badge/version-2.9.0-2563eb.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.9.1-2563eb.svg)](CHANGELOG.md)
 [![Assets Check](https://github.com/HackSing/docs-harness/actions/workflows/assets-check.yml/badge.svg)](https://github.com/HackSing/docs-harness/actions/workflows/assets-check.yml)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776ab.svg)](https://www.python.org/)
 [![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-16a34a.svg)](scripts/harness.py)
@@ -39,7 +39,8 @@ Docs Harness 将这些内容沉淀为项目内、可版本管理的资产，同�
 | Plan 生命周期 | 方案容易丢失、过期或无法追溯 | 按需创建冻结 JSON、Markdown 和索引 |
 | Knowledge 生命周期 | 项目事实缺少来源、更新和冲突管理 | 只记录有 `source_refs` 的可复用事实 |
 | Acceptance 生命周期 | 测试、运行、安装和用户验收容易混为一谈 | 按标准和证据层逐条记录真实结果 |
-| `assets-check` | 四类资产分散检查，关系容易漂移 | 本地、pre-commit 和 CI 多层持续检查 |
+| ADR 生命周期 | 架构决策口头约定，容易失考或被悄悄推翻 | `adr create` 登记（定稿不可改），失效经 `adr settle` 归档 |
+| `assets-check` | 四类资产、脚本卫生与跨资产关系分散检查，容易漂移 | 本地、pre-commit 和 CI 多层持续检查 |
 | 安全升级 | 旧版本或用户修改可能被误覆盖 | preview 优先，只覆盖指纹归属明确的文件 |
 
 ## 快速开始
@@ -252,11 +253,12 @@ pre-commit --fast
 GitHub Actions --strict
 ```
 
-`assets-check` 聚合 Plan、Knowledge、Acceptance 及其跨资产关系：
+`assets-check` 聚合 Plan、Knowledge、Acceptance、ADR 领域检查、ScriptHygiene 脚本卫生扫描及其跨资产关系：
 
 - FAIL 始终返回失败；
 - WARN 默认提示，在 `--strict` 下返回失败；
 - `--fast` 跳过 Plan 的源码符号存活与 Git 时效慢检查；
+- ScriptHygiene 对 tracked 脚本（`*.sh`/`*.iss`/`*.bat`/`*.cmd`/`*.ps1`）做全仓字节级混合行尾扫描，同一文件混入 CRLF 与裸 LF 即 FAIL；目标非 git 仓库时跳过（checked=0，不产 WARN）；
 - 零资产项目只要目录结构完整即可通过；
 - 不根据 Git diff、提交信息或任务关键词推断“必须创建资产”。
 
@@ -273,7 +275,7 @@ GitHub Actions --strict
 | `plan select/create/settle/check` | 管理 Plan 生命周期，check 检查 Plan 文档、索引、符号与链接 |
 | `acceptance create/record/settle/check` | 管理 Acceptance 生命周期 |
 | `adr create/settle/check` | 管理架构决策记录（ADR）生命周期（定稿不可改） |
-| `assets-check` | 统一检查四类资产和跨资产关系 |
+| `assets-check` | 统一检查四类资产、ScriptHygiene 脚本卫生与跨资产关系 |
 | `self-test` | 运行安装副本的内置合同检查 |
 | `release sync` | 检查版本真源是否一致（--strict 强制 CHANGELOG 顶部版本一致） |
 
@@ -298,6 +300,7 @@ docs-harness/
 ├── scripts/*_assets.py          # Knowledge/Acceptance/ADR 与共享资产逻辑
 ├── scripts/asset_checks.py      # 统一检查和跨资产关系
 ├── scripts/plan_governance.py   # Plan v3 治理合同
+├── scripts/script_hygiene.py    # ScriptHygiene 脚本混合行尾扫描
 ├── scripts/githooks/            # 入库 Git Hook
 ├── plan-templates/              # Level 与 Profile 模板
 ├── docs/                        # 产品、合同、测试和四类资产
