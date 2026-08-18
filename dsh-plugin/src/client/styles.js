@@ -123,6 +123,9 @@ const SHEET = `
   box-shadow: 0 4px 16px rgb(0 0 0 / 22%);
   text-align: left;
 }
+/* The 6px visual gap below the popover is intentionally NOT bridged in CSS:
+   a pseudo-element stretched over it is clipped by this element's own
+   overflow-y. PlanBubble closes on a short hover-intent delay instead. */
 .${css.list} { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
 .${css.item} { display: flex; align-items: baseline; gap: 8px; font-size: 12px; }
 .${css.itemMark} { flex: none; width: 1.2em; color: var(--dsw-alias-label-tertiary); }

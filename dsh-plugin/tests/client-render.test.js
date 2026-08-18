@@ -105,14 +105,19 @@ describe('plan tool card', () => {
     assert.match(render(PlanToolCard, { toolName: TOOL_PLAN_PROGRESS, block, t }), /in flight/);
   });
 
-  it('shows an empty card rather than crashing on a half-streamed argument blob', () => {
+  it('shows the bare title rather than crashing on a half-streamed argument blob', () => {
     const block = { callId: '1', name: TOOL_PLAN_PROGRESS, argsRaw: '{"items":[{"content":"hal' };
-    assert.match(render(PlanToolCard, { toolName: TOOL_PLAN_PROGRESS, block, t }), /card\.empty/);
+    const html = render(PlanToolCard, { toolName: TOOL_PLAN_PROGRESS, block, t });
+    assert.match(html, /card\.plan_progress/);
+    assert.doesNotMatch(html, /dh-card-hint/);
   });
 
   it('ignores a malformed item list instead of rendering half of it', () => {
     const block = { kind: 'tool-result', meta: { items: [{ content: 'ok', status: 'completed' }, { status: 'nope' }] } };
-    assert.match(render(PlanToolCard, { toolName: TOOL_PLAN_PROGRESS, block, t }), /card\.empty/);
+    const html = render(PlanToolCard, { toolName: TOOL_PLAN_PROGRESS, block, t });
+    assert.match(html, /card\.plan_progress/);
+    assert.doesNotMatch(html, /dh-card-hint/);
+    assert.doesNotMatch(html, /ok/);
   });
 });
 

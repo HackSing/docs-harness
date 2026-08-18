@@ -131,6 +131,14 @@ describe('governance rules', () => {
     assert.match(note, /plan_progress/);
   });
 
+  it('forbids the terminal path for plan operations, covering CLI mentions inside plan documents', () => {
+    const note = toolAdapterNote();
+    assert.match(note, /禁止经终端执行/);
+    assert.match(note, /方案文档和历史文档/);
+    assert.match(note, /不要再使用内置待办工具/);
+    assert.match(note, /knowledge \/ acceptance \/ assets-check \/ project/);
+  });
+
   it('contributes nothing at all when neither source is readable', () => {
     assert.equal(buildRulesSection(undefined), '');
   });

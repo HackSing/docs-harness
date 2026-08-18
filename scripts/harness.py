@@ -206,7 +206,10 @@ def sha256_json(value: Any) -> str:
 
 
 def file_fingerprint(path: Path) -> str:
-    return sha256_bytes(path.read_bytes())
+    # Windows core.autocrlf=true 会把工作区文本文件检出为 CRLF，按原始字节哈希会把
+    # 纯行尾差异误判为"用户修改"并拒绝升级；指纹统一按 LF 归一计算。受管文件均为文本
+    # （py/md/json/sh/gitkeep），安装时写入的是源包 LF 字节，历史指纹与归一结果一致。
+    return sha256_bytes(path.read_bytes().replace(b"\r\n", b"\n"))
 
 
 def read_json(path: Path) -> Any:

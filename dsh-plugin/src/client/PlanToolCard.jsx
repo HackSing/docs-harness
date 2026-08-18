@@ -27,9 +27,7 @@ export function PlanToolCard({ toolName, block, t }) {
   return (
     <div className={css.card} data-docs-harness-tool={toolName}>
       <div className={css.cardTitle}>{t(`card.${toolName}`)}</div>
-      {items.length === 0
-        ? <div className={css.cardHint}>{t('card.empty')}</div>
-        : <PlanItemList items={items} t={t} />}
+      {items.length === 0 ? null : <PlanItemList items={items} t={t} />}
     </div>
   );
 }

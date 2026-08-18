@@ -1605,7 +1605,9 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
 
     def githook_digest(self, name: str) -> str:
         path = self.project / "scripts" / "githooks" / name
-        return "sha256:" + hashlib.sha256(path.read_bytes()).hexdigest()
+        # 与 file_fingerprint 同口径：autocrlf 环境下磁盘可能是 CRLF，按 LF 归一。
+        data = path.read_bytes().replace(b"\r\n", b"\n")
+        return "sha256:" + hashlib.sha256(data).hexdigest()
 
     def test_project_init_installs_githooks_with_activation_hint(self) -> None:
         payload = self.run_cli("project", "init", "--target", str(self.project))
@@ -1666,6 +1668,43 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.run_cli("project", "init", "--target", str(self.project))
         hook = self.project / "scripts" / "githooks" / "pre-commit"
         hook.write_bytes(hook.read_bytes() + b"# user tweak\n")
+        before = self.snapshot_project()
+        payload = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply", expected=2
+        )
+        self.assertEqual(payload["code"], "install_conflict")
+        self.assertEqual(self.snapshot_project(), before)
+
+    def to_crlf(self, relative: str) -> None:
+        path = self.project / relative
+        data = path.read_bytes().replace(b"\r\n", b"\n")
+        path.write_bytes(data.replace(b"\n", b"\r\n"))
+
+    def test_autocrlf_crlf_worktree_is_not_treated_as_user_modification(self) -> None:
+        # Windows core.autocrlf=true 会把工作区文本检出为 CRLF；纯行尾差异不得
+        # 阻断 check/upgrade/diff（真实事故：v1.2.0 项目升级被误判为用户修改）。
+        self.run_cli("project", "init", "--target", str(self.project))
+        for relative in (
+            "scripts/harness.py",
+            "scripts/knowledge_assets.py",
+            "scripts/githooks/pre-commit",
+            "plan-templates/levels/brief.json",
+        ):
+            self.to_crlf(relative)
+        check = self.run_cli("project", "check", "--target", str(self.project))
+        self.assertEqual(check["status"], "passed")
+        diff = self.run_cli("project", "diff", "--target", str(self.project))
+        self.assertEqual(diff["changes"], [])
+        repeated = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply"
+        )
+        self.assertEqual(repeated["changed"], [])
+
+    def test_autocrlf_crlf_worktree_still_rejects_real_modification(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.to_crlf("scripts/harness.py")
+        script = self.project / "scripts" / "harness.py"
+        script.write_bytes(script.read_bytes() + b"# user tweak\r\n")
         before = self.snapshot_project()
         payload = self.run_cli(
             "project", "upgrade", "--target", str(self.project), "--apply", expected=2

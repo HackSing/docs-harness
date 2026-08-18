@@ -12,11 +12,21 @@
  * @module dsh-docs-harness/client/PlanBubble
  */
 
-import { useCallback, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 
 import { PLAN_PROJECTION_KEY } from '../shared/constants.js';
 import { PlanItemList } from './PlanItemList.jsx';
 import { css } from './styles.js';
+
+/**
+ * Milliseconds the popover tolerates the pointer being outside the wrap.
+ * A hover bridge cannot cover the 6px visual gap below the popover — the
+ * popover's own `overflow-y: auto` clips any pseudo-element stretched over it —
+ * and diagonal pointer paths leave through the sides anyway. A short close
+ * delay (classic hover intent) survives every real pointer path, while a
+ * genuine departure still closes the popover promptly.
+ */
+const CLOSE_DELAY_MS = 180;
 
 /**
  * The pill's headline for one projected plan.
@@ -41,12 +51,19 @@ export function PlanBubble({ useProjection, t }) {
   const plan = /** @type {any} */ (useProjection(PLAN_PROJECTION_KEY));
   const [open, setOpen] = useState(false);
   const listId = useId();
-  const show = useCallback(() => { setOpen(true); }, []);
-  const close = useCallback(() => { setOpen(false); }, []);
+  const closeTimer = useRef(/** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined));
+  const cancelClose = useCallback(() => { clearTimeout(closeTimer.current); }, []);
+  const show = useCallback(() => { cancelClose(); setOpen(true); }, [cancelClose]);
+  const close = useCallback(() => { cancelClose(); setOpen(false); }, [cancelClose]);
+  const scheduleClose = useCallback(() => {
+    cancelClose();
+    closeTimer.current = setTimeout(() => { setOpen(false); }, CLOSE_DELAY_MS);
+  }, [cancelClose]);
   const toggle = useCallback(() => { setOpen(current => !current); }, []);
   const onKeyDown = useCallback((event) => {
     if (event.key === 'Escape') close();
   }, [close]);
+  useEffect(() => cancelClose, [cancelClose]);
 
   if (plan === undefined || plan === null) return null;
 
@@ -61,7 +78,7 @@ export function PlanBubble({ useProjection, t }) {
       <div
         className={css.bubbleWrap}
         onMouseEnter={expandable ? show : undefined}
-        onMouseLeave={expandable ? close : undefined}
+        onMouseLeave={expandable ? scheduleClose : undefined}
       >
         <button
           type="button"
