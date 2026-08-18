@@ -2,11 +2,11 @@
 name: docs-harness
 description: "默认不介入普通任务；仅按需提供项目知识、方案模板和真实验收记录。"
 metadata:
-  version: 2.9.0
+  version: 2.9.1
   status: active
 ---
 
-# Docs Harness 2.9.0
+# Docs Harness 2.9.1
 
 Docs Harness 是可选的项目辅助能力，不是每个任务必须经过的工单系统。
 

@@ -1,5 +1,10 @@
 # Changelog
 
+## 2.9.1 - 2026-08-18
+
+- 修复已结项验收资产仍要求证据文件（`output/`、`docs/testing/logs/` 等）真实存在的问题：证据目录按规约不入库，结项后资产是封存的历史记录，继续校验导致干净克隆永远无法通过 `acceptance check` / `assets-check`；现在 `settled_at` 存在的资产豁免证据存在性校验，结项前要求不变。
+- 测试基建 Windows 兼容修复：`write_v5_install` 改用 `write_bytes` 避免换行转换导致规则指纹失配；`npm pack` 经 `cmd /c` 调起且 npm 缺失时显式 skip；4 个 symlink 安全测试增加能力探测，无权限环境按原因跳过。
+
 ## 2.9.0 - 2026-08-18
 
 - 新增 ScriptHygiene 脚本卫生检查（`scripts/script_hygiene.py`）：对 tracked 脚本（`*.sh`/`*.iss`/`*.bat`/`*.cmd`/`*.ps1`）做全仓字节级混合行尾扫描，同一文件混入 CRLF 与裸 LF 即 FAIL 并指明两种行尾各自行数；目标非 git 仓库或 git 不可用时跳过（checked=0，不产 WARN，避免 `--strict` 对环境性跳过误报——pre-commit/CI 永远在 git 仓库内运行）。动机：入库内容已被 .gitattributes 的 eol 规则规范化，真正的隐患是磁盘工作区的混合行尾脚本——它是字节级编辑事故（转义塌陷、锚点漂移、伪 \r 匹配）的首要来源。各项目仍应在 `.gitattributes` 为脚本类型钉死 eol（如 `*.sh eol=lf`、`*.iss eol=crlf`）从源头预防。
