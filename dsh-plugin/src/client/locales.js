@@ -1,0 +1,87 @@
+/**
+ * The `docs-harness` locale namespace.
+ *
+ * Simplified Chinese is the key-set source of truth (the project's own
+ * documents and the injected governance rules are Chinese); English is checked
+ * complete against it by a unit test rather than by a type.
+ *
+ * @module dsh-docs-harness/client/locales
+ */
+
+/** Simplified Chinese dictionary — the authoritative key set. */
+export const zh = {
+  'notice.enable': '这个项目还没有启用 Docs Harness。启用后会在仓库里写入方案模板与治理规则。',
+  'notice.enable.action': '启用',
+  'notice.upgrade': 'Docs Harness 有新版本（{from} → {to}）。升级只改写受管文件。',
+  'notice.upgrade.action': '升级',
+  'notice.dismiss': '不再提示',
+  'notice.working': '正在写入…',
+  'notice.failed': '操作失败：{message}',
+  'bubble.review': '方案待你确认',
+  'bubble.progress': '进度 {done}/{total}',
+  'bubble.active': '方案进行中',
+  'bubble.done': '方案已结算',
+  'bubble.diff': '改动 +{added} -{removed}',
+  'bubble.expand': '展开方案条目',
+  'status.pending': '待办',
+  'status.in_progress': '进行中',
+  'status.completed': '已完成',
+  'card.harness_plan_select': '选择方案模板',
+  'card.harness_plan_create': '冻结方案',
+  'card.harness_plan_settle': '结算方案',
+  'card.plan_progress': '方案进度',
+  'card.empty': '（这一步没有条目）',
+  'settings.title': 'Docs Harness',
+  'settings.description': '把方案生命周期与项目治理规则接进这个应用。',
+  'settings.governance': '启用治理能力',
+  'settings.governance.hint': '关闭后不注入规则、不注册方案工具，等同于没装这个插件。',
+  'settings.autoEnable': '新项目自动启用',
+  'settings.autoEnable.hint': '打开后，遇到没装 Docs Harness 的项目会直接写入，不再先问你。',
+  'settings.autoUpgrade': '版本落后时自动升级',
+  'settings.autoUpgrade.hint': '打开后，项目版本落后于插件自带版本时直接升级受管文件。',
+  'settings.remove': '从当前项目移除',
+  'settings.remove.hint': '删除受管文件与引擎副本；docs/ 下的方案与知识资产保留。',
+  'settings.remove.done': '已从当前项目移除。',
+  'settings.working': '处理中…',
+  'settings.unavailable': '设置服务不可用，改动无法保存。',
+  'settings.noSession': '先打开一个会话，才能对它所在的项目做这个操作。',
+};
+
+/** English dictionary; completeness against {@link zh} is unit-tested. */
+export const en = {
+  'notice.enable': 'Docs Harness is not enabled for this project. Enabling writes plan templates and governance rules into the repository.',
+  'notice.enable.action': 'Enable',
+  'notice.upgrade': 'Docs Harness has a newer version ({from} → {to}). Upgrading only rewrites managed files.',
+  'notice.upgrade.action': 'Upgrade',
+  'notice.dismiss': 'Do not ask again',
+  'notice.working': 'Writing…',
+  'notice.failed': 'Failed: {message}',
+  'bubble.review': 'Plan waiting for your review',
+  'bubble.progress': '{done}/{total} done',
+  'bubble.active': 'Plan in progress',
+  'bubble.done': 'Plan settled',
+  'bubble.diff': '+{added} -{removed} lines',
+  'bubble.expand': 'Show plan items',
+  'status.pending': 'Pending',
+  'status.in_progress': 'In progress',
+  'status.completed': 'Completed',
+  'card.harness_plan_select': 'Select a plan template',
+  'card.harness_plan_create': 'Freeze the plan',
+  'card.harness_plan_settle': 'Settle the plan',
+  'card.plan_progress': 'Plan progress',
+  'card.empty': '(no items in this step)',
+  'settings.title': 'Docs Harness',
+  'settings.description': 'Bring the plan lifecycle and project governance rules into this app.',
+  'settings.governance': 'Enable governance',
+  'settings.governance.hint': 'Off means no injected rules and no plan tools — the same as not installing this plugin.',
+  'settings.autoEnable': 'Enable automatically in new projects',
+  'settings.autoEnable.hint': 'A project without Docs Harness is written to directly, instead of being offered first.',
+  'settings.autoUpgrade': 'Upgrade automatically when the project is behind',
+  'settings.autoUpgrade.hint': 'Managed files are rewritten as soon as the project version trails the bundled one.',
+  'settings.remove': 'Remove from the current project',
+  'settings.remove.hint': 'Deletes the managed files and the engine copy; plans and knowledge under docs/ stay.',
+  'settings.remove.done': 'Removed from the current project.',
+  'settings.working': 'Working…',
+  'settings.unavailable': 'The settings service is unavailable, so changes cannot be saved.',
+  'settings.noSession': 'Open a session first — this acts on the project that session lives in.',
+};

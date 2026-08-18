@@ -1,0 +1,6 @@
+node_modules/
+lib/
+*.log
+# Materialized by scripts/seed-vendor.mjs from the parent docs-harness engine
+# right before test/pack — never a hand-maintained copy, never committed.
+vendor/

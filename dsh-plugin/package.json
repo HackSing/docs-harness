@@ -1,0 +1,66 @@
+{
+  "name": "dsh-docs-harness",
+  "version": "0.1.1",
+  "description": "Docs Harness for the dsh GUI: project governance rules injected per session, the plan lifecycle as tools, a live plan progress bubble, and user-driven install/upgrade/removal of the Python engine.",
+  "type": "module",
+  "license": "MIT",
+  "main": "src/host/index.js",
+  "exports": {
+    ".": "./src/host/index.js",
+    "./invariant": "./src/host/invariant.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "inject": [
+        "@deepseek-ai/dsh-client-runtime",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-tool",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-ui-settings-plugins"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": [
+    "src",
+    "lib",
+    "vendor",
+    "!vendor/**/__pycache__",
+    "!vendor/**/*.pyc",
+    "cordis.patch.yml"
+  ],
+  "scripts": {
+    "seed-vendor": "node scripts/seed-vendor.mjs",
+    "build": "node scripts/build-client.mjs",
+    "extract-block": "npm run seed-vendor && node scripts/extract-managed-block.mjs",
+    "verify": "node scripts/verify-package.mjs",
+    "pretest": "npm run extract-block",
+    "test": "node --test --import ./tests/register-jsx.mjs --test-timeout=300000 \"tests/*.test.js\"",
+    "prepack": "npm run extract-block && node scripts/build-client.mjs && node scripts/verify-package.mjs"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-session-projection": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-settings": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-system-prompt": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-user-questions": "^0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "react": "^18.2.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@deepseek-ai/dsh-settings": "0.1.0-rc.6",
+    "@deepseek-ai/dsh-tools": "0.1.0-rc.6",
+    "@deepseek-ai/schemastery": "^3.18.1",
+    "esbuild": "^0.25.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "zod": "^4.4.3"
+  }
+}

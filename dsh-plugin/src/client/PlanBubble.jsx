@@ -1,0 +1,95 @@
+/**
+ * The standing plan bubble: a small centered pill above the composer that says
+ * what the frozen plan is doing right now, and expands to the item list on
+ * hover or keyboard focus.
+ *
+ * It reads `useProjection('harnessPlan')` and owns no state beyond "is the
+ * popover open". A plugin surface that cached the plan itself would be a second
+ * copy of a value the framework already pushes; absence (`undefined`) and "no
+ * plan" (`null`) both render nothing, which is also what happens when the
+ * governance switch is off and the host registers no projection at all.
+ *
+ * @module dsh-docs-harness/client/PlanBubble
+ */
+
+import { useCallback, useId, useState } from 'react';
+
+import { PLAN_PROJECTION_KEY } from '../shared/constants.js';
+import { PlanItemList } from './PlanItemList.jsx';
+import { css } from './styles.js';
+
+/**
+ * The pill's headline for one projected plan.
+ * @param {{ status: string, done: number, total: number }} plan - the projected value.
+ * @param {(key: string, params?: Record<string, unknown>) => string} t - translator.
+ * @returns {string} the headline text.
+ */
+function headline(plan, t) {
+  if (plan.status === 'awaiting-approval') return t('bubble.review');
+  if (plan.status === 'done') return t('bubble.done');
+  if (plan.total === 0) return t('bubble.active');
+  return t('bubble.progress', { done: plan.done, total: plan.total });
+}
+
+/**
+ * @param {object} props - composed slot props.
+ * @param {(key: string) => unknown} props.useProjection - framework projection reader.
+ * @param {(key: string, params?: Record<string, unknown>) => string} props.t - translator.
+ * @returns {import('react').ReactElement | null} the pill, or null when no plan stands.
+ */
+export function PlanBubble({ useProjection, t }) {
+  const plan = /** @type {any} */ (useProjection(PLAN_PROJECTION_KEY));
+  const [open, setOpen] = useState(false);
+  const listId = useId();
+  const show = useCallback(() => { setOpen(true); }, []);
+  const close = useCallback(() => { setOpen(false); }, []);
+  const toggle = useCallback(() => { setOpen(current => !current); }, []);
+  const onKeyDown = useCallback((event) => {
+    if (event.key === 'Escape') close();
+  }, [close]);
+
+  if (plan === undefined || plan === null) return null;
+
+  const text = headline(plan, t);
+  const diff = plan.diff.added > 0 || plan.diff.removed > 0 ? plan.diff : undefined;
+  const diffText = diff === undefined ? '' : t('bubble.diff', diff);
+  const expandable = plan.items.length > 0;
+  const expanded = expandable && open;
+
+  return (
+    <div className={css.bubbleRow} data-docs-harness-plan={plan.status}>
+      <div
+        className={css.bubbleWrap}
+        onMouseEnter={expandable ? show : undefined}
+        onMouseLeave={expandable ? close : undefined}
+      >
+        <button
+          type="button"
+          className={css.bubble}
+          aria-label={diffText === '' ? text : `${text} · ${diffText}`}
+          aria-expanded={expandable ? expanded : undefined}
+          aria-controls={expanded ? listId : undefined}
+          onFocus={expandable ? show : undefined}
+          onBlur={expandable ? close : undefined}
+          onClick={expandable ? toggle : undefined}
+          onKeyDown={onKeyDown}
+          title={expandable ? t('bubble.expand') : undefined}
+        >
+          <span className={css.bubbleCount}>{text}</span>
+          {diff === undefined ? null : (
+            <span className={css.bubbleDiff} aria-hidden="true">
+              <span className={css.added}>{`+${String(diff.added)}`}</span>
+              {' '}
+              <span className={css.removed}>{`-${String(diff.removed)}`}</span>
+            </span>
+          )}
+        </button>
+        {expanded ? (
+          <div className={css.popover} id={listId} role="note">
+            <PlanItemList items={plan.items} t={t} />
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}

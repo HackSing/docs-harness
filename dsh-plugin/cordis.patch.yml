@@ -1,0 +1,12 @@
+# dsh-docs-harness bundle patch: inserts this plugin's row into the profile
+# roster. Applied as a profile bundle layer (the `dsh.bundle.patch` manifest
+# field); activate with
+# `dsh plugin --profile <name> add dsh-docs-harness`.
+#
+# One row, by package name. The node half (exports ".") runs in the host
+# process — governance rules, plan tools, the plan projection, and the
+# /docs-harness routes — and the `dsh.client` declaration in package.json makes
+# the browser half (exports "./client") load in the web GUI.
+- insert:
+    - id: docs-harness
+      name: 'dsh-docs-harness'
