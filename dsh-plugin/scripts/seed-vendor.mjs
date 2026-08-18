@@ -26,6 +26,7 @@ const ENGINE_SCRIPTS = [
   'knowledge_assets.py',
   'acceptance_assets.py',
   'adr_assets.py',
+  'script_hygiene.py',
 ];
 
 /**

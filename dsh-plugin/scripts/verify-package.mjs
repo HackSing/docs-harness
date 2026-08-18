@@ -33,6 +33,7 @@ const REQUIRED_FILES = [
   'vendor/harness/scripts/knowledge_assets.py',
   'vendor/harness/scripts/acceptance_assets.py',
   'vendor/harness/scripts/adr_assets.py',
+  'vendor/harness/scripts/script_hygiene.py',
   'vendor/harness/scripts/githooks/pre-commit',
   'vendor/harness/scripts/githooks/setup.sh',
   'vendor/harness/plan-templates/levels/brief.json',
