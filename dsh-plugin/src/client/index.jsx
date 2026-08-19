@@ -25,8 +25,8 @@ import {
   DOCK_NOTICE_ORDER,
   FIELD_DISMISSED,
   LOCALE_NAMESPACE,
-  SETTINGS_CARD_ID,
   SETTINGS_CARD_ORDER,
+  SETTINGS_NAMESPACE,
   TOOL_NAMES,
 } from '../shared/constants.js';
 import { EnableNoticeBar } from './EnableNoticeBar.jsx';
@@ -91,7 +91,10 @@ export function apply(ctx, config, store = new HarnessSettingsStore()) {
 
   ctx.slots.inject(SETTINGS_SLOT, () => ctx.slots.register({
     name: SETTINGS_SLOT,
-    id: SETTINGS_CARD_ID,
+    // dsh 0.1.0-rc.7 起 settings.plugin.item 由 list slot 改为 keyed slot:宿主按
+    // "卡片所编辑的 settings namespace" 渲染(renderSlot(name, {}, { entryKey: ns })),
+    // 缺 key 会让整条 loader entry 装载失败(插件的 client 半边整体挂掉)。
+    key: SETTINGS_NAMESPACE,
     order: SETTINGS_CARD_ORDER,
     locale: LOCALE_NAMESPACE,
     inject: () => ({ hooks: { harness: store }, write }),

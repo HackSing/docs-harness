@@ -16,7 +16,7 @@ import {
   DOCK_NOTICE_ORDER,
   FIELD_DISMISSED,
   LOCALE_NAMESPACE,
-  SETTINGS_CARD_ID,
+  SETTINGS_NAMESPACE,
   TOOL_NAMES,
 } from '../src/shared/constants.js';
 import { apply, dismisser, inject, writer } from '../src/client/index.jsx';
@@ -74,7 +74,7 @@ describe('client registration', () => {
   it('registers one settings card', () => {
     const cards = forSlot(mount().ledger.entries, 'settings.plugin.item');
     assert.equal(cards.length, 1);
-    assert.equal(cards[0].id, SETTINGS_CARD_ID);
+    assert.equal(cards[0].key, SETTINGS_NAMESPACE);
   });
 
   it('declares the locale namespace on every entry, so `t` is present', () => {
@@ -101,7 +101,7 @@ describe('client registration', () => {
   it('hands the notice bar and the card the live store, not a copied value', () => {
     const { ledger, store } = mount();
     const notice = ledger.entries.find(entry => entry.id === DOCK_NOTICE_ID);
-    const card = ledger.entries.find(entry => entry.id === SETTINGS_CARD_ID);
+    const card = ledger.entries.find(entry => entry.key === SETTINGS_NAMESPACE);
     assert.equal(notice.inject().hooks.harness, store);
     assert.equal(card.inject().hooks.harness, store);
     assert.equal(typeof notice.inject().onDismiss, 'function');

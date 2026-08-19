@@ -91,7 +91,6 @@ export const DOCK_BUBBLE_ID = 'docs-harness-plan';
 export const DOCK_BUBBLE_ORDER = 30;
 export const DOCK_NOTICE_ID = 'docs-harness-notice';
 export const DOCK_NOTICE_ORDER = 40;
-export const SETTINGS_CARD_ID = 'docs-harness';
 export const SETTINGS_CARD_ORDER = 30;
 
 /** Settings fields the client writes; the host schema is their single definition. */
