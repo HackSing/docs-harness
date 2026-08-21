@@ -10,7 +10,7 @@
  * route; everything else keeps no store and no refresh loop.
  *
  * Registration is unconditional even though the host half can be switched off,
- * because the settings card is how the user switches it back on. With
+ * because the settings page is how the user switches it back on. With
  * governance off the projection is absent, the routes 404, and every other
  * surface here renders nothing — the degradation is the design, not an
  * accident.
@@ -25,8 +25,8 @@ import {
   DOCK_NOTICE_ORDER,
   FIELD_DISMISSED,
   LOCALE_NAMESPACE,
-  SETTINGS_CARD_ORDER,
-  SETTINGS_NAMESPACE,
+  SETTINGS_SECTION_ID,
+  SETTINGS_SECTION_ORDER,
   TOOL_NAMES,
 } from '../shared/constants.js';
 import { EnableNoticeBar } from './EnableNoticeBar.jsx';
@@ -40,7 +40,7 @@ import { installStyles } from './styles.js';
 /** Slot names this plugin contributes to. */
 const DOCK_SLOT = 'conversation.input.dock';
 const TOOLVIEW_SLOT = 'tool.call.toolview';
-const SETTINGS_SLOT = 'settings.plugin.item';
+const SETTINGS_SLOT = 'settings.section';
 
 // Module-body side effect, matching how the upstream CSS-module pipeline
 // behaves: the stylesheet lands at factory materialization, before any entry
@@ -63,6 +63,7 @@ export function apply(ctx, config, store = new HarnessSettingsStore()) {
     return () => { store.dispose(); };
   }, 'docs-harness: settings store');
   const write = writer(store);
+  const reset = writer(store, 'reset');
   const onDismiss = dismisser(store, write);
 
   ctx.slots.inject(DOCK_SLOT, function* () {
@@ -91,25 +92,30 @@ export function apply(ctx, config, store = new HarnessSettingsStore()) {
 
   ctx.slots.inject(SETTINGS_SLOT, () => ctx.slots.register({
     name: SETTINGS_SLOT,
-    // dsh 0.1.0-rc.7 起 settings.plugin.item 由 list slot 改为 keyed slot:宿主按
-    // "卡片所编辑的 settings namespace" 渲染(renderSlot(name, {}, { entryKey: ns })),
-    // 缺 key 会让整条 loader entry 装载失败(插件的 client 半边整体挂掉)。
-    key: SETTINGS_NAMESPACE,
-    order: SETTINGS_CARD_ORDER,
+    // A first-level settings page: a root-scope list slot whose options carry
+    // the nav identity (id drives the shell's `only` filtering, order the nav
+    // position). The label is re-resolved on every projection, so binding it
+    // lazily keeps the nav row localized after a locale switch without
+    // re-registering. No key: that constraint belongs to the keyed
+    // per-namespace plugin-card contract this registration no longer uses.
+    id: SETTINGS_SECTION_ID,
+    order: SETTINGS_SECTION_ORDER,
+    label: () => ctx.locale.bind(LOCALE_NAMESPACE)('settings.title'),
     locale: LOCALE_NAMESPACE,
-    inject: () => ({ hooks: { harness: store }, write }),
+    inject: () => ({ hooks: { harness: store }, write, reset }),
   }, HarnessSettingsCard));
 }
 
 /**
- * Build the settings writer the cards call.
- * @param {{ set: (field: string, value: unknown) => Promise<void> }} store - the settings store.
+ * Build the settings writer the settings page calls.
+ * @param {object} store - the settings store.
+ * @param {string} [method] - the store method to route through (`set` or `reset`).
  * @returns {(field: string, value: unknown) => Promise<{ ok: boolean, message?: string }>} the writer.
  */
-export function writer(store) {
+export function writer(store, method = 'set') {
   return async (field, value) => {
     try {
-      await store.set(field, value);
+      await store[method](field, value);
       return { ok: true };
     } catch (cause) {
       // A refused write leaves the previous snapshot in place, so the control

@@ -11,7 +11,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, it } from 'node:test';
 
 import { PROMPT_ENABLE, PROMPT_UPGRADE, TOOL_PLAN_PROGRESS } from '../src/shared/constants.js';
-import { HarnessSettingsCard } from '../src/client/HarnessSettingsCard.jsx';
+import { HarnessSettingsCard, RemoveRow } from '../src/client/HarnessSettingsCard.jsx';
 import { NoticeBarView } from '../src/client/EnableNoticeBar.jsx';
 import { PlanBubble } from '../src/client/PlanBubble.jsx';
 import { PlanToolCard } from '../src/client/PlanToolCard.jsx';
@@ -83,6 +83,13 @@ describe('plan bubble', () => {
   it('is not announced as expandable when there is nothing to expand', () => {
     const html = render(PlanBubble, { useProjection: projecting(planValue('done', [])), t });
     assert.doesNotMatch(html, /aria-expanded/);
+    assert.doesNotMatch(html, /aria-pressed/);
+  });
+
+  it('starts unpinned, so hover alone still closes the popover', () => {
+    const items = [{ content: 'a', status: 'pending' }];
+    const html = render(PlanBubble, { useProjection: projecting(planValue('running', items)), t });
+    assert.match(html, /aria-pressed="false"/);
   });
 
   it('names the whole readout for a screen reader', () => {
@@ -144,10 +151,13 @@ describe('notice bar view', () => {
     assert.match(html, /notice\.working/);
   });
 
-  it('reports a failure without offering an action that just failed', () => {
-    const html = render(NoticeBarView, { notice: { error: 'boom' }, working: false, t });
+  it('offers retry after a failure, and locks it while the retry runs', () => {
+    const html = render(NoticeBarView, { notice: { error: 'boom' }, working: false, t, onAct: () => {} });
     assert.match(html, /notice\.failed/);
-    assert.doesNotMatch(html, /<button/);
+    assert.match(html, /notice\.retry/);
+    const busy = render(NoticeBarView, { notice: { error: 'boom' }, working: true, t, onAct: () => {} });
+    assert.match(busy, /aria-busy="true"/);
+    assert.match(busy, /<button[^>]*disabled/);
   });
 });
 
@@ -161,6 +171,7 @@ describe('settings card', () => {
     useHarness: selector => selector(snapshot),
     useSessions: selector => selector({ current }),
     write: () => Promise.resolve({ ok: true }),
+    reset: () => Promise.resolve({ ok: true }),
     t,
   });
 
@@ -189,5 +200,42 @@ describe('settings card', () => {
   it('cannot remove anything without a session to name the project', () => {
     const html = card(ready, undefined);
     assert.match(html, /settings\.noSession/);
+  });
+
+  it('marks a user-overridden switch and offers the reset control', () => {
+    const html = card({ ...ready, user: { autoEnable: true } }, 'session-1');
+    assert.equal(html.match(/settings\.overridden/g).length, 1);
+    assert.equal(html.match(/settings\.reset/g).length, 1);
+  });
+
+  it('leaves switches sitting at their defaults unmarked', () => {
+    const html = card({ ...ready, user: {} }, 'session-1');
+    assert.doesNotMatch(html, /settings\.overridden/);
+    assert.doesNotMatch(html, /settings\.reset/);
+  });
+
+  it('asks before removing, and the confirm step swaps both the hint and the buttons', () => {
+    const ask = render(RemoveRow, {
+      confirming: false, working: false, disabled: false, t,
+      onAsk: () => {}, onConfirm: () => {}, onCancel: () => {},
+    });
+    assert.match(ask, /settings\.remove\.hint/);
+    assert.doesNotMatch(ask, /settings\.remove\.confirmAction/);
+    const confirm = render(RemoveRow, {
+      confirming: true, working: false, disabled: false, t,
+      onAsk: () => {}, onConfirm: () => {}, onCancel: () => {},
+    });
+    assert.match(confirm, /settings\.remove\.confirm/);
+    assert.match(confirm, /settings\.remove\.confirmAction/);
+    assert.match(confirm, /settings\.remove\.cancel/);
+  });
+
+  it('locks both confirm buttons while a removal is in flight', () => {
+    const html = render(RemoveRow, {
+      confirming: true, working: true, disabled: false, t,
+      onAsk: () => {}, onConfirm: () => {}, onCancel: () => {},
+    });
+    assert.equal(html.match(/disabled/g)?.length, 2);
+    assert.match(html, /settings\.working/);
   });
 });

@@ -1,7 +1,8 @@
 /**
  * The standing plan bubble: a small centered pill above the composer that says
  * what the frozen plan is doing right now, and expands to the item list on
- * hover or keyboard focus.
+ * hover or keyboard focus. A click pins the popover open (hover leave and blur
+ * no longer close it) until Esc or a second click releases it.
  *
  * It reads `useProjection('harnessPlan')` and owns no state beyond "is the
  * popover open". A plugin surface that cached the plan itself would be a second
@@ -50,16 +51,30 @@ function headline(plan, t) {
 export function PlanBubble({ useProjection, t }) {
   const plan = /** @type {any} */ (useProjection(PLAN_PROJECTION_KEY));
   const [open, setOpen] = useState(false);
+  // Pinned = the popover survives hover leave and blur until Esc or a second
+  // click; a hover-only popover drops long checklists the moment the pointer
+  // drifts, which is exactly when the user is reading them.
+  const [pinned, setPinned] = useState(false);
   const listId = useId();
   const closeTimer = useRef(/** @type {ReturnType<typeof setTimeout> | undefined} */ (undefined));
   const cancelClose = useCallback(() => { clearTimeout(closeTimer.current); }, []);
   const show = useCallback(() => { cancelClose(); setOpen(true); }, [cancelClose]);
-  const close = useCallback(() => { cancelClose(); setOpen(false); }, [cancelClose]);
+  const close = useCallback(() => { cancelClose(); setPinned(false); setOpen(false); }, [cancelClose]);
   const scheduleClose = useCallback(() => {
     cancelClose();
+    if (pinned) return;
     closeTimer.current = setTimeout(() => { setOpen(false); }, CLOSE_DELAY_MS);
-  }, [cancelClose]);
-  const toggle = useCallback(() => { setOpen(current => !current); }, []);
+  }, [cancelClose, pinned]);
+  const toggle = useCallback(() => {
+    cancelClose();
+    if (pinned) {
+      setPinned(false);
+      setOpen(false);
+    } else {
+      setPinned(true);
+      setOpen(true);
+    }
+  }, [cancelClose, pinned]);
   const onKeyDown = useCallback((event) => {
     if (event.key === 'Escape') close();
   }, [close]);
@@ -85,9 +100,10 @@ export function PlanBubble({ useProjection, t }) {
           className={css.bubble}
           aria-label={diffText === '' ? text : `${text} · ${diffText}`}
           aria-expanded={expandable ? expanded : undefined}
+          aria-pressed={expandable ? pinned : undefined}
           aria-controls={expanded ? listId : undefined}
           onFocus={expandable ? show : undefined}
-          onBlur={expandable ? close : undefined}
+          onBlur={expandable && !pinned ? close : undefined}
           onClick={expandable ? toggle : undefined}
           onKeyDown={onKeyDown}
           title={expandable ? t('bubble.expand') : undefined}

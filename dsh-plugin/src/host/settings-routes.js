@@ -25,6 +25,7 @@
 
 import {
   ACTION_SETTINGS_READ,
+  ACTION_SETTINGS_RESET,
   ACTION_SETTINGS_WRITE,
   SETTINGS_FIELD_GUARDS,
   SETTINGS_NAMESPACE,
@@ -56,7 +57,9 @@ async function handle(ctx, req, res) {
   if (!isLoopback(req)) return sendStatus(res, 403);
   if (req.method !== 'POST') return sendStatus(res, 405);
   const action = new URL(req.url ?? '/', 'http://local').pathname.slice(SETTINGS_ROUTE_PREFIX.length + 1);
-  if (action !== ACTION_SETTINGS_READ && action !== ACTION_SETTINGS_WRITE) return sendStatus(res, 404);
+  if (action !== ACTION_SETTINGS_READ && action !== ACTION_SETTINGS_WRITE && action !== ACTION_SETTINGS_RESET) {
+    return sendStatus(res, 404);
+  }
   let body;
   try {
     body = await readBody(req);
@@ -74,6 +77,17 @@ async function handle(ctx, req, res) {
       }
       await ctx.settings.update(SETTINGS_NAMESPACE, { [body.field]: body.value });
     }
+    if (action === ACTION_SETTINGS_RESET) {
+      // Unset from the user layer: the resolved value then re-inherits the
+      // composition base and schema defaults — this is the "恢复默认" path.
+      if (typeof body.field !== 'string' || SETTINGS_FIELD_GUARDS[body.field] === undefined) {
+        return sendJson(res, {
+          ok: false,
+          error: { code: 'invalid-field', message: `not a writable docs-harness field: ${JSON.stringify(body.field)}` },
+        });
+      }
+      await ctx.settings.mutate(SETTINGS_NAMESPACE, [{ op: 'unset', path: [body.field] }]);
+    }
     sendJson(res, { ok: true, value: describeSection(ctx) });
   } catch (cause) {
     ctx.logger?.warn(`docs-harness: settings ${action} failed: ${String(cause)}`);
@@ -85,19 +99,23 @@ async function handle(ctx, req, res) {
 }
 
 /**
- * The section as the browser needs it: the resolved value and whether the
- * provider accepts writes. A namespace not yet registered (the register inject
- * races this route only for the first milliseconds of boot) reports as such
- * instead of inventing a value.
+ * The section as the browser needs it: the resolved value, the raw user layer
+ * (a field's presence there is the "user-overridden" mark the settings page
+ * renders), and whether the provider accepts writes. A namespace not yet
+ * registered (the register inject races this route only for the first
+ * milliseconds of boot) reports as such instead of inventing a value.
  * @param {object} ctx - host context carrying `settings`.
- * @returns {{ value: object, writable: boolean }} the browser-facing view.
+ * @returns {{ value: object, user: object, writable: boolean }} the browser-facing view.
  */
 function describeSection(ctx) {
-  const value = ctx.settings.get(SETTINGS_NAMESPACE);
-  if (value === undefined) {
+  // Wire posture: redactSecrets, per the settings service contract. This
+  // schema declares no secrets, so the resolved value arrives intact.
+  const descriptor = ctx.settings.describe({ redactSecrets: true })
+    .find(entry => entry.ns === SETTINGS_NAMESPACE);
+  if (descriptor === undefined) {
     const error = new Error('docs-harness settings namespace is not registered yet');
     error.code = 'not-ready';
     throw error;
   }
-  return { value, writable: ctx.settings.writable === true };
+  return { value: descriptor.value, user: descriptor.user ?? {}, writable: ctx.settings.writable === true };
 }

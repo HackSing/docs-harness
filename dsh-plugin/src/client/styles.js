@@ -38,6 +38,8 @@ export const css = {
   cardTitle: 'dh-card-title',
   cardRow: 'dh-card-row',
   cardHint: 'dh-card-hint',
+  cardActions: 'dh-card-actions',
+  overriddenMark: 'dh-overridden',
   error: 'dh-error',
 };
 
@@ -146,6 +148,8 @@ const SHEET = `
 .${css.cardRow} { display: flex; align-items: center; gap: 10px; padding: 6px 0; }
 .${css.cardRow} label { flex: 1 1 auto; }
 .${css.cardHint} { color: var(--dsw-alias-label-tertiary); font-size: 12px; }
+.${css.cardActions} { flex: none; display: flex; align-items: center; gap: 6px; }
+.${css.overriddenMark} { font-size: 12px; color: var(--dsw-alias-state-business-primary); }
 .${css.error} { color: var(--dsw-alias-state-error-primary); }
 
 .dh-sr-only {

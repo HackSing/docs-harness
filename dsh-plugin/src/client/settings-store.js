@@ -17,13 +17,14 @@
 
 import {
   ACTION_SETTINGS_READ,
+  ACTION_SETTINGS_RESET,
   ACTION_SETTINGS_WRITE,
   SETTINGS_ROUTE_PREFIX,
 } from '../shared/constants.js';
 import { postJson } from './api.js';
 
 /** The one pre-answer snapshot, shared so an idle store allocates nothing. */
-const LOADING = Object.freeze({ status: 'loading', value: undefined, writable: false });
+const LOADING = Object.freeze({ status: 'loading', value: undefined, user: undefined, writable: false });
 
 /** Serializes reads and writes of the docs-harness section behind a snapshot store. */
 export class HarnessSettingsStore {
@@ -39,7 +40,7 @@ export class HarnessSettingsStore {
     this.disposed = false;
   }
 
-  /** @returns {{ status: string, value: object | undefined, writable: boolean }} the current snapshot (stable reference until the next change). */
+  /** @returns {{ status: string, value: object | undefined, user: object | undefined, writable: boolean }} the current snapshot (stable reference until the next change). */
   getSnapshot() {
     return this.snapshot;
   }
@@ -65,8 +66,8 @@ export class HarnessSettingsStore {
     return this.enqueue(async () => {
       const envelope = await this.transport(`${SETTINGS_ROUTE_PREFIX}/${ACTION_SETTINGS_READ}`, {});
       this.publish(envelope.ok
-        ? { status: 'ready', value: envelope.value?.value, writable: envelope.value?.writable === true }
-        : { status: 'unavailable', value: undefined, writable: false });
+        ? { status: 'ready', value: envelope.value?.value, user: envelope.value?.user, writable: envelope.value?.writable === true }
+        : { status: 'unavailable', value: undefined, user: undefined, writable: false });
     });
   }
 
@@ -79,12 +80,34 @@ export class HarnessSettingsStore {
    * @returns {Promise<void>} settlement of the write.
    */
   set(field, value) {
+    return this.write(ACTION_SETTINGS_WRITE, { field, value });
+  }
+
+  /**
+   * Queue one field reset: unset it from the user layer so the resolved value
+   * re-inherits the composition base and schema defaults. Same settlement
+   * contract as {@link set}.
+   * @param {string} field - the field whose user override is removed.
+   * @returns {Promise<void>} settlement of the write.
+   */
+  reset(field) {
+    return this.write(ACTION_SETTINGS_RESET, { field });
+  }
+
+  /**
+   * The shared write path behind {@link set} and {@link reset}: one action,
+   * one body, one publish of the fresh section the host answered with.
+   * @param {string} action - the settings route action.
+   * @param {object} body - the JSON payload.
+   * @returns {Promise<void>} settlement of the write.
+   */
+  write(action, body) {
     return this.enqueue(async () => {
-      const envelope = await this.transport(`${SETTINGS_ROUTE_PREFIX}/${ACTION_SETTINGS_WRITE}`, { field, value });
+      const envelope = await this.transport(`${SETTINGS_ROUTE_PREFIX}/${action}`, body);
       if (!envelope.ok) {
         throw new Error(envelope.error?.message ?? 'settings write failed');
       }
-      this.publish({ status: 'ready', value: envelope.value?.value, writable: envelope.value?.writable === true });
+      this.publish({ status: 'ready', value: envelope.value?.value, user: envelope.value?.user, writable: envelope.value?.writable === true });
     });
   }
 

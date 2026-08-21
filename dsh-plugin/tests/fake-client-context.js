@@ -50,6 +50,9 @@ export function createFakeClientContext(section = {}) {
       ledger.dictionaries.push(record);
       return () => { ledger.dictionaries.splice(ledger.dictionaries.indexOf(record), 1); };
     },
+    // Slot labels resolve lazily through this binding; the fake answers with a
+    // stable `namespace:key` string so tests assert which key was asked for.
+    bind: namespace => key => `${namespace}:${key}`,
   });
 
   let value = section;

@@ -67,6 +67,12 @@ export const SETTINGS_ROUTE_PREFIX = '/docs-harness-settings';
 export const ACTION_SETTINGS_READ = 'read';
 export const ACTION_SETTINGS_WRITE = 'write';
 
+/**
+ * Reset one field to its inherited value by unsetting it from the user layer
+ * (the merge-only write action cannot express removal).
+ */
+export const ACTION_SETTINGS_RESET = 'reset';
+
 /** Read-only route action: report whether this project is prepared, and how. */
 export const ACTION_STATUS = 'status';
 
@@ -91,7 +97,9 @@ export const DOCK_BUBBLE_ID = 'docs-harness-plan';
 export const DOCK_BUBBLE_ORDER = 30;
 export const DOCK_NOTICE_ID = 'docs-harness-notice';
 export const DOCK_NOTICE_ORDER = 40;
-export const SETTINGS_CARD_ORDER = 30;
+/** Settings section nav identity and position (a root-scope list slot entry). */
+export const SETTINGS_SECTION_ID = 'docs-harness';
+export const SETTINGS_SECTION_ORDER = 30;
 
 /** Settings fields the client writes; the host schema is their single definition. */
 export const FIELD_GOVERNANCE = 'governance';

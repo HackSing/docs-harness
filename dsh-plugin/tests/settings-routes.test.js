@@ -10,6 +10,7 @@ import { describe, it } from 'node:test';
 
 import {
   ACTION_SETTINGS_READ,
+  ACTION_SETTINGS_RESET,
   ACTION_SETTINGS_WRITE,
   FIELD_DISMISSED,
   FIELD_GOVERNANCE,
@@ -22,9 +23,9 @@ import { registerSettingsRoutes } from '../src/host/settings-routes.js';
  * @param {object} [options] - settings service behaviour overrides.
  * @returns {object} a fake host context plus its recording ledger.
  */
-function makeCtx({ section = { governance: true, dismissed: [] }, unregistered = false, writable = true, failWrite } = {}) {
-  const ledger = { registered: [], updates: [], warnings: [], disposed: 0 };
-  let value = section;
+function makeCtx({ defaults = { governance: true, dismissed: [] }, user = {}, unregistered = false, writable = true, failWrite } = {}) {
+  const ledger = { registered: [], updates: [], mutations: [], warnings: [], disposed: 0 };
+  let userLayer = { ...user };
   const ctx = {
     logger: { warn: message => ledger.warnings.push(String(message)) },
     webServer: {
@@ -34,12 +35,21 @@ function makeCtx({ section = { governance: true, dismissed: [] }, unregistered =
       },
     },
     settings: {
-      get: ns => (ns === SETTINGS_NAMESPACE && !unregistered ? value : undefined),
+      describe: () => (unregistered
+        ? []
+        : [{ ns: SETTINGS_NAMESPACE, value: { ...defaults, ...userLayer }, user: { ...userLayer } }]),
       writable,
       update: async (ns, patch) => {
         if (failWrite !== undefined) throw new Error(failWrite);
         ledger.updates.push([ns, patch]);
-        value = value === undefined ? undefined : { ...value, ...patch };
+        userLayer = { ...userLayer, ...patch };
+      },
+      mutate: async (ns, ops) => {
+        if (failWrite !== undefined) throw new Error(failWrite);
+        ledger.mutations.push([ns, ops]);
+        for (const op of ops) {
+          if (op.op === 'unset') delete userLayer[op.path[0]];
+        }
       },
     },
   };
@@ -122,21 +132,29 @@ describe('settings routes', () => {
     assert.deepEqual(ledger.updates, []);
   });
 
-  it('answers only POST and only its two actions', async () => {
+  it('answers only POST and only its three actions', async () => {
     const { ctx } = makeCtx();
     hook(ctx);
     assert.equal((await roundTrip(ctx, { method: 'GET' })).status, 405);
-    assert.equal((await roundTrip(ctx, { action: 'reset' })).status, 404);
+    assert.equal((await roundTrip(ctx, { action: 'nuke' })).status, 404);
   });
 
-  it('read reports the resolved section and writability', async () => {
-    const { ctx } = makeCtx({ section: { governance: false, dismissed: ['D:/x'] } });
+  it('read reports the resolved section, the user layer, and writability', async () => {
+    const { ctx } = makeCtx({ defaults: { governance: false, dismissed: ['D:/x'] } });
     hook(ctx);
     const record = await roundTrip(ctx, { action: ACTION_SETTINGS_READ });
     assert.deepEqual(record.body, {
       ok: true,
-      value: { value: { governance: false, dismissed: ['D:/x'] }, writable: true },
+      value: { value: { governance: false, dismissed: ['D:/x'] }, user: {}, writable: true },
     });
+  });
+
+  it('read marks user-overridden fields through the raw user layer', async () => {
+    const { ctx } = makeCtx({ user: { governance: false } });
+    hook(ctx);
+    const record = await roundTrip(ctx, { action: ACTION_SETTINGS_READ });
+    assert.deepEqual(record.body.value.user, { governance: false });
+    assert.equal(record.body.value.value.governance, false);
   });
 
   it('read reports not-ready while the namespace is unregistered, instead of inventing defaults', async () => {
@@ -195,6 +213,30 @@ describe('settings routes', () => {
     });
     assert.equal(record.body.ok, false);
     assert.match(record.body.error.message, /read-only/);
+  });
+
+  it('reset unsets the field from the user layer and answers with the re-inherited section', async () => {
+    const { ctx, ledger } = makeCtx({ user: { governance: false } });
+    hook(ctx);
+    const record = await roundTrip(ctx, {
+      action: ACTION_SETTINGS_RESET,
+      body: JSON.stringify({ field: FIELD_GOVERNANCE }),
+    });
+    assert.deepEqual(ledger.mutations, [[SETTINGS_NAMESPACE, [{ op: 'unset', path: [FIELD_GOVERNANCE] }]]]);
+    assert.equal(record.body.ok, true);
+    assert.equal(record.body.value.value.governance, true);
+    assert.deepEqual(record.body.value.user, {});
+  });
+
+  it('reset refuses unknown fields without touching the service', async () => {
+    const { ctx, ledger } = makeCtx();
+    hook(ctx);
+    for (const body of [{ field: 'python' }, { value: true }]) {
+      const record = await roundTrip(ctx, { action: ACTION_SETTINGS_RESET, body: JSON.stringify(body) });
+      assert.equal(record.body.ok, false, JSON.stringify(body));
+      assert.equal(record.body.error.code, 'invalid-field');
+    }
+    assert.deepEqual(ledger.mutations, []);
   });
 
   it('answers malformed JSON as bad-request instead of crashing the route', async () => {

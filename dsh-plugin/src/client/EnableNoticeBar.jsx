@@ -69,17 +69,31 @@ export function readNotice(envelope) {
 
 /**
  * The bar itself. Pure: everything it shows arrives as a prop.
+ *
+ * The failure state offers RETRY, not silence: a refused write keeps the prompt
+ * it failed on (the container preserves it), so retrying runs the same action;
+ * a failed status probe carries no prompt and retrying re-probes.
  * @param {object} props - view props.
  * @param {{ prompt?: string, dir?: string, versions?: object, error?: string }} props.notice - reduced state.
  * @param {boolean} props.working - whether an operation is in flight.
  * @param {(key: string, params?: Record<string, unknown>) => string} props.t - translator.
- * @param {() => void} props.onAct - run the offered action.
+ * @param {() => void} props.onAct - run the offered action (or re-probe, after a failed probe).
  * @param {() => void} props.onDismiss - stop offering it for this project.
  * @returns {import('react').ReactElement | null} the bar, or null when there is nothing to say.
  */
 export function NoticeBarView({ notice, working, t, onAct, onDismiss }) {
   if (notice.error !== undefined) {
-    return <div className={css.bar} role="status">{t('notice.failed', { message: notice.error })}</div>;
+    return (
+      <div className={css.bar} role="status" aria-busy={working}>
+        {working ? <span className={css.spinner} aria-hidden="true" /> : null}
+        <span className={css.barText}>{t('notice.failed', { message: notice.error })}</span>
+        <span className={css.barActions}>
+          <button type="button" className={css.button} disabled={working} onClick={onAct}>
+            {t('notice.retry')}
+          </button>
+        </span>
+      </div>
+    );
   }
   if (notice.prompt === undefined) return null;
   const message = notice.prompt === PROMPT_UPGRADE
@@ -123,6 +137,9 @@ export function EnableNoticeBar({ sessionId, t, useHarness, onDismiss }) {
   // The ref closes the same-render window: two clicks before the state flush
   // would otherwise start two engine subprocesses on one repository.
   const busy = useRef(false);
+  // Bump to re-run the status probe — the retry path for a failed probe, whose
+  // notice carries no prompt to re-attempt.
+  const [probeTick, setProbeTick] = useState(0);
 
   const run = useCallback(async (action) => {
     if (busy.current) return;
@@ -131,7 +148,14 @@ export function EnableNoticeBar({ sessionId, t, useHarness, onDismiss }) {
     const envelope = await callHarness(action, sessionId);
     busy.current = false;
     setWorking(false);
-    setNotice(readNotice(envelope));
+    setNotice((current) => {
+      const next = readNotice(envelope);
+      // A failed write keeps the prompt it failed on, so the bar's retry
+      // button runs the same action again rather than stranding the user.
+      return next.error !== undefined && current.prompt !== undefined
+        ? { ...next, prompt: current.prompt, dir: current.dir, versions: current.versions }
+        : next;
+    });
   }, [sessionId]);
 
   useEffect(() => {
@@ -141,7 +165,7 @@ export function EnableNoticeBar({ sessionId, t, useHarness, onDismiss }) {
       if (!controller.signal.aborted) setNotice(readNotice(envelope));
     });
     return () => { controller.abort(); };
-  }, [sessionId]);
+  }, [sessionId, probeTick]);
 
   const prompt = notice.prompt;
   const auto = prompt === PROMPT_ENABLE ? settings?.autoEnable ?? DEFAULT_AUTO_ENABLE
@@ -159,7 +183,10 @@ export function EnableNoticeBar({ sessionId, t, useHarness, onDismiss }) {
       notice={notice}
       working={working}
       t={t}
-      onAct={() => { if (prompt !== undefined) void run(ACTION_FOR[prompt]); }}
+      onAct={() => {
+        if (prompt !== undefined) void run(ACTION_FOR[prompt]);
+        else setProbeTick(tick => tick + 1);
+      }}
       onDismiss={() => { if (notice.dir !== undefined) onDismiss(notice.dir); }}
     />
   );

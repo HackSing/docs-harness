@@ -10,6 +10,7 @@ import { describe, it } from 'node:test';
 
 import {
   ACTION_SETTINGS_READ,
+  ACTION_SETTINGS_RESET,
   ACTION_SETTINGS_WRITE,
   SETTINGS_ROUTE_PREFIX,
 } from '../src/shared/constants.js';
@@ -26,7 +27,7 @@ function makeTransport(script) {
   return { transport, calls };
 }
 
-const READY = { ok: true, value: { value: { governance: true, dismissed: [] }, writable: true } };
+const READY = { ok: true, value: { value: { governance: true, dismissed: [] }, user: {}, writable: true } };
 
 describe('settings store', () => {
   it('starts loading and publishes ready after a successful read', async () => {
@@ -35,7 +36,7 @@ describe('settings store', () => {
     assert.equal(store.getSnapshot().status, 'loading');
     await store.load();
     assert.deepEqual(calls, [{ path: `${SETTINGS_ROUTE_PREFIX}/${ACTION_SETTINGS_READ}`, body: {} }]);
-    assert.deepEqual(store.getSnapshot(), { status: 'ready', value: { governance: true, dismissed: [] }, writable: true });
+    assert.deepEqual(store.getSnapshot(), { status: 'ready', value: { governance: true, dismissed: [] }, user: {}, writable: true });
   });
 
   it('publishes unavailable on a refused or unreachable read', async () => {
@@ -72,7 +73,7 @@ describe('settings store', () => {
   });
 
   it('a successful write publishes the section the host answered with', async () => {
-    const fresh = { ok: true, value: { value: { governance: false, dismissed: [] }, writable: true } };
+    const fresh = { ok: true, value: { value: { governance: false, dismissed: [] }, user: { governance: false }, writable: true } };
     const { transport, calls } = makeTransport([READY, fresh]);
     const store = new HarnessSettingsStore(transport);
     await store.load();
@@ -82,6 +83,34 @@ describe('settings store', () => {
       body: { field: 'governance', value: false },
     });
     assert.equal(store.getSnapshot().value.governance, false);
+    assert.deepEqual(store.getSnapshot().user, { governance: false });
+  });
+
+  it('a reset posts the reset action and publishes the section without the override', async () => {
+    const overridden = { ok: true, value: { value: { governance: false, dismissed: [] }, user: { governance: false }, writable: true } };
+    const fresh = { ok: true, value: { value: { governance: true, dismissed: [] }, user: {}, writable: true } };
+    const { transport, calls } = makeTransport([overridden, fresh]);
+    const store = new HarnessSettingsStore(transport);
+    await store.load();
+    await store.reset('governance');
+    assert.deepEqual(calls[1], {
+      path: `${SETTINGS_ROUTE_PREFIX}/${ACTION_SETTINGS_RESET}`,
+      body: { field: 'governance' },
+    });
+    assert.equal(store.getSnapshot().value.governance, true);
+    assert.deepEqual(store.getSnapshot().user, {});
+  });
+
+  it('a refused reset rejects and leaves the snapshot standing', async () => {
+    const { transport } = makeTransport([
+      READY,
+      { ok: false, error: { code: 'invalid-field', message: 'not a writable docs-harness field' } },
+    ]);
+    const store = new HarnessSettingsStore(transport);
+    await store.load();
+    const before = store.getSnapshot();
+    await assert.rejects(() => store.reset('governance'), /not a writable/);
+    assert.equal(store.getSnapshot(), before);
   });
 
   it('a refused write rejects with the host reason and leaves the snapshot standing', async () => {

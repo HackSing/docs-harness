@@ -16,7 +16,8 @@ import {
   DOCK_NOTICE_ORDER,
   FIELD_DISMISSED,
   LOCALE_NAMESPACE,
-  SETTINGS_NAMESPACE,
+  SETTINGS_SECTION_ID,
+  SETTINGS_SECTION_ORDER,
   TOOL_NAMES,
 } from '../src/shared/constants.js';
 import { apply, dismisser, inject, writer } from '../src/client/index.jsx';
@@ -53,7 +54,7 @@ describe('client registration', () => {
     const { ledger } = mount();
     assert.deepEqual(
       ledger.injected.sort(),
-      ['conversation.input.dock', 'settings.plugin.item', 'tool.call.toolview'],
+      ['conversation.input.dock', 'settings.section', 'tool.call.toolview'],
     );
   });
 
@@ -71,10 +72,20 @@ describe('client registration', () => {
     assert.deepEqual(views.map(entry => entry.key), TOOL_NAMES);
   });
 
-  it('registers one settings card', () => {
-    const cards = forSlot(mount().ledger.entries, 'settings.plugin.item');
-    assert.equal(cards.length, 1);
-    assert.equal(cards[0].key, SETTINGS_NAMESPACE);
+  it('registers one first-level settings section with its nav identity', () => {
+    const sections = forSlot(mount().ledger.entries, 'settings.section');
+    assert.equal(sections.length, 1);
+    assert.equal(sections[0].id, SETTINGS_SECTION_ID);
+    assert.equal(sections[0].order, SETTINGS_SECTION_ORDER);
+    // A list slot carries no key — that constraint belongs to the keyed
+    // settings.plugin.item contract this plugin no longer registers into.
+    assert.equal(sections[0].key, undefined);
+  });
+
+  it('resolves the nav label lazily so a locale switch re-projects it', () => {
+    const section = forSlot(mount().ledger.entries, 'settings.section')[0];
+    assert.equal(typeof section.label, 'function');
+    assert.equal(section.label(), `${LOCALE_NAMESPACE}:settings.title`);
   });
 
   it('declares the locale namespace on every entry, so `t` is present', () => {
@@ -98,14 +109,15 @@ describe('client registration', () => {
     assert.equal(ledger.storeDisposed, 1);
   });
 
-  it('hands the notice bar and the card the live store, not a copied value', () => {
+  it('hands the notice bar and the settings page the live store, not a copied value', () => {
     const { ledger, store } = mount();
     const notice = ledger.entries.find(entry => entry.id === DOCK_NOTICE_ID);
-    const card = ledger.entries.find(entry => entry.key === SETTINGS_NAMESPACE);
+    const page = ledger.entries.find(entry => entry.id === SETTINGS_SECTION_ID);
     assert.equal(notice.inject().hooks.harness, store);
-    assert.equal(card.inject().hooks.harness, store);
+    assert.equal(page.inject().hooks.harness, store);
     assert.equal(typeof notice.inject().onDismiss, 'function');
-    assert.equal(typeof card.inject().write, 'function');
+    assert.equal(typeof page.inject().write, 'function');
+    assert.equal(typeof page.inject().reset, 'function');
   });
 
   it('registers nothing that the plan bubble needs injected — it reads a projection', () => {
