@@ -4,6 +4,7 @@ __pycache__/
 test_output.log
 .DS_Store
 .tmp-*
+/.playwright-mcp/
 /.docs-harness/runs/
 /.docs-harness/background/
 /.docs-harness/knowledge-jobs/
