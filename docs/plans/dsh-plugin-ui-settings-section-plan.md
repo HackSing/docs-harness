@@ -1,9 +1,9 @@
-> 状态：有效（实施中）
+> 状态：已实施-仅追溯（代码已是真源，2026-08-21 核对）
 <!-- docs-harness:plan-document/v1 -->
 
 # dsh 插件 UI 优化：设置页迁移 settings.section 与交互打磨
 
-- 冻结合同：`sha256:f8f0f1cdaa7925ab1ec80e9eb9227478cf5d6cff3686512a7a5970b52a153bdf`
+- 冻结合同：`sha256:5e6a3cf59548468f56f40298baf5a2866e9fd54e18778014735c6325bdb31cd7`
 - 关键符号：`HarnessSettingsCard`、`settings.section`、`HarnessSettingsStore`、`NoticeBarView`
 
 ## 背景

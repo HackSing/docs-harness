@@ -1,11 +1,11 @@
-> 状态：有效（待验收）
+> 状态：已验收-仅追溯
 <!-- docs-harness:acceptance-document/v1 -->
 
 # dsh 插件 UI 优化验收：settings.section 设置页、覆盖重置、通知条重试与气泡 pin
 
-- 修订：5
+- 修订：7
 - 关键符号：`HarnessSettingsCard`、`settings.section`、`HarnessSettingsStore`、`NoticeBarView`
-- 资产指纹：`sha256:138e91d89a5018cb290dadf52ad8ee6feb5d02dfdb372be2f2b6d00ce238ee45`
+- 资产指纹：`sha256:95839a21f1e850e5ab64901e295c7b3d72f72a0c647565811508ad001b0015d3`
 - 关联方案：`docs/plans/dsh-plugin-ui-settings-section-plan.json`
 
 ## 验收目标
@@ -37,7 +37,7 @@
 
 ### `c4` 真实 dsh 运行态：设置导航出现 Docs Harness 页、开关可写、通知条可重试、气泡可 pin
 
-- 状态：pending
+- 状态：passed
 - 类型：user_acceptance
 - 层级：L5
 - 证据：
