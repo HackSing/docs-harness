@@ -1,0 +1,108 @@
+{
+  "schema_version": "docs-harness/plan/v3",
+  "plan_level": "full",
+  "plan_profile": "frontend_ui",
+  "secondary_profiles": [],
+  "template_versions": [
+    "level/full@2.9.1",
+    "profile/frontend_ui@2.9.1"
+  ],
+  "selection_fingerprint": "sha256:6d5e490ead036bfbe793df4be5421744aeef2d28de9a015bf218712264763b5c",
+  "content": {
+    "title": "dsh 插件 UI 优化：设置页迁移 settings.section 与交互打磨",
+    "key_symbols": [
+      "HarnessSettingsCard",
+      "settings.section",
+      "HarnessSettingsStore",
+      "NoticeBarView"
+    ],
+    "background": [
+      "dsh-plugin 浏览器半的设置卡片注册在 keyed slot `settings.plugin.item`（src/client/index.jsx），该契约自 dsh 0.1.0-rc.7 起要求 key 且缺 key 会让整条 client loader entry 装载失败，属于版本红线。",
+      "dsh-buddy 仓 docs/dsh-web-ui-plugin-guide.md §3.1 推荐新插件走一级 `settings.section`（list slot，无 key 红线，带左侧导航条目）；§4 指出官方无可复用表单组件，pet 范本的开关行带\"已覆盖/恢复默认\"。",
+      "已核对本机 dsh-buddy/node_modules/@deepseek-ai/dsh-client-ui-settings 的 slots.d.ts：`settings.section` 为 kind=list、scope=root，owner props 仅 `close()`；root scope 组件获得 GlobalStandardProps（useSessions/useWorkspaces），与现有 keyed 卡片消费的 props 组合兼容。",
+      "现状其余席位（dock 通知条、plan 气泡、toolview 卡片）已符合规范：样式 factory 物化时注入、全主题 token、无直挂 DOM。"
+    ],
+    "objective": [
+      "设置面从 keyed `settings.plugin.item` 迁移为一级 `settings.section` 设置页（替换而非并存，避免两份开关）。",
+      "开关行补齐\"已覆盖/恢复默认\"能力：host read 路由返回 base/user 层，store 与 SwitchRow 相应扩展。",
+      "通知条错误态加\"重试\"按钮；plan 气泡 popover 支持点击钉住（pin）。"
+    ],
+    "non_goals": [
+      "不改 dock 双席位与 toolview 卡片的席位归属。",
+      "不引入第三方依赖，不物理拷贝 pet 表单组件（仅借鉴交互模式）。",
+      "不改 host 工具、prompt 注入与引擎逻辑。",
+      "不做设置页之外的视觉重设计。"
+    ],
+    "success_criteria": [
+      "dsh-plugin npm test 全绿（含 client-registration/client-render/notice-state/settings-store 聚焦测试的新增断言）。",
+      "npm run build 与 npm run verify 通过。",
+      "注册面 grep：`settings.plugin.item` 不再出现于 src/，改由 `settings.section` 注册且带 id/order/label/locale。",
+      "SwitchRow 在用户覆盖字段时显示\"已修改\"标记与恢复默认控件；恢复后回到默认值。",
+      "通知条操作失败时出现重试按钮并可再次发起同一 action；气泡 popover 点击钉住后 hover 移出不关闭，Esc/再点关闭。"
+    ],
+    "execution_scope": [
+      "dsh-plugin/src/client/index.jsx（注册面）、HarnessSettingsCard.jsx（设置页）、settings-store.js（snapshot 扩展）、EnableNoticeBar.jsx（重试）、PlanBubble.jsx（pin）、styles.js、locales.js。",
+      "dsh-plugin/src/host/settings-routes.js（read 应答带 base/user）与 shared/constants.js（如需新增字段名常量）。",
+      "dsh-plugin/tests/ 下对应聚焦测试的更新与新增。"
+    ],
+    "implementation": [
+      "批次1（设置页迁移）：index.jsx 删除 keyed 注册，改 `ctx.slots.inject('settings.section', ...)` 注册 id=docs-harness、order 复用 SETTINGS_CARD_ORDER、label 走 locale；HarnessSettingsCard 签名补 `close`（owner prop）并升级为整页布局，保留三开关与移除按钮，移除按钮加二次确认。",
+      "批次2（已覆盖/恢复默认）：settings-routes.js read 应答扩展每字段 base/user；settings-store.js snapshot 携带分层信息；SwitchRow 增加覆盖标记与重置控件；默认值仍唯一来源于 shared/constants.js。",
+      "批次3（打磨）：NoticeBarView 错误态渲染重试按钮并复用 run(action)；PlanBubble 增加 pinned state，pin 时 hover 离开不调度关闭，Esc 或再次点击解除。",
+      "每批后运行 npm test + npm run build，全绿后锁定再进下一批。"
+    ],
+    "acceptance_plan": [
+      "模块级聚焦测试：client-registration（注册面断言）、client-render（设置页与开关交互）、settings-store（分层 snapshot）、notice-state（重试流转）。",
+      "构建与包校验：npm run build、npm run verify。",
+      "真实运行态：装入本机 dsh profile 后由用户做最短确认（设置页出现且开关可写、气泡 pin 生效）。"
+    ],
+    "acceptance_required": true,
+    "knowledge_impact": "unchanged",
+    "constraints": [
+      "设置页组件 owner props 仅含 close()；其余数据经 inject face 与 GlobalStandardProps 获取，不得假设 keyed slot 的隐式上下文。",
+      "label 需随 locale 变更重新注册（壳侧按 ledger+locale revision 重投影导航行）。",
+      "settings 通道必须继续走自有 /docs-harness-settings 路由（网关只服务白名单命名空间）。"
+    ],
+    "risks_and_rollback": [
+      "风险：settings.section 在当前 dsh 版本的组合 props 与预期不符 → 已用本机包源码核对 slots.d.ts 与 ui-settings-general 渲染处（renderSlot 传 {close} + only 过滤）。",
+      "风险：用户习惯在插件页找该卡片 → 迁移后由左侧导航\"Docs Harness\"条目承担入口，locales 文案明示。",
+      "回滚：worktree 分支独立，逐批提交，单批可 revert；npm 发布前以 verify-package 兜底。"
+    ],
+    "user_scenario": "dsh 桌面应用用户，在设置中管理 Docs Harness 开关、在会话 Composer 上方看到启用/升级提示与方案进度。",
+    "user_flow": [
+      "设置入口：侧栏设置 → 左侧导航\"Docs Harness\" → 设置页（三开关 + 当前项目状态与移除）。",
+      "启用/升级：Composer 上方通知条 → 一键启用/升级/不再提示；失败 → 重试。",
+      "方案进度：Composer 上方气泡 → hover/聚焦展开条目清单 → 点击钉住持续查看。"
+    ],
+    "state_matrix": [
+      "设置页：loading / ready+writable / ready+readonly / unavailable 四态；每字段 default / overridden 两态。",
+      "通知条：silent（无提示/已忽略/无会话）/ prompt=enable / prompt=upgrade / working / error（可重试）。",
+      "气泡：无方案（不渲染）/ 合起 / hover 展开 / pinned 展开；popover 仅在有条目时可展开。"
+    ],
+    "components_interactions": [
+      "HarnessSettingsCard → SwitchRow（受控 checkbox + 覆盖标记 + 重置）与移除按钮（二次确认）。",
+      "EnableNoticeBar = 状态机（EnableNoticeBar）+ 纯视图（NoticeBarView）；重试复用 run(ACTION_FOR[prompt])。",
+      "PlanBubble 持有 open/pinned 两个布尔态；PlanItemList 复用于 popover 与 toolview 卡片，不新增渲染分支。"
+    ],
+    "visual_responsive": "沿用 styles.js 主题 token 体系；新增控件（重置按钮、重试按钮、pin 态）复用 dh-button/dh-card-hint 等既有类，窄屏 560px 以下气泡仍隐藏 diff 读数。",
+    "accessibility": [
+      "设置页开关保持 label+checkbox 关联；重置控件为真实 button 带可读名称。",
+      "通知条 role=status 与 aria-busy 语义保留；重试按钮有独立文本。",
+      "气泡 pin 态经 aria-expanded 反映，Esc 关闭路径不变。"
+    ],
+    "design_system_reuse": "不新增视觉组件：开关行沿用自绘 SwitchRow（官方无可复用表单组件，指南 §4），交互模式借鉴 pet 的已覆盖/恢复默认；颜色全部使用 --dsw-alias-* token。",
+    "runtime_acceptance": "装入本机 dsh profile 实测：设置导航出现 Docs Harness 页、开关写入生效、通知条失败可重试、气泡 pin/取消 pin 正常；该层由用户最短确认。"
+  },
+  "acceptance_refs": [
+    "docs/acceptance/dsh-plugin-ui-settings-section.json"
+  ],
+  "governance": {
+    "acceptance_required": true,
+    "knowledge_impact": "unchanged",
+    "updated_knowledge_refs": [],
+    "unchanged_reason": null,
+    "governance_settled_at": null
+  },
+  "frozen_at": "2026-08-20T14:46:54+00:00",
+  "plan_fingerprint": "sha256:f8f0f1cdaa7925ab1ec80e9eb9227478cf5d6cff3686512a7a5970b52a153bdf"
+}

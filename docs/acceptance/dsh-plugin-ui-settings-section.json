@@ -1,0 +1,173 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "dsh 插件 UI 优化验收：settings.section 设置页、覆盖重置、通知条重试与气泡 pin",
+  "key_symbols": [
+    "HarnessSettingsCard",
+    "settings.section",
+    "HarnessSettingsStore",
+    "NoticeBarView"
+  ],
+  "objective": "设置面迁移为一级 settings.section 设置页，开关支持已覆盖/恢复默认，通知条错误可重试，气泡 popover 可点击钉住；聚焦测试、构建与包校验通过，真实运行态由用户确认。",
+  "plan_ref": "docs/plans/dsh-plugin-ui-settings-section-plan.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "注册面迁移：settings.plugin.item 不再出现于 src/，settings.section 注册带 id/order/label/locale",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260820T151038-c7c9fb11f8",
+          "objective_fingerprint": "sha256:78858baa2d3043443e578095abd43c2b311dd87b705c94e12595b8ac0dfb5492",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "grep -rn \"settings.plugin.item\" dsh-plugin/src/ 无命中（exit 1）；dsh-plugin/src/client/index.jsx 以 settings.section 注册，带 id/order/label/locale 与 inject face（write+reset）",
+          "evidence_refs": [
+            "dsh-plugin/src/client/index.jsx",
+            "dsh-plugin/src/shared/constants.js"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-20T15:10:38+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "dsh-plugin 聚焦测试全绿（client-registration/client-render/settings-store/notice-state 及新增断言）",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260820T151038-a6a130c5ad",
+          "objective_fingerprint": "sha256:78858baa2d3043443e578095abd43c2b311dd87b705c94e12595b8ac0dfb5492",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "cd dsh-plugin && npm test：158 项全绿、退出码 0，覆盖 client-registration（settings.section 注册面与懒 label）、client-render（覆盖标记/重置控件/两段确认/重试按钮/pin 初始态）、settings-store（分层 snapshot 与 reset）、settings-routes（user 层应答与 reset 动作）",
+          "evidence_refs": [
+            "dsh-plugin/tests/client-registration.test.js",
+            "dsh-plugin/tests/client-render.test.js",
+            "dsh-plugin/tests/settings-store.test.js",
+            "dsh-plugin/tests/settings-routes.test.js"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-20T15:10:38+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "npm run build 与 npm run verify 通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L4",
+      "evidence_layer": "package_or_install",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260820T151038-650656aa71",
+          "objective_fingerprint": "sha256:78858baa2d3043443e578095abd43c2b311dd87b705c94e12595b8ac0dfb5492",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L4",
+          "evidence_layer": "package_or_install",
+          "method": "cd dsh-plugin && npm run build（esbuild 产出 lib/client.js）与 npm run verify（输出 \"verify-package: @aiwaretop/dsh-docs-harness is publishable\"），退出码均 0",
+          "evidence_refs": [
+            "dsh-plugin/lib/client.js",
+            "dsh-plugin/scripts/verify-package.mjs"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-20T15:10:38+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "title": "真实 dsh 运行态：设置导航出现 Docs Harness 页、开关可写、通知条可重试、气泡可 pin",
+      "acceptance_type": "user_acceptance",
+      "layer": "L5",
+      "evidence_layer": null,
+      "status": "pending",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260820T151106-5f23685d5d",
+          "objective_fingerprint": "sha256:78858baa2d3043443e578095abd43c2b311dd87b705c94e12595b8ac0dfb5492",
+          "acceptance_type": "user_acceptance",
+          "status": "user_pending",
+          "layer": "L5",
+          "evidence_layer": null,
+          "method": null,
+          "evidence_refs": [],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-20T15:11:06+00:00",
+          "user_handoff": {
+            "automatically_verified": [
+              "聚焦测试 158 项全绿（注册面、渲染、store、路由）",
+              "npm run build 与 npm run verify 通过，包可发布"
+            ],
+            "user_checks": [
+              "设置左侧导航出现 Docs Harness 一级页面，三个开关可写",
+              "改过的开关显示\"已修改\"并可一键恢复默认",
+              "通知条操作失败时出现重试按钮；气泡点击后 popover 钉住、Esc 关闭"
+            ],
+            "steps": [
+              "把 dsh-plugin 包装入本机 dsh profile（或 npm pack 后 dsh plugin add）",
+              "打开设置，确认左侧导航有 Docs Harness 页，开关切换后刷新仍保持",
+              "切一个开关再回设置页，确认出现\"已修改/恢复默认\"，点恢复默认后回到默认",
+              "在会话里触发一次失败的启用/升级（如断网）确认出现重试按钮",
+              "hover 方案气泡展开清单后点击气泡，移开鼠标确认清单不消失，按 Esc 关闭"
+            ],
+            "environment_ready": true
+          }
+        }
+      ]
+    }
+  ],
+  "status": "pending",
+  "revision": 5,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:e83983abd29a9eee6cad28c8f7229921fa599ba843a3e8fe5001f9e06d5274ab",
+      "updated_at": "2026-08-20T14:47:46+00:00"
+    },
+    {
+      "revision": 2,
+      "asset_fingerprint": "sha256:dcd97467b70971f2b0832afd57e7e579a2fc49aea40d7fbdc1f395aa326a5e62",
+      "updated_at": "2026-08-20T15:10:38+00:00"
+    },
+    {
+      "revision": 3,
+      "asset_fingerprint": "sha256:66ac43215cee13cb24244b68cc5015d14547e8bcc5540b704920f33e422fa44b",
+      "updated_at": "2026-08-20T15:10:38+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:533836bbfd866a37c515843ded9b1c56c03d16f22e6f0d494394294e4113bc8a",
+      "updated_at": "2026-08-20T15:10:38+00:00"
+    }
+  ],
+  "created_at": "2026-08-20T14:47:46+00:00",
+  "updated_at": "2026-08-20T15:11:06+00:00",
+  "settled_at": null,
+  "asset_fingerprint": "sha256:138e91d89a5018cb290dadf52ad8ee6feb5d02dfdb372be2f2b6d00ce238ee45"
+}
