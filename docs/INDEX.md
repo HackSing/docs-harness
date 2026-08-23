@@ -28,7 +28,7 @@
 <!-- docs-harness:knowledge-index:start -->
 ## 项目知识
 
-- [Docs Harness 四资产治理执行机制](knowledge/docs-harness-assets-governance.md) — 状态：有效（现行事实）；关键符号：`run_assets_check`、`acceptance_refs`、`knowledge_impact`、`ADR_SPEC`
+- [Docs Harness 四资产治理执行机制](knowledge/docs-harness-assets-governance.md) — 状态：有效（现行事实）；关键符号：`run_assets_check`、`acceptance_refs`、`assert_evidence_usable`、`install_conflicts`
 <!-- docs-harness:knowledge-index:end -->
 
 <!-- docs-harness:acceptance-index:start -->

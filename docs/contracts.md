@@ -144,9 +144,9 @@ Behavior Acceptance 必须声明下列 `evidence_layer`，且只能使用固定 
 
 L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 客观行为，但不能替代 User Acceptance；独立记录路径不接受 `user_acceptance + passed`。只有关联 Acceptance、输入含明确 confirmation，且 agent 已收到用户确认原话后显式使用 `--user-confirmed`，才能登记用户验收通过。
 
-通过必须提供实际方法和项目内已存在的常规证据文件；User Acceptance 的明确 confirmation 是独立证据门禁。失败必须提供总体原因、下一步和非空 `failure_attributions[]`；每项包含 `category`、`summary`、`blocking` 与非空 `evidence_refs`，类别只允许 `change_related|unrelated|pre_existing|environment|flaky`。归因重复、类别未知或证据不存在时拒绝记录。`user_pending` 必须包含已自动验证内容、待用户检查项、最短步骤和 `environment_ready=true`。
+通过必须提供实际方法和项目内已存在的常规证据文件；User Acceptance 的明确 confirmation 是独立证据门禁。证据准入：登记入口先逐条校验存在性（缺失报 `acceptance_evidence_missing`），再经 `git check-ignore` 判定，证据落在 git 忽略路径直接拒绝登记（`acceptance_evidence_ignored`），应存放于随仓库提交的路径（如 `docs/acceptance/evidence/<验收名>/`）；验收证据与失败归因证据共用同一校验函数，非 git 目标不被锁死。失败必须提供总体原因、下一步和非空 `failure_attributions[]`；每项包含 `category`、`summary`、`blocking` 与非空 `evidence_refs`，类别只允许 `change_related|unrelated|pre_existing|environment|flaky`。归因重复、类别未知或证据不存在时拒绝记录。`user_pending` 必须包含已自动验证内容、待用户检查项、最短步骤和 `environment_ready=true`。
 
-结项后的资产再次记录必须显式 `--reaccept`；`acceptance settle --status passed|failed` 必须与逐条标准聚合状态一致，`superseded` 需要 replacement 并归档。`acceptance check` 校验指纹、投影、索引、上游引用和通过证据。
+结项后的资产再次记录必须显式 `--reaccept`；`acceptance settle --status passed|failed` 必须与逐条标准聚合状态一致，`superseded` 需要 replacement 并归档。`acceptance check` 校验指纹、投影、索引、上游引用和通过证据，且只对每个 criterion 的最新一条 record 校验证据存在性与用户确认——被 `--reaccept` 取代的历史记录是纯留痕，不再要求已作废证据永久存在；最新记录违规仍 FAIL。
 
 ## 4a. 架构决策（ADR）合同
 
@@ -180,7 +180,7 @@ Harness 不采集用户授权、不解析 Codex usage、不保存原始用户聊
 
 fresh init 初始化四类空资产目录、受管索引区块与缺失的项目级文档骨架，但不生成项目事实、验收结论、规则目录或任务 Runtime，不自动启动知识、ADR、Changelog、TODO 或后台治理 Job。upgrade 先补齐四类体系，再清理指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；四类用户资产、项目文档、质量账本、已修改或归属不明文件保留。`release sync --strict` 要求 CHANGELOG 顶部版本与 VERSION 一致；`project check` 对缺失的 CHANGELOG/TODO 出 red、TODO 条目格式问题出 yellow。
 
-2.4.1 曾发布错误的方案模板配置指纹。upgrade 只把与 2.4.1 官方发布文件逐字匹配的已知指纹作为兼容归属；内容有任何额外修改仍拒绝覆盖。成功升级后统一写回当前真实文件指纹，不长期保留双重归属状态。
+2.4.1 曾发布错误的方案模板配置指纹。upgrade 只把与 2.4.1 官方发布文件逐字匹配的已知指纹作为兼容归属；内容有任何额外修改仍拒绝覆盖。成功升级后统一写回当前真实文件指纹，不长期保留双重归属状态。指纹偏离类 `install_conflict` 一次性列出全部偏离文件（不再先撞先报），message 附三条出路（恢复安装版本后重试升级／确需保留的修改合入 docs-harness 随新版本升级／保持分叉则跳过升级），`extra_payload.install_conflicts` 携带结构化清单（path/reason/actual_fingerprint/allowed_fingerprints）供 agent 消费；symlink、非常规文件、安装指纹无效等结构性错误保持即时抛，`code` 与退出码不变。
 
 ## 8. 迁移与移除边界
 

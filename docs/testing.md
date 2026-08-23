@@ -1,4 +1,4 @@
-# Docs Harness 2.9.1 测试与验收
+# Docs Harness 2.10.0 测试与验收
 
 ## 1. 普通项目任务
 
@@ -84,3 +84,27 @@
 - L2 统一检查：`python3 scripts/harness.py assets-check --strict --json` 退出码 0，`checked={plans, knowledge:1, acceptance:3, adr:1, script_hygiene:1, cross:8}`，0 failures / 0 warnings。
 - L1 版本一致性：`python3 scripts/harness.py release sync --strict --json` 返回 `consistent`，VERSION/controller/skill/package/templates/evals 六处真源一致。
 - 未覆盖：本节未运行 `npm test` 仓库级全量回归、`npm pack`/fresh install 与下游项目升级验证——本轮改动是文档同步 + 版本号收尾，未触碰 ScriptHygiene/ADR 的行为代码本身，按验证选择矩阵（见第 3 节）不强制升级为全量证据；ScriptHygiene/ADR 首次实现时的完整回归证据见对应版本提交历史。
+
+## 9. 2.10.0 证据加固与升级报错验收证据（2026-08-23）
+
+2.10.0 上游合入下游 dsh-buddy fc3da39 的两个生产验证补丁（证据准入加固、最新记录语义），并改进 upgrade preflight 的指纹偏离类 `install_conflict` 为聚合报错。新增用例（均在 `tests/test_v2_direct.py`）：
+
+- 证据准入（`git_ignored_refs`/`assert_evidence_usable`，批次1）：
+  - `test_behavior_acceptance_rejects_evidence_under_git_ignored_path`：`.gitignore` 覆盖的 `build/` 下证据登记被拒，`code=acceptance_evidence_ignored`；
+  - `test_behavior_acceptance_allows_evidence_under_committed_docs_path`：`docs/acceptance/evidence/` 入库路径放行；
+  - `test_behavior_acceptance_missing_evidence_still_reported_in_git_project`：不存在文件仍报 `acceptance_evidence_missing`（原行为未退化）；
+  - `test_behavior_acceptance_non_git_target_is_not_locked_by_ignore_check`：非 git 目标目录登记不被 check-ignore 锁死。
+- 最新记录语义（`_validate_live_refs`，批次2）：
+  - `test_acceptance_check_only_validates_latest_record_evidence`：旧 record 证据缺失 + 最新 record 证据齐全 → check 通过；
+  - `test_acceptance_check_fails_when_latest_record_evidence_missing`：最新 record 证据缺失 → FAIL；
+  - `test_user_acceptance_confirmation_checked_only_on_latest_record`：user_acceptance 最新记录缺 `confirmed_by=user` → FAIL，被取代的旧记录缺确认不再卡。
+- install_conflict 聚合报错（批次3）：
+  - `test_upgrade_reports_all_modified_managed_files_at_once`：同时手改 `scripts/harness.py` 与 `scripts/acceptance_assets.py` → upgrade --apply 单次报错，`install_conflicts` payload 恰含两个 path；
+  - `test_upgrade_reports_single_modified_managed_file`：单文件修改 → 列表长度 1 且 path 正确。
+
+验证结果（批次4 发版入口，全量触发条件：版本发布）：
+
+- L2 仓库全量：`npm test` 全量通过，退出码 0。
+- L1 版本一致性：`python3 scripts/harness.py release sync --strict` 退出码 0，六处真源与 CHANGELOG 顶部版本一致。
+- L1 统一检查：`python3 scripts/harness.py assets-check --strict` 退出码 0。
+- 未覆盖：`npm pack`/fresh install 与下游 dsh-buddy 升级到 2.10.0 属批次5 范围，本批不执行。
