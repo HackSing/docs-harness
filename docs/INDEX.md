@@ -18,6 +18,7 @@
 - [docs-check 更名为 plan check（直接删除旧命令，无兼容别名）](plans/docs-harness-plan-check-rename.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-16 核对）；关键符号：`command_plan_check`、`plan_check_markdown_files`、`command_assets_check`、`add_check_options`
 - [Docs Harness 项目级文档治理：ADR 受管资产 + CHANGELOG/TODO/README 脚手架与检查](plans/docs-harness-project-docs-governance.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-17 核对）；关键符号：`adr_assets`、`ADR_SPEC`、`changelog_top_version`、`apply_project_install`
 - [dsh 插件 UI 优化：设置页迁移 settings.section 与交互打磨](plans/dsh-plugin-ui-settings-section-plan.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-21 核对）；关键符号：`HarnessSettingsCard`、`settings.section`、`HarnessSettingsStore`、`NoticeBarView`
+- [上游合入 dsh-buddy 证据加固补丁并改进 install_conflict 报错（2.10.0）](plans/docs-harness-2.10.0-evidence-upstream-install-conflict-plan.md) — 状态：有效（实施中）；关键符号：`assert_evidence_usable`、`git_ignored_refs`、`_validate_live_refs`、`install_conflicts`
 <!-- docs-harness:plans-index:end -->
 
 ## 历史边界
