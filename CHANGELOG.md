@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.10.2 - 2026-08-23
+
+- 修复 2.10.1 的 `plan check` INDEX 条目匹配回归：链接 token 匹配（防同名文档误伤）未兼容表格式索引的反引号路径条目（如 ZBuddy 系项目的 `` `plans/<name>.md` `` 表格行），导致存量合法索引被整批误报"缺少条目"。现抽出 `plan_index_doc_tokens()` 统一定义两种合法引用形态（Markdown 链接与反引号路径），活文档条目与归档泄漏两处检查共用；归档文档以反引号形态留在活索引仍按泄漏处理，防误伤语义不变。
+
 ## 2.10.1 - 2026-08-23
 
 - 修复 plan check C2 同名误伤（源自 dispatch 下游 2d186f4 生产验证补丁，本次上游合入）：`scripts/harness.py` 活索引条目匹配与归档豁免过滤由裸子串改为链接 token `(plans/<basename>)`（与 `update_plan_index_text` 的 link_tokens 写法一致）——INDEX 验收等其他区块存在与方案同名文档（如 `acceptance/foo.md`）时，归档方案不再被误判泄漏、活文档条目也不再被同名他区块条目顶替。动机：下游 acceptance 区块与 plans 区块出现同名文档后，`plan check` 误报「归档文档仍出现在活索引条目中」阻塞收尾。

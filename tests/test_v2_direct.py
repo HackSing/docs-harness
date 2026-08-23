@@ -1051,6 +1051,45 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             any("缺少 docs/plans/live.md 的条目" in item for item in payload["failures"])
         )
 
+    def test_plan_check_accepts_backtick_table_index_entry(self) -> None:
+        docs = self.project / "docs"
+        plans = docs / "plans"
+        plans.mkdir(parents=True)
+        (plans / "table-entry.md").write_text(
+            "> 状态：有效（现行事实/实施中）\n\n# 表格条目文档\n", encoding="utf-8"
+        )
+        # 表格式索引以反引号路径登记（ZBuddy 等存量项目格式），与链接形态语义等同。
+        (docs / "INDEX.md").write_text(
+            "# 索引\n\n## 方案\n\n"
+            "| 文档 | 说明 |\n| --- | --- |\n"
+            "| `plans/table-entry.md` | 表格条目；关键符号：`TokenA`、`TokenB` |\n",
+            encoding="utf-8",
+        )
+        payload = self.run_cli("plan", "check", "--target", str(self.project), "--fast")
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["failures"], [])
+
+    def test_plan_check_backtick_archived_entry_is_leak(self) -> None:
+        docs = self.project / "docs"
+        archive = docs / "plans" / "archive"
+        archive.mkdir(parents=True)
+        (archive / "gone.md").write_text(
+            "> 状态：已废弃-被别的方案取代（2026-08-23 核对）\n\n旧文档。\n",
+            encoding="utf-8",
+        )
+        # 放宽到反引号形态后，真正的归档泄漏（反引号条目留在活索引）仍须被抓。
+        (docs / "INDEX.md").write_text(
+            "# 索引\n\n| 文档 | 说明 |\n| --- | --- |\n"
+            "| `plans/gone.md` | 泄漏条目仍留在活索引 |\n",
+            encoding="utf-8",
+        )
+        payload = self.run_cli(
+            "plan", "check", "--target", str(self.project), "--fast", expected=1
+        )
+        self.assertTrue(
+            any("归档文档 gone.md 仍出现在活索引" in item for item in payload["failures"])
+        )
+
     def test_acceptance_supersede_unlinks_archived_plan_backref(self) -> None:
         self.create_full_plan(
             acceptance_required=False,
