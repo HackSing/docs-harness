@@ -308,6 +308,21 @@ def git_root(target: Path) -> Path | None:
     return Path(result.stdout.decode("utf-8", errors="replace").strip()).resolve()
 
 
+def git_ignored_refs(target: Path, refs: list[str]) -> list[str]:
+    """挑出 refs 里被 git 忽略的路径。
+
+    非 git 仓库、git 不可用或无匹配时一律返回空列表——本函数只用于加固，
+    环境不具备时不应反过来锁死资产登记。
+    """
+    if not refs or git_root(target) is None:
+        return []
+    result = git_command(target, "check-ignore", "--", *refs)
+    if result.returncode != 0:  # 1=无匹配，128=非仓库/git 不可用
+        return []
+    lines = result.stdout.decode("utf-8", errors="replace").splitlines()
+    return [line.strip() for line in lines if line.strip()]
+
+
 def git_dir(target: Path) -> Path | None:
     result = git_command(target, "rev-parse", "--git-dir")
     if result.returncode != 0:
@@ -459,7 +474,7 @@ Docs Harness 当前版本：{VERSION}
 - 用户明确说“不使用 Harness”时必须直接执行，不得暗中恢复旧流程。
 - 只有缺少的项目事实会改变目标、范围、方案或验收时才运行 knowledge query；需要长期维护的事实才进入 Knowledge 资产生命周期。
 - 简单任务不生成方案；复杂、跨模块、高风险或用户明确要求时依次运行 plan select/create，方案会自动落入 docs/plans 并登记 docs/INDEX；Full Plan 声明验收与知识影响，任务收尾按 Knowledge → Acceptance → Plan 顺序结算。
-- 复杂任务在 Plan 后创建 Acceptance 目标，执行中逐条记录真实证据并结项；简单任务仍可直接验证，不强制创建资产。
+- 复杂任务在 Plan 后创建 Acceptance 目标，执行中逐条记录真实证据并结项；证据文件必须位于随仓库提交的路径（如 docs/acceptance/evidence/<验收名>/），git 忽略路径会被拒绝登记；简单任务仍可直接验证，不强制创建资产。
 - 验收以真实功能为中心：能运行聚焦测试、接口、页面、应用、构建或安装流程时运行最小充分流程；不能独立判断时准备最低成本环境，再交给用户做最短确认。
 - 高风险动作使用原生授权与沙箱，不建立第二套 Harness Gate 或授权协议。
 - Plan/Knowledge/Acceptance/ADR 输入 JSON 必须携带各自 schema_version 与注册字段（输入形状与示例见 python3 scripts/harness.py <cmd> --help）；校验失败报错直接附期望形状。
@@ -1572,6 +1587,26 @@ def evidence_path(target: Path, raw: str) -> Path:
     return ensure_within(target, path, code="acceptance_evidence_outside_project")
 
 
+def assert_evidence_usable(target: Path, refs: list[str], what: str) -> None:
+    """证据必须此刻存在，且不能落在 git 忽略路径。
+
+    只查"存在"是不够的：写在 .gitignore 覆盖目录（如 build/）里的证据登记时
+    照样通过，却不会进仓库，本地一清理引用就永久失效，assets-check 只能在
+    失效之后报警。这里在登记入口直接拒绝，把事后尸检换成事前疫苗。
+    """
+    for ref in refs:
+        if not evidence_path(target, ref).is_file():
+            raise HarnessError(f"{what}不存在：{ref}", code="acceptance_evidence_missing")
+    ignored = git_ignored_refs(target, refs)
+    if ignored:
+        raise HarnessError(
+            f"{what}落在 git 忽略路径，提交后必然失效："
+            + "、".join(ignored)
+            + "；请改存到随仓库提交的位置，例如 docs/acceptance/evidence/<验收名>/",
+            code="acceptance_evidence_ignored",
+        )
+
+
 def normalize_failure_attributions(target: Path, raw: Any) -> list[dict[str, Any]]:
     if not isinstance(raw, list) or not raw:
         raise HarnessError(
@@ -1602,9 +1637,7 @@ def normalize_failure_attributions(target: Path, raw: Any) -> list[dict[str, Any
         if key in seen:
             raise HarnessError("失败归因不得重复", code="invalid_acceptance_input")
         seen.add(key)
-        for ref in refs:
-            if not evidence_path(target, ref).is_file():
-                raise HarnessError("失败归因证据不存在：" + ref, code="acceptance_evidence_missing")
+        assert_evidence_usable(target, refs, "失败归因证据")
         normalized.append(
             {
                 "category": category,
@@ -1742,9 +1775,7 @@ def build_stored_acceptance_record(
         if len(value["steps"]) > 5:
             raise HarnessError("用户验收步骤必须保持最短，最多 5 步", code="invalid_acceptance_input")
     if status == "passed":
-        for ref in refs:
-            if not evidence_path(target, ref).is_file():
-                raise HarnessError("验收证据不存在：" + ref, code="acceptance_evidence_missing")
+        assert_evidence_usable(target, refs, "验收证据")
     failure_attributions: list[dict[str, Any]] = []
     if status == "failed":
         reason = value.get("reason")

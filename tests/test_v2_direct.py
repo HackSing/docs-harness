@@ -2282,6 +2282,82 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         )
         self.assertEqual(payload["code"], "acceptance_evidence_missing")
 
+    def init_git_project(self) -> None:
+        initialized = subprocess.run(
+            ["git", "init", str(self.project)],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(initialized.returncode, 0, initialized.stderr)
+
+    def behavior_passed_input(self, name: str, evidence_refs: list[str]) -> Path:
+        return self.write_json(
+            name,
+            {
+                "schema_version": "docs-harness/acceptance-input/v3",
+                "objective": "验证证据准入",
+                "acceptance_type": "behavior_acceptance",
+                "status": "passed",
+                "layer": "L2",
+                "evidence_layer": "focused_test",
+                "method": "运行聚焦回归",
+                "evidence_refs": evidence_refs,
+            },
+        )
+
+    def test_behavior_acceptance_rejects_evidence_under_git_ignored_path(self) -> None:
+        self.init_git_project()
+        (self.project / ".gitignore").write_text("build/\n", encoding="utf-8")
+        build_dir = self.project / "build"
+        build_dir.mkdir()
+        (build_dir / "pack.log").write_text("passed\n", encoding="utf-8")
+        record = self.behavior_passed_input("ignored-evidence.json", ["build/pack.log"])
+        payload = self.run_cli(
+            "acceptance", "record", "--target", str(self.project), "--input", str(record), expected=2
+        )
+        self.assertEqual(payload["code"], "acceptance_evidence_ignored")
+
+    def test_behavior_acceptance_allows_evidence_under_committed_docs_path(self) -> None:
+        self.init_git_project()
+        (self.project / ".gitignore").write_text("build/\n", encoding="utf-8")
+        evidence_dir = self.project / "docs" / "acceptance" / "evidence" / "pack-check"
+        evidence_dir.mkdir(parents=True)
+        (evidence_dir / "proof.log").write_text("passed\n", encoding="utf-8")
+        record = self.behavior_passed_input(
+            "committed-evidence.json", ["docs/acceptance/evidence/pack-check/proof.log"]
+        )
+        self.run_cli(
+            "acceptance", "record", "--target", str(self.project), "--input", str(record)
+        )
+        records = list(
+            (self.project / ".git" / "docs-harness" / "v2" / "acceptance").glob("*.json")
+        )
+        self.assertEqual(len(records), 1)
+
+    def test_behavior_acceptance_missing_evidence_still_reported_in_git_project(self) -> None:
+        self.init_git_project()
+        (self.project / ".gitignore").write_text("build/\n", encoding="utf-8")
+        record = self.behavior_passed_input("missing-evidence.json", ["build/missing.log"])
+        payload = self.run_cli(
+            "acceptance", "record", "--target", str(self.project), "--input", str(record), expected=2
+        )
+        self.assertEqual(payload["code"], "acceptance_evidence_missing")
+
+    def test_behavior_acceptance_non_git_target_is_not_locked_by_ignore_check(self) -> None:
+        (self.project / ".gitignore").write_text("build/\n", encoding="utf-8")
+        build_dir = self.project / "build"
+        build_dir.mkdir()
+        (build_dir / "pack.log").write_text("passed\n", encoding="utf-8")
+        record = self.behavior_passed_input("non-git-evidence.json", ["build/pack.log"])
+        self.run_cli(
+            "acceptance", "record", "--target", str(self.project), "--input", str(record)
+        )
+        records = list(
+            (self.project / ".docs-harness" / "v2" / "acceptance").glob("*.json")
+        )
+        self.assertEqual(len(records), 1)
+
     def test_user_pending_requires_ready_environment_and_short_handoff(self) -> None:
         record = self.write_json(
             "pending.json",
