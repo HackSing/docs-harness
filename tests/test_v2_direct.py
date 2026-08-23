@@ -2419,6 +2419,30 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             "criteria": [criterion],
         }
 
+    def acceptance_record_input(
+        self,
+        name: str,
+        evidence_refs: list[str],
+        *,
+        acceptance_type: str = "behavior_acceptance",
+        method: str = "运行聚焦测试",
+    ) -> Path:
+        record: dict[str, object] = {
+            "schema_version": "docs-harness/acceptance-input/v3",
+            "criterion_id": "flow.result",
+            "objective": "逐条记录功能流程证据。",
+            "acceptance_type": acceptance_type,
+            "status": "passed",
+            "layer": {"behavior_acceptance": "L2", "user_acceptance": "L5"}[acceptance_type],
+            "method": method,
+            "evidence_refs": evidence_refs,
+        }
+        if acceptance_type == "behavior_acceptance":
+            record["evidence_layer"] = "focused_test"
+        else:
+            record["confirmation"] = "用户确认功能流程符合预期。"
+        return self.write_json(name, record)
+
     def test_acceptance_asset_create_record_reaccept_settle_and_check(self) -> None:
         target_input = self.write_json("inputs/acceptance-target.json", self.acceptance_target())
         created = self.run_cli(
@@ -2527,6 +2551,104 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             "--acceptance", "docs/acceptance/user-flow.json", "--user-confirmed",
         )
         self.assertEqual(accepted["status"], "passed")
+
+    def test_acceptance_check_only_validates_latest_record_evidence(self) -> None:
+        target_input = self.write_json("inputs/latest-target.json", self.acceptance_target())
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(target_input.relative_to(self.project)),
+            "--output", "docs/acceptance/latest.json",
+        )
+        (self.project / "old-evidence.log").write_text("old\n", encoding="utf-8")
+        old_record = self.acceptance_record_input("inputs/latest-old.json", ["old-evidence.log"])
+        self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(old_record.relative_to(self.project)),
+            "--acceptance", "docs/acceptance/latest.json",
+        )
+        (self.project / "new-evidence.log").write_text("new\n", encoding="utf-8")
+        new_record = self.acceptance_record_input(
+            "inputs/latest-new.json", ["new-evidence.log"], method="重验取代旧记录"
+        )
+        self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(new_record.relative_to(self.project)),
+            "--acceptance", "docs/acceptance/latest.json",
+        )
+        # 被最新记录取代的旧记录证据已清理，不再卡住 check
+        (self.project / "old-evidence.log").unlink()
+        self.assertEqual(
+            self.run_cli("acceptance", "check", "--target", str(self.project))["status"],
+            "passed",
+        )
+
+    def test_acceptance_check_fails_when_latest_record_evidence_missing(self) -> None:
+        target_input = self.write_json("inputs/missing-target.json", self.acceptance_target())
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(target_input.relative_to(self.project)),
+            "--output", "docs/acceptance/missing.json",
+        )
+        (self.project / "stale-evidence.log").write_text("passed\n", encoding="utf-8")
+        record = self.acceptance_record_input("inputs/missing-record.json", ["stale-evidence.log"])
+        self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(record.relative_to(self.project)),
+            "--acceptance", "docs/acceptance/missing.json",
+        )
+        (self.project / "stale-evidence.log").unlink()
+        checked = self.run_cli("acceptance", "check", "--target", str(self.project), expected=1)
+        self.assertEqual(checked["status"], "failed")
+        self.assertTrue(
+            any("stale-evidence.log" in failure for failure in checked["failures"]),
+            checked["failures"],
+        )
+
+    def test_user_acceptance_confirmation_checked_only_on_latest_record(self) -> None:
+        target_input = self.write_json(
+            "inputs/user-latest-target.json", self.acceptance_target("user_acceptance")
+        )
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(target_input.relative_to(self.project)),
+            "--output", "docs/acceptance/user-latest.json",
+        )
+        for name in ("inputs/user-latest-old.json", "inputs/user-latest-new.json"):
+            record = self.acceptance_record_input(name, [], acceptance_type="user_acceptance")
+            self.run_cli(
+                "acceptance", "record", "--target", str(self.project),
+                "--input", str(record.relative_to(self.project)),
+                "--acceptance", "docs/acceptance/user-latest.json", "--user-confirmed",
+            )
+
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import managed_assets
+
+        asset_path = self.project / "docs" / "acceptance" / "user-latest.json"
+
+        def strip_confirmation(index: int) -> None:
+            asset = json.loads(asset_path.read_text(encoding="utf-8"))
+            # 模拟旧版本写入的缺确认记录，重封指纹保持资产完整
+            del asset["criteria"][0]["records"][index]["user_confirmation"]
+            asset["asset_fingerprint"] = managed_assets.fingerprint(asset)
+            asset_path.write_text(
+                json.dumps(asset, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+            )
+
+        # 被取代的旧记录缺确认不再卡 check
+        strip_confirmation(0)
+        self.assertEqual(
+            self.run_cli("acceptance", "check", "--target", str(self.project))["status"],
+            "passed",
+        )
+        # 最新记录缺确认仍 FAIL
+        strip_confirmation(1)
+        checked = self.run_cli("acceptance", "check", "--target", str(self.project), expected=1)
+        self.assertEqual(checked["status"], "failed")
+        self.assertTrue(
+            any("用户验收记录缺少明确确认" in failure for failure in checked["failures"]),
+            checked["failures"],
+        )
 
 if __name__ == "__main__":
     unittest.main()
