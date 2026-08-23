@@ -2407,11 +2407,16 @@ def preflight_owned_files(
     install_relative: str,
     source_fingerprints: dict[str, str],
     installed_fingerprints: Any,
+    conflicts: list[dict[str, Any]],
     *,
     label: str,
     compatible_fingerprints: dict[str, str] | None = None,
 ) -> None:
-    """指纹归属文件的接管预检：方案模板与 git 钩子共用同一口径。"""
+    """指纹归属文件的接管预检：方案模板与 git 钩子共用同一口径。
+
+    指纹偏离（用户修改/归属不明）只向 conflicts 收集，由调用方统一报错；
+    symlink、非常规文件、安装指纹无效等结构性错误仍即时抛出。
+    """
     if not isinstance(installed_fingerprints, dict):
         raise HarnessError(f"{label}安装指纹无效", code="install_conflict")
     for relative, source_fingerprint in source_fingerprints.items():
@@ -2428,10 +2433,15 @@ def preflight_owned_files(
                 allowed.add(old)
             compatible = (compatible_fingerprints or {}).get(relative)
             allowed.update([compatible] if isinstance(compatible, str) else [])
-            if file_fingerprint(path) not in allowed:
-                raise HarnessError(
-                    f"{label} {relative} 已存在且归属不明，拒绝覆盖",
-                    code="install_conflict",
+            actual = file_fingerprint(path)
+            if actual not in allowed:
+                conflicts.append(
+                    {
+                        "path": f"{install_relative}/{relative}",
+                        "reason": "modified",
+                        "actual_fingerprint": actual,
+                        "allowed_fingerprints": sorted(allowed),
+                    }
                 )
 
 
@@ -2468,6 +2478,7 @@ def install_preflight(
     source_githooks = githook_fingerprints(source_root / GIT_HOOKS_RELATIVE)
     for relative in portable_install_paths():
         assert_no_symlink_ancestors(target, relative, code="install_conflict")
+    conflicts: list[dict[str, Any]] = []
     target_script = target / "scripts" / "harness.py"
     if target_script.is_symlink() or (
         target_script.exists() and not target_script.is_file()
@@ -2482,15 +2493,20 @@ def install_preflight(
         if existing and isinstance(existing.get("installed_script_fingerprint"), str):
             allowed.add(existing["installed_script_fingerprint"])
         if current not in allowed:
-            raise HarnessError(
-                "scripts/harness.py 存在用户修改，拒绝覆盖",
-                code="install_conflict",
+            conflicts.append(
+                {
+                    "path": "scripts/harness.py",
+                    "reason": "modified",
+                    "actual_fingerprint": current,
+                    "allowed_fingerprints": sorted(allowed),
+                }
             )
     preflight_owned_files(
         target,
         "scripts",
         source_modules,
         existing.get("installed_module_fingerprints", {}) if existing else {},
+        conflicts,
         label="资产生命周期模块",
     )
     preflight_owned_files(
@@ -2498,6 +2514,7 @@ def install_preflight(
         PLAN_TEMPLATES_RELATIVE,
         source_templates,
         existing.get("installed_plan_template_fingerprints", {}) if existing else {},
+        conflicts,
         label="方案模板",
         compatible_fingerprints=legacy_plan_template_fingerprints(existing.get("version") if existing else None),
     )
@@ -2506,8 +2523,17 @@ def install_preflight(
         GIT_HOOKS_RELATIVE,
         source_githooks,
         existing.get("installed_githook_fingerprints", {}) if existing else {},
+        conflicts,
         label="git 钩子",
     )
+    if conflicts:
+        paths = "、".join(item["path"] for item in conflicts)
+        raise HarnessError(
+            f"受管文件存在本地修改，升级未写入：{paths}。"
+            "恢复安装版本后重试升级；确需保留的修改请合入 docs-harness 随新版本升级；保持分叉则跳过升级。",
+            code="install_conflict",
+            extra_payload={"install_conflicts": conflicts},
+        )
     plan_docs_structure_changes(target)
     asset_structure_changes(target)
     for relative, begin, end in (

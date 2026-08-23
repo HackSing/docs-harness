@@ -1725,6 +1725,44 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         self.assertEqual(rejected["code"], "install_conflict")
         self.assertEqual(self.snapshot_project(), before)
 
+    def test_upgrade_reports_all_modified_managed_files_at_once(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        for relative in ("scripts/harness.py", "scripts/acceptance_assets.py"):
+            path = self.project / relative
+            path.write_bytes(path.read_bytes() + b"# user tweak\n")
+        before = self.snapshot_project()
+        payload = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply", expected=2
+        )
+        self.assertEqual(payload["code"], "install_conflict")
+        conflicts = payload["install_conflicts"]
+        self.assertEqual(len(conflicts), 2)
+        self.assertEqual(
+            {item["path"] for item in conflicts},
+            {"scripts/harness.py", "scripts/acceptance_assets.py"},
+        )
+        for item in conflicts:
+            self.assertEqual(item["reason"], "modified")
+            self.assertTrue(item["actual_fingerprint"].startswith("sha256:"))
+            self.assertEqual(
+                item["allowed_fingerprints"], sorted(item["allowed_fingerprints"])
+            )
+        self.assertIn("scripts/harness.py", payload["message"])
+        self.assertIn("scripts/acceptance_assets.py", payload["message"])
+        self.assertEqual(self.snapshot_project(), before)
+
+    def test_upgrade_reports_single_modified_managed_file(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        module = self.project / "scripts" / "acceptance_assets.py"
+        module.write_bytes(module.read_bytes() + b"# user tweak\n")
+        payload = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply", expected=2
+        )
+        self.assertEqual(payload["code"], "install_conflict")
+        conflicts = payload["install_conflicts"]
+        self.assertEqual(len(conflicts), 1)
+        self.assertEqual(conflicts[0]["path"], "scripts/acceptance_assets.py")
+
     def test_upgrade_githooks_idempotent(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
         repeated = self.run_cli(
