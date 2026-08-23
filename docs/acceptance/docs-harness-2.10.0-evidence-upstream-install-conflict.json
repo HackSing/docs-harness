@@ -1,0 +1,156 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "2.10.0 证据准入加固与升级冲突聚合报错治理验收",
+  "key_symbols": [
+    "assert_evidence_usable",
+    "acceptance_evidence_ignored",
+    "install_conflicts"
+  ],
+  "objective": "验收 2.10.0 证据准入加固与 install_conflict 聚合报错：合同层 npm test 全量通过；真实流程验证 git 忽略路径证据登记被拒、入库路径放行；临时项目升级一次列全全部冲突且 payload 形状正确；下游 dsh-buddy 升级后受管文件与上游一致、治理检查通过。",
+  "plan_ref": "docs/plans/docs-harness-2.10.0-evidence-upstream-install-conflict-plan.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "合同层：npm test 全量通过，退出码 0",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260823T041515-95557a2035",
+          "objective_fingerprint": "sha256:0371a76d11fc03d7b275192e8cc72a1eab3b1fe8a96a4e29f54f11fbf605db5f",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "主仓根目录执行 npm test（python3 -m unittest discover -s tests -p test_*.py）全量回归，88 个用例 OK，退出码 0",
+          "evidence_refs": [
+            "docs/acceptance/evidence/docs-harness-2.10.0-evidence-upstream-install-conflict/c1-npm-test.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-23T04:15:15+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "真实流程·证据加固：临时项目 fresh init + git init + .gitignore 含 build/，向 build/ 登记证据被拒（acceptance_evidence_ignored），向 docs/acceptance/evidence/ 登记通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260823T041602-608a928f93",
+          "objective_fingerprint": "sha256:0371a76d11fc03d7b275192e8cc72a1eab3b1fe8a96a4e29f54f11fbf605db5f",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "临时目录 project init 2.10.0 + git init + .gitignore 含 build/，真实执行 acceptance record：向 build/ 登记证据返回 code=acceptance_evidence_ignored（退出码 2），向 docs/acceptance/evidence/ 登记返回 passed（退出码 0）",
+          "evidence_refs": [
+            "docs/acceptance/evidence/docs-harness-2.10.0-evidence-upstream-install-conflict/c2-evidence-hardening.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-23T04:16:02+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "真实流程·升级报错：2.10.0 安装的临时项目手改两个受管文件，upgrade --apply 一次列全两个文件且 install_conflicts payload 形状正确；恢复后 upgrade 成功",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260823T041635-95277b02af",
+          "objective_fingerprint": "sha256:0371a76d11fc03d7b275192e8cc72a1eab3b1fe8a96a4e29f54f11fbf605db5f",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "临时目录 project init 2.10.0 后手改 scripts/harness.py 与 scripts/acceptance_assets.py，upgrade --apply --json 单次报错 code=install_conflict（退出码 2），install_conflicts 恰含两个条目且每项带 path/reason=modified/actual_fingerprint/allowed_fingerprints；恢复官方文件后 upgrade --apply 成功（退出码 0）且 project check 通过",
+          "evidence_refs": [
+            "docs/acceptance/evidence/docs-harness-2.10.0-evidence-upstream-install-conflict/c3-upgrade-conflict.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-23T04:16:35+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "title": "下游真实项目 dsh-buddy：assert_evidence_usable grep 命中、config version=2.10.0、受管文件与上游一致、assets-check 通过、adr --help 尾部完整单行",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260823T041703-a0460bcecc",
+          "objective_fingerprint": "sha256:0371a76d11fc03d7b275192e8cc72a1eab3b1fe8a96a4e29f54f11fbf605db5f",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "在 dsh-buddy 仓库真实执行五项验证：grep assert_evidence_usable 命中（定义+两处消费点）、.docs-harness/config.json version=2.10.0、8 个受管脚本与上游 cmp 全部一致、assets-check 通过（违规 0 警告 0 退出码 0）、adr create --help 尾部为完整单行（退出码 0）",
+          "evidence_refs": [
+            "docs/acceptance/evidence/docs-harness-2.10.0-evidence-upstream-install-conflict/c4-dsh-buddy.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-23T04:17:03+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 6,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:35da211dcdcf6e35cbd9553f6647130f32087b071205e4d81a5c82fb34284ac7",
+      "updated_at": "2026-08-23T04:14:31+00:00"
+    },
+    {
+      "revision": 2,
+      "asset_fingerprint": "sha256:4fc6e7adcd491faecc3ad3b95beddf6e01591c03772894b205e3c63d2f14f79c",
+      "updated_at": "2026-08-23T04:15:15+00:00"
+    },
+    {
+      "revision": 3,
+      "asset_fingerprint": "sha256:52da61fcd33f6aa3cd78fa14c1594ad995bf7ec363604c659167dbab15ca26ba",
+      "updated_at": "2026-08-23T04:16:02+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:c108ea8ba716facb0ac5c650c9b2b64850555c571d13e776c71c47bd860fd697",
+      "updated_at": "2026-08-23T04:16:35+00:00"
+    },
+    {
+      "revision": 5,
+      "asset_fingerprint": "sha256:bca7c6ed3eeb0c8361570be362f249f261a8c6bc17c10162eabe19ca12302a74",
+      "updated_at": "2026-08-23T04:17:03+00:00"
+    }
+  ],
+  "created_at": "2026-08-23T04:14:31+00:00",
+  "updated_at": "2026-08-23T04:17:13+00:00",
+  "settled_at": "2026-08-23T04:17:13+00:00",
+  "asset_fingerprint": "sha256:967807932199303eb192f4a0a94c32398d2b3110af46a78c10996f80247ffc78",
+  "replacement": null
+}

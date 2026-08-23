@@ -1,0 +1,64 @@
+TMP=/tmp/dsh-c3-WFndSg
+$ python3 scripts/harness.py project init --target $TMP  # 安装 2.10.0
+action: init
+mode: apply
+target: /private/tmp/dsh-c3-WFndSg
+source: /Users/aiware/projects/docs-harness
+source_is_target: False
+from_version: None
+to_version: 2.10.0
+version: 2.10.0
+status: installed
+delivery_status: not_applicable
+clone_ready: False
+required_commit_paths: []
+init_exit=0
+$ 手改两个受管文件 scripts/harness.py 与 scripts/acceptance_assets.py
+$ python3 scripts/harness.py project upgrade --target $TMP --json --apply  # 预期一次列全两个冲突
+{
+  "status": "error",
+  "code": "install_conflict",
+  "message": "受管文件存在本地修改，升级未写入：scripts/harness.py、scripts/acceptance_assets.py。恢复安装版本后重试升级；确需保留的修改请合入 docs-harness 随新版本升级；保持分叉则跳过升级。",
+  "install_conflicts": [
+    {
+      "path": "scripts/harness.py",
+      "reason": "modified",
+      "actual_fingerprint": "sha256:d6fb4f31375554fe7b775e34311af22adeec2f866ed4a31792d413919557328d",
+      "allowed_fingerprints": [
+        "sha256:4c3d337cec9a734abf4e0b59340cfae70b4115024132f76fb45901b735525a81"
+      ]
+    },
+    {
+      "path": "scripts/acceptance_assets.py",
+      "reason": "modified",
+      "actual_fingerprint": "sha256:f52b9428711384f84f44df602dd704aedf30cff9f6c1669fcd549a9c64e391d6",
+      "allowed_fingerprints": [
+        "sha256:1ce9a91a770f7e720129d5d6a58f9a5bf594e54b0d6710b78afb0e5cc3e9c501"
+      ]
+    }
+  ]
+}
+exit_code=2
+$ 恢复两个受管文件为官方版本
+$ python3 scripts/harness.py project upgrade --target $TMP --apply  # 预期成功
+action: upgrade
+mode: apply
+target: /private/tmp/dsh-c3-WFndSg
+source: /Users/aiware/projects/docs-harness
+source_is_target: False
+from_version: 2.10.0
+to_version: 2.10.0
+version: 2.10.0
+status: upgraded
+delivery_status: not_applicable
+clone_ready: False
+required_commit_paths: []
+upgrade_exit=0
+$ python3 scripts/harness.py project check --target $TMP  # 升级后检查
+action: check
+target: /private/tmp/dsh-c3-WFndSg
+status: passed
+delivery_status: not_applicable
+clone_ready: False
+required_commit_paths: []
+check_exit=0

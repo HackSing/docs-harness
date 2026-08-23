@@ -28,14 +28,18 @@
     "constraints": "- 两个补丁以 dsh-buddy 实现为唯一真源逐字移植（含 docstring 与注释），不重写、不“顺手优化”；偏离真源的每一处都必须在收尾报告中说明理由。\n- 遵守仓库 CLAUDE.md 全部编码规范（先复用后新写、错误不许吞、边界一次校验等）；harness.py 超 500 行属既有事实，本次不做无关拆分。\n- 现有测试用例除新增外不得改动断言语义；install_conflict 的 code 与 exit_code 是对外合同，不得变。\n- 批次之间不得跳批合并提交；批次5 的第 2 步顺序陷阱不得跳过阅读。",
     "risks_and_rollback": "- 风险1·行为收紧：证据落忽略路径的登记从放行变拒绝，下游项目的新登记可能开始被拒——这是设计目的，报错文案已给出正确存放位置；既有已登记资产不受影响（只影响新登记）。\n- 风险2·校验放松：最新记录语义使被取代的历史记录不再校验——该语义已在 dsh-buddy 生产验证，且重验必须走正规 acceptance record 流程，不构成绕过；测试覆盖正反用例。\n- 风险3·抛错时机变化：preflight 从第一处即抛改为收集后统一抛，只影响错误路径，成功路径零变化。\n- 回滚：三项改动独立提交、可单独 revert；发版后发现问题以 2.10.1 前滚修复，不回收 2.10.0。"
   },
-  "acceptance_refs": [],
+  "acceptance_refs": [
+    "docs/acceptance/docs-harness-2.10.0-evidence-upstream-install-conflict.json"
+  ],
   "governance": {
     "acceptance_required": true,
     "knowledge_impact": "updated",
-    "updated_knowledge_refs": [],
+    "updated_knowledge_refs": [
+      "docs/knowledge/docs-harness-assets-governance.json"
+    ],
     "unchanged_reason": null,
-    "governance_settled_at": null
+    "governance_settled_at": "2026-08-23T04:17:26+00:00"
   },
   "frozen_at": "2026-08-23T03:31:48+00:00",
-  "plan_fingerprint": "sha256:2ffb9f1b1d32ac5c3ef2a4c371a1eb8ce9ee729bc823e4ec98c5c961904f540c"
+  "plan_fingerprint": "sha256:50a42502ffb7243da98def66979b48edb0ec5587eda29b3399738c9c242a7a22"
 }

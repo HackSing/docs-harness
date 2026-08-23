@@ -1,0 +1,38 @@
+== 1) assert_evidence_usable grep 命中 ==
+$ grep -n assert_evidence_usable scripts/harness.py scripts/acceptance_assets.py
+/Users/aiware/projects/dsh-buddy/scripts/harness.py:1590:def assert_evidence_usable(target: Path, refs: list[str], what: str) -> None:
+/Users/aiware/projects/dsh-buddy/scripts/harness.py:1640:        assert_evidence_usable(target, refs, "失败归因证据")
+/Users/aiware/projects/dsh-buddy/scripts/harness.py:1778:        assert_evidence_usable(target, refs, "验收证据")
+grep_exit=0
+
+== 2) .docs-harness/config.json version ==
+$ python3 -c 读取 config version
+version = 2.10.0
+
+== 3) 受管文件与上游一致 ==
+IDENTICAL  scripts/harness.py
+IDENTICAL  scripts/managed_assets.py
+IDENTICAL  scripts/asset_checks.py
+IDENTICAL  scripts/plan_governance.py
+IDENTICAL  scripts/knowledge_assets.py
+IDENTICAL  scripts/acceptance_assets.py
+IDENTICAL  scripts/adr_assets.py
+IDENTICAL  scripts/script_hygiene.py
+
+== 4) dsh-buddy assets-check ==
+$ python3 scripts/harness.py assets-check
+status: passed
+strict: False
+fast: False
+checked: {"plans": {"live_docs": 15, "archived_docs": 0, "markdown_files": 65}, "knowledge": 12, "acceptance": 15, "adr": 0, "script_hygiene": 3, "cross": 30}
+failures: []
+warnings: []
+summary: assets-check passed：Plan/Knowledge/Acceptance/ADR/ScriptHygiene 已检查，违规 0 条、警告 0 条
+assets_check_exit=0
+
+== 5) adr --help 尾部完整单行 ==
+$ python3 scripts/harness.py adr create --help | tail -3
+  ]
+}
+ADR 定稿后不可更新；失效时 adr settle --status deprecated|superseded（superseded 需 --replacement）。
+help_exit=0

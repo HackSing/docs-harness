@@ -1,9 +1,9 @@
-> 状态：有效（实施中）
+> 状态：已实施-仅追溯（代码已是真源，2026-08-23 核对）
 <!-- docs-harness:plan-document/v1 -->
 
 # 上游合入 dsh-buddy 证据加固补丁并改进 install_conflict 报错（2.10.0）
 
-- 冻结合同：`sha256:2ffb9f1b1d32ac5c3ef2a4c371a1eb8ce9ee729bc823e4ec98c5c961904f540c`
+- 冻结合同：`sha256:50a42502ffb7243da98def66979b48edb0ec5587eda29b3399738c9c242a7a22`
 - 关键符号：`assert_evidence_usable`、`git_ignored_refs`、`_validate_live_refs`、`install_conflicts`
 
 ## 背景
@@ -113,7 +113,7 @@ updated
 <!-- docs-harness:plan-governance:start -->
 ## 资产治理
 
-- 关联验收：无
+- 关联验收：`docs/acceptance/docs-harness-2.10.0-evidence-upstream-install-conflict.json`
 - 需要 Acceptance：true
 - Knowledge 影响：updated
 <!-- docs-harness:plan-governance:end -->

@@ -1,0 +1,41 @@
+TMP=/tmp/dsh-c2-NulBMF
+$ python3 scripts/harness.py project init --target $TMP
+action: init
+mode: apply
+target: /private/tmp/dsh-c2-NulBMF
+source: /Users/aiware/projects/docs-harness
+source_is_target: False
+from_version: None
+to_version: 2.10.0
+version: 2.10.0
+status: installed
+delivery_status: not_applicable
+clone_ready: False
+required_commit_paths: []
+ignored_paths: []
+planned_changes: [{"path": "scripts/harness.py", "action": "create"}, {"path": "scripts/managed_assets.py", "action": "create"}, {"path": "scripts/asset_checks.py", "action": "create"}, {"path": "scripts/plan_governance.py", "action": "create"}, {"path": "scripts/knowledge_assets.py", "action": "create"}, {"path": "scripts/acceptance_assets.py", "action": "create"}, {"path": "scripts/adr_assets.py", "action": "create"}, {"path": "scripts/script_hygiene.py", "action": "create"}, {"path": "AGENTS.md", "action": "create_or_merge"}, {"path": "CLAUDE.md", "action": "create_or_merge"}, {"path": "plan-templates/levels/brief.json", "action": "create"}, {"path": "plan-templates/levels/full.json", "action": "create"}, {"path": "plan-templates/profiles/general.json", "action": "create"}, {"path": "plan-templates/profiles/frontend-ui.json", "action": "create"}, {"path": "plan-templates/profiles/backend-service.json", "action": "create"}, {"path": "plan-templates/profiles/bugfix.json", "action": "create"}, {"path": "plan-templates/profiles/architecture.json", "action": "create"}, {"path": "plan-templates/profiles/migration-release.json", "action": "create"}, {"path": "scripts/githooks/pre-commit", "action": "create"}, {"path": "scripts/githooks/setup.sh", "action": "create"}, {"path": "docs/plans/README.md", "action": "create"}, {"path": "docs/plans/archive/.gitkeep", "action": "create"}, {"path": "docs/INDEX.md", "action": "create"}, {"path": "docs/knowledge/README.md", "action": "create"}, {"path": "docs/knowledge/archive/.gitkeep", "action": "create"}, {"path": "docs/INDEX.md", "action": "create"}, {"path": "docs/acceptance/README.md", "action": "create"}, {"path": "docs/acceptance/archive/.gitkeep", "action": "create"}, {"path": "docs/INDEX.md", "action": "create"}, {"path": "docs/adr/README.md", "action": "create"}, {"path": "docs/adr/archive/.gitkeep", "action": "create"}, {"path": "docs/INDEX.md", "action": "create"}, {"path": "CHANGELOG.md", "action": "create"}, {"path": "TODO.md", "action": "create"}, {"path": "README.md", "action": "create"}, {"path": ".docs-harness/config.json", "action": "create"}]
+changed: ["docs/plans/README.md", "docs/plans/archive/.gitkeep", "docs/INDEX.md", "docs/knowledge/README.md", "docs/knowledge/archive/.gitkeep", "docs/acceptance/README.md", "docs/acceptance/archive/.gitkeep", "docs/adr/README.md", "docs/adr/archive/.gitkeep", "CHANGELOG.md", "TODO.md", "README.md", "scripts/harness.py", "scripts/managed_assets.py", "scripts/asset_checks.py", "scripts/plan_governance.py", "scripts/knowledge_assets.py", "scripts/acceptance_assets.py", "scripts/adr_assets.py", "scripts/script_hygiene.py", "AGENTS.md", "CLAUDE.md", "plan-templates/levels/brief.json", "plan-templates/levels/full.json", "plan-templates/profiles/general.json", "plan-templates/profiles/frontend-ui.json", "plan-templates/profiles/backend-service.json", "plan-templates/profiles/bugfix.json", "plan-templates/profiles/architecture.json", "plan-templates/profiles/migration-release.json", "scripts/githooks/pre-commit", "scripts/githooks/setup.sh", ".docs-harness/config.json"]
+githook_activation_hint: git 钩子已安装到 scripts/githooks/（不自动修改 git 配置）；如需启用入库 pre-commit（提交时执行 assets-check --fast），请执行一次 scripts/githooks/setup.sh
+findings: []
+legacy_document_cleanup: {"schema_version": "docs-harness/legacy-document-cleanup/v1", "remove_files": [], "remove_directories": [], "strip_managed_blocks": [], "remove_file_fingerprints": {}, "preserved_paths": [], "conflicts": [], "cleanup_possible": true}
+preserved_existing_docs: True
+knowledge: {"status": "available", "source": "managed_knowledge_assets", "managed_by_harness": true, "active_assets": 0}
+exit_code=0
+$ git init $TMP
+exit_code=0
+$ printf "build/\n" > $TMP/.gitignore
+$ python3 scripts/harness.py acceptance record --target $TMP --json --input $TMP/ignored-evidence.json  # 预期拒绝
+{
+  "status": "error",
+  "code": "acceptance_evidence_ignored",
+  "message": "验收证据落在 git 忽略路径，提交后必然失效：build/pack.log；请改存到随仓库提交的位置，例如 docs/acceptance/evidence/<验收名>/"
+}
+exit_code=2
+$ python3 scripts/harness.py acceptance record --target $TMP --json --input $TMP/committed-evidence.json  # 预期放行
+{
+  "status": "passed",
+  "accepted_layer": "L2",
+  "evidence_layer": "focused_test",
+  "claim": "behavior_accepted"
+}
+exit_code=0
