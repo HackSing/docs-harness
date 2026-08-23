@@ -5,6 +5,7 @@
 - 验收证据准入加固（上游合入下游 dsh-buddy fc3da39 的生产验证补丁）：`scripts/harness.py` 新增 `git_ignored_refs()`/`assert_evidence_usable()`，验收证据与失败归因证据两处登记入口（`build_stored_acceptance_record`、`normalize_failure_attributions`）统一经 `git check-ignore` 判定——证据落在 git 忽略路径（如 `build/`）直接拒绝登记（`acceptance_evidence_ignored`），杜绝「登记时通过、证据从不进仓库、清理后引用永久失效」的复发；`docs/acceptance/evidence/` 等入库路径放行，不存在文件仍报 `acceptance_evidence_missing`，非 git 目标不被 check-ignore 锁死。动机：下游真实项目曾因证据目录被 git 忽略导致登记成功但证据永不入库。
 - Acceptance 校验改为最新记录语义（同样源自 dsh-buddy fc3da39 生产验证，本次上游合入）：`scripts/acceptance_assets.py` 的 `_validate_live_refs` 只对每个 criterion 的最新一条 record 校验证据存在性与用户确认，被 `--reaccept` 重验取代的历史记录成为纯留痕，不再永久卡住 `acceptance check`/`assets-check`；最新记录违规仍 FAIL，settled 豁免不变。动机：重验修复后旧记录的失效证据引用本应是历史留痕，旧语义却要求已作废证据永久存在，干净克隆无法通过检查。
 - upgrade preflight 指纹偏离类 `install_conflict` 聚合报错：受管文件本地修改不再先撞先报只列第一个文件，改为一次性列出全部偏离文件并附三条出路（恢复安装版本后重试升级／确需保留的修改合入 docs-harness 随新版本升级／保持分叉则跳过升级），`extra_payload.install_conflicts` 携带结构化清单（path/reason/actual_fingerprint/allowed_fingerprints）供 agent 消费；symlink、非常规文件、安装指纹无效等结构性错误保持即时抛，`code=install_conflict` 与退出码不变。动机：下游升级时先撞先报让人和 agent 都无法一次看清全部偏离、也无法据此行动。
+- 修复 `adr --help` 尾部注释一字一行乱码（上游合入下游 dsh-buddy ea4785a 的 tuple 修复，2.8.0 引入）：`ADR_EPILOG` 调用 `_schema_example_block` 时把裸字符串作为 `notes: Sequence[str]` 传入，被 `lines.extend(notes)` 逐字符展开；修复落在调用点，裸字符串改为单元素元组，函数内不加 isinstance 兜底。其余调用点 notes 实参均已是元组常量，一并排查确认无同类问题。
 
 ## 2.9.1 - 2026-08-18
 

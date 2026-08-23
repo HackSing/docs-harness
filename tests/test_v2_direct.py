@@ -405,6 +405,22 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
             for needle in needles:
                 self.assertIn(needle, result.stdout, f"{command} {action} 缺少 {needle}")
 
+    def test_adr_epilog_note_line_is_not_split_into_chars(self) -> None:
+        # 回归：裸字符串作为 notes 传入 _schema_example_block 会被逐字符 extend（2.8.0 起）。
+        sys.path.insert(0, str(ROOT / "scripts"))
+        import harness
+        note = "ADR 定稿后不可更新；失效时 adr settle --status deprecated|superseded（superseded 需 --replacement）。"
+        self.assertIn(note, harness.ADR_EPILOG.splitlines())
+        result = subprocess.run(
+            [sys.executable, str(HARNESS), "adr", "--help"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn(note, result.stdout.splitlines())
+
     def test_project_init_bootstraps_docs_system(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
         payload = self.run_cli("plan", "check", "--target", str(self.project))
