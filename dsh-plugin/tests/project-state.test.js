@@ -5,7 +5,7 @@ import path from 'node:path';
 import { afterEach, describe, it } from 'node:test';
 
 import { MANAGED_BEGIN, MANAGED_END, readManagedBlock } from '../src/host/managed-block.js';
-import { detectProject, readGovernanceRules, resetProjectCaches, seedVersion } from '../src/host/project-state.js';
+import { detectProject, readGovernanceRules, resetProjectCaches, seedVersion, versionBehind } from '../src/host/project-state.js';
 import { buildRulesSection, toolAdapterNote } from '../src/host/rules-section.js';
 import { governanceText } from '../src/host/index.js';
 
@@ -78,6 +78,29 @@ describe('detectProject', () => {
 
   it('reports the seed version this plugin would install', () => {
     assert.match(String(seedVersion()), /^\d+\.\d+\.\d+/);
+  });
+
+  it('stays quiet when the project is AHEAD of the seed, instead of offering a downgrade', () => {
+    const [major] = String(seedVersion()).split('.');
+    const state = detectProject(makeProject({ version: `${Number(major) + 1}.0.0` }));
+    assert.equal(state.enabled, true);
+    assert.equal(state.prompt, 'none');
+  });
+});
+
+describe('versionBehind', () => {
+  it('orders segments numerically, so 2.9.1 is behind 2.10.2 and never the reverse', () => {
+    assert.equal(versionBehind('2.9.1', '2.10.2'), true);
+    assert.equal(versionBehind('2.10.2', '2.9.1'), false);
+  });
+
+  it('treats an identical stamp as current', () => {
+    assert.equal(versionBehind('2.10.2', '2.10.2'), false);
+  });
+
+  it('keeps the mismatch rule for a stamp with no x.y.z triple, so a damaged stamp still gets the offer', () => {
+    assert.equal(versionBehind('garbage', '2.10.2'), true);
+    assert.equal(versionBehind('2.10.2', '2.10.2'), false);
   });
 });
 

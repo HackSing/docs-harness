@@ -28,6 +28,31 @@ import { readManagedBlock } from './managed-block.js';
 /** Matches the engine's own `VERSION = "x.y.z"` declaration. */
 const VERSION_PATTERN = /^VERSION\s*=\s*"([^"]+)"/m;
 
+/** Matches the numeric x.y.z triple a release stamp starts with. */
+const VERSION_TRIPLE = /^(\d+)\.(\d+)\.(\d+)/;
+
+/**
+ * Whether the installed stamp is strictly behind the seed — the only direction
+ * an upgrade offer is honest in: the seed engine rewrites managed files with
+ * its own content, so offering it against a newer project is a downgrade.
+ * Segments compare numerically ("2.9" is older than "2.10", not newer as a
+ * string compare would claim). A stamp without an x.y.z triple cannot be
+ * ordered; those keep the plain mismatch rule so a damaged stamp still earns
+ * the repair offer.
+ * @param {string} installed - the project's version stamp.
+ * @param {string} seed - the version this plugin ships.
+ * @returns {boolean} whether an upgrade to the seed moves the project forward.
+ */
+export function versionBehind(installed, seed) {
+  const own = installed.match(VERSION_TRIPLE);
+  const next = seed.match(VERSION_TRIPLE);
+  if (own === null || next === null) return installed !== seed;
+  for (let part = 1; part <= 3; part += 1) {
+    if (Number(own[part]) !== Number(next[part])) return Number(own[part]) < Number(next[part]);
+  }
+  return false;
+}
+
 /** Memoized seed version — the vendored file cannot change while the app runs. */
 let seedVersionCache;
 
@@ -64,7 +89,7 @@ export function detectProject(projectDir) {
   const seed = seedVersion() ?? null;
   const installed = readInstalledVersion(projectDir);
   if (installed === undefined) return { enabled: false, projectVersion: null, seedVersion: seed, prompt: PROMPT_ENABLE };
-  const stale = seed !== null && installed !== seed;
+  const stale = seed !== null && versionBehind(installed, seed);
   return {
     enabled: true,
     projectVersion: installed,
