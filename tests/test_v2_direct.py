@@ -1012,6 +1012,109 @@ class DocsHarnessV2DirectTest(unittest.TestCase):
         frozen = json.loads(plan_path.read_text(encoding="utf-8"))
         self.assertEqual(frozen["acceptance_refs"], ["docs/acceptance/new.json"])
 
+    def test_plan_check_archived_same_name_acceptance_entry_is_not_leak(self) -> None:
+        docs = self.project / "docs"
+        archive = docs / "plans" / "archive"
+        archive.mkdir(parents=True)
+        (archive / "same-name.md").write_text(
+            "> 状态：已废弃-被别的方案取代（2026-08-22 核对）\n\n旧文档。\n",
+            encoding="utf-8",
+        )
+        # INDEX 验收区块存在同名文档：裸子串匹配会把该条目误判为归档泄漏，
+        # 链接 token (plans/<basename>) 匹配则不会误伤。
+        (docs / "INDEX.md").write_text(
+            "# 索引\n\n## 验收\n\n"
+            "- [同名验收](acceptance/same-name.md)（关键符号：`AcceptanceSettle`、`PlanBackref`）\n",
+            encoding="utf-8",
+        )
+        payload = self.run_cli("plan", "check", "--target", str(self.project), "--fast")
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["failures"], [])
+
+    def test_plan_check_live_doc_entry_requires_plan_link_token(self) -> None:
+        docs = self.project / "docs"
+        plans = docs / "plans"
+        plans.mkdir(parents=True)
+        (plans / "live.md").write_text(
+            "> 状态：有效（现行事实/实施中）\n\n# 活文档\n", encoding="utf-8"
+        )
+        # 验收区块的同名条目不能顶替 plans 区块的活文档条目。
+        (docs / "INDEX.md").write_text(
+            "# 索引\n\n## 验收\n\n"
+            "- [同名验收](acceptance/live.md)（关键符号：`AcceptanceSettle`、`PlanBackref`）\n",
+            encoding="utf-8",
+        )
+        payload = self.run_cli(
+            "plan", "check", "--target", str(self.project), "--fast", expected=1
+        )
+        self.assertTrue(
+            any("缺少 docs/plans/live.md 的条目" in item for item in payload["failures"])
+        )
+
+    def test_acceptance_supersede_unlinks_archived_plan_backref(self) -> None:
+        self.create_full_plan(
+            acceptance_required=False,
+            knowledge_impact="unchanged",
+            basename="archived-plan",
+        )
+        for name in ("old", "new"):
+            target = self.acceptance_target("contract_check")
+            target["plan_ref"] = "docs/plans/archived-plan.json"
+            target_input = self.write_json(f"inputs/{name}-target.json", target)
+            self.run_cli(
+                "acceptance", "create", "--target", str(self.project),
+                "--input", str(target_input.relative_to(self.project)),
+                "--output", f"docs/acceptance/{name}.json",
+            )
+        # Plan 被 settle deprecated 移入 archive/ 后，acceptance_refs 仍指向两个验收资产。
+        self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/archived-plan.json", "--status", "deprecated",
+        )
+        archived_plan = self.project / "docs/plans/archive/archived-plan.json"
+        self.assertTrue(archived_plan.is_file())
+        frozen = json.loads(archived_plan.read_text(encoding="utf-8"))
+        self.assertEqual(
+            frozen["acceptance_refs"],
+            ["docs/acceptance/old.json", "docs/acceptance/new.json"],
+        )
+        # superseded 必须按归档位置回退解析 plan_ref 并退出反向登记。
+        self.run_cli(
+            "acceptance", "settle", "--target", str(self.project),
+            "--acceptance", "docs/acceptance/old.json", "--status", "superseded",
+            "--replacement", "docs/acceptance/new.json",
+        )
+        frozen = json.loads(archived_plan.read_text(encoding="utf-8"))
+        self.assertEqual(frozen["acceptance_refs"], ["docs/acceptance/new.json"])
+
+    def test_acceptance_supersede_backref_failure_leaves_no_partial_state(self) -> None:
+        plan_path = self.create_full_plan(
+            acceptance_required=False,
+            knowledge_impact="unchanged",
+            basename="vanished-plan",
+        )
+        for name in ("old", "new"):
+            target = self.acceptance_target("contract_check")
+            target["plan_ref"] = "docs/plans/vanished-plan.json"
+            target_input = self.write_json(f"inputs/vanished-{name}-target.json", target)
+            self.run_cli(
+                "acceptance", "create", "--target", str(self.project),
+                "--input", str(target_input.relative_to(self.project)),
+                "--output", f"docs/acceptance/{name}.json",
+            )
+        # 物理删除 Plan（活路径与归档均不存在）：supersede 解析失败必须中止且零副作用。
+        plan_path.unlink()
+        plan_path.with_suffix(".md").unlink()
+        before = self.snapshot_project()
+        rejected = self.run_cli(
+            "acceptance", "settle", "--target", str(self.project),
+            "--acceptance", "docs/acceptance/old.json", "--status", "superseded",
+            "--replacement", "docs/acceptance/new.json",
+            expected=1,
+        )
+        self.assertEqual(rejected["code"], "acceptance_plan_ref_invalid")
+        self.assertEqual(self.snapshot_project(), before)
+
     def test_assets_check_warns_when_plan_declaration_conflicts_with_refs(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
         self.create_full_plan(

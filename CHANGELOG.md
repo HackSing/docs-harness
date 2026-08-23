@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.10.1 - 2026-08-23
+
+- 修复 plan check C2 同名误伤（源自 dispatch 下游 2d186f4 生产验证补丁，本次上游合入）：`scripts/harness.py` 活索引条目匹配与归档豁免过滤由裸子串改为链接 token `(plans/<basename>)`（与 `update_plan_index_text` 的 link_tokens 写法一致）——INDEX 验收等其他区块存在与方案同名文档（如 `acceptance/foo.md`）时，归档方案不再被误判泄漏、活文档条目也不再被同名他区块条目顶替。动机：下游 acceptance 区块与 plans 区块出现同名文档后，`plan check` 误报「归档文档仍出现在活索引条目中」阻塞收尾。
+- Plan 反向登记维护支持归档回退解析（同源自 dispatch 2d186f4）：`scripts/plan_governance.py` 新增 `_pair_exists()`，`_plan_pair()` 增加 `allow_archived` 参数——`plan_ref` 登记时指活路径、方案随后被 `plan settle --status deprecated` 移入 `docs/plans/archive/` 的场景，反向登记维护按归档位置回退解析；`add_acceptance_ref`/`remove_acceptance_ref` 透传 `allow_archived_plan` 关键字参数，默认行为不变。
+- 修复 acceptance settle superseded 半完成状态（同源自 dispatch 2d186f4）：`scripts/acceptance_assets.py` 退出 Plan 反向登记（`allow_archived_plan=True`，含指纹重算）前移到归档动作之前，解析失败即中止零副作用；后续任何失败补偿回登记，与 create 的回滚方向对称。动机：旧顺序先归档验收资产再退登记，Plan 已归档时退登记必败，留下「验收已归档、Plan 反登记未清」的半完成状态。
+- 新增 4 项回归测试（`tests/test_v2_direct.py`）：归档方案与验收区块同名文档不误判泄漏、活文档条目必须命中 plans 链接 token、Plan 归档后 superseded 干净退出反向登记、退登记失败零副作用。
+
 ## 2.10.0 - 2026-08-23
 
 - 验收证据准入加固（上游合入下游 dsh-buddy fc3da39 的生产验证补丁）：`scripts/harness.py` 新增 `git_ignored_refs()`/`assert_evidence_usable()`，验收证据与失败归因证据两处登记入口（`build_stored_acceptance_record`、`normalize_failure_attributions`）统一经 `git check-ignore` 判定——证据落在 git 忽略路径（如 `build/`）直接拒绝登记（`acceptance_evidence_ignored`），杜绝「登记时通过、证据从不进仓库、清理后引用永久失效」的复发；`docs/acceptance/evidence/` 等入库路径放行，不存在文件仍报 `acceptance_evidence_missing`，非 git 目标不被 check-ignore 锁死。动机：下游真实项目曾因证据目录被 git 忽略导致登记成功但证据永不入库。
