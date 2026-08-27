@@ -2,7 +2,7 @@
 name: docs-harness
 description: "默认不介入普通任务；仅按需提供项目知识、方案模板和真实验收记录。"
 metadata:
-  version: 2.10.2
+  version: 2.11.0
   status: active
 ---
 
