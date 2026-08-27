@@ -1,4 +1,4 @@
-"""CLI 公开面与源码守卫：命令注册、包导出、提示词面同步、体量红线。"""
+"""CLI 公开面与源码守卫：命令注册、包导出、提示词面同步。"""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from harness_test_base import HarnessTestBase, ROOT, HARNESS, MANAGED_MODULES, NPM_COMMAND
+from harness_test_base import HarnessTestBase, ROOT, HARNESS, NPM_COMMAND
 
 
 class CliSurfaceTest(HarnessTestBase):
@@ -78,21 +78,18 @@ class CliSurfaceTest(HarnessTestBase):
         self.assertFalse((ROOT / "harness-home").exists())
     def test_controller_source_has_no_legacy_state_machine_implementation(self) -> None:
         source = HARNESS.read_text(encoding="utf-8")
-        # 2.7.0 将资产领域逻辑拆到受管模块；控制器保留历史安装/迁移编排，
-        # 继续设硬上限，新增领域模块各自遵守 500 行红线。
+        # 2.7.0 将资产领域逻辑拆到受管模块；控制器保留历史安装/迁移编排。
         # 2.7.1 把各输入 JSON 的 --help 示例常量下沉到控制器现场（单一真源），
         # 上限相应上调；真正的 anti-legacy 守卫是下方符号黑名单，不受体积影响。
         # settle --input 批量带入（acceptance-settle-input/v1）新增共用校验抽取与
-        # 帮助示例，上限再次上调；受管模块红线同步由 400 行放宽至 500 行。
+        # 帮助示例，上限再次上调。
         # 2.8.0 接入第四类资产 ADR（命令组、config v10、项目文档脚手架与检查），
         # 上限随注册面上调。
         # 2.10.0 接入 Structure 结构护栏（structure 命令组、受管入口结构护栏段、
-        # CODEMAP 脚手架接线），检查逻辑在 structure_check.py 受 500 行红线约束，
-        # 控制器只增注册面，上限上调。
+        # CODEMAP 脚手架接线），控制器只增注册面，上限上调。此处只守控制器不复活
+        # 旧状态机；模块体量由 Structure WARN 触发结构评估，不再以测试硬失败处方。
         self.assertLess(HARNESS.stat().st_size, 180_000)
         self.assertLess(len(source.splitlines()), 4_200)
-        for module in MANAGED_MODULES:
-            self.assertLess(len((ROOT / "scripts" / module).read_text(encoding="utf-8").splitlines()), 500)
         for symbol in (
             "def command_run(",
             "def command_context(",
@@ -128,6 +125,9 @@ class CliSurfaceTest(HarnessTestBase):
         for surface in (agents, claude):
             self.assertNotIn("输入形状见 SKILL.md", surface)
             self.assertIn("python3 scripts/harness.py <cmd> --help", surface)
+            self.assertIn("超过 60 行、单个文件超过 500 行时必须进行结构评估", surface)
+            self.assertIn("不得仅为满足行数阈值机械切割", surface)
+            self.assertNotIn("超过 500 行时必须拆分", surface)
     def test_cli_help_carries_input_schema_examples(self) -> None:
         cases = {
             ("knowledge", "create"): (

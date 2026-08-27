@@ -22,11 +22,11 @@ class StructureGuardrailTest(HarnessTestBase):
         self.write_lines("src/long_func.py", ["def giant():"] + ["    pass"] * 70)
         payload = self.run_cli("structure", "check", "--target", str(self.project))
         self.assertTrue(
-            any("src/big.py" in w and "超过 500 行红线" in w for w in payload["warnings"]),
+            any("src/big.py" in w and "超过 500 行结构评估阈值" in w for w in payload["warnings"]),
             payload["warnings"],
         )
         self.assertTrue(
-            any("giant" in w and "超过 60 行红线" in w for w in payload["warnings"]),
+            any("giant" in w and "超过 60 行结构评估阈值" in w for w in payload["warnings"]),
             payload["warnings"],
         )
     def test_structure_check_increment_growth_rules(self) -> None:
@@ -46,7 +46,7 @@ class StructureGuardrailTest(HarnessTestBase):
         )
         payload = self.run_cli("structure", "check", "--target", str(self.project))
         warnings = payload["warnings"]
-        self.assertTrue(any("mod.py" in w and "突破 500 行红线" in w for w in warnings), warnings)
+        self.assertTrue(any("mod.py" in w and "突破 500 行结构评估阈值" in w for w in warnings), warnings)
         self.assertTrue(any("fat.py" in w and "仍净增" in w for w in warnings), warnings)
         self.assertTrue(any("grower" in w and "增长" in w for w in warnings), warnings)
         self.assertFalse(any("stable" in w for w in warnings), "未增长的超长函数不应因存量被点名")

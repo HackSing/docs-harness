@@ -16,4 +16,4 @@
 - `scripts/acceptance_assets.py` — 职责：Acceptance 资产生命周期——验收目标/记录/结项的输入校验与层级映射；公开接口：`ACCEPTANCE_SPEC`、`ACCEPTANCE_EVIDENCE_LAYERS`、`ACCEPTANCE_SETTLE_INPUT_SCHEMA`
 - `scripts/adr_assets.py` — 职责：ADR 资产生命周期——架构决策创建（定稿不可改）、废弃/被替代结项与检查；公开接口：`ADR_SPEC`、`ADR_INPUT_SCHEMA`、`ADR_SETTLE_STATUSES`
 - `scripts/script_hygiene.py` — 职责：脚本卫生检查——tracked 脚本混合行尾字节级扫描（assets-check 第五 checker）；公开接口：`check_script_line_endings`、`SCRIPT_GLOBS`
-- `scripts/structure_check.py` — 职责：结构护栏——增量体量红线检查与 CODEMAP 一致性（assets-check 第六 checker）、存量结构债报告；公开接口：`check_structure`、`structure_report`、`CODEMAP_SCAFFOLD`、`FILE_RED_LINE`
+- `scripts/structure_check.py` — 职责：结构护栏——增量体量预警与 CODEMAP 一致性（assets-check 第六 checker）、存量结构债报告；公开接口：`check_structure`、`structure_report`、`CODEMAP_SCAFFOLD`、`FILE_RED_LINE`
