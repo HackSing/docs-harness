@@ -1,17 +1,17 @@
 {
   "schema_version": "docs-harness/knowledge-asset/v1",
-  "title": "Docs Harness 四资产治理执行机制",
+  "title": "Docs Harness 四资产治理与双机械检查执行机制",
   "key_symbols": [
     "run_assets_check",
-    "acceptance_refs",
-    "assert_evidence_usable",
-    "install_conflicts"
+    "check_structure",
+    "knowledge_impact",
+    "ADR_SPEC"
   ],
-  "summary": "2.7.0 对 Plan、Knowledge、Acceptance 建立统一检查、反向关系和分层提交防线；2.8.0 新增 ADR 第四类受管资产与项目级文档脚手架/检查；2.9.0 新增 ScriptHygiene 脚本卫生检查并入 assets-check 第五个 checker；2.10.0 上游合入 dsh-buddy 证据准入加固与最新记录语义，install_conflict 改为聚合报错。",
+  "summary": "2.7.0 对 Plan、Knowledge、Acceptance 建立统一检查、反向关系和分层提交防线；2.8.0 新增 ADR 第四类受管资产与项目级文档脚手架/检查；2.9.0 新增 ScriptHygiene 第五 checker；2.10.0 上游合入 dsh-buddy 证据准入加固与最新记录语义，install_conflict 改为聚合报错；2.11.0 新增 Structure 结构护栏第六 checker（增量体量 + CODEMAP 能力索引）与 structure 命令组。",
   "facts": [
     {
       "id": "assets.check.execution",
-      "statement": "assets-check 聚合四类资产、ScriptHygiene 脚本卫生扫描与跨资产关系；pre-commit 使用 fast，GitHub CI 使用 strict。",
+      "statement": "assets-check 聚合四类资产、ScriptHygiene 与 Structure 两个机械 checker 及跨资产关系；pre-commit 使用 fast，GitHub CI 使用 strict。",
       "source_refs": [
         "scripts/asset_checks.py",
         "scripts/githooks/pre-commit",
@@ -20,7 +20,7 @@
     },
     {
       "id": "plan.governance.v3",
-      "statement": "Full Plan 使用 acceptance_required 和单字段 knowledge_impact，Acceptance 反向登记由 Harness 自动维护，结算顺序为 Knowledge、Acceptance、Plan。",
+      "statement": "Full Plan 使用 acceptance_required 和单字段 knowledge_impact，Acceptance 反向登记由 Harness 自动维护，结算顺序为 Knowledge、Acceptance、Plan；2.11.0 起 Full 模板另有必填 module_interfaces 冻结模块划分与接口骨架，实施骨架先行。",
       "source_refs": [
         "scripts/plan_governance.py",
         "plan-templates/levels/full.json",
@@ -71,10 +71,20 @@
         "docs/contracts.md",
         "docs/testing.md"
       ]
+    },
+    {
+      "id": "structure.guardrails.checker",
+      "statement": "Structure（scripts/structure_check.py）是 assets-check 的第六个 checker，全部 WARN 级：增量体量检查只对本次改动（工作区+暂存+未跟踪 vs HEAD）归责——新文件超 500 行、既有文件突破 500 行、超标文件单次净增 ≥50 行、Python 新增函数超 60 行或超标函数单次增长 ≥10 行（ast 测量，仅 Python 有函数级）；CODEMAP（docs/CODEMAP.md，纯 Markdown 非受管资产）校验登记路径存在、公开接口符号存活、新增代码文件登记提醒（测试文件豁免），无 CODEMAP 的项目整体跳过；存量结构债经 structure report 按需报告供定期整理任务；阈值常量单一来源于 structure_check.py；非 git 目标 checked=0；功能于 2.11.0 交付（曾在本地分支以 2.10.0 号实现，收敛重标），安装配置为 project-config/v12。",
+      "source_refs": [
+        "scripts/structure_check.py",
+        "scripts/asset_checks.py",
+        "docs/CODEMAP.md",
+        "docs/adr/structure-guardrails-as-checker.md"
+      ]
     }
   ],
   "status": "active",
-  "revision": 4,
+  "revision": 5,
   "revision_history": [
     {
       "revision": 1,
@@ -90,9 +100,14 @@
       "revision": 3,
       "asset_fingerprint": "sha256:4680c4b379fae886fcb985e2a1cbbd024915a1ae47712f549bde5b5e539b21d0",
       "updated_at": "2026-08-18T15:14:39+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:11571c7d193226287e25ee10db78459c18bd31c66e747eefce4aaa3d8ad8355a",
+      "updated_at": "2026-08-23T03:59:12+00:00"
     }
   ],
   "created_at": "2026-08-14T16:57:22+00:00",
-  "updated_at": "2026-08-23T03:59:12+00:00",
-  "asset_fingerprint": "sha256:11571c7d193226287e25ee10db78459c18bd31c66e747eefce4aaa3d8ad8355a"
+  "updated_at": "2026-08-27T08:07:06+00:00",
+  "asset_fingerprint": "sha256:513328212a5dfb35c42e7301ce7a7458d61631a79643b6419e96b7c02795cfc2"
 }

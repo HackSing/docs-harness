@@ -1,27 +1,27 @@
 > 状态：有效（现行事实）
 <!-- docs-harness:knowledge-document/v1 -->
 
-# Docs Harness 四资产治理执行机制
+# Docs Harness 四资产治理与双机械检查执行机制
 
-- 修订：4
-- 关键符号：`run_assets_check`、`acceptance_refs`、`assert_evidence_usable`、`install_conflicts`
-- 资产指纹：`sha256:11571c7d193226287e25ee10db78459c18bd31c66e747eefce4aaa3d8ad8355a`
+- 修订：5
+- 关键符号：`run_assets_check`、`check_structure`、`knowledge_impact`、`ADR_SPEC`
+- 资产指纹：`sha256:513328212a5dfb35c42e7301ce7a7458d61631a79643b6419e96b7c02795cfc2`
 
 ## 摘要
 
-2.7.0 对 Plan、Knowledge、Acceptance 建立统一检查、反向关系和分层提交防线；2.8.0 新增 ADR 第四类受管资产与项目级文档脚手架/检查；2.9.0 新增 ScriptHygiene 脚本卫生检查并入 assets-check 第五个 checker；2.10.0 上游合入 dsh-buddy 证据准入加固与最新记录语义，install_conflict 改为聚合报错。
+2.7.0 对 Plan、Knowledge、Acceptance 建立统一检查、反向关系和分层提交防线；2.8.0 新增 ADR 第四类受管资产与项目级文档脚手架/检查；2.9.0 新增 ScriptHygiene 第五 checker；2.10.0 上游合入 dsh-buddy 证据准入加固与最新记录语义，install_conflict 改为聚合报错；2.11.0 新增 Structure 结构护栏第六 checker（增量体量 + CODEMAP 能力索引）与 structure 命令组。
 
 ## 事实
 
 ### `assets.check.execution`
 
-assets-check 聚合四类资产、ScriptHygiene 脚本卫生扫描与跨资产关系；pre-commit 使用 fast，GitHub CI 使用 strict。
+assets-check 聚合四类资产、ScriptHygiene 与 Structure 两个机械 checker 及跨资产关系；pre-commit 使用 fast，GitHub CI 使用 strict。
 
 证据：`scripts/asset_checks.py`、`scripts/githooks/pre-commit`、`.github/workflows/assets-check.yml`
 
 ### `plan.governance.v3`
 
-Full Plan 使用 acceptance_required 和单字段 knowledge_impact，Acceptance 反向登记由 Harness 自动维护，结算顺序为 Knowledge、Acceptance、Plan。
+Full Plan 使用 acceptance_required 和单字段 knowledge_impact，Acceptance 反向登记由 Harness 自动维护，结算顺序为 Knowledge、Acceptance、Plan；2.11.0 起 Full 模板另有必填 module_interfaces 冻结模块划分与接口骨架，实施骨架先行。
 
 证据：`scripts/plan_governance.py`、`plan-templates/levels/full.json`、`docs/contracts.md`
 
@@ -54,3 +54,9 @@ ScriptHygiene（scripts/script_hygiene.py）不是生命周期资产，是 asset
 2.10.0 起 upgrade preflight 指纹偏离类 install_conflict 不再先撞先报，一次性列出全部偏离文件并附恢复/上游合入/保持分叉三条出路，extra_payload.install_conflicts 携带 path/reason/actual_fingerprint/allowed_fingerprints 结构化清单；结构性错误（symlink、非常规文件、安装指纹无效）保持即时抛，code 与退出码不变。
 
 证据：`scripts/harness.py`、`docs/contracts.md`、`docs/testing.md`
+
+### `structure.guardrails.checker`
+
+Structure（scripts/structure_check.py）是 assets-check 的第六个 checker，全部 WARN 级：增量体量检查只对本次改动（工作区+暂存+未跟踪 vs HEAD）归责——新文件超 500 行、既有文件突破 500 行、超标文件单次净增 ≥50 行、Python 新增函数超 60 行或超标函数单次增长 ≥10 行（ast 测量，仅 Python 有函数级）；CODEMAP（docs/CODEMAP.md，纯 Markdown 非受管资产）校验登记路径存在、公开接口符号存活、新增代码文件登记提醒（测试文件豁免），无 CODEMAP 的项目整体跳过；存量结构债经 structure report 按需报告供定期整理任务；阈值常量单一来源于 structure_check.py；非 git 目标 checked=0；功能于 2.11.0 交付（曾在本地分支以 2.10.0 号实现，收敛重标），安装配置为 project-config/v12。
+
+证据：`scripts/structure_check.py`、`scripts/asset_checks.py`、`docs/CODEMAP.md`、`docs/adr/structure-guardrails-as-checker.md`

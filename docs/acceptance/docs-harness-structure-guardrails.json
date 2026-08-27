@@ -1,0 +1,162 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "Docs Harness 2.10.0 结构护栏验收（Structure checker、CODEMAP、骨架先行模板）",
+  "key_symbols": [
+    "check_structure",
+    "structure_report",
+    "CODEMAP_RELATIVE",
+    "module_interfaces"
+  ],
+  "objective": "验证结构护栏三层落地：Structure 增量检查挂入 assets-check 且行为符合契约、CODEMAP 索引建立并被检查消费、full 模板含 module_interfaces、版本真源同步且受管提示词刷新。",
+  "plan_ref": "docs/plans/docs-harness-structure-guardrails.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "Structure 检查合同：新增聚焦单测覆盖新文件红线、突破红线、超标膨胀、Python 函数红线、CODEMAP 符号存活、非 git 跳过与 structure report 存量清单，全部通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260827T064723-13dee0a8ea",
+          "objective_fingerprint": "sha256:6eed296d64935b11da188109eb62833797d96543b7ba3df3723533aa82c24469",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "python -m unittest tests.test_v2_direct -k structure -v：10 项聚焦测试（新文件红线、突破红线、超标膨胀、小幅净增静默、函数红线与增长阈值、CODEMAP 一致性/登记、脚手架示例行不解析、非 git 跳过、存量报告、assets-check 集成 WARN 前缀）全部 OK，exit 0",
+          "evidence_refs": [
+            "docs/testing/logs/structure-guardrails/c1-focused-tests.log",
+            "scripts/structure_check.py",
+            "tests/test_v2_direct.py"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-27T06:47:23+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "受影响模块完整测试集：tests/test_v2_direct.py 与 tests/test_release_version_sync.py 全量通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "repository_full_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260827T064747-de35f5a6f9",
+          "objective_fingerprint": "sha256:6eed296d64935b11da188109eb62833797d96543b7ba3df3723533aa82c24469",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "repository_full_test",
+          "method": "python -m unittest discover -s tests -v：85 项测试 OK（skipped=4，为既有 symlink 权限与 npm 环境跳过，与本次改动无关），exit 0；覆盖 assets-check 六 checker 契约、安装/升级链、config v12、模板版本同步",
+          "evidence_refs": [
+            "docs/testing/logs/structure-guardrails/c2-full-suite.log",
+            "tests/test_v2_direct.py",
+            "tests/test_release_version_sync.py"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-27T06:47:47+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "本仓真实运行：assets-check 通过、structure report 输出存量债、plan select 含 module_interfaces、self-test 通过、release sync --strict 一致",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260827T064747-6a6485e840",
+          "objective_fingerprint": "sha256:6eed296d64935b11da188109eb62833797d96543b7ba3df3723533aa82c24469",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "本仓真实运行五项命令均 exit 0：assets-check passed（Structure checked=14，增量 WARN 正确点名本次膨胀的测试文件）；structure report status=ok 列出存量债；plan select --complexity complex 输出含必填 module_interfaces；self-test passed；release sync --strict consistent（2.10.0 全真源一致）。运行期间检查器还真实抓到 CODEMAP 一条死符号登记并已修正，机制自证有效",
+          "evidence_refs": [
+            "docs/testing/logs/structure-guardrails/c3-runtime.log",
+            "docs/CODEMAP.md"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-27T06:47:47+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "title": "安装层：临时项目 project init 后 structure_check.py 随装、docs/CODEMAP.md 脚手架落位、装后 assets-check 通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L4",
+      "evidence_layer": "package_or_install",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260827T064747-827797c89d",
+          "objective_fingerprint": "sha256:6eed296d64935b11da188109eb62833797d96543b7ba3df3723533aa82c24469",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L4",
+          "evidence_layer": "package_or_install",
+          "method": "临时目录 project init exit 0：scripts/structure_check.py 随受管模块安装、docs/CODEMAP.md 脚手架落位（含格式说明，示例行不被解析）；装后以安装副本运行 assets-check 与 self-test 均 passed，exit 0",
+          "evidence_refs": [
+            "docs/testing/logs/structure-guardrails/c4-install.log"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-27T06:47:47+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 6,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:0f2fd7dd6ddc9349e10dbae4fb088ae48c99cdb35424bdc7d8387e207c404ad8",
+      "updated_at": "2026-08-27T06:24:44+00:00"
+    },
+    {
+      "revision": 2,
+      "asset_fingerprint": "sha256:52061bac1adb58b8feed34d6f5884e11503ead1b84424cc75d6df756432a6f30",
+      "updated_at": "2026-08-27T06:47:23+00:00"
+    },
+    {
+      "revision": 3,
+      "asset_fingerprint": "sha256:69b8eb594694d0242751cdf18586e8685ff06dd53c823dc67440d5f4c6f21382",
+      "updated_at": "2026-08-27T06:47:47+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:88603e2f5d8c5ae367fd3222a298f1d4e6433e94b7d94a414d006fab485a6603",
+      "updated_at": "2026-08-27T06:47:47+00:00"
+    },
+    {
+      "revision": 5,
+      "asset_fingerprint": "sha256:87f3a97d278ff70f6d4577794bd11fa47731ed8154201aa68483b6ab2a08e28d",
+      "updated_at": "2026-08-27T06:47:47+00:00"
+    }
+  ],
+  "created_at": "2026-08-27T06:24:44+00:00",
+  "updated_at": "2026-08-27T06:49:17+00:00",
+  "settled_at": "2026-08-27T06:49:17+00:00",
+  "asset_fingerprint": "sha256:6c0b79d0e43e9f3f4579bbdc1b2afd68a4ea4508bb3deb8960f09113ece957a6",
+  "replacement": null
+}
