@@ -1,0 +1,15 @@
+test_assets_check_carries_structure_warnings (tests.test_v2_direct.DocsHarnessV2DirectTest.test_assets_check_carries_structure_warnings) ... ok
+test_behavior_failure_returns_structured_attributions (tests.test_v2_direct.DocsHarnessV2DirectTest.test_behavior_failure_returns_structured_attributions) ... ok
+test_bugfix_profile_requires_structured_verification_contract (tests.test_v2_direct.DocsHarnessV2DirectTest.test_bugfix_profile_requires_structured_verification_contract) ... ok
+test_failed_acceptance_requires_structured_attribution (tests.test_v2_direct.DocsHarnessV2DirectTest.test_failed_acceptance_requires_structured_attribution) ... ok
+test_structure_check_codemap_consistency_and_registration (tests.test_v2_direct.DocsHarnessV2DirectTest.test_structure_check_codemap_consistency_and_registration) ... ok
+test_structure_check_increment_growth_rules (tests.test_v2_direct.DocsHarnessV2DirectTest.test_structure_check_increment_growth_rules) ... ok
+test_structure_check_skips_non_git_target (tests.test_v2_direct.DocsHarnessV2DirectTest.test_structure_check_skips_non_git_target) ... ok
+test_structure_check_small_growth_stays_silent (tests.test_v2_direct.DocsHarnessV2DirectTest.test_structure_check_small_growth_stays_silent) ... ok
+test_structure_check_warns_on_new_oversized_file_and_function (tests.test_v2_direct.DocsHarnessV2DirectTest.test_structure_check_warns_on_new_oversized_file_and_function) ... ok
+test_structure_report_lists_stock_debt (tests.test_v2_direct.DocsHarnessV2DirectTest.test_structure_report_lists_stock_debt) ... ok
+
+----------------------------------------------------------------------
+Ran 10 tests in 4.968s
+
+OK

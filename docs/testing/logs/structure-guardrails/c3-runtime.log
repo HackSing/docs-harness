@@ -1,0 +1,233 @@
+== assets-check --json ==
+{
+  "status": "passed",
+  "strict": false,
+  "fast": false,
+  "checked": {
+    "plans": {
+      "live_docs": 8,
+      "archived_docs": 0,
+      "markdown_files": 65
+    },
+    "knowledge": 1,
+    "acceptance": 5,
+    "adr": 2,
+    "script_hygiene": 1,
+    "structure": 14,
+    "cross": 12
+  },
+  "failures": [],
+  "warnings": [
+    "WARN: Structure: tests/test_v2_direct.py 已超 500 行红线仍净增 122 行（2456→2578），优先把新增逻辑落到独立模块"
+  ],
+  "summary": "assets-check passed：Plan/Knowledge/Acceptance/ADR/ScriptHygiene/Structure 已检查，违规 0 条、警告 1 条"
+}
+exit=0
+== structure report --json ==
+{
+  "status": "ok",
+  "checked": 61,
+  "file_red_line": 500,
+  "func_red_line": 60,
+  "files_over_red_line": [
+    {
+      "path": "scripts/harness.py",
+      "lines": 4110
+    },
+    {
+      "path": "tests/test_v2_direct.py",
+      "lines": 2578
+    }
+  ],
+  "functions_over_red_line": [
+    {
+      "path": "docs/history/plans/v1.7.3-minimal-host-flow-verify.py",
+      "function": "main",
+      "lines": 80
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "acceptance_record",
+      "lines": 81
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "apply_legacy_cleanup",
+      "lines": 93
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "apply_project_install",
+      "lines": 79
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "build_parser",
+      "lines": 127
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "build_stored_acceptance_record",
+      "lines": 153
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "command_plan_check",
+      "lines": 199
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "command_project",
+      "lines": 203
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "command_release",
+      "lines": 113
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "command_self_test",
+      "lines": 67
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "install_preflight",
+      "lines": 97
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "legacy_cleanup_plan",
+      "lines": 132
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "project_changes",
+      "lines": 109
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "project_findings",
+      "lines": 258
+    },
+    {
+      "path": "scripts/harness.py",
+      "function": "v2_config",
+      "lines": 63
+    },
+    {
+      "path": "scripts/plan_governance.py",
+      "function": "validate_bugfix_plan_contract",
+      "lines": 68
+    },
+    {
+      "path": "tests/test_v2_direct.py",
+      "function": "DocsHarnessV2DirectTest.test_acceptance_asset_create_record_reaccept_settle_and_check",
+      "lines": 74
+    },
+    {
+      "path": "tests/test_v2_direct.py",
+      "function": "DocsHarnessV2DirectTest.test_behavior_failure_returns_structured_attributions",
+      "lines": 69
+    },
+    {
+      "path": "tests/test_v2_direct.py",
+      "function": "DocsHarnessV2DirectTest.test_bugfix_profile_requires_structured_verification_contract",
+      "lines": 95
+    },
+    {
+      "path": "tests/test_v2_direct.py",
+      "function": "DocsHarnessV2DirectTest.test_plan_v3_acceptance_backref_and_governance_settlement",
+      "lines": 75
+    },
+    {
+      "path": "tests/test_v2_direct.py",
+      "function": "DocsHarnessV2DirectTest.test_upgrade_v5_preview_apply_cleanup_and_repeat_are_one_way",
+      "lines": 86
+    }
+  ],
+  "codemap": {
+    "present": true,
+    "entries": 9,
+    "dead_entry_warnings": [],
+    "unregistered_files": [
+      "docs/history/plans/v1.7.3-minimal-host-flow-verify.py",
+      "docs/history/plans/v1.7.3-v3-shadow-acceptance.py",
+      "dsh-plugin/scripts/build-client.mjs",
+      "dsh-plugin/scripts/extract-managed-block.mjs",
+      "dsh-plugin/scripts/seed-vendor.mjs",
+      "dsh-plugin/scripts/verify-package.mjs",
+      "dsh-plugin/src/client/EnableNoticeBar.jsx",
+      "dsh-plugin/src/client/HarnessSettingsCard.jsx",
+      "dsh-plugin/src/client/PlanBubble.jsx",
+      "dsh-plugin/src/client/PlanItemList.jsx",
+      "dsh-plugin/src/client/PlanToolCard.jsx",
+      "dsh-plugin/src/client/api.js",
+      "dsh-plugin/src/client/index.jsx",
+      "dsh-plugin/src/client/locales.js",
+      "dsh-plugin/src/client/settings-store.js",
+      "dsh-plugin/src/client/styles.js",
+      "dsh-plugin/src/host/diff-lines.js",
+      "dsh-plugin/src/host/engine.js",
+      "dsh-plugin/src/host/index.js",
+      "dsh-plugin/src/host/invariant.js",
+      "dsh-plugin/src/host/managed-block.js",
+      "dsh-plugin/src/host/plan-projection.js",
+      "dsh-plugin/src/host/plan-review.js",
+      "dsh-plugin/src/host/project-ops.js",
+      "dsh-plugin/src/host/project-state.js",
+      "dsh-plugin/src/host/routes.js",
+      "dsh-plugin/src/host/rules-section.js",
+      "dsh-plugin/src/host/settings-routes.js",
+      "dsh-plugin/src/host/tool-support.js",
+      "dsh-plugin/src/host/tools.js",
+      "dsh-plugin/src/shared/constants.js",
+      "dsh-plugin/src/shared/plan-items.js"
+    ]
+  },
+  "summary": "structure report：代码文件 61 个，超红线文件 2 个、超红线函数 21 个、未登记 CODEMAP 32 个"
+}
+exit=0
+== plan select --complexity complex (module_interfaces?) ==
+      "id": "module_interfaces",
+      "label": "模块划分与接口骨架",
+      "required": true,
+exit=0
+== self-test ==
+{
+  "version": "2.10.0",
+  "status": "passed",
+  "checks": {
+    "script_version": true,
+    "command_parser": true,
+    "asset_check_flags": true,
+    "direct_mode_default": true,
+    "plan_templates_valid": true,
+    "asset_modules_valid": true,
+    "project_config_v9": true,
+    "v3_acceptance_contract": true,
+    "knowledge_lifecycle_v1": true,
+    "acceptance_lifecycle_v1": true,
+    "adr_lifecycle_v1": true
+  }
+}
+exit=0
+== release sync --strict ==
+{
+  "action": "sync",
+  "target": "D:\\Project\\docs-harness",
+  "version_truth": "2.10.0",
+  "sources": {
+    "VERSION": "2.10.0",
+    "controller": "2.10.0",
+    "skill": "2.10.0",
+    "package": "2.10.0",
+    "templates": "2.10.0",
+    "evals": "2.10.0"
+  },
+  "diffs": [],
+  "changelog_top_version": "2.10.0",
+  "mode": "check",
+  "status": "consistent"
+}
+exit=0
