@@ -1,0 +1,88 @@
+{
+  "schema_version": "docs-harness/plan/v3",
+  "plan_level": "full",
+  "plan_profile": "bugfix",
+  "secondary_profiles": [],
+  "template_versions": [
+    "level/full@2.11.0",
+    "profile/bugfix@2.11.0"
+  ],
+  "selection_fingerprint": "sha256:aef57d12a2ccc46f42a1a0a13d8452bd2fdc0a352ff74de404a809bdd0de20fb",
+  "content": {
+    "title": "git 钩子安装改为转发 shim 共存模式并补齐可执行位治理",
+    "key_symbols": [
+      "core.hooksPath",
+      "githook_drift",
+      "GIT_HOOK_RELATIVE_FILES",
+      "docs-harness-hook-shim"
+    ],
+    "background": "下游项目缺陷报告（基于 Docs Harness 2.11.0 × git 2.54 × git-lfs 3.7.1 × Windows 11）指出随附 git 钩子两处缺陷：1) scripts/githooks/setup.sh 以 `git config core.hooksPath scripts/githooks` 安装钩子，hooksPath 是替换语义，设置后 .git/hooks 下第三方钩子（git lfs install 的 pre-push/post-checkout/post-merge/post-commit、husky 等）全部静默失效，git push 只推 LFS 指针文件且无报错；2) 两个钩子文件以 100644 入库，类 Unix 克隆上 pre-commit 静默不运行，assets-check 提交闸门失效。两处均已在评估中对照本仓源码核实并实测复现。",
+    "objective": "setup.sh 改为向真实钩子目录（--git-common-dir 解析）安装三行转发 shim，与第三方钩子共存；旧版 core.hooksPath 设置可被迁移清除；project check 补齐钩子健康检查（索引可执行位 + hooksPath 冲突）；uninstall 同步清理 shim；发布侧修正入库模式为 100755；文档措辞同步。",
+    "non_goals": "不改动 scripts/githooks/pre-commit 的检查逻辑本身；不为 husky/LFS 等第三方工具生成转发钩子（次选方案已被否决）；不重构 project check 的整体结构；不回退下游项目已打的临时补丁（属下游仓库操作）。",
+    "success_criteria": "1) setup.sh 安装 shim 后 .git/hooks 下原生钩子与 assets-check 闸门同时生效（实测）；2) 人为设置 core.hooksPath=scripts/githooks 后执行 setup.sh 可迁移清除并恢复第三方钩子；3) 目标已有非本工具 pre-commit 时拒绝覆盖且退出 1；4) 幂等；5) worktree 场景装一次即可；6) 索引模式非 100755 或 hooksPath 冲突时 project check 出 yellow finding；7) uninstall 删除 shim 且不误删他人钩子；8) 受影响模块测试与 assets-check 全绿。",
+    "execution_scope": "scripts/githooks/setup.sh（重写）、scripts/harness.py（uninstall 清理 shim、project check 新 finding、受管入口措辞）、tests/test_project_install.py（新增用例）、AGENTS.md/CLAUDE.md（受管区块经 project upgrade 同步）、CHANGELOG.md、入库模式 update-index --chmod=+x、docs/CODEMAP.md 条目核对。",
+    "implementation": "批次1：重写 setup.sh 为 shim 安装器——迁移并清除指向本仓 githooks 目录的旧 core.hooksPath（路径归一化后比较，兼容 ./ 前缀与绝对路径写法；指向其它位置则黄色警告并继续），用 git rev-parse --git-common-dir 解析钩子目录（兼容 worktree），写入带 docs-harness-hook-shim 标记的转发 shim（exec sh 实现文件、透传退出码、实现缺失时 exit 0 放行），目标已有非本工具 pre-commit 时报错退出 1，幂等，执行后打印钩子目录与已识别共存钩子。批次2：harness.py——project uninstall 增加 shim 清理（按 marker 识别，仅删除本工具安装的）；project check 新增两条 yellow finding：githook_index_mode（git ls-files -s 受管钩子模式非 100755 时报出，非 git 目标跳过）、githook_hookspath_conflict（core.hooksPath 已设置且钩子目录存在非 sample 钩子时报出）；受管入口措辞「先运行 setup.sh」补全为 scripts/githooks/setup.sh。批次3：发布侧 git update-index --chmod=+x 两个钩子文件；project upgrade --target . 自同步受管区块；CHANGELOG 新增 2.11.1 条目。批次4：tests 新增 setup.sh shim 行为用例（拦截/放行/共存/迁移/保护/幂等）与 project check 新 finding 用例，跑受影响模块测试与 assets-check。每批改完即验证锁定。",
+    "module_interfaces": "修改模块：scripts/githooks/setup.sh — 职责：把 assets-check 挂到真实钩子目录的 pre-commit；对外接口：命令行脚本，无参数，退出码 0 成功/1 冲突。scripts/harness.py — 复用现有 git_command()、githook_fingerprints()、GIT_HOOK_RELATIVE_FILES；新增内部函数：hook_directory(target)（--git-common-dir 解析）、githook_shim_marker 常量、check_githook_health(target, findings)（两条 yellow finding）、uninstall 内 shim 清理段。均不新增对外命令。复用路径：findings 结构沿用 project check 既有 dict 形状。",
+    "acceptance_plan": "创建 Acceptance 资产，逐条记录真实证据：临时 git 仓库内实测 shim 安装/拦截（实现返回 1 时提交被拦）/放行/与原生钩子共存/旧 hooksPath 迁移/拒绝覆盖/幂等/worktree 共享；project check 两条新 finding 的触发与不触发；uninstall 清理 shim；pytest tests/test_project_install.py 与 test_cli_surface.py 通过；assets-check 通过。",
+    "acceptance_required": true,
+    "knowledge_impact": "updated",
+    "constraints": "受管文件改动必须同步指纹与文档；setup.sh 保持 POSIX sh 兼容（Git Bash 可执行）；不改变 pre-commit 现有放行语义。",
+    "risks_and_rollback": "风险：迁移清除 hooksPath 后被屏蔽已久的第三方钩子恢复执行，可能暴露旧钩子自身问题——setup.sh 输出中明确提示；worktree 边界（.git 为文件）已由 --git-common-dir 覆盖。回滚：setup.sh 与 harness.py 均为单点改动，git revert 即可；shim 可由用户手动删除。",
+    "exact_reproduction": "缺陷一：临时仓库 git init，写入 .git/hooks/post-commit 触石钩子并 chmod +x，首次提交触石文件出现；随后 git config core.hooksPath alt，再次提交触石文件不再出现（已实测：A 执行、B 被屏蔽）。缺陷二：git ls-files -s scripts/githooks/ 显示 100644（已核实）。",
+    "event_timeline": "2.7.x 引入 pre-commit 钩子机制并以 core.hooksPath 作为激活手段 → 下游项目启用 Git LFS 后 LFS 钩子被静默屏蔽 → 2026-08-28 下游提交缺陷报告 → 评估核实两条缺陷属实。",
+    "first_divergence": "安装语义选择点：把「安装我的钩子」实现为「接管整个钩子目录」（core.hooksPath 独占语义），与 git 生态「各工具各占 .git/hooks 一个文件名」的共存惯例分歧。",
+    "root_cause_evidence": "缺陷一根因：core.hooksPath 是替换语义而非合并，scripts/githooks/setup.sh:5 唯一安装手段即设置该项；实测复现确认屏蔽。缺陷二根因：钩子文件在 core.filemode=false 的 Windows 环境生成提交，chmod 不进索引；git ls-files -s 实测 100644；harness.py 落盘侧已有 chmod（2767-2768 行）但无法阻止下游 filemode=false 提交时再次以 100644 入索引，且 githook_drift 只比内容指纹检测不到模式差异。",
+    "fix_boundary": "修复落在安装手段层（setup.sh 改 shim 共存）与检查层（project check 补模式与冲突 finding）；不在各下游项目层层打补丁；pre-commit 检查逻辑不动；下游临时 LFS 转发钩子由下游在上游发布后自行删除。",
+    "regression_paths": "tests/test_project_install.py 既有 githook 用例（init 安装、upgrade 拒绝覆盖、幂等、uninstall 按指纹删除、CRLF 兼容）必须保持通过；hooksPath 语义变化影响 test_upgrade_githooks_idempotent 等断言的用例随新行为同步更新；assets-check --fast 作为提交闸门自验。",
+    "affected_modules": [
+      "scripts/githooks/setup.sh",
+      "scripts/harness.py",
+      "tests/test_project_install.py",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "CHANGELOG.md"
+    ],
+    "verification_scope": {
+      "mode": "affected_modules",
+      "commands": [
+        "python -m pytest tests/test_project_install.py -q",
+        "python -m pytest tests/test_cli_surface.py -q",
+        "python scripts/harness.py assets-check"
+      ],
+      "reused_passed_evidence": [
+        "缺陷一复现脚本已实测：设 core.hooksPath 后 .git/hooks 原生钩子被屏蔽（A 执行、B 被屏蔽）",
+        "git ls-files -s scripts/githooks/ 实测 100644"
+      ]
+    },
+    "full_regression_trigger": {
+      "required": false,
+      "reason_codes": [],
+      "rationale": "改动边界收敛于钩子安装脚本与 project check/uninstall 路径，不涉及公共基础设施、共享依赖或跨模块公共契约；若聚焦测试发现既有 finding 行为被波及或出现系统性风险，再升级为仓库级全量 pytest。"
+    },
+    "failure_attribution": {
+      "categories": [
+        "change_related",
+        "environment",
+        "flaky",
+        "pre_existing",
+        "unrelated"
+      ],
+      "separate_non_change_failures": true,
+      "evidence_required": true
+    }
+  },
+  "acceptance_refs": [
+    "docs/acceptance/githook-shim-coexistence.json"
+  ],
+  "governance": {
+    "acceptance_required": true,
+    "knowledge_impact": "updated",
+    "updated_knowledge_refs": [
+      "docs/knowledge/docs-harness-assets-governance.json"
+    ],
+    "unchanged_reason": null,
+    "governance_settled_at": "2026-08-28T06:17:41+00:00"
+  },
+  "frozen_at": "2026-08-28T05:54:09+00:00",
+  "plan_fingerprint": "sha256:77ca7229404577198beae4494afbbe9c9805514460ec047ac08b6aac0a012a04"
+}

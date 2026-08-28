@@ -22,6 +22,7 @@
 - [上游合入 dsh-buddy 证据加固补丁并改进 install_conflict 报错（2.10.0）](plans/docs-harness-2.10.0-evidence-upstream-install-conflict-plan.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-23 核对）；关键符号：`assert_evidence_usable`、`git_ignored_refs`、`_validate_live_refs`、`install_conflicts`
 - [Docs Harness 2.10.0 结构护栏：增量体量检查、CODEMAP 能力索引与骨架先行](plans/docs-harness-structure-guardrails.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-27 核对）；关键符号：`check_structure`、`structure_report`、`CODEMAP_RELATIVE`、`module_interfaces`
 - [Docs Harness 2.11.0 收敛：结构护栏在主仓 converge-2.11 分支重建到 2.10.2 之上](plans/docs-harness-2.11-convergence.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-27 核对）；关键符号：`check_structure`、`command_structure`、`_managed_content`、`LEGACY_PLAN_TEMPLATE_FINGERPRINTS`
+- [git 钩子安装改为转发 shim 共存模式并补齐可执行位治理](plans/githook-shim-coexistence.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-28 核对）；关键符号：`core.hooksPath`、`githook_drift`、`GIT_HOOK_RELATIVE_FILES`、`docs-harness-hook-shim`
 <!-- docs-harness:plans-index:end -->
 
 ## 历史边界
@@ -43,6 +44,7 @@
 - [dsh 插件 UI 优化验收：settings.section 设置页、覆盖重置、通知条重试与气泡 pin](acceptance/dsh-plugin-ui-settings-section.md) — 状态：已验收-仅追溯；关键符号：`HarnessSettingsCard`、`settings.section`、`HarnessSettingsStore`、`NoticeBarView`
 - [2.10.0 证据准入加固与升级冲突聚合报错治理验收](acceptance/docs-harness-2.10.0-evidence-upstream-install-conflict.md) — 状态：已验收-仅追溯；关键符号：`assert_evidence_usable`、`acceptance_evidence_ignored`、`install_conflicts`
 - [Docs Harness 2.10.0 结构护栏验收（Structure checker、CODEMAP、骨架先行模板）](acceptance/docs-harness-structure-guardrails.md) — 状态：已验收-仅追溯；关键符号：`check_structure`、`structure_report`、`CODEMAP_RELATIVE`、`module_interfaces`
+- [git 钩子 shim 共存模式与可执行位治理验收](acceptance/githook-shim-coexistence.md) — 状态：已验收-仅追溯；关键符号：`core.hooksPath`、`githook_drift`、`docs-harness-hook-shim`
 <!-- docs-harness:acceptance-index:end -->
 
 <!-- docs-harness:adr-index:start -->

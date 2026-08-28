@@ -1,0 +1,19 @@
+== 环境: git version 2.54.0.windows.1, MINGW64_NT-10.0-26200 AIWare 3.6.7-fb42d713.x86_64 2026-03-29 11:44 UTC x86_64 Msys ==
+== 迁移: 预设 core.hooksPath=scripts/githooks 后执行 setup.sh ==
+已清除 core.hooksPath=scripts/githooks（.git/hooks 下的第三方钩子恢复生效）
+已安装 pre-commit 转发钩子：C:/Users/freed/AppData/Local/Temp/tmp.39Di4kItY3/.git/hooks/pre-commit
+钩子目录下共存的其它钩子（不受影响，继续生效）：
+  C:/Users/freed/AppData/Local/Temp/tmp.39Di4kItY3/.git/hooks/post-commit
+hooksPath 清除后: [UNSET]
+warning: in the working copy of 'f.txt', LF will be replaced by CRLF the next time Git touches it
+OK: 实现返回1时提交被拦
+OK: 被拦时 post-commit 未执行
+OK: 实现返回0时提交通过
+OK: 原生 post-commit 仍执行(共存)
+OK: 幂等(连续两次结果一致)
+错误：C:/Users/freed/AppData/Local/Temp/tmp.39Di4kItY3/.git/hooks/pre-commit 已存在且不是本工具安装的转发钩子，未覆盖。
+      请自行合并其内容，或备份后重新运行本脚本。
+OK: 拒绝覆盖他人 pre-commit
+OK: 他人钩子未被改写
+OK: 外部 hooksPath 给出警告
+OK: worktree 下安装落到共享钩子目录(--git-common-dir)

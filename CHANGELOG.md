@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.11.1 - 2026-08-28
+
+- 修复 git 钩子安装对第三方钩子的静默屏蔽：`scripts/githooks/setup.sh` 不再设置 `core.hooksPath`（替换语义会让 `git lfs install`、husky 等装在 `.git/hooks` 的钩子全部失效，LFS 场景下 `git push` 只推指针文件且无报错），改为经 `--git-common-dir` 解析真实钩子目录并安装带标记的三行转发 shim，与各工具按文件名共存；检测到旧版设过的 `core.hooksPath`（路径归一化比较）时主动清除迁移，目标位置已有非本工具 pre-commit 时拒绝覆盖并退出 1，幂等且兼容 worktree；执行后列出钩子目录下共存的其它钩子。实现单一来源仍是 `scripts/githooks/pre-commit`，shim 只转发退出码。
+- 修复受管钩子入库缺可执行位：`scripts/githooks/pre-commit` 与 `setup.sh` 入库模式由 100644 修正为 100755（此前类 Unix 克隆上 pre-commit 静默不运行，assets-check 提交闸门失效；Windows 上不可见）。`project check` 新增 yellow finding `githook_index_mode`：受管钩子索引模式非 100755 时报出（内容指纹比对检测不到模式差异），覆盖下游 filemode=false 环境再次以 100644 提交的传播路径。
+- `project check` 新增 yellow finding `githook_hookspath_conflict`：`core.hooksPath` 已设置且真实钩子目录存在非 sample 钩子时报出，提示这些钩子当前不会运行。
+- `project uninstall` 同步清理 setup.sh 安装的转发 shim（按 `docs-harness-hook-shim` 标记识别，不动他人钩子），preview 的 would_remove 同步列出。
+- 受管入口措辞修正：「新克隆机器先运行 setup.sh」补全为 `scripts/githooks/setup.sh` 全路径。
+- Structure 文件红线由 500 行放宽至 600 行（`FILE_RED_LINE`，函数 60 行不变；受管入口体量预警文案与测试断言同步），消除中大型控制器「每次改动必触发体量评估 WARN」的预警疲劳。
+
 ## 2.11.0 - 2026-08-27
 
 - 体量规则由“函数超 60 行或文件超 500 行必须拆分”收敛为“超过阈值必须进行结构评估”：仅在多重职责、跨层混合、存在独立变化方向或难以独立测试时按职责拆分；职责单一且拆分只会增加跳转、耦合或样板代码时允许保留并说明理由。Structure 仍以相同阈值提供增量 WARN，但提示改为评估职责而非直接处方；移除测试中受管模块必须小于 500 行的硬失败，避免 AI 为满足数字机械切割。

@@ -5,7 +5,7 @@
 
 ## 控制器
 
-- `scripts/harness.py` — 职责：CLI 控制器与安装/升级/发布编排，聚合各受管模块为 knowledge/plan/acceptance/adr/project/release/structure/assets-check 命令；公开接口：`main`、`build_parser`、`command_assets_check`、`command_structure`、`apply_project_install`
+- `scripts/harness.py` — 职责：CLI 控制器与安装/升级/发布编排，聚合各受管模块为 knowledge/plan/acceptance/adr/project/release/structure/assets-check 命令；公开接口：`main`、`build_parser`、`command_assets_check`、`command_structure`、`apply_project_install`、`git_hook_directory`、`check_githook_health`
 
 ## 受管模块（随 project init/upgrade 安装）
 

@@ -1,0 +1,25 @@
+== python -m unittest tests.test_project_install ==
+test_autocrlf_crlf_worktree_is_not_treated_as_user_modification (tests.test_project_install.ProjectInstallTest.test_autocrlf_crlf_worktree_is_not_treated_as_user_modification) ... ok
+test_autocrlf_crlf_worktree_still_rejects_real_modification (tests.test_project_install.ProjectInstallTest.test_autocrlf_crlf_worktree_still_rejects_real_modification) ... ok
+test_init_creates_project_doc_scaffolds_idempotently (tests.test_project_install.ProjectInstallTest.test_init_creates_project_doc_scaffolds_idempotently) ... ok
+test_installed_controller_can_check_diff_and_self_test_itself (tests.test_project_install.ProjectInstallTest.test_installed_controller_can_check_diff_and_self_test_itself) ... ok
+test_installed_controller_runs_knowledge_and_acceptance_lifecycles (tests.test_project_install.ProjectInstallTest.test_installed_controller_runs_knowledge_and_acceptance_lifecycles) ... ok
+test_pre_commit_blocks_tampered_knowledge_asset (tests.test_project_install.ProjectInstallTest.test_pre_commit_blocks_tampered_knowledge_asset) ... ok
+test_project_check_flags_hookspath_shadowing_native_hooks (tests.test_project_install.ProjectInstallTest.test_project_check_flags_hookspath_shadowing_native_hooks) ... ok
+test_project_check_flags_missing_and_malformed_project_docs (tests.test_project_install.ProjectInstallTest.test_project_check_flags_missing_and_malformed_project_docs) ... ok
+test_project_check_flags_non_executable_githook_index_mode (tests.test_project_install.ProjectInstallTest.test_project_check_flags_non_executable_githook_index_mode) ... ok
+test_project_init_bootstraps_docs_system (tests.test_project_install.ProjectInstallTest.test_project_init_bootstraps_docs_system) ... ok
+test_project_init_installs_githooks_with_activation_hint (tests.test_project_install.ProjectInstallTest.test_project_init_installs_githooks_with_activation_hint) ... ok
+test_project_init_installs_pure_v11_without_legacy_rules (tests.test_project_install.ProjectInstallTest.test_project_init_installs_pure_v11_without_legacy_rules) ... ok
+test_project_init_preserves_unowned_template_without_partial_install (tests.test_project_install.ProjectInstallTest.test_project_init_preserves_unowned_template_without_partial_install) ... ok
+test_project_init_rejects_external_scripts_parent_symlink (tests.test_project_install.ProjectInstallTest.test_project_init_rejects_external_scripts_parent_symlink) ... skipped '当前环境无 symlink 创建权限（Windows 需开发者模式或 SeCreateSymbolicLinkPrivilege）'
+test_setup_shim_lifecycle_and_uninstall_cleanup (tests.test_project_install.ProjectInstallTest.test_setup_shim_lifecycle_and_uninstall_cleanup) ... ok
+test_uninstall_removes_only_owned_install_and_preserves_project_docs (tests.test_project_install.ProjectInstallTest.test_uninstall_removes_only_owned_install_and_preserves_project_docs) ... ok
+test_uninstall_removes_only_unmodified_githooks (tests.test_project_install.ProjectInstallTest.test_uninstall_removes_only_unmodified_githooks) ... ok
+test_upgrade_githooks_idempotent (tests.test_project_install.ProjectInstallTest.test_upgrade_githooks_idempotent) ... ok
+test_upgrade_rejects_user_modified_githook_before_any_write (tests.test_project_install.ProjectInstallTest.test_upgrade_rejects_user_modified_githook_before_any_write) ... ok
+
+----------------------------------------------------------------------
+Ran 19 tests in 21.890s
+
+OK (skipped=1)

@@ -1,0 +1,156 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "git 钩子 shim 共存模式与可执行位治理验收",
+  "key_symbols": [
+    "core.hooksPath",
+    "githook_drift",
+    "docs-harness-hook-shim"
+  ],
+  "objective": "验证 setup.sh shim 化后与第三方钩子共存、旧 hooksPath 可迁移、project check 钩子健康 finding 与 uninstall 清理正确，且受影响模块回归全绿",
+  "plan_ref": "docs/plans/githook-shim-coexistence.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "shim 行为矩阵：安装/拦截/放行/共存/迁移/拒绝覆盖/幂等/worktree",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260828T055658-187957a5f3",
+          "objective_fingerprint": "sha256:0f2ca1f71ecad873c96acf2cc666f1c08ac55bbaea1175f108d4a8397ea7fdab",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "临时 git 仓库执行 shim 行为矩阵：拦截/放行/共存/迁移/拒绝覆盖/幂等/外部hooksPath警告/worktree 共享，逐项断言",
+          "evidence_refs": [
+            "docs/acceptance/evidence/githook-shim-coexistence/c1-shim-matrix.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-28T05:56:58+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "project check 新增 finding（githook_index_mode / githook_hookspath_conflict）触发与不触发",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260828T060731-78571ab2a2",
+          "objective_fingerprint": "sha256:0f2ca1f71ecad873c96acf2cc666f1c08ac55bbaea1175f108d4a8397ea7fdab",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "tests/test_project_install.py 新增 test_project_check_flags_non_executable_githook_index_mode（update-index --chmod 模拟 100644 现场，finding 触发/恢复双断言）与 test_project_check_flags_hookspath_shadowing_native_hooks（hooksPath 屏蔽冲突触发/清除双断言），模块测试 19 例全过",
+          "evidence_refs": [
+            "docs/acceptance/evidence/githook-shim-coexistence/c2-c3-project-install-tests.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-28T06:07:31+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "uninstall 按 marker 清理 shim 且不误删他人钩子",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260828T060731-4116856d62",
+          "objective_fingerprint": "sha256:0f2ca1f71ecad873c96acf2cc666f1c08ac55bbaea1175f108d4a8397ea7fdab",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "tests/test_project_install.py 新增 test_setup_shim_lifecycle_and_uninstall_cleanup：setup.sh 迁移清除旧 hooksPath、安装带标记 shim、幂等，uninstall --apply 后 shim 被删除且第三方 post-commit 保留",
+          "evidence_refs": [
+            "docs/acceptance/evidence/githook-shim-coexistence/c2-c3-project-install-tests.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-28T06:07:31+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "title": "受影响模块回归：test_project_install.py 与 test_cli_surface.py 通过，assets-check 通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260828T061609-f4b6271a45",
+          "objective_fingerprint": "sha256:0f2ca1f71ecad873c96acf2cc666f1c08ac55bbaea1175f108d4a8397ea7fdab",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "python -m unittest tests.test_project_install tests.test_cli_surface tests.test_release_version_sync tests.test_project_upgrade（41 例全过，含 3 个新用例）+ python scripts/harness.py assets-check（passed，0 违规）",
+          "evidence_refs": [
+            "docs/acceptance/evidence/githook-shim-coexistence/c4-regression.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-08-28T06:16:09+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 6,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:4152b5b097f05595ffc564fac24dae0444d06ac676f282965da43f67fdb07f15",
+      "updated_at": "2026-08-28T05:54:27+00:00"
+    },
+    {
+      "revision": 2,
+      "asset_fingerprint": "sha256:92528a384d818ee567c255dfa85f4d1b0b299ccc27c04c25a80be6a486a4cf6e",
+      "updated_at": "2026-08-28T05:56:58+00:00"
+    },
+    {
+      "revision": 3,
+      "asset_fingerprint": "sha256:92307c35346f7a881a0a94c4177251736a4b8dd75f4fe48b6fa6114f6b336924",
+      "updated_at": "2026-08-28T06:07:31+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:97dec995ce05d4fedcdfbdee87bf49f8b9bd5bf02907836252e374a75fe3ec75",
+      "updated_at": "2026-08-28T06:07:31+00:00"
+    },
+    {
+      "revision": 5,
+      "asset_fingerprint": "sha256:c660730c6724d2b2b5b07d42eb44fb98cc0eab0cf008d26f91559fd9dc3e8c94",
+      "updated_at": "2026-08-28T06:16:09+00:00"
+    }
+  ],
+  "created_at": "2026-08-28T05:54:27+00:00",
+  "updated_at": "2026-08-28T06:17:33+00:00",
+  "settled_at": "2026-08-28T06:17:33+00:00",
+  "asset_fingerprint": "sha256:f89c1bc1b44f057937ba3b4a669271008e0422658325935f3aab1ade2db5426b",
+  "replacement": null
+}

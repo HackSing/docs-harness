@@ -1,0 +1,10 @@
+== unittest 受影响模块 ==
+Ran 41 tests in 35.257s
+
+OK (skipped=3)
+
+== assets-check ==
+checked: {"plans": {"live_docs": 11, "archived_docs": 0, "markdown_files": 71}, "knowledge": 1, "acceptance": 7, "adr": 3, "script_hygiene": 1, "structure": 12, "cross": 17}
+failures: []
+warnings: ["WARN: Structure: scripts/harness.py 已超 500 行红线仍净增 86 行（4187→4273），复核新增逻辑是否形成独立职责；没有独立职责时可保留并说明理由", "WARN: Structure: scripts/harness.py 函数 command_project 本次增长 14 行（203→217），已超 60 行结构评估阈值，复核是否产生可独立测试的子步骤"]
+summary: assets-check passed：Plan/Knowledge/Acceptance/ADR/ScriptHygiene/Structure 已检查，违规 0 条、警告 2 条

@@ -88,8 +88,10 @@ class CliSurfaceTest(HarnessTestBase):
         # 2.10.0 接入 Structure 结构护栏（structure 命令组、受管入口结构护栏段、
         # CODEMAP 脚手架接线），控制器只增注册面，上限上调。此处只守控制器不复活
         # 旧状态机；模块体量由 Structure WARN 触发结构评估，不再以测试硬失败处方。
-        self.assertLess(HARNESS.stat().st_size, 180_000)
-        self.assertLess(len(source.splitlines()), 4_200)
+        # 2.11.1 修复 git 钩子安装（shim 共存模式 + 钩子健康检查 + uninstall 清理），
+        # 控制器只增钩子健康检查段，上限随之上调。
+        self.assertLess(HARNESS.stat().st_size, 190_000)
+        self.assertLess(len(source.splitlines()), 4_400)
         for symbol in (
             "def command_run(",
             "def command_context(",
@@ -125,7 +127,7 @@ class CliSurfaceTest(HarnessTestBase):
         for surface in (agents, claude):
             self.assertNotIn("输入形状见 SKILL.md", surface)
             self.assertIn("python3 scripts/harness.py <cmd> --help", surface)
-            self.assertIn("超过 60 行、单个文件超过 500 行时必须进行结构评估", surface)
+            self.assertIn("超过 60 行、单个文件超过 600 行时必须进行结构评估", surface)
             self.assertIn("不得仅为满足行数阈值机械切割", surface)
             self.assertNotIn("超过 500 行时必须拆分", surface)
     def test_cli_help_carries_input_schema_examples(self) -> None:

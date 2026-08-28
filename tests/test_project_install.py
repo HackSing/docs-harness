@@ -319,6 +319,75 @@ class ProjectInstallTest(HarnessTestBase):
         self.assertFalse((self.project / "scripts" / "githooks" / "pre-commit").exists())
         self.assertTrue(modified.is_file())
         self.assertTrue((self.project / "scripts" / "githooks").is_dir())
+    def test_project_check_flags_non_executable_githook_index_mode(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.structure_git("init")
+        self.structure_commit_all()
+        # 模拟缺陷现场：core.filemode=false 的 Windows 提交会让钩子以 100644 入库，
+        # 类 Unix 克隆上 pre-commit 静默不运行；内容指纹比对检测不到模式差异。
+        self.structure_git(
+            "update-index", "--chmod=-x",
+            "scripts/githooks/pre-commit", "scripts/githooks/setup.sh",
+        )
+        payload = self.run_cli("project", "check", "--target", str(self.project))
+        codes = {f["code"]: f["severity"] for f in payload["findings"]}
+        self.assertEqual(codes.get("githook_index_mode"), "yellow")
+        self.structure_git(
+            "update-index", "--chmod=+x",
+            "scripts/githooks/pre-commit", "scripts/githooks/setup.sh",
+        )
+        self.structure_commit_all()
+        payload = self.run_cli("project", "check", "--target", str(self.project))
+        self.assertNotIn("githook_index_mode", {f["code"] for f in payload["findings"]})
+    def test_project_check_flags_hookspath_shadowing_native_hooks(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.structure_git("init")
+        hooks = self.project / ".git" / "hooks"
+        (hooks / "post-commit").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        # core.hooksPath 是替换语义：设置后 .git/hooks 下的钩子全部静默失效。
+        self.structure_git("config", "core.hooksPath", "scripts/githooks")
+        payload = self.run_cli("project", "check", "--target", str(self.project), expected=3)
+        codes = {f["code"]: f["severity"] for f in payload["findings"]}
+        self.assertEqual(codes.get("githook_hookspath_conflict"), "yellow")
+        self.structure_git("config", "--unset", "core.hooksPath")
+        payload = self.run_cli("project", "check", "--target", str(self.project), expected=3)
+        self.assertNotIn(
+            "githook_hookspath_conflict", {f["code"] for f in payload["findings"]}
+        )
+    def test_setup_shim_lifecycle_and_uninstall_cleanup(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.structure_git("init")
+        hooks = self.project / ".git" / "hooks"
+        # 共存对象：第三方钩子原样保留
+        (hooks / "post-commit").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
+        # 迁移路径：旧版 setup.sh 设过的 core.hooksPath 被清除
+        self.structure_git("config", "core.hooksPath", "scripts/githooks")
+        result = subprocess.run(
+            ["sh", "scripts/githooks/setup.sh"],
+            cwd=self.project, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", errors="replace"))
+        current = subprocess.run(
+            ["git", "config", "--get", "core.hooksPath"],
+            cwd=self.project, capture_output=True, check=False,
+        )
+        self.assertNotEqual(current.returncode, 0)
+        shim = hooks / "pre-commit"
+        self.assertIn("docs-harness-hook-shim", shim.read_text(encoding="utf-8"))
+        # 幂等
+        again = subprocess.run(
+            ["sh", "scripts/githooks/setup.sh"],
+            cwd=self.project, capture_output=True, check=False,
+        )
+        self.assertEqual(again.returncode, 0, again.stderr.decode("utf-8", errors="replace"))
+        self.assertIn("docs-harness-hook-shim", shim.read_text(encoding="utf-8"))
+        # uninstall 按标记清理 shim，不动他人钩子
+        payload = self.run_cli(
+            "project", "uninstall", "--target", str(self.project), "--apply"
+        )
+        self.assertFalse(shim.exists())
+        self.assertTrue((hooks / "post-commit").is_file())
+        self.assertTrue(any("pre-commit" in entry for entry in payload["removed"]))
 
 
 if __name__ == "__main__":
