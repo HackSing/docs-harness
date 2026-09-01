@@ -16,6 +16,7 @@ Docs Harness 是可选的项目辅助能力，不是每个任务必须经过的�
 - 默认不运行 `run`、`context`、`progress` 或旧 `verify`，不创建任务包，不生成 Gate，不自动加载知识或方案。
 - 用户明确说“不使用 Harness”时，必须直接执行；不得暗中恢复旧流程。
 - 不在没有证据或没有明确维护任务时自动更新 Knowledge、ADR、Changelog、TODO 或质量账本。
+- 改动涉及用户可见行为、接口契约或版本发布时更新 CHANGELOG；任务产生待跟进事项时登记 TODO；不满足触发条件则不更新。
 
 ## Knowledge 生命周期
 
