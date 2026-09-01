@@ -83,6 +83,18 @@ class StructureGuardrailTest(HarnessTestBase):
             any("src/example/module.py" in w for w in warnings),
             "脚手架示例行不应被当作条目解析",
         )
+    def test_structure_check_flags_unregistered_dart(self) -> None:
+        self.structure_git("init")
+        self.write_lines("lib/main.dart", ["void main() {}"])
+        self.structure_commit_all()
+        (self.project / "docs").mkdir(exist_ok=True)
+        (self.project / "docs" / "CODEMAP.md").write_text("# CODEMAP\n", encoding="utf-8")
+        self.write_lines("lib/spike_page.dart", ["class SpikePage {}"])
+        payload = self.run_cli("structure", "check", "--target", str(self.project))
+        self.assertTrue(
+            any("lib/spike_page.dart" in w and "未登记" in w for w in payload["warnings"]),
+            payload["warnings"],
+        )
     def test_structure_report_lists_stock_debt(self) -> None:
         self.structure_git("init")
         self.write_lines("legacy.py", ["def whale():"] + ["    pass"] * 80 + [f"c{i} = {i}" for i in range(540)])

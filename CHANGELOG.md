@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.11.2 - 2026-09-01
+
+- 修复 Structure 未登记文件扫描遗漏 `.dart`：`CODE_SUFFIXES`（`scripts/structure_check.py`）补入 `.dart`，Flutter 项目新增未登记 Dart 文件不再静默失明（此前 `structure check/report` 对 Dart 恒报通过，下游只能人工比对发现 CODEMAP 漏登）。缺陷来自下游 AIGlasses 反馈（`docs/handoffs/DocsHarness-缺陷报告-2026-08-28.md` 缺陷三）。
+
 ## 2.11.1 - 2026-08-28
 
 - 修复 git 钩子安装对第三方钩子的静默屏蔽：`scripts/githooks/setup.sh` 不再设置 `core.hooksPath`（替换语义会让 `git lfs install`、husky 等装在 `.git/hooks` 的钩子全部失效，LFS 场景下 `git push` 只推指针文件且无报错），改为经 `--git-common-dir` 解析真实钩子目录并安装带标记的三行转发 shim，与各工具按文件名共存；检测到旧版设过的 `core.hooksPath`（路径归一化比较）时主动清除迁移，目标位置已有非本工具 pre-commit 时拒绝覆盖并退出 1，幂等且兼容 worktree；执行后列出钩子目录下共存的其它钩子。实现单一来源仍是 `scripts/githooks/pre-commit`，shim 只转发退出码。
