@@ -1,0 +1,101 @@
+> 状态：已实施-仅追溯（代码已是真源，2026-09-05 核对）
+<!-- docs-harness:plan-document/v1 -->
+
+# Structure 函数级检查扩展到 Go 与 TS/JS
+
+- 冻结合同：`sha256:949cc7d0fe5ca79b9a2d82db673f42482d29b137c71cfbbacc5a3055ca073568`
+- 关键符号：`_ts_function_spans`、`_go_functions`、`function_language`、`TS_MODULE_DIR_ENV`
+
+## 背景
+
+2.11.0 交付的 Structure checker 只对 Python 做函数级体量检查（ast），其他语言仅文件级；当时的取舍是零依赖换实现可靠。2026-09-05 在下游 ZBuddy 的存量整理中，两批搬移产生了 531/367/184/150 行的 TS 函数，assets-check 全绿——护栏对该项目最主要的两种语言（TS、Go）完全失明，存量报告也把 93 个 Python 函数当成全部结构债。下游已在安装副本上验证了一版扩展（Go 行级匹配、TS 经 typescript 编译器子进程），增量检查 0.7s、存量报告 1.1s；本方案把它收进上游发布，避免下游补丁被下一次 project upgrade 覆盖。
+
+## 目标
+
+structure check 与 structure report 的函数级检查覆盖 Python、Go、TS/JS（.ts/.tsx/.js/.jsx/.cjs/.mjs）；harness 自身保持零第三方依赖，TS 解析借用目标项目 node_modules 里的 typescript，缺失时降级为文件级并输出 WARN；测试文件不做函数级判定；随 2.15.0 发布并可平滑升级到下游。
+
+## 非目标
+
+不改阈值（文件 600/函数 60/增长 50/10）与 WARN 级语义；不给 harness 添加 node 依赖或打包 typescript；不做 Rust/Java/C 等其他语言的函数级；不改 CODEMAP 规则；不回填历史项目的存量债。
+
+## 成功标准
+
+1) 新增用例：Go 接收者/闭包/单行/泛型接收者的跨度；TS 声明/箭头/类方法/回调命名、TSX 解析、语法错误返回 None；解析器不可用返回原因并在 check 中出 WARN；测试文件豁免；增量 check 对新增超长 TS/Go 函数出 WARN；report 列出 TS/Go 超线函数并带 function_check_languages。2) npm test 全量通过；self-test 全绿；release sync --strict 一致；assets-check --strict 0 违规；npm pack 清单含 structure_check.py 与 structure_ts_functions.cjs。3) 下游 zbuddy-desktop 经 project upgrade 升到 2.15.0 后 project check 无 red、structure check 报出前述四个函数。
+
+## 执行范围
+
+scripts/structure_check.py、scripts/structure_ts_functions.cjs（新增）、scripts/harness.py（MANAGED_MODULE_RELATIVE_FILES、VERSION）、package.json files、tests/harness_test_base.py MANAGED_MODULES、tests/test_structure.py、docs/knowledge/docs-harness-assets-governance、新增 ADR、CHANGELOG、docs/testing.md、受管入口与 .docs-harness/config.json（经 release sync 与自升级）。
+
+## 执行内容
+
+批次 1（代码）：落 function_language 分派、_go_functions、_ts_parser_command/_ts_function_spans、_collect_function_spans 批量接口，check_structure 与 structure_report 改为按语言分派；.cjs 解析器入托管清单与打包清单。批次 2（测试与治理）：扩展 tests/test_structure.py，knowledge update 事实 structure.guardrails.checker，adr create 记录“借用目标项目编译器、harness 零依赖”的决策。批次 3（发布）：VERSION 2.15.0、release sync --apply、自升级刷新指纹与受管入口、CHANGELOG、docs/testing.md 证据段；全量 npm test、self-test、assets-check --strict、npm pack。批次 4（下游）：zbuddy-desktop project upgrade --source 本仓库，删除下游本地补丁副本的重复测试。
+
+## 模块划分与接口骨架
+
+scripts/structure_check.py：export function_language(relative: str) -> str | None（python/go/ts/None）；_go_functions(source) -> dict[str,int]；_ts_parser_command(target) -> (argv, reason)；_ts_function_spans(target, items[(id, fileName, text)]) -> ({id: spans|None}, reason)；_collect_function_spans(target, {relative: (current, head)}) -> ({relative: (spans, old_spans)}, ts_reason)；_function_warnings(relative, spans, old_spans, has_head)；常量 TS_FUNCTION_SUFFIXES、TS_PARSER_SCRIPT、TS_MODULE_DIR_ENV="DOCS_HARNESS_TS_MODULE_DIR"、TS_PARSER_UNAVAILABLE_WARNING；typescript 查找顺序：环境变量 → <target>/node_modules → <target>/*/node_modules。scripts/structure_ts_functions.cjs：stdin JSON [{id,fileName,text}] → stdout {id: {限定名: 行数} | null}，argv 为 typescript 模块目录候选；命名规则：声明/方法/变量或属性赋值取名，调用实参匿名函数记 `callee#cb`，类方法 `Class.method`，嵌套用 `.` 连接，同名取最大。structure_report 新增字段 function_check_languages。
+
+## 验收方案
+
+c1（L1 contract_check）：release sync --strict 一致、self-test 全绿、npm pack 清单含两个新/漏文件、assets-check --strict 0 违规。c2（L2 focused_test）：tests/test_structure.py 新增用例与 npm test 全量通过。c3（L2 focused_test，下游）：zbuddy-desktop 升级后 self-test 通过、structure check 报出 4 个超长函数、assets-check 通过。
+
+## 是否需要 Acceptance 资产闭环
+
+```json
+true
+```
+
+## Knowledge 影响
+
+updated
+
+## 约束
+
+解析器只读源码、不执行目标代码；子进程超时 120s；typescript 缺失时不得静默——WARN 必须出现在 check 结果里；TS 回调命名粒度按 callee，增长比对尽力而为，不承诺逐回调追踪。
+
+## 风险与回滚
+
+风险：Go 行级匹配依赖 gofmt 风格，未格式化文件跨度会算到下一个行首 `}`，只影响预警粒度；typescript 大版本 API 变化可能让 .cjs 抛错，已按退出码转 WARN。回滚：恢复 2.11.1 的 structure_check.py 并从清单移除 .cjs。
+
+## 当前约束
+
+harness 是纯 Python 零依赖的可分发包，不能把 typescript 打进去；下游项目普遍有 node 与 typescript（zbuddy 5.9.3）。测试仓库本身没有 node_modules，TS 用例需靠 DOCS_HARNESS_TS_MODULE_DIR 指向可用目录，缺失时 skip 并说明。
+
+## 候选方案
+
+A) Python 侧写 TS 括号匹配启发式：零依赖但模板串/正则/JSX 极易误判，误报会摧毁 WARN 的可信度。B) 给 harness 加 tree-sitter 依赖：违背零依赖分发。C) 借用目标项目已有的 typescript 编译器（本方案）：精确，且不新增任何依赖；代价是环境缺失时降级。
+
+## 真实取舍
+
+接受 TS 函数级检查依赖目标项目环境，换取解析精确与零依赖；Go 用启发式而不引入 go 工具链子进程，因为 gofmt 约定在 Go 生态几乎无例外。
+
+## 最终决策
+
+采用方案 C，Go 行级匹配，缺失即 WARN 降级，随 2.15.0 发布。
+
+## 边界与接口
+
+structure_check 只通过 _ts_function_spans 一处调用子进程；.cjs 不 import harness 任何东西；其他 checker 与 asset_checks 聚合接口不变。
+
+## 兼容与迁移
+
+check/report 输出向后兼容（仅新增 function_check_languages 字段与更多 WARN）；安装配置 schema 不变，installed_module_fingerprints 多一个 .cjs 条目，v12 项目经 project upgrade 平滑升级。
+
+## 回滚或替代路径
+
+回退到 2.11.1 的 structure_check.py 与 harness 清单；下游 project upgrade 到上一版本即可。
+
+## 架构验收
+
+npm test 全量、self-test、release sync --strict、assets-check --strict、npm pack 清单、下游升级后 project check 无 red。
+
+## ADR 处理
+
+新建 ADR：Structure 借用目标项目的 typescript 编译器做 TS 函数级解析，harness 自身保持零依赖，缺失即降级 WARN。
+
+<!-- docs-harness:plan-governance:start -->
+## 资产治理
+
+- 关联验收：`docs/acceptance/structure-function-check-multilanguage.json`
+- 需要 Acceptance：true
+- Knowledge 影响：updated
+<!-- docs-harness:plan-governance:end -->

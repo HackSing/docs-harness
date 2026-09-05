@@ -16,4 +16,5 @@
 - `scripts/acceptance_assets.py` — 职责：Acceptance 资产生命周期——验收目标/记录/结项的输入校验与层级映射；公开接口：`ACCEPTANCE_SPEC`、`ACCEPTANCE_EVIDENCE_LAYERS`、`ACCEPTANCE_SETTLE_INPUT_SCHEMA`、`collect_input_errors`/`collect_create_errors`（--dry-run 错误收集器，validate_input 抛首个）
 - `scripts/adr_assets.py` — 职责：ADR 资产生命周期——架构决策创建（定稿不可改）、废弃/被替代结项与检查；公开接口：`ADR_SPEC`、`ADR_INPUT_SCHEMA`、`ADR_SETTLE_STATUSES`
 - `scripts/script_hygiene.py` — 职责：脚本卫生检查——tracked 脚本混合行尾字节级扫描（assets-check 第五 checker）；公开接口：`check_script_line_endings`、`SCRIPT_GLOBS`
-- `scripts/structure_check.py` — 职责：结构护栏——增量体量预警与 CODEMAP 一致性（assets-check 第六 checker）、存量结构债报告；公开接口：`check_structure`、`structure_report`、`CODEMAP_SCAFFOLD`、`FILE_RED_LINE`
+- `scripts/structure_check.py` — 职责：结构护栏——增量体量预警与 CODEMAP 一致性（assets-check 第六 checker）、存量结构债报告，函数级覆盖 Python（ast）、Go（gofmt 行级匹配）与 TS/JS（经 structure_ts_functions.cjs 借用目标项目 typescript）；公开接口：`check_structure`、`structure_report`、`CODEMAP_SCAFFOLD`、`FILE_RED_LINE`
+- `scripts/structure_ts_functions.cjs` — 职责：Structure 的 TS/JS 函数体量解析子进程（stdin JSON 源码批 → stdout 函数限定名→行数），在目标项目 node_modules 或 DOCS_HARNESS_TS_MODULE_DIR 目录加载 typescript，harness 自身零依赖；公开接口：`collectSpans`、`functionName`（命令行调用，无模块导出）

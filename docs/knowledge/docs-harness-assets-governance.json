@@ -74,12 +74,14 @@
     },
     {
       "id": "structure.guardrails.checker",
-      "statement": "Structure（scripts/structure_check.py）是 assets-check 的第六个 checker，全部 WARN 级：增量体量检查只对本次改动（工作区+暂存+未跟踪 vs HEAD）归责——新文件超 600 行、既有文件突破 600 行、超标文件单次净增 ≥50 行、Python 新增函数超 60 行或超标函数单次增长 ≥10 行（ast 测量，仅 Python 有函数级）；CODEMAP（docs/CODEMAP.md，纯 Markdown 非受管资产）校验登记路径存在、公开接口符号存活、新增代码文件登记提醒（测试文件豁免），无 CODEMAP 的项目整体跳过；存量结构债经 structure report 按需报告供定期整理任务；阈值常量单一来源于 structure_check.py；非 git 目标 checked=0；文件红线 2.11.1 起由 500 放宽至 600；功能于 2.11.0 交付（曾在本地分支以 2.10.0 号实现，收敛重标），安装配置为 project-config/v12。",
+      "statement": "Structure（scripts/structure_check.py）是 assets-check 的第六个 checker，全部 WARN 级：增量体量检查只对本次改动（工作区+暂存+未跟踪 vs HEAD）归责——新文件超 600 行、既有文件突破 600 行、超标文件单次净增 ≥50 行、新增函数超 60 行或超标函数单次增长 ≥10 行；函数级 2.15.0 起覆盖 Python（ast）、Go（gofmt 行级匹配，闭包计入外层）与 TS/JS（.ts/.tsx/.js/.jsx/.cjs/.mjs，经 scripts/structure_ts_functions.cjs 借用目标项目 node_modules 或 DOCS_HARNESS_TS_MODULE_DIR 指定目录里的 typescript 编译器，harness 自身零依赖；node 或 typescript 缺失时降级为文件级：改动含 .ts/.tsx 出 WARN，只含纯 JS 记入 structure check 的 notes 字段不出 WARN），测试文件不做函数级判定，调用实参的匿名函数按 callee#cb 命名；CODEMAP（docs/CODEMAP.md，纯 Markdown 非受管资产）校验登记路径存在、公开接口符号存活、新增代码文件登记提醒（测试文件豁免），无 CODEMAP 的项目整体跳过；存量结构债经 structure report 按需报告（含 function_check_languages 字段）供定期整理任务；阈值常量单一来源于 structure_check.py；非 git 目标 checked=0；文件红线 2.11.1 起由 500 放宽至 600；功能于 2.11.0 交付（曾在本地分支以 2.10.0 号实现，收敛重标），安装配置为 project-config/v12。",
       "source_refs": [
-        "scripts/structure_check.py",
-        "scripts/asset_checks.py",
         "docs/CODEMAP.md",
-        "docs/adr/structure-guardrails-as-checker.md"
+        "docs/adr/structure-guardrails-as-checker.md",
+        "docs/adr/structure-ts-parser-borrowed-from-target.md",
+        "scripts/asset_checks.py",
+        "scripts/structure_check.py",
+        "scripts/structure_ts_functions.cjs"
       ]
     },
     {
@@ -93,7 +95,7 @@
     }
   ],
   "status": "active",
-  "revision": 7,
+  "revision": 9,
   "revision_history": [
     {
       "revision": 1,
@@ -124,9 +126,19 @@
       "revision": 6,
       "asset_fingerprint": "sha256:837d28eff9cbdcfec6451e3e647bd014ed94c1e92411a957a8dbfc705b2611a2",
       "updated_at": "2026-08-28T06:17:26+00:00"
+    },
+    {
+      "revision": 7,
+      "asset_fingerprint": "sha256:30c4007caa62e0e739f711decccb504c6a2e0c9ada430b9614e3d5fd5e7d698f",
+      "updated_at": "2026-08-28T06:29:16+00:00"
+    },
+    {
+      "revision": 8,
+      "asset_fingerprint": "sha256:2cb522e47fa09bf9505329a676b841bc76e2e4a8dda59e3152fd50b503655937",
+      "updated_at": "2026-09-05T11:05:52+00:00"
     }
   ],
   "created_at": "2026-08-14T16:57:22+00:00",
-  "updated_at": "2026-08-28T06:29:16+00:00",
-  "asset_fingerprint": "sha256:30c4007caa62e0e739f711decccb504c6a2e0c9ada430b9614e3d5fd5e7d698f"
+  "updated_at": "2026-09-05T11:09:23+00:00",
+  "asset_fingerprint": "sha256:58f637cd5c868aa67d7d4c478c8be693a5dc88f63fe6dfef7bb4a18b984a1b83"
 }

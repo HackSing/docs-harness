@@ -24,6 +24,7 @@
 - [Docs Harness 2.11.0 收敛：结构护栏在主仓 converge-2.11 分支重建到 2.10.2 之上](plans/docs-harness-2.11-convergence.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-27 核对）；关键符号：`check_structure`、`command_structure`、`_managed_content`、`LEGACY_PLAN_TEMPLATE_FINGERPRINTS`
 - [git 钩子安装改为转发 shim 共存模式并补齐可执行位治理](plans/githook-shim-coexistence.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-28 核对）；关键符号：`core.hooksPath`、`githook_drift`、`GIT_HOOK_RELATIVE_FILES`、`docs-harness-hook-shim`
 - [Harness 计划与验收创建体验优化及结算泄漏预警](plans/docs-harness-create-ux-and-settle-leak-warn.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-11 核对）；关键符号：`plan_select`、`validate_plan_create_payload`、`--dry-run`、`check_cross_asset_relations`
+- [Structure 函数级检查扩展到 Go 与 TS/JS](plans/structure-function-check-multilanguage.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-05 核对）；关键符号：`_ts_function_spans`、`_go_functions`、`function_language`、`TS_MODULE_DIR_ENV`
 <!-- docs-harness:plans-index:end -->
 
 ## 历史边界
@@ -46,6 +47,7 @@
 - [2.10.0 证据准入加固与升级冲突聚合报错治理验收](acceptance/docs-harness-2.10.0-evidence-upstream-install-conflict.md) — 状态：已验收-仅追溯；关键符号：`assert_evidence_usable`、`acceptance_evidence_ignored`、`install_conflicts`
 - [Docs Harness 2.10.0 结构护栏验收（Structure checker、CODEMAP、骨架先行模板）](acceptance/docs-harness-structure-guardrails.md) — 状态：已验收-仅追溯；关键符号：`check_structure`、`structure_report`、`CODEMAP_RELATIVE`、`module_interfaces`
 - [git 钩子 shim 共存模式与可执行位治理验收](acceptance/githook-shim-coexistence.md) — 状态：已验收-仅追溯；关键符号：`core.hooksPath`、`githook_drift`、`docs-harness-hook-shim`
+- [Structure 函数级检查扩展到 Go 与 TS/JS 验收](acceptance/structure-function-check-multilanguage.md) — 状态：已验收-仅追溯；关键符号：`_ts_function_spans`、`_go_functions`、`function_language`、`TS_MODULE_DIR_ENV`
 <!-- docs-harness:acceptance-index:end -->
 
 <!-- docs-harness:adr-index:start -->
@@ -54,4 +56,5 @@
 - [项目级文档采用分层治理](adr/layered-doc-governance.md) — 状态：有效（现行决策）；关键符号：`ADR_SPEC`、`adr_assets`、`project_doc_scaffolds`
 - [新增 ScriptHygiene 作为 assets-check 第五个 checker，不建独立资产类型](adr/script-hygiene-as-checker.md) — 状态：有效（现行决策）；关键符号：`script_hygiene`、`run_assets_check`、`SCRIPT_GLOBS`
 - [Structure 增量检查作为 assets-check 第六 checker，CODEMAP 采用纯 Markdown 文档形态](adr/structure-guardrails-as-checker.md) — 状态：有效（现行决策）；关键符号：`check_structure`、`structure_report`、`CODEMAP_SCAFFOLD`
+- [Structure 的 TS/JS 函数级解析借用目标项目的 typescript 编译器，harness 自身保持零依赖](adr/structure-ts-parser-borrowed-from-target.md) — 状态：有效（现行决策）；关键符号：`_ts_parser_command`、`_ts_module_dirs`、`TS_PARSER_UNAVAILABLE_WARNING`
 <!-- docs-harness:adr-index:end -->

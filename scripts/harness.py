@@ -62,7 +62,7 @@ from adr_assets import (
     create as create_adr_asset,
     settle as settle_adr_asset,
 )
-VERSION = "2.14.1"
+VERSION = "2.15.0"
 CONFIG_SCHEMA = "docs-harness/project-config/v12"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
     f"docs-harness/project-config/v{version}" for version in range(1, 12)
@@ -95,6 +95,7 @@ MANAGED_MODULE_RELATIVE_FILES = (
     "adr_assets.py",
     "script_hygiene.py",
     "structure_check.py",
+    "structure_ts_functions.cjs",
 )
 PLAN_DOCS_RELATIVE = "docs/plans"
 PLAN_ARCHIVE_RELATIVE = "docs/plans/archive"

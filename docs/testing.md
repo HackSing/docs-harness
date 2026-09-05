@@ -108,3 +108,7 @@
 - L1 版本一致性：`python3 scripts/harness.py release sync --strict` 退出码 0，六处真源与 CHANGELOG 顶部版本一致。
 - L1 统一检查：`python3 scripts/harness.py assets-check --strict` 退出码 0。
 - 未覆盖：`npm pack`/fresh install 与下游 dsh-buddy 升级到 2.10.0 属批次5 范围，本批不执行。
+
+## 10. 2.15.0 Structure 多语言函数级检查验收证据（2026-09-05）
+
+见 `docs/acceptance/structure-function-check-multilanguage.md` 与证据目录 `docs/acceptance/evidence/structure-function-check-multilanguage/`：TS/Go 解析用例、增量与存量报告用例、解析器不可用降级用例，`npm test` 全量、`self-test`、`release sync --strict`、`assets-check --strict`、`npm pack --dry-run` 清单，以及下游 zbuddy-desktop 升级后 `project check`/`structure check` 结果。TS 用例在仓库自身无 node_modules 时经 `DOCS_HARNESS_TS_MODULE_DIR` 指向含 typescript 的目录运行，未设置则 skip 并说明。

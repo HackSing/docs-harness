@@ -1,0 +1,112 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "Structure 函数级检查扩展到 Go 与 TS/JS 验收",
+  "key_symbols": [
+    "_ts_function_spans",
+    "_go_functions",
+    "function_language",
+    "TS_MODULE_DIR_ENV"
+  ],
+  "objective": "structure check 与 structure report 的函数级检查覆盖 Python、Go、TS/JS（.ts/.tsx/.js/.jsx/.cjs/.mjs）；harness 自身保持零第三方依赖，TS 解析借用目标项目 node_modules 里的 typescript，缺失时降级为文件级并输出 WARN；测试文件不做函数级判定；随 2.15.0 发布并可平滑升级到下游。",
+  "plan_ref": "docs/plans/structure-function-check-multilanguage.json",
+  "knowledge_refs": [
+    "docs/knowledge/docs-harness-assets-governance.json"
+  ],
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "版本一致、自检、打包清单与严格资产检查",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260905T111228-826d7fa50f",
+          "objective_fingerprint": "sha256:af7d382933e029dcd309f6f6be0854d47e54bb9b6f52c9703d7f5c80b9bd3fa0",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "release sync --strict consistent（六处真源与 CHANGELOG 顶部 2.15.0）；self-test passed 全绿；npm pack --dry-run 49 文件、scripts/ 含全部 7 个受管 .py 与 structure_ts_functions.cjs；assets-check --strict passed 0/0；project check 无 finding。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/structure-function-check-multilanguage/report.md"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-09-05T11:12:28+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "结构检查新增用例与仓库全量回归",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260905T111228-b568730321",
+          "objective_fingerprint": "sha256:af7d382933e029dcd309f6f6be0854d47e54bb9b6f52c9703d7f5c80b9bd3fa0",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "tests.test_structure 14 用例通过（指向 typescript）/ 12 通过 2 skip（无 typescript）；npm test 全量 111 项 110 通过，唯一 error 为 test_project_check_flags_non_executable_githook_index_mode，在 2.11.1 HEAD 干净工作树复现，属既有环境相关失败并登记 TODO。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/structure-function-check-multilanguage/report.md"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-09-05T11:12:28+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "下游 zbuddy-desktop 升级到 2.15.0 后护栏生效",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260905T111228-389d33881c",
+          "objective_fingerprint": "sha256:af7d382933e029dcd309f6f6be0854d47e54bb9b6f52c9703d7f5c80b9bd3fa0",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "zbuddy-desktop 以上游控制器 project upgrade --apply 由 2.11.1 升至 2.15.0，无 install_conflict；升级后 self-test passed、project check 无 red、structure check 报出 7 条 WARN（含 531/367/184/150 行四个函数）、assets-check --fast passed、structure_check.py 与上游逐字一致。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/structure-function-check-multilanguage/report.md"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-09-05T11:12:28+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 2,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:7e58a1e48f0237d29cf796fc9837de404c33637f2225f3de883d37a839ba9931",
+      "updated_at": "2026-09-05T11:04:00+00:00"
+    }
+  ],
+  "created_at": "2026-09-05T11:04:00+00:00",
+  "updated_at": "2026-09-05T11:12:28+00:00",
+  "settled_at": "2026-09-05T11:12:28+00:00",
+  "asset_fingerprint": "sha256:ed24404d85925cab896c2b4a19cfcebe102d6ea3963ed8a8f32bd301979f2248",
+  "replacement": null
+}

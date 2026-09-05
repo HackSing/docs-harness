@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.15.0 - 2026-09-11
+
+- Structure 函数级体量检查从仅 Python 扩展到 Go 与 TS/JS：Go 按 gofmt 约定（`func` 起于行首、`}` 收于行首）做行级匹配，闭包计入外层函数，接收者含泛型可识别；TS/JS（.ts/.tsx/.js/.jsx/.cjs/.mjs）经新增受管模块 `scripts/structure_ts_functions.cjs` 借用目标项目 `node_modules`（或 `*/node_modules`、`DOCS_HARNESS_TS_MODULE_DIR` 指定目录）里已有的 typescript 编译器解析，harness 自身不新增任何依赖；node 或 typescript 缺失时降级为文件级：改动含 .ts/.tsx 时输出一条 WARN（TS 项目必然自带 typescript，缺失即环境不完整，strict 下按 WARN 失败），只含纯 JS 时在 `structure check` 的 `notes` 字段记录、不出 WARN，与 2.11 的文件级口径一致。测试文件不做函数级判定（describe/it 回调天然超长）；作为调用实参的匿名函数按 `callee#cb` 命名、同名取最大。`structure report` 新增 `function_check_languages` 字段。动机：下游 ZBuddy 两批搬移产生 531/367/184/150 行的 TS 函数而 assets-check 全绿，护栏对其主语言完全失明；扩展后该项目存量超线函数由 93 升至 621。决策记录见 ADR `structure-ts-parser-borrowed-from-target`。
+- 修复 npm 包清单遗漏受管模块：`package.json` `files` 自 2.9.0/2.11.0 起未收录 `scripts/script_hygiene.py` 与 `scripts/structure_check.py`（`npm pack --dry-run` 可复现），从包安装会缺模块；本版补齐并收录新增的 `structure_ts_functions.cjs`。
+- 安装配置 `installed_module_fingerprints` 新增 `structure_ts_functions.cjs` 条目，schema 不变，v12 项目经 `project upgrade` 平滑升级。
+
 ## 2.14.1 - 2026-09-11
 
 - plan check C5 符号存活性扫描的白名单 `PLAN_CHECK_SOURCE_SUFFIXES` 补入 `.dart`（吸收 zbuddy-mobile c3e5d41 下游生产热修）：Flutter 项目的 Dart 源码此前不参与符号命中扫描，plan check 会把实际已落地的关键符号误报为死符号、并反向漏登未登记文件。与 2.11.2「未登记文件扫描补 .dart」是两条独立路径，本次补齐另一条。
@@ -38,7 +44,6 @@
 ## 2.11.2 - 2026-09-01
 
 - 修复 Structure 未登记文件扫描遗漏 `.dart`：`CODE_SUFFIXES`（`scripts/structure_check.py`）补入 `.dart`，Flutter 项目新增未登记 Dart 文件不再静默失明（此前 `structure check/report` 对 Dart 恒报通过，下游只能人工比对发现 CODEMAP 漏登）。缺陷来自下游 AIGlasses 反馈（`docs/handoffs/DocsHarness-缺陷报告-2026-08-28.md` 缺陷三）。
-
 ## 2.11.1 - 2026-08-28
 
 - 修复 git 钩子安装对第三方钩子的静默屏蔽：`scripts/githooks/setup.sh` 不再设置 `core.hooksPath`（替换语义会让 `git lfs install`、husky 等装在 `.git/hooks` 的钩子全部失效，LFS 场景下 `git push` 只推指针文件且无报错），改为经 `--git-common-dir` 解析真实钩子目录并安装带标记的三行转发 shim，与各工具按文件名共存；检测到旧版设过的 `core.hooksPath`（路径归一化比较）时主动清除迁移，目标位置已有非本工具 pre-commit 时拒绝覆盖并退出 1，幂等且兼容 worktree；执行后列出钩子目录下共存的其它钩子。实现单一来源仍是 `scripts/githooks/pre-commit`，shim 只转发退出码。

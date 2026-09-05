@@ -2,13 +2,19 @@
 
 from __future__ import annotations
 
+import os
+import shutil
 import sys
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-from harness_test_base import HarnessTestBase
+from harness_test_base import HarnessTestBase, ROOT
+
+sys.path.insert(0, str(ROOT / "scripts"))
+import structure_check  # noqa: E402
 
 
 class StructureGuardrailTest(HarnessTestBase):
@@ -117,6 +123,133 @@ class StructureGuardrailTest(HarnessTestBase):
             payload["warnings"],
         )
         self.assertGreaterEqual(payload["checked"]["structure"], 1)
+
+
+class StructureFunctionLanguagesTest(HarnessTestBase):
+    """2.12.0：函数级检查覆盖 Go 与 TS/JS。TS 用例需要目标目录可见的 typescript：
+    仓库自身无 node_modules 时经 DOCS_HARNESS_TS_MODULE_DIR 指向任一含 typescript 的 node_modules，
+    否则 TS 用例 skip 并说明。"""
+
+    @staticmethod
+    def _ts_available() -> bool:
+        return bool(structure_check._ts_module_dirs(ROOT)) and shutil.which("node") is not None
+
+    def test_function_language_dispatch(self) -> None:
+        self.assertEqual(structure_check.function_language("a/b.py"), "python")
+        self.assertEqual(structure_check.function_language("a/b.go"), "go")
+        for suffix in (".ts", ".tsx", ".js", ".jsx", ".cjs", ".mjs"):
+            self.assertEqual(structure_check.function_language(f"a/b{suffix}"), "ts", suffix)
+        self.assertIsNone(structure_check.function_language("a/b.rs"))
+
+    def test_go_functions_receivers_closures_one_liners_and_generics(self) -> None:
+        source = "\n".join([
+            "package x",
+            "",
+            "func one() {}",
+            "",
+            "func (a *App) Run(ctx context.Context) error {",
+            "\tgo func() {",
+            "\t\tfor {",
+            "\t\t}",
+            "\t}()",
+            "\treturn nil",
+            "}",
+            "",
+            "func (App) Name() string {",
+            "\treturn \"x\"",
+            "}",
+            "",
+            "func (s *Store[T]) Get() T {",
+            "\treturn s.value",
+            "}",
+        ])
+        self.assertEqual(
+            structure_check._go_functions(source),
+            {"one": 1, "App.Run": 7, "App.Name": 3, "Store.Get": 3},
+        )
+
+    def test_function_warnings_apply_same_rules_to_all_languages(self) -> None:
+        current = {"small": 10, "fresh": 80, "grown": 75, "stable": 70}
+        old = {"grown": 61, "stable": 68}
+        warnings = structure_check._function_warnings("x.ts", current, old, has_head=True)
+        self.assertEqual(len(warnings), 2)
+        self.assertIn("新增函数 fresh 共 80 行", warnings[0])
+        self.assertIn("函数 grown 本次增长 14 行（61→75）", warnings[1])
+        self.assertEqual(structure_check._function_warnings("x.ts", None, {}, has_head=True), [])
+        self.assertEqual(structure_check._function_warnings("x.ts", {"f": 99}, None, has_head=True), [])
+
+    def test_ts_parser_unavailable_is_a_warning_not_silence(self) -> None:
+        with mock.patch.object(structure_check.shutil, "which", return_value=None):
+            spans, reason = structure_check._ts_function_spans(ROOT, [("k", "a.ts", "const a = 1;")])
+        self.assertEqual(spans, {})
+        self.assertEqual(reason, "未找到 node")
+        self.structure_git("init")
+        self.write_lines("src/app.ts", ["export function f() {", "  return 1;", "}"])
+        with mock.patch.object(structure_check.shutil, "which", return_value=None):
+            payload = structure_check.check_structure(self.project)
+        self.assertTrue(
+            any("TS 函数级检查不可用" in w for w in payload["warnings"]), payload["warnings"]
+        )
+        # 纯 JS 项目没有"必然自带 typescript"的前提：不出 WARN，只在 notes 记录未做函数级。
+        (self.project / "src" / "app.ts").unlink()
+        self.write_lines("tools/build.cjs", ["module.exports = () => {", "  return 1;", "};"])
+        with mock.patch.object(structure_check.shutil, "which", return_value=None):
+            payload = structure_check.check_structure(self.project)
+        self.assertEqual(payload["warnings"], [])
+        self.assertTrue(any("tools/build.cjs" in note for note in payload.get("notes", [])), payload)
+
+    def test_go_increment_check_warns_on_new_long_function(self) -> None:
+        self.structure_git("init")
+        self.write_lines("cmd/run.go", ["package cmd", "", "func Run() {"] + ["\tprintln(1)"] * 70 + ["}"])
+        self.write_lines("cmd/run_test.go", ["package cmd", "", "func TestRun(t *testing.T) {"] + ["\tt.Log(1)"] * 70 + ["}"])
+        payload = self.run_cli("structure", "check", "--target", str(self.project))
+        warnings = payload["warnings"]
+        self.assertTrue(any("cmd/run.go 新增函数 Run 共 72 行" in w for w in warnings), warnings)
+        self.assertFalse(any("run_test.go" in w and "函数" in w for w in warnings), "测试文件不做函数级判定")
+
+    def test_ts_parser_names_declarations_arrows_methods_callbacks_and_tsx(self) -> None:
+        if not self._ts_available():
+            self.skipTest(f"无可用 typescript：设置 {structure_check.TS_MODULE_DIR_ENV} 指向含 typescript 的 node_modules")
+        spans, reason = structure_check._ts_function_spans(ROOT, [
+            ("a", "sample.ts", "\n".join([
+                "export function top(a: number): number {",
+                "  return a;",
+                "}",
+                "const arrow = async (x: string) => {",
+                "  await x;",
+                "  return x;",
+                "};",
+                "class Store {",
+                "  load(id: string) {",
+                "    return id;",
+                "  }",
+                "}",
+                "ipcMain.handle(\"chan\", (event) => {",
+                "  return event;",
+                "});",
+            ])),
+            ("b", "Comp.tsx", "export function Comp() {\n  const inner = () => {\n    return 1;\n  };\n  return <div onClick={inner} />;\n}\n"),
+            ("c", "broken.ts", "function ( {"),
+        ])
+        self.assertIsNone(reason, reason)
+        self.assertEqual(spans["a"], {"top": 3, "arrow": 4, "Store.load": 3, "ipcMain.handle#cb": 3})
+        self.assertEqual(spans["b"], {"Comp": 6, "Comp.inner": 3})
+        self.assertIsNone(spans["c"])
+
+    def test_ts_increment_check_and_report_cover_functions(self) -> None:
+        if not self._ts_available():
+            self.skipTest(f"无可用 typescript：设置 {structure_check.TS_MODULE_DIR_ENV} 指向含 typescript 的 node_modules")
+        module_dir = str(structure_check._ts_module_dirs(ROOT)[0])
+        self.structure_git("init")
+        self.write_lines("src/handlers.ts", ["export function register(): void {"] + ["  console.log(1);"] * 70 + ["}"])
+        self.write_lines("src/handlers.test.ts", ["describe(() => {"] + ["  it(() => {});"] * 70 + ["});"])
+        with mock.patch.dict(os.environ, {structure_check.TS_MODULE_DIR_ENV: module_dir}):
+            payload = structure_check.check_structure(self.project)
+            report = structure_check.structure_report(self.project)
+        self.assertTrue(any("src/handlers.ts 新增函数 register 共 72 行" in w for w in payload["warnings"]), payload["warnings"])
+        self.assertFalse(any("handlers.test.ts" in w and "函数" in w for w in payload["warnings"]))
+        self.assertEqual(report["function_check_languages"], ["python", "go", "ts"])
+        self.assertIn({"path": "src/handlers.ts", "function": "register", "lines": 72}, report["functions_over_red_line"])
 
 
 if __name__ == "__main__":
