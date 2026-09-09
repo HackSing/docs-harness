@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.12.1 - 2026-09-09
+
+- frontend_ui 模板 `design_system_reuse` 字段补 guidance（`plan-templates/profiles/frontend-ui.json`）：明确视觉与交互代码同样适用「先复用后新写、重复即抽象」——颜色/间距/字号/圆角/阴影必须收敛为设计 token 单一来源、禁止散落硬编码，相同或相近的组件/样式/交互模式第 3 次出现必须抽为共享组件或样式模块（两次保持原样），优先复用项目已有设计系统与组件库。此前该字段无 guidance，弱模型不知道复用标准，容易把通用规则的「逻辑」狭义理解、漏掉视觉与交互代码的重复治理。
+
 ## 2.12.0 - 2026-09-09
 
 - frontend_ui 方案模板加入质量基线与文案受众约束（`plan-templates/profiles/frontend-ui.json`）：`components_interactions` 与 `visual_responsive` 字段新增 guidance，要求交互与视觉方案以 Dribbble、Behance 等顶尖设计平台一流作品为质量基线，不接受「能用就行」的默认样式堆砌；新增必填字段 `consumer_copy`（界面文案与受众），要求所有用户可见文案面向普通消费者——禁止技术术语、错误码、变量名与内部概念。guidance 随 `plan select` 输出投影给执行模型，brief 级不带 profile 字段不受影响；存量已冻结方案不追溯。
