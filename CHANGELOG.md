@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.12.0 - 2026-09-09
+
+- frontend_ui 方案模板加入质量基线与文案受众约束（`plan-templates/profiles/frontend-ui.json`）：`components_interactions` 与 `visual_responsive` 字段新增 guidance，要求交互与视觉方案以 Dribbble、Behance 等顶尖设计平台一流作品为质量基线，不接受「能用就行」的默认样式堆砌；新增必填字段 `consumer_copy`（界面文案与受众），要求所有用户可见文案面向普通消费者——禁止技术术语、错误码、变量名与内部概念。guidance 随 `plan select` 输出投影给执行模型，brief 级不带 profile 字段不受影响；存量已冻结方案不追溯。
+
 ## 2.11.2 - 2026-09-01
 
 - 修复 Structure 未登记文件扫描遗漏 `.dart`：`CODE_SUFFIXES`（`scripts/structure_check.py`）补入 `.dart`，Flutter 项目新增未登记 Dart 文件不再静默失明（此前 `structure check/report` 对 Dart 恒报通过，下游只能人工比对发现 CODEMAP 漏登）。缺陷来自下游 AIGlasses 反馈（`docs/handoffs/DocsHarness-缺陷报告-2026-08-28.md` 缺陷三）。

@@ -151,6 +151,18 @@ class PlanLifecycleTest(HarnessTestBase):
             "--output", "docs/plans/bugfix-invalid.json", expected=2,
         )
         self.assertEqual(rejected["code"], "invalid_plan_content")
+    def test_frontend_ui_profile_carries_quality_and_copy_guidance(self) -> None:
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project),
+            "--level", "full", "--profile", "frontend_ui",
+        )
+        fields = {item["id"]: item for item in selection["fields"]}
+        for field_id in ("components_interactions", "visual_responsive", "consumer_copy"):
+            self.assertIn(field_id, fields)
+            self.assertTrue(fields[field_id]["required"])
+            self.assertTrue(fields[field_id]["guidance"])
+        self.assertIn("Dribbble", fields["visual_responsive"]["guidance"])
+        self.assertIn("消费者", fields["consumer_copy"]["guidance"])
     def test_plan_create_validates_and_freezes_only_selected_fields(self) -> None:
         selection = self.run_cli(
             "plan", "select", "--target", str(self.project),
