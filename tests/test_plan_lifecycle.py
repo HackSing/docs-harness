@@ -390,6 +390,32 @@ class PlanLifecycleTest(HarnessTestBase):
             any("缺少 docs/plans/live.md 的条目" in item for item in payload["failures"])
         )
 
+    def test_plan_check_live_doc_same_name_as_archived_is_not_leak_or_stale(self) -> None:
+        docs = self.project / "docs"
+        plans = docs / "plans"
+        archive = plans / "archive"
+        archive.mkdir(parents=True)
+        (plans / "dup.md").write_text(
+            "> 状态：有效（现行事实/实施中）\n\n# 同名活文档\n", encoding="utf-8"
+        )
+        (archive / "dup.md").write_text(
+            "> 状态：已废弃-被 dup.md 取代（2026-09-08 核对）\n\n旧草稿。\n",
+            encoding="utf-8",
+        )
+        # 新文档同名取代归档草稿是受支持的工作流：活索引条目与仓内引用
+        # 指向活文档 docs/plans/dup.md，不得误判为归档泄漏或死链。
+        (docs / "INDEX.md").write_text(
+            "# 索引\n\n## 方案\n\n"
+            "- [同名活文档](plans/dup.md)（关键符号：`LiveDoc`、`DupPlan`）\n",
+            encoding="utf-8",
+        )
+        (docs / "guide.md").write_text(
+            "# 指南\n\n参见 docs/plans/dup.md。\n", encoding="utf-8"
+        )
+        payload = self.run_cli("plan", "check", "--target", str(self.project), "--fast")
+        self.assertEqual(payload["status"], "passed")
+        self.assertEqual(payload["failures"], [])
+
     def test_plan_check_accepts_backtick_table_index_entry(self) -> None:
         docs = self.project / "docs"
         plans = docs / "plans"

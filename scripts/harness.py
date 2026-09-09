@@ -60,7 +60,7 @@ from adr_assets import (
     create as create_adr_asset,
     settle as settle_adr_asset,
 )
-VERSION = "2.12.1"
+VERSION = "2.12.2"
 CONFIG_SCHEMA = "docs-harness/project-config/v12"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
     f"docs-harness/project-config/v{version}" for version in range(1, 12)
@@ -3767,6 +3767,10 @@ def command_plan_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                     f"FAIL: docs/INDEX.md: {basename} 条目须包含 2-4 个关键符号"
                 )
     for basename in archived_names:
+        # 同名活文档存在时，活索引条目指向的是活文档（plans/<basename>），不构成归档泄漏；
+        # 「新文档同名取代归档草稿」是受支持的工作流。
+        if any(path.name == basename for path in live_docs):
+            continue
         tokens = plan_index_doc_tokens(basename)
         leaked = [
             line for line in index_lines
@@ -3802,6 +3806,9 @@ def command_plan_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     # C3：全仓 .md 不得引用已归档文档的旧路径 docs/plans/<basename>。
     markdown_files = plan_check_markdown_files(target)
     for basename in archived_names:
+        # 同名活文档存在时 docs/plans/<basename> 指向活文档（新文档同名取代归档草稿），不构成死链。
+        if any(path.name == basename for path in live_docs):
+            continue
         stale = re.compile(r"docs/plans/" + re.escape(basename) + r"(?![\w.-])")
         for path in markdown_files:
             try:
