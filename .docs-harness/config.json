@@ -1,7 +1,7 @@
 {
   "schema_version": "docs-harness/project-config/v12",
-  "version": "2.14.0",
-  "installed_script_fingerprint": "sha256:7754d5e940e0c27c4afd2d1468e5dae9d52a34418dffefb3539fad9b6a753eda",
+  "version": "2.14.1",
+  "installed_script_fingerprint": "sha256:1fde86872a1c9f48f76df6b78e157cf6148cfbbd4d873c8ef64879e64f231817",
   "installed_module_fingerprints": {
     "managed_assets.py": "sha256:298c73562c7a93442c592aa342a19572f88c7c0150d496ef8c944c6bb268157e",
     "asset_checks.py": "sha256:b3ebfe35fafd720061c9f295d8d680574866db967c51676f0c6be1edc3e7ae92",
@@ -13,14 +13,14 @@
     "structure_check.py": "sha256:1fedc2d62394403efd772a72ff192fdf8afbc3895584fb1ce958b1344a7ad5f8"
   },
   "installed_plan_template_fingerprints": {
-    "levels/brief.json": "sha256:dcf660059359c5289dd144396324db1845a610518a7da618f53961c35564005d",
-    "levels/full.json": "sha256:87520a67ee94ed80110a3772bd9a0bba62fedcd815cc9fa7c54bc265897ec16b",
-    "profiles/general.json": "sha256:902b4df16760f4a3d8675cd2d1febbdbaeca6506d5857e9c4ed9ac77bbbeb469",
-    "profiles/frontend-ui.json": "sha256:ea465495b771c22ddcdf644222f7a196afd827f4e6c4cbdca74291862353227f",
-    "profiles/backend-service.json": "sha256:7724c050e398c39b0fdf30ae90cfc2aa673dd40d9e01d11b1c0da7bccf87cf93",
-    "profiles/bugfix.json": "sha256:c85a58507f370042dcad50e8295f5b0cc3d0bbf7970b407aa7cea7cee6a1182a",
-    "profiles/architecture.json": "sha256:641eadd9459ab8844f987f80b542555d3ea7de7e236592c98b977e34ec266e58",
-    "profiles/migration-release.json": "sha256:993a937e43f0dbfc499caf7bc3df315ca513a089b17fbacf31f9174cd4a2d45c"
+    "levels/brief.json": "sha256:3c41764e7b51d84e2e7dc09bacccd85473922b7ffdd1c8013dc0065e5eb90b5d",
+    "levels/full.json": "sha256:367c40178f35bbcfe8eb6d15d3e7414da07b81d54c50ea5f0d5de988c8d133d3",
+    "profiles/general.json": "sha256:6250d208a9a6c7b5c8ee6be35b6495197f755999e924d6ec7064b1db61686492",
+    "profiles/frontend-ui.json": "sha256:8a64265980367105c1123be81ef22e9106328dbca3c54b06ba5233d606edc08a",
+    "profiles/backend-service.json": "sha256:5e5628ce2b7ce36b37c54160d82f364dc5bca54a49c4e8b85b9d6933a5cdd3f6",
+    "profiles/bugfix.json": "sha256:cae6b7893deb665082cf0d8989e76b1c01cbe3906a26bd0ca3d1338d3c2c326c",
+    "profiles/architecture.json": "sha256:78c984b61b930365ad8d471bba5562813cbd4b341d5c1d0d819527e8984ac1cd",
+    "profiles/migration-release.json": "sha256:74d4776a9fd9415d47bd51065ff87167f950a6e7041d3041d03c36046a59efba"
   },
   "installed_githook_fingerprints": {
     "pre-commit": "sha256:1a36d24d939ae0608164e9239b67154c7f0849f6c97555ea7a2d892b24fec3e5",

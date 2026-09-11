@@ -62,7 +62,7 @@ from adr_assets import (
     create as create_adr_asset,
     settle as settle_adr_asset,
 )
-VERSION = "2.14.0"
+VERSION = "2.14.1"
 CONFIG_SCHEMA = "docs-harness/project-config/v12"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
     f"docs-harness/project-config/v{version}" for version in range(1, 12)
@@ -149,7 +149,7 @@ PLAN_CHECK_ARCHIVE_EXEMPTION = "已归档"
 PLAN_CHECK_EXCLUDED_DIRS = {"node_modules", ".worktrees", "deliverables", "output", "artifacts"}
 PLAN_CHECK_ARTIFACT_DIRS = {"dist", "build", "dist-electron", "release", "zbuddy-output", "test-results", "coverage", "软著"}
 PLAN_CHECK_SOURCE_SUFFIXES = {
-    ".go", ".ts", ".tsx", ".js", ".jsx", ".cjs", ".mjs", ".py",
+    ".dart", ".go", ".ts", ".tsx", ".js", ".jsx", ".cjs", ".mjs", ".py",
     ".ps1", ".psm1", ".bat", ".cmd", ".sh", ".json", ".toml", ".yaml", ".yml",
 }
 PLAN_CHECK_STALE_DAYS = 90

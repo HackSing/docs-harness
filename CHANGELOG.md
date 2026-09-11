@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.14.1 - 2026-09-11
+
+- plan check C5 符号存活性扫描的白名单 `PLAN_CHECK_SOURCE_SUFFIXES` 补入 `.dart`（吸收 zbuddy-mobile c3e5d41 下游生产热修）：Flutter 项目的 Dart 源码此前不参与符号命中扫描，plan check 会把实际已落地的关键符号误报为死符号、并反向漏登未登记文件。与 2.11.2「未登记文件扫描补 .dart」是两条独立路径，本次补齐另一条。
+
 ## 2.14.0 - 2026-09-11
 
 - assets-check 跨资产关系补齐结算泄漏预警的超期形态（2.13.0 只落地了「关联 Acceptance 已全部结项但 Plan 未 settle」与 plan check C8 符号落地两种）：Plan 冻结（`frozen_at`）超过 90 天仍未 settle 且仍处活路径时输出 WARN，附 `plan settle --status implemented|deprecated` 指引。阈值复用 `ASSET_STALE_DAYS` 单一来源，与 pending Acceptance 超期 WARN 同口径；v2 存量方案与 brief 级方案（无治理合同、本就无 settle 动作）不触发。
