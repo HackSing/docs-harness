@@ -455,5 +455,231 @@ class PlanLifecycleTest(HarnessTestBase):
             any("归档文档 gone.md 仍出现在活索引" in item for item in payload["failures"])
         )
 
+    def test_plan_create_accepts_sha256_selection_ref(self) -> None:
+        self.structure_git("init")
+        self.write_lines("seed.txt", ["seed"])
+        self.structure_commit_all()
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project), "--level", "brief",
+        )
+        self.assertEqual(selection["selection_ref"], selection["selection_fingerprint"])
+        self.assertTrue(selection["selection_cached"])
+        content = self.write_json("inputs/content.json", {
+            "title": "指纹引用方案",
+            "key_symbols": ["SymA", "SymB"],
+            "objective": "目标",
+            "scope": "范围",
+            "steps": "步骤",
+            "acceptance": "验收",
+        })
+        payload = self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", selection["selection_ref"],
+            "--content", str(content.relative_to(self.project)),
+            "--output", "docs/plans/sha256-ref.json",
+        )
+        self.assertEqual(payload["status"], "frozen")
+
+        missing = self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", "sha256:" + "0" * 64,
+            "--content", str(content.relative_to(self.project)),
+            "--output", "docs/plans/sha256-miss.json", expected=2,
+        )
+        self.assertEqual(missing["code"], "invalid_plan_selection")
+        self.assertIn("plan select", missing["message"])
+
+        malformed = self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", "sha256:xyz",
+            "--content", str(content.relative_to(self.project)),
+            "--output", "docs/plans/sha256-bad.json", expected=2,
+        )
+        self.assertIn("selection_ref", malformed["message"])
+
+    def test_plan_select_query_misuse_points_to_knowledge_query(self) -> None:
+        payload = self.run_cli(
+            "plan", "select", "--target", str(self.project),
+            "--query", "运行时的 owner 是谁", expected=2,
+        )
+        self.assertEqual(payload["code"], "invalid_plan_selection")
+        self.assertIn("knowledge query", payload["message"])
+
+    def test_plan_select_task_injects_knowledge_hits(self) -> None:
+        self.write_json("src/runtime.txt", {"owner": "SessionService"})
+        knowledge_path = self.write_json(
+            "inputs/knowledge.json", self.knowledge_input("运行时事实", "SessionService 拥有运行时会话状态")
+        )
+        self.run_cli(
+            "knowledge", "create", "--target", str(self.project),
+            "--input", str(knowledge_path.relative_to(self.project)),
+            "--output", "docs/knowledge/runtime-facts.json",
+        )
+        with_task = self.run_cli(
+            "plan", "select", "--target", str(self.project),
+            "--complexity", "complex", "--task", "SessionService 会话状态改造",
+        )
+        self.assertTrue(with_task["knowledge_hits"])
+        self.assertEqual(
+            with_task["knowledge_hits"][0]["ref"], "docs/knowledge/runtime-facts.json"
+        )
+
+        without_task = self.run_cli("plan", "select", "--target", str(self.project))
+        self.assertNotIn("knowledge_hits", without_task)
+        self.assertIn("1 个活跃 Knowledge", without_task["knowledge_hint"])
+
+    def test_plan_create_names_unregistered_fields(self) -> None:
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project), "--level", "brief",
+        )
+        selection_path = self.write_json("inputs/selection.json", selection)
+        content_path = self.write_json("inputs/content.json", {
+            "title": "字段命名方案",
+            "key_symbols": ["SymA", "SymB"],
+            "objective": "目标",
+            "scope": "范围",
+            "steps": "步骤",
+            "acceptance": "验收",
+            "schema_version": "docs-harness/plan-content/v1",
+        })
+        payload = self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path.relative_to(self.project)),
+            "--content", str(content_path.relative_to(self.project)),
+            "--output", "docs/plans/named-fields.json", expected=2,
+        )
+        self.assertEqual(payload["code"], "invalid_plan_content")
+        self.assertIn("schema_version", payload["message"])
+
+    def test_plan_create_dry_run_collects_all_errors_without_writes(self) -> None:
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project),
+            "--level", "full", "--profile", "bugfix",
+        )
+        selection_path = self.write_json("inputs/selection.json", selection)
+        content_path = self.write_json("inputs/content.json", {
+            "title": "多错误聚合方案",
+            "key_symbols": ["SymA"],
+            "acceptance_required": False,
+            "knowledge_impact": "unchanged",
+            "affected_modules": "not-a-list",
+            "verification_scope": {"mode": "bogus"},
+            "full_regression_trigger": {"required": "yes"},
+            "failure_attribution": {},
+            "unregistered_field": "x",
+        })
+        args = (
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path.relative_to(self.project)),
+            "--content", str(content_path.relative_to(self.project)),
+            "--output", "docs/plans/dry-run.json",
+        )
+        payload = self.run_cli(*args, "--dry-run", expected=2)
+        self.assertEqual(payload["status"], "dry_run_invalid")
+        self.assertEqual(payload["writes"], "none")
+        messages = [item["message"] for item in payload["errors"]]
+        self.assertTrue(any("未注册字段：unregistered_field" in item for item in messages))
+        self.assertTrue(any("key_symbols" in item for item in messages))
+        self.assertTrue(any("affected_modules" in item for item in messages))
+        self.assertTrue(any("verification_scope" in item for item in messages))
+        self.assertTrue(any("full_regression_trigger" in item for item in messages))
+        self.assertTrue(any("failure_attribution" in item for item in messages))
+        # dry-run 不得落盘
+        self.assertFalse((self.project / "docs/plans/dry-run.json").exists())
+        self.assertFalse((self.project / "docs/plans/dry-run.md").exists())
+        self.assertFalse((self.project / "docs/INDEX.md").exists())
+
+        # 同一输入的真实创建路径仍只抛首个错误，且 dry-run 为零副作用
+        real = self.run_cli(*args, expected=2)
+        self.assertEqual(real["code"], payload["errors"][0]["code"])
+        self.assertEqual(real["message"], payload["errors"][0]["message"])
+
+        valid_content = {
+            item["id"]: f"已填写 {item['label']}" for item in selection["fields"]
+        }
+        valid_content.update({
+            "title": "合法方案",
+            "key_symbols": ["SymA", "SymB"],
+            "acceptance_required": False,
+            "knowledge_impact": "unchanged",
+            "affected_modules": ["service/session"],
+            "verification_scope": {
+                "mode": "affected_modules",
+                "commands": ["python -m unittest tests.test_session"],
+                "reused_passed_evidence": [],
+            },
+            "full_regression_trigger": {
+                "required": False, "reason_codes": [], "rationale": "局部改动",
+            },
+            "failure_attribution": {
+                "categories": [
+                    "change_related", "unrelated", "pre_existing", "environment", "flaky",
+                ],
+                "separate_non_change_failures": True,
+                "evidence_required": True,
+            },
+        })
+        valid_path = self.write_json("inputs/valid-content.json", valid_content)
+        valid = self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path.relative_to(self.project)),
+            "--content", str(valid_path.relative_to(self.project)),
+            "--output", "docs/plans/dry-run-valid.json", "--dry-run",
+        )
+        self.assertEqual(valid["status"], "dry_run_valid")
+        self.assertEqual(valid["errors"], [])
+        self.assertFalse((self.project / "docs/plans/dry-run-valid.json").exists())
+
+    def test_plan_check_warns_when_active_plan_symbols_all_landed(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project), "--level", "brief",
+        )
+        selection_path = self.write_json("inputs/selection.json", selection)
+        content_path = self.write_json("inputs/content.json", {
+            "title": "符号落地预警方案",
+            "key_symbols": ["LandedSymbolAlpha", "LandedSymbolBeta"],
+            "objective": "目标",
+            "scope": "范围",
+            "steps": "步骤",
+            "acceptance": "验收",
+        })
+        self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path.relative_to(self.project)),
+            "--content", str(content_path.relative_to(self.project)),
+            "--output", "docs/plans/landed.json",
+        )
+        # 输入暂存 JSON 含关键符号且在源码后缀白名单内，会构成落地证据，先清掉
+        selection_path.unlink()
+        content_path.unlink()
+        self.write_lines("src/landed.py", [
+            "LandedSymbolAlpha = 1",
+            "LandedSymbolBeta = 2",
+        ])
+        payload = self.run_cli("plan", "check", "--target", str(self.project))
+        self.assertTrue(
+            any("已全部在源码命中" in item and "landed.md" in item
+                for item in payload["warnings"]),
+            payload["warnings"],
+        )
+        # 部分落地不预警
+        self.write_lines("src/landed.py", ["LandedSymbolAlpha = 1"])
+        partial = self.run_cli("plan", "check", "--target", str(self.project))
+        self.assertFalse(
+            any("已全部在源码命中" in item for item in partial["warnings"]),
+            partial["warnings"],
+        )
+        # fast 模式跳过慢检查
+        self.write_lines("src/landed.py", [
+            "LandedSymbolAlpha = 1",
+            "LandedSymbolBeta = 2",
+        ])
+        fast = self.run_cli("plan", "check", "--target", str(self.project), "--fast")
+        self.assertFalse(
+            any("已全部在源码命中" in item for item in fast["warnings"]),
+            fast["warnings"],
+        )
+
 if __name__ == "__main__":
     unittest.main()

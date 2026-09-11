@@ -564,5 +564,83 @@ class AcceptanceTest(HarnessTestBase):
                 "--acceptance", "docs/acceptance/user-latest.json", "--user-confirmed",
             )
 
+    def test_acceptance_create_dry_run_collects_all_errors_without_writes(self) -> None:
+        bad_input = self.write_json("inputs/dry-run-target.json", {
+            "schema_version": "docs-harness/acceptance-target-input/v1",
+            "title": "多错误验收",
+            "key_symbols": ["OnlyOne"],
+            "objective": "目标",
+            "unregistered_field": "x",
+            "criteria": [
+                {
+                    "id": "c1",
+                    "title": "类型层级冲突",
+                    "acceptance_type": "contract_check",
+                    "layer": "L2",
+                },
+                {
+                    "id": "c2",
+                    "title": "证据层级错位",
+                    "acceptance_type": "behavior_acceptance",
+                    "layer": "L3",
+                    "evidence_layer": "focused_test",
+                },
+            ],
+        })
+        args = (
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(bad_input.relative_to(self.project)),
+            "--output", "docs/acceptance/dry-run.json",
+        )
+        payload = self.run_cli(*args, "--dry-run", expected=1)
+        self.assertEqual(payload["status"], "dry_run_invalid")
+        self.assertEqual(payload["writes"], "none")
+        messages = [item["message"] for item in payload["errors"]]
+        self.assertTrue(any("未注册字段：unregistered_field" in item for item in messages))
+        self.assertTrue(any("key_symbols" in item for item in messages))
+        self.assertTrue(any("合同检查必须是 L1" in item for item in messages))
+        self.assertTrue(any("evidence_layer 与 layer 不匹配" in item for item in messages))
+        self.assertFalse((self.project / "docs/acceptance/dry-run.json").exists())
+        self.assertFalse((self.project / "docs/acceptance/dry-run.md").exists())
+
+        # 真实创建路径仍只抛首个错误，且与 dry-run 首错误一致
+        real = self.run_cli(*args, expected=1)
+        self.assertEqual(real["message"], payload["errors"][0]["message"])
+
+        valid_input = self.write_json("inputs/dry-run-valid.json", self.acceptance_target())
+        valid = self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(valid_input.relative_to(self.project)),
+            "--output", "docs/acceptance/dry-run-valid.json", "--dry-run",
+        )
+        self.assertEqual(valid["status"], "dry_run_valid")
+        self.assertEqual(valid["errors"], [])
+        self.assertFalse((self.project / "docs/acceptance/dry-run-valid.json").exists())
+
+    def test_acceptance_settle_input_lists_unknown_fields(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        target = self.acceptance_target()
+        target_input = self.write_json("inputs/acceptance-target.json", target)
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(target_input.relative_to(self.project)),
+            "--output", "docs/acceptance/flow.json",
+        )
+        bad_input = self.write_json(
+            "inputs/settle-unknown.json",
+            {
+                "schema_version": "docs-harness/acceptance-settle-input/v1",
+                "rogue_field": 1,
+            },
+        )
+        rejected = self.run_cli(
+            "acceptance", "settle", "--target", str(self.project),
+            "--acceptance", "docs/acceptance/flow.json", "--status", "passed",
+            "--input", str(bad_input.relative_to(self.project)),
+            expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_acceptance_settle_input")
+        self.assertIn("未注册字段：rogue_field", rejected["message"])
+
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,7 @@
 name: docs-harness
 description: "默认不介入普通任务；仅按需提供项目知识、方案模板和真实验收记录。"
 metadata:
-  version: 2.12.2
+  version: 2.14.0
   status: active
 ---
 
@@ -17,6 +17,7 @@ Docs Harness 是可选的项目辅助能力，不是每个任务必须经过的�
 - 用户明确说“不使用 Harness”时，必须直接执行；不得暗中恢复旧流程。
 - 不在没有证据或没有明确维护任务时自动更新 Knowledge、ADR、Changelog、TODO 或质量账本。
 - 改动涉及用户可见行为、接口契约或版本发布时更新 CHANGELOG；任务产生待跟进事项时登记 TODO；不满足触发条件则不更新。
+- 下游项目内 assets-check / plan check 报出引擎自身缺陷（误判、漏报、报错缺少下一步指引等）时，收尾必须评估是否值得开上游补丁任务：值得修的登记到项目 TODO.md（附复现命令、期望行为与涉及版本），不得直接改动下游已安装的引擎副本；补丁任务由用户在上游 docs-harness 仓库主动开启。
 
 ## Knowledge 生命周期
 

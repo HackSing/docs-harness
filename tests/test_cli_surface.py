@@ -90,8 +90,11 @@ class CliSurfaceTest(HarnessTestBase):
         # 旧状态机；模块体量由 Structure WARN 触发结构评估，不再以测试硬失败处方。
         # 2.11.1 修复 git 钩子安装（shim 共存模式 + 钩子健康检查 + uninstall 清理），
         # 控制器只增钩子健康检查段，上限随之上调。
-        self.assertLess(HARNESS.stat().st_size, 190_000)
-        self.assertLess(len(source.splitlines()), 4_400)
+        # 2.13.0 创建体验优化（plan select 知识注入与 sha256 selection 缓存、
+        # plan/acceptance create --dry-run 整体校验、结算泄漏 WARN），控制器只增
+        # 命令面与校验编排，校验逻辑下沉在 plan_governance/acceptance_assets，上限随之上调。
+        self.assertLess(HARNESS.stat().st_size, 210_000)
+        self.assertLess(len(source.splitlines()), 4_700)
         for symbol in (
             "def command_run(",
             "def command_context(",

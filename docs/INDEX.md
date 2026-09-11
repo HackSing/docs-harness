@@ -23,6 +23,7 @@
 - [Docs Harness 2.10.0 结构护栏：增量体量检查、CODEMAP 能力索引与骨架先行](plans/docs-harness-structure-guardrails.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-27 核对）；关键符号：`check_structure`、`structure_report`、`CODEMAP_RELATIVE`、`module_interfaces`
 - [Docs Harness 2.11.0 收敛：结构护栏在主仓 converge-2.11 分支重建到 2.10.2 之上](plans/docs-harness-2.11-convergence.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-27 核对）；关键符号：`check_structure`、`command_structure`、`_managed_content`、`LEGACY_PLAN_TEMPLATE_FINGERPRINTS`
 - [git 钩子安装改为转发 shim 共存模式并补齐可执行位治理](plans/githook-shim-coexistence.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-28 核对）；关键符号：`core.hooksPath`、`githook_drift`、`GIT_HOOK_RELATIVE_FILES`、`docs-harness-hook-shim`
+- [Harness 计划与验收创建体验优化及结算泄漏预警](plans/docs-harness-create-ux-and-settle-leak-warn.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-11 核对）；关键符号：`plan_select`、`validate_plan_create_payload`、`--dry-run`、`check_cross_asset_relations`
 <!-- docs-harness:plans-index:end -->
 
 ## 历史边界

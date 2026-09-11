@@ -1,0 +1,41 @@
+{
+  "schema_version": "docs-harness/plan/v3",
+  "plan_level": "full",
+  "plan_profile": "general",
+  "secondary_profiles": [],
+  "template_versions": [
+    "level/full@2.12.3",
+    "profile/general@2.12.3"
+  ],
+  "selection_fingerprint": "sha256:ee50c2f7c228a0a8a5f67d5995bfca2ab612ed3514cfb80f88af267eae66425b",
+  "content": {
+    "title": "Harness 计划与验收创建体验优化及结算泄漏预警",
+    "key_symbols": [
+      "plan_select",
+      "validate_plan_create_payload",
+      "--dry-run",
+      "check_cross_asset_relations"
+    ],
+    "background": "对 zbuddy-mobile 与 zbuddy-desktop 两个月（2026-08/09）真实会话日志的效率评估发现三个反复出现的摩擦：1) plan create --selection 误传 sha256 指纹（跨会话重犯）；2) plan/acceptance create 逐字段试错式校验，单任务最多 6 连败；3) 代码已交付但 plan 不 settle 的收尾泄漏（mobile 5 个、desktop 13 个），且 knowledge 只写不读。",
+    "objective": "消除上述摩擦：plan select 输出支持 sha256 引用与知识被动注入；plan/acceptance create 提供 --dry-run 一次性整体校验；assets-check/plan check 增加结算泄漏 WARN。",
+    "non_goals": "不改 plan/acceptance/knowledge 的资产 Schema 与冻结合同格式；不重构 harness.py 存量体量债；不引入新依赖；不改 pre-commit/CI 门禁级别（新 WARN 保持 WARN 级）。",
+    "success_criteria": "1) plan create --selection 接受 sha256:<fingerprint> 并成功冻结；2) --dry-run 一次返回全部字段错误且不写任何文件；3) 符号已落地或关联验收已结项但未 settle 的 plan 产生 WARN；4) 全仓 python -m unittest 通过；5) assets-check --strict 通过。",
+    "execution_scope": "scripts/harness.py（plan_select/plan_create/acceptance_create/CLI 解析）、scripts/plan_governance.py（bugfix 合同校验收集化）、scripts/acceptance_assets.py（输入校验收集化）、scripts/asset_checks.py（跨资产 WARN）、tests/ 对应测试文件、docs/CODEMAP.md、CHANGELOG.md、VERSION。",
+    "implementation": "批次1：plan select 增加 --task 触发的 knowledge 被动注入与 --query 误用提示；plan select 将 selection 缓存到 .git/docs-harness/plan-selections/，plan create --selection 接受 sha256:<fp>。批次2：plan_governance 与 acceptance_assets 的校验函数重构为收集全部错误（原函数保持抛首个错误的行为，作为收集器的薄封装），plan create/acceptance create 增加 --dry-run。批次3：asset_checks 跨资产关系新增「关联 Acceptance 全部结项但 Plan 未 settle」WARN；plan check 慢检查新增「横幅有效但关键符号已全部落地」WARN。",
+    "module_interfaces": "修改 scripts/harness.py — plan_select(args) 输出追加 knowledge_hits/knowledge_hint；plan_create/acceptance_create 支持 --dry-run；新增 cache_plan_selection/resolve_plan_selection 内部函数（不导出为公开命令）。修改 scripts/plan_governance.py — 新增 collect_bugfix_plan_errors(selection, content) -> list[PlanGovernanceError]，validate_bugfix_plan_contract 改为抛首个错误。修改 scripts/acceptance_assets.py — 新增 collect_input_errors(target, value) -> list[AssetError]，validate_input 复用它。修改 scripts/asset_checks.py — check_cross_asset_relations 新增 plan 结算泄漏 WARN。复用 managed_assets 的 atomic_write_json、 knowledge_assets.query。",
+    "acceptance_plan": "L1 合同：python -m unittest discover tests 全量通过；L2 行为：新增测试覆盖 sha256 selection 命中/未命中、--dry-run 多错误聚合与不落盘、两条新 WARN 的触发与不触发；L3 运行：在本仓库真实跑 plan select/create --dry-run/assets-check --strict 验证。",
+    "acceptance_required": false,
+    "knowledge_impact": "unchanged",
+    "risks_and_rollback": "selection 缓存写入 .git 目录需容忍无 git 环境（静默降级为仅报错提示）；校验收集化重构必须保持原报错文案与 code 不变，由既有测试回归锁定。回滚：git revert 本任务提交即可，无数据迁移。"
+  },
+  "acceptance_refs": [],
+  "governance": {
+    "acceptance_required": false,
+    "knowledge_impact": "unchanged",
+    "updated_knowledge_refs": [],
+    "unchanged_reason": "本次为 CLI 交互与检查增强，未改变既有项目事实；无活跃 Knowledge 需要更新",
+    "governance_settled_at": "2026-09-11T10:16:31+00:00"
+  },
+  "frozen_at": "2026-09-11T09:35:40+00:00",
+  "plan_fingerprint": "sha256:32550962eb11782f586d400cd78bcb898faa2556336d3ed1c79cc29f3546c207"
+}

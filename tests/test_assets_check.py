@@ -13,6 +13,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness_test_base import HarnessTestBase, ROOT
 
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from plan_governance import plan_fingerprint
+
 
 class AssetsCheckTest(HarnessTestBase):
     def test_release_sync_strict_requires_changelog_top_version(self) -> None:
@@ -152,7 +156,79 @@ class AssetsCheckTest(HarnessTestBase):
             "assets-check", "--target", str(self.project), "--fast", "--strict"
         )
         self.assertEqual(fast["status"], "passed")
-
+    def test_assets_check_warns_when_acceptance_settled_but_plan_not(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.create_full_plan(
+            acceptance_required=True, knowledge_impact="unchanged", basename="leak",
+        )
+        target = self.acceptance_target()
+        target["plan_ref"] = "docs/plans/leak.json"
+        target_input = self.write_json("inputs/acceptance-target.json", target)
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(target_input.relative_to(self.project)),
+            "--output", "docs/acceptance/leak.json",
+        )
+        (self.project / "focused-test.log").write_text("passed\n", encoding="utf-8")
+        record_input = self.write_json("inputs/record.json", {
+            "schema_version": "docs-harness/acceptance-input/v3",
+            "criterion_id": "flow.result",
+            "objective": "逐条记录功能流程证据。",
+            "acceptance_type": "behavior_acceptance",
+            "status": "passed",
+            "layer": "L2",
+            "evidence_layer": "focused_test",
+            "method": "运行聚焦测试",
+            "evidence_refs": ["focused-test.log"],
+        })
+        self.run_cli(
+            "acceptance", "record", "--target", str(self.project),
+            "--input", str(record_input.relative_to(self.project)),
+            "--acceptance", "docs/acceptance/leak.json",
+        )
+        self.run_cli(
+            "acceptance", "settle", "--target", str(self.project),
+            "--acceptance", "docs/acceptance/leak.json", "--status", "passed",
+        )
+        leaking = self.run_cli("assets-check", "--target", str(self.project), "--fast")
+        self.assertTrue(
+            any("已全部结项，Plan 仍未 settle" in item for item in leaking["warnings"]),
+            leaking["warnings"],
+        )
+        governance = self.write_json("inputs/governance.json", {
+            "schema_version": "docs-harness/plan-governance-input/v1",
+            "unchanged_reason": "本测试不涉及可复用事实",
+        })
+        self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/leak.json", "--status", "implemented",
+            "--governance-input", str(governance.relative_to(self.project)),
+        )
+        settled = self.run_cli("assets-check", "--target", str(self.project), "--fast")
+        self.assertFalse(
+            any("仍未 settle" in item for item in settled["warnings"]),
+            settled["warnings"],
+        )
+    def test_assets_check_warns_when_plan_frozen_too_long_without_settle(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.create_full_plan(
+            acceptance_required=False, knowledge_impact="unchanged", basename="stale",
+        )
+        fresh = self.run_cli("assets-check", "--target", str(self.project), "--fast")
+        self.assertFalse(
+            any("仍未 settle" in item for item in fresh["warnings"]),
+            fresh["warnings"],
+        )
+        plan_path = self.project / "docs/plans/stale.json"
+        plan = json.loads(plan_path.read_text(encoding="utf-8"))
+        plan["frozen_at"] = "2026-01-01T00:00:00+00:00"
+        plan["plan_fingerprint"] = plan_fingerprint(plan)
+        self.write_json("docs/plans/stale.json", plan)
+        stale = self.run_cli("assets-check", "--target", str(self.project), "--fast")
+        self.assertTrue(
+            any("冻结超过 90 天仍未 settle" in item for item in stale["warnings"]),
+            stale["warnings"],
+        )
 
 if __name__ == "__main__":
     unittest.main()

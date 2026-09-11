@@ -337,5 +337,28 @@ class PlanGovernanceTest(HarnessTestBase):
         self.assertEqual(rejected["code"], "acceptance_plan_ref_invalid")
         self.assertEqual(self.snapshot_project(), before)
 
+    def test_plan_settle_governance_input_lists_unknown_fields(self) -> None:
+        self.create_full_plan(
+            acceptance_required=False,
+            knowledge_impact="unchanged",
+            basename="unknownfield",
+        )
+        governance_input = self.write_json(
+            "inputs/unknown-governance.json",
+            {
+                "schema_version": "docs-harness/plan-governance-input/v1",
+                "unchanged_reason": "不涉及知识更新。",
+                "rogue_field": True,
+            },
+        )
+        rejected = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/unknownfield.json", "--status", "implemented",
+            "--governance-input", str(governance_input.relative_to(self.project)),
+            expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_plan_governance")
+        self.assertIn("未注册字段：rogue_field", rejected["message"])
+
 if __name__ == "__main__":
     unittest.main()

@@ -1,5 +1,24 @@
 # Changelog
 
+## 2.14.0 - 2026-09-11
+
+- assets-check 跨资产关系补齐结算泄漏预警的超期形态（2.13.0 只落地了「关联 Acceptance 已全部结项但 Plan 未 settle」与 plan check C8 符号落地两种）：Plan 冻结（`frozen_at`）超过 90 天仍未 settle 且仍处活路径时输出 WARN，附 `plan settle --status implemented|deprecated` 指引。阈值复用 `ASSET_STALE_DAYS` 单一来源，与 pending Acceptance 超期 WARN 同口径；v2 存量方案与 brief 级方案（无治理合同、本就无 settle 动作）不触发。
+- 报错自解释收尾：`plan settle --governance-input` 与 `acceptance settle --input` 的「包含未注册字段」错误现在列出具体字段名（2.13.0 已覆盖 plan/knowledge/acceptance 三个 create 输入路径，本次补齐两条 settle 路径）。
+- SKILL 默认规则新增上游补丁纪律：下游 assets-check / plan check 报出引擎自身缺陷时，收尾必须评估是否开上游补丁任务——值得修的登记项目 TODO.md（复现命令、期望行为、涉及版本），不得直接改动下游已安装引擎副本，由用户在上游仓库主动开启补丁任务。
+
+## 2.13.0 - 2026-09-11
+
+- `plan select` 输出新增 `selection_ref`（selection 指纹）并自动把选择结果缓存进本机 `.git/docs-harness/plan-selections/`；`plan create --selection` 现可直接接受 `sha256:<指纹>` 引用该缓存（无 git 环境或缓存未命中时报错附下一步指引），消除下游反复出现的「把 sha256 指纹当文件路径传给 --selection」试错。无 git 环境下缓存静默降级，原文件路径用法不变。
+- `plan select` 新增 `--task <任务描述>`：自动附带相关活跃 Knowledge 事实（`knowledge_hits`，复用 knowledge query 的分词与预算，上限 5 条/2000 字符），把知识复用从「主动记得去查」变为「默认被喂」；不带 `--task` 且项目存在活跃 Knowledge 时输出 `knowledge_hint` 提示。新增 `--query` 误用拦截：报错明确指向 `knowledge query --query`（下游曾把 plan select 当知识查询连试 7 次）。
+- `plan create` / `acceptance create` 新增 `--dry-run`：与正式创建同参数，一次性收集并返回全部输入错误（未注册字段、缺失必填、title/key_symbols、bugfix 校验合同、治理声明、输出路径与已冻结/已存在冲突），`writes: none` 保证零落盘，消除逐字段试错式修复（下游单任务曾连续 6 次校验失败）。真实创建路径仍抛首个错误，报错顺序与文案不变。支撑重构：`plan_governance.collect_bugfix_plan_errors` 与 `acceptance_assets.collect_input_errors`/`collect_create_errors` 改为错误收集器，原校验函数成为「抛首个错误」的薄封装。
+- 结算泄漏预警（下游实证形态：代码已交付但 plan 长期挂「有效」）：assets-check 跨资产关系新增 WARN——关联 Acceptance 已全部结项但 Plan 未 settle；plan check 慢检查新增 C8——横幅为有效但关键符号已全部在 docs/ 之外源码命中，提示 implemented 或 deprecated。两者均为 WARN 级，不动门禁。
+- 报错自解释增强：`plan create`/`knowledge create`/`acceptance create` 的「包含未注册字段」错误现在列出具体字段名。
+- 受管入口（AGENTS.md/CLAUDE.md/插件 managed-entry）同步写明 selection_ref 用法与 --dry-run 预检建议。
+
+## 2.12.3 - 2026-09-09
+
+- 受管入口「结构护栏」新增第 5 条「搜索面收敛」（`scripts/harness.py` 的 `_GENERIC_STANDARDS`，四条改五条）：禁止无界递归检索——不得从仓库根对 `.` 做递归搜索，也不得让工具自行决定范围；路径必须落到本次任务相关的具体目录或文件且够用即止，并排除 `node_modules`、`.git`、构建产物（`dist`/`build`/`out`/`coverage`/`target`/`__pycache__`）、依赖缓存与生成物目录。动机：此前只有「仓库级全量测试」的边界规则，agent 检索路径写宽时无规则可依，实际从仓库根扫 `.`，走进 `node_modules`/`.git`/构建产物/生成目录，扫不出结果还拖慢任务；引擎自身的 `plan_check_walk_files` 剪枝与 `PLAN_CHECK_EXCLUDED_DIRS` 早已按此口径实现，agent 侧缺对应纪律。`AGENTS.md`、`CLAUDE.md` 与插件 `managed-entry.md` 同步刷新。
+
 ## 2.12.2 - 2026-09-09
 
 - 修复 plan check 对「新文档同名取代归档草稿」工作流的误伤（上游合入下游 zbuddy-desktop 103b360 生产验证补丁）：`scripts/harness.py` C2 归档泄漏与 C3 旧路径死链两处循环，当 docs/plans/ 存在同名活文档时跳过该 basename——活索引条目与仓内引用指向的是活文档，不构成泄漏或死链；无同名活文档时原检查不变。新增回归用例覆盖活文档+归档同名场景。
