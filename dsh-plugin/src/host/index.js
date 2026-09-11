@@ -20,7 +20,6 @@
  * @module dsh-docs-harness
  */
 
-import { installSettingsSection, settingsNamespace } from '@deepseek-ai/dsh-settings';
 import z from '@deepseek-ai/schemastery';
 
 import {
@@ -141,11 +140,18 @@ export function apply(ctx, config) {
   };
 
   // Open the gate from the composition entry first: a deployment with no
-  // settings service mounted never calls onChange, and must still work.
+  // settings service mounted never enters the inject below, and must still work.
   reconcile();
-  installSettingsSection(ctx, settingsNamespace(SETTINGS_NAMESPACE), Config, config, {
-    setSource: (current) => { source = current; },
-    onChange: reconcile,
+  // dsh 0.1.5-rc.1 removed the `installSettingsSection` free function; the same
+  // body is now `settings.installSection` on the provider service, so the
+  // namespace is passed as a plain string and the inject is ours to write. The
+  // semantics are unchanged: register this entry as the section's base layer,
+  // swap the config reader for the resolved scope, and reconcile on every edit.
+  ctx.inject(['settings'], (settingsCtx) => {
+    settingsCtx.settings.installSection(ctx, SETTINGS_NAMESPACE, Config, config, {
+      setSource: (current) => { source = current; },
+      onChange: reconcile,
+    });
   });
   // The browser's settings surface. On the PLUGIN fiber, not the governance
   // fiber: this is the master switch's control plane, and the gateway's own

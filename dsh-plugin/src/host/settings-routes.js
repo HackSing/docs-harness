@@ -7,7 +7,7 @@
  * reads and refused on writes ("a future registration does not become remotely
  * readable or writable by default"). The host-side registration still works —
  * values resolve, the reconcile watch fires — so the plugin keeps
- * `installSettingsSection` for the gate and carries the BROWSER's reads and
+ * `settings.installSection` for the gate and carries the BROWSER's reads and
  * writes over its own loopback route instead, exactly the way the project
  * operations already travel.
  *

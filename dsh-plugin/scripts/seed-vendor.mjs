@@ -17,17 +17,19 @@ const PLUGIN_ROOT = path.join(HERE, '..');
 const PARENT_ROOT = path.join(PLUGIN_ROOT, '..');
 const SEED_ROOT = path.join(PLUGIN_ROOT, 'vendor', 'harness');
 
-/** Engine modules `vendor/harness/scripts/harness.py` imports at runtime. */
-const ENGINE_SCRIPTS = [
-  'harness.py',
-  'managed_assets.py',
-  'asset_checks.py',
-  'plan_governance.py',
-  'knowledge_assets.py',
-  'acceptance_assets.py',
-  'adr_assets.py',
-  'script_hygiene.py',
-];
+/**
+ * Engine modules `vendor/harness/scripts/harness.py` imports at runtime: every
+ * `*.py` next to it. Read from the parent rather than listed here — a
+ * hand-kept list silently rots the moment the engine grows a module (2.11.0's
+ * `structure_check.py` was missed exactly that way, and every seed after it
+ * died on ModuleNotFoundError), and the engine's own scripts directory is the
+ * only place that knows what the engine is made of.
+ * @param {string} scriptsDir - the parent engine's scripts directory.
+ * @returns {string[]} the module filenames to copy.
+ */
+function engineScripts(scriptsDir) {
+  return fs.readdirSync(scriptsDir).filter(name => name.endsWith('.py'));
+}
 
 /**
  * @param {string} marker - a file whose absence means the parent is missing.
@@ -42,15 +44,16 @@ function assertParentEngine(marker) {
 }
 
 function main() {
-  assertParentEngine(path.join(PARENT_ROOT, 'scripts', 'harness.py'));
+  const parentScripts = path.join(PARENT_ROOT, 'scripts');
+  assertParentEngine(path.join(parentScripts, 'harness.py'));
   fs.rmSync(SEED_ROOT, { recursive: true, force: true });
 
   const scriptsOut = path.join(SEED_ROOT, 'scripts');
   fs.mkdirSync(scriptsOut, { recursive: true });
-  for (const name of ENGINE_SCRIPTS) {
-    fs.copyFileSync(path.join(PARENT_ROOT, 'scripts', name), path.join(scriptsOut, name));
+  for (const name of engineScripts(parentScripts)) {
+    fs.copyFileSync(path.join(parentScripts, name), path.join(scriptsOut, name));
   }
-  fs.cpSync(path.join(PARENT_ROOT, 'scripts', 'githooks'), path.join(scriptsOut, 'githooks'), { recursive: true });
+  fs.cpSync(path.join(parentScripts, 'githooks'), path.join(scriptsOut, 'githooks'), { recursive: true });
   fs.cpSync(path.join(PARENT_ROOT, 'plan-templates'), path.join(SEED_ROOT, 'plan-templates'), { recursive: true });
 
   console.log(`[seed-vendor] materialized ${SEED_ROOT} from ${PARENT_ROOT}`);

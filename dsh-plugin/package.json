@@ -1,6 +1,6 @@
 {
   "name": "@aiwaretop/dsh-docs-harness",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "Docs Harness for the dsh GUI: project governance rules injected per session, the plan lifecycle as tools, a live plan progress bubble, and user-driven install/upgrade/removal of the Python engine.",
   "type": "module",
   "license": "MIT",
@@ -49,7 +49,7 @@
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
     "@deepseek-ai/dsh-session-projection": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-settings": "^0.1.0-rc.6",
+    "@deepseek-ai/dsh-settings": "^0.1.5-rc.1",
     "@deepseek-ai/dsh-system-prompt": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-tools": "^0.1.0-rc.6",
     "@deepseek-ai/dsh-user-questions": "^0.1.0-rc.6",
