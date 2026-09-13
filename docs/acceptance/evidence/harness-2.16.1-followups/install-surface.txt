@@ -1,0 +1,39 @@
+批 3 证据：安装层 install.surface（2026-09-13）
+方案：docs/plans/harness-2.16.1-followups.json
+现场：全新临时 fixture 项目（scratch），非本仓库。
+
+1) project init
+   status=installed  version=2.16.1
+   .docs-harness/inputs/ 存在；.docs-harness/inputs/.gitignore 内容为 "*"
+
+2) 制造现场：写入 1.x 遗留目录 .docs-harness/task-inputs/old.json
+   与新约定目录下的 .docs-harness/inputs/keep.json
+
+3) project upgrade --apply
+   status=upgraded
+   task-inputs 目录：已被 legacy 清理（LEGACY_RUNTIME_NAMES 含 task-inputs）
+   inputs 目录：仍在；keep.json 仍在（不在 LEGACY_RUNTIME_NAMES，升级不清理）
+   结论：两个目录的清理归属互不干扰，符合合同 §7。
+
+4) project check（fixture）
+   status=passed  red=0  yellow=0
+
+5) 本仓库自身 project upgrade --apply
+   from_version=2.16.0 → to_version=2.16.1，status=needs_delivery（仅因未提交，red=0）
+   changed=['AGENTS.md', 'CLAUDE.md', '.docs-harness/config.json']
+   .docs-harness/inputs/.gitignore：内容与 mtime（14:18:30）均未变
+   → 本仓库的该文件是本次任务开始时手工建的，正好走通"已存在一律不覆盖"这条路径，
+     是该分支的一次真实现场验证（fixture 里另有 test_existing_gitignore_is_never_overwritten 覆盖）。
+   受管区块核对：AGENTS.md 与 CLAUDE.md 均含
+     "## Docs Harness 2.16.1：默认直跑，能力按需"
+     "一次性输入 JSON 写入 `.docs-harness/inputs/`（安装器保证不入库、升级不清理）"
+   project check（本仓库）：red=0 yellow=0，delivery_status=pending_commit
+
+6) npm 包清单
+   package.json files = 42 项，逐项存在（目录项按 is_dir 判），不含 tests/test_v2_direct.py
+   $ npm pack --dry-run
+   npm notice 5.7kB scripts/usage_log.py
+   npm notice 7.8kB scripts/usage_report.py
+   npm notice 23.4kB scripts/structure_check.py
+   npm notice filename: docs-harness-2.16.1.tgz
+   npm notice total files: 51

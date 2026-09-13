@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import unittest
@@ -14,10 +15,17 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness_test_base import HarnessTestBase, ROOT, REQUIRES_SYMLINK
 
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from harness import LEGACY_RUNTIME_NAMES, TASK_INPUTS_RELATIVE  # noqa: E402
+
 
 class ProjectInstallTest(HarnessTestBase):
     def test_project_init_bootstraps_docs_system(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        init = self.run_cli("project", "init", "--target", str(self.project))
+        # fresh init 与 upgrade --apply 共用同一条返回路径：usage 提示只针对
+        # v12→v13 迁移，全新安装不该出现（existing 为 None 即被排除）。
+        self.assertNotIn("notices", init)
         payload = self.run_cli("plan", "check", "--target", str(self.project))
         self.assertEqual(payload["status"], "passed")
         self.assertEqual(payload["failures"], [])
@@ -431,3 +439,52 @@ class ProjectInstallTest(HarnessTestBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TaskInputsDirectoryTest(HarnessTestBase):
+    """2.16.1：一次性输入 JSON 的约定目录 .docs-harness/inputs/。
+
+    此前没有约定位置，1.x 运行态目录 .docs-harness/task-inputs/ 在 LEGACY_RUNTIME_NAMES
+    内会被 project upgrade 清理，2.16.0 任务为此三次重建备份。inputs/ 不在该元组内。
+    """
+
+    def gitignore(self) -> Path:
+        return self.project / TASK_INPUTS_RELATIVE / ".gitignore"
+
+    def test_init_creates_inputs_dir_with_nested_gitignore(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.assertTrue((self.project / TASK_INPUTS_RELATIVE).is_dir())
+        self.assertEqual(self.gitignore().read_text(encoding="utf-8"), "*\n")
+
+    def test_upgrade_creates_inputs_dir_and_never_cleans_it(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        shutil.rmtree(self.project / TASK_INPUTS_RELATIVE)
+        payload = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply"
+        )
+        self.assertIn(f"{TASK_INPUTS_RELATIVE}/.gitignore", payload["changed"])
+        self.assertEqual(self.gitignore().read_text(encoding="utf-8"), "*\n")
+        # task-inputs 是 1.x 运行态目录，继续按 legacy 清理；inputs 不受影响。
+        self.assertIn("task-inputs", LEGACY_RUNTIME_NAMES)
+        self.assertNotIn("inputs", LEGACY_RUNTIME_NAMES)
+
+    def test_existing_gitignore_is_never_overwritten(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.gitignore().write_text("*\n!keep.json\n", encoding="utf-8")
+        payload = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply"
+        )
+        self.assertNotIn(f"{TASK_INPUTS_RELATIVE}/.gitignore", payload["changed"])
+        self.assertEqual(self.gitignore().read_text(encoding="utf-8"), "*\n!keep.json\n")
+
+    def test_inputs_file_is_git_ignored(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.structure_git("init")
+        (self.project / TASK_INPUTS_RELATIVE / "plan-content.json").write_text(
+            "{}\n", encoding="utf-8"
+        )
+        result = subprocess.run(
+            ["git", "check-ignore", "-q", f"{TASK_INPUTS_RELATIVE}/plan-content.json"],
+            cwd=self.project, capture_output=True, check=False,
+        )
+        self.assertEqual(result.returncode, 0, "约定目录下的输入文件必须被 git 忽略")

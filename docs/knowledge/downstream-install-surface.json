@@ -1,0 +1,72 @@
+{
+  "schema_version": "docs-harness/knowledge-asset/v1",
+  "title": "Docs Harness 下游安装面：源包判定、Structure 排除与约定目录",
+  "key_symbols": [
+    "is_source_package",
+    "structure_exempt_paths",
+    "TASK_INPUTS_RELATIVE"
+  ],
+  "summary": "2.16.1 沉淀的下游安装面事实：哪些文件属于 harness 自带而不归下游处置、如何区分源包与下游、一次性输入 JSON 的约定位置，以及 npm 包清单的两道反向守卫。",
+  "facts": [
+    {
+      "id": "downstream.structure.exempt",
+      "statement": "Structure 检查对下游排除 harness 自带文件：scripts/harness.py、全部 MANAGED_MODULE_RELATIVE_FILES 与 scripts/githooks/ 由安装器写入，体量与 CODEMAP 登记都不归下游处置。排除集由 harness.structure_exempt_paths() 单点构造，经 check_structure/structure_report 的 exempt 关键字参数在枚举之后、判定之前整体剔除；受管模块不反向持有安装清单（不能 import harness.py，循环依赖）。_codemap_consistency_warnings 不受 exempt 影响，它校验的是项目自己登记的条目是否失活。githooks 两项当前是空集贡献（pre-commit 无后缀、setup.sh 的 .sh 都不在 structure_check.CODE_SUFFIXES），列入只为与安装面同源。",
+      "source_refs": [
+        "scripts/harness.py",
+        "scripts/structure_check.py",
+        "docs/contracts.md"
+      ]
+    },
+    {
+      "id": "downstream.source.package.detection",
+      "statement": "is_source_package(target) 当且仅当 SKILL.md 的 frontmatter version 与 evals/evals.json 的 version 同时存在时为真——这两个文件是 docs-harness 源包独有，安装器只写 scripts/、plan-templates/、scripts/githooks/、AGENTS.md、CLAUDE.md、.docs-harness/config.json 与 docs/ 骨架（见 portable_install_paths），永不写它们。不看 package.json 与 VERSION（任意 npm 或前端下游都可能有，判别式过弱），也不看 plan-templates（本就是被安装的）。源包不排除是守卫所在：排除了就丢掉新增受管模块未登记 CODEMAP 这道检查。",
+      "source_refs": [
+        "scripts/harness.py",
+        "tests/test_structure.py",
+        "docs/contracts.md"
+      ]
+    },
+    {
+      "id": "downstream.source.detection.failure.semantics",
+      "statement": "is_source_package 只读那两个标记文件，刻意不复用整个 read_version_sources：后者另读 package.json 与 8 个 plan-templates JSON 且全部走 read_json，而 read_json 把 OSError/UnicodeDecodeError/JSONDecodeError 一律映射成 HarnessError。整体复用会让下游一个编辑中途的 package.json 就令 structure check 与 pre-commit 的 assets-check --fast 报错——结构检查此前根本不读 package.json，那是 2.16.0 没有的新崩溃面。标记文件不可读的三种形态一律判为不是源包而非报错：evals.json 非法 JSON（HarnessError）、SKILL.md 非 UTF-8（UnicodeDecodeError）、权限或 IO 故障（OSError）。这不是吞错——分类器的语义里标记不可读就等于没有标记，而 release sync 链路上同样的损坏必须炸，两个调用方两份契约。两处共用从 read_version_sources 纯搬移出的 _skill_version/_evals_version。",
+      "source_refs": [
+        "scripts/harness.py",
+        "tests/test_structure.py",
+        "tests/test_release_version_sync.py"
+      ]
+    },
+    {
+      "id": "downstream.task.inputs.dir",
+      "statement": "一次性输入 JSON（plan create --content、plan settle --governance-input、knowledge/acceptance/adr 的 --input）的约定位置是 .docs-harness/inputs/，常量 harness.TASK_INPUTS_RELATIVE 单一来源。project init 与 upgrade 都经 apply_task_inputs_dir() 确保目录存在并落一个内容为 * 的嵌套 .gitignore，已存在则一律不覆盖。它既满足输入文件必须位于项目内的要求又不入库，且不在 LEGACY_RUNTIME_NAMES 内、升级不清理；1.x 运行态目录 .docs-harness/task-inputs/ 仍按 legacy 清除，两者不做迁移。嵌套 .gitignore 写法与 usage_log._GITIGNORE_CONTENT 同口径，是该写法的第 2 次出现，两处各自保留并互相指向，第 3 次出现时才抽公共函数。",
+      "source_refs": [
+        "scripts/harness.py",
+        "scripts/usage_log.py",
+        "docs/contracts.md"
+      ]
+    },
+    {
+      "id": "downstream.package.files.guards",
+      "statement": "package.json 的 files 清单由两条方向相反、不合并的守卫夹住（tests/test_cli_surface.py）：test_package_files_cover_every_managed_module 从真源 MANAGED_MODULE_RELATIVE_FILES 查漏项（漏项只在下游 npm 安装后炸成 ModuleNotFoundError，本仓库测试全绿，同类缺陷已出现三次）；test_package_files_entries_all_exist 从清单查死项（npm pack 对不存在的条目静默跳过，清单可以无限期腐烂，2.16.1 清掉了长期存在的 tests/test_v2_direct.py）。目录项以 / 结尾按 is_dir() 判，其余按 exists() 判。",
+      "source_refs": [
+        "tests/test_cli_surface.py",
+        "package.json",
+        "scripts/harness.py"
+      ]
+    },
+    {
+      "id": "downstream.codemap.scope",
+      "statement": "下游 CODEMAP 只登记下游自己的代码，不登记 harness 自带模块。2.16.0 曾考虑由安装器代下游登记受管模块，被否：那等于把源包的实现细节钉进下游的复用索引，且模块清单每次变更都要改所有下游 CODEMAP，排除比代登记轻。project init 写入的 CODEMAP_SCAFFOLD 是零条目的空骨架。",
+      "source_refs": [
+        "scripts/structure_check.py",
+        "docs/plans/harness-2.16.1-followups.json",
+        "TODO.md"
+      ]
+    }
+  ],
+  "status": "active",
+  "revision": 1,
+  "revision_history": [],
+  "created_at": "2026-09-13T06:50:33+00:00",
+  "updated_at": "2026-09-13T06:50:33+00:00",
+  "asset_fingerprint": "sha256:feff59d3c4a6387826565a8c6d9cc71a142ed47ea4c84de4cfd1910432ea6bc3"
+}

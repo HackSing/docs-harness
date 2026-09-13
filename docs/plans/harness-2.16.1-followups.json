@@ -1,0 +1,126 @@
+{
+  "schema_version": "docs-harness/plan/v3",
+  "plan_level": "full",
+  "plan_profile": "general",
+  "secondary_profiles": [],
+  "template_versions": [
+    "level/full@2.16.0",
+    "profile/general@2.16.0"
+  ],
+  "selection_fingerprint": "sha256:13f439edaed50756dcfb6bef3183e54dd99a74a2ba4b88497721a5174616d709",
+  "content": {
+    "title": "2.16.1 收尾四项：下游结构检查排除受管文件、包清单守卫、inputs 目录约定、usage 默认开启提示",
+    "key_symbols": [
+      "is_source_package",
+      "TASK_INPUTS_RELATIVE",
+      "usage_enabled_notices"
+    ],
+    "background": "2.16.0 发布后升级 10 个下游项目，暴露四个收尾缺陷，已全部登记 TODO.md 待办区：(1) Structure checker 把安装器写入的 harness.py 与受管模块当成下游自己的代码，suiyi/opc-skills/zbuddy-desktop 升级后 structure check 的 WARN 几乎全是 harness 内部文件的体量与未登记告警，下游无法处置也不该处置；(2) package.json 的 files 含死条目 tests/test_v2_direct.py，2.16.0 新增的守卫只查受管模块漏项不查死项；(3) 一次性输入 JSON 没有约定位置，1.x 运行态目录 .docs-harness/task-inputs/ 在 LEGACY_RUNTIME_NAMES 内会被 project upgrade 清理，2.16.0 任务为此三次重建备份；(4) usage_log 在 config v13 默认开启，下游 upgrade 后即开始记录，但升级输出没有一次性提示，知情渠道只有 CHANGELOG/contracts §9/ADR。四项互不耦合，共同点是都只在下游真实安装面上才暴露，源包自测全绿。",
+    "objective": "让 2.16.0 的下游升级面回到可用状态：下游运行 structure check 只看到自己的代码、npm 包清单自带存在性守卫、一次性输入 JSON 有既在项目内又不被清理又不入库的约定位置、首次开启 usage 观测时升级输出自带一次性告知。交付物为 scripts/structure_check.py 的排除集参数、scripts/harness.py 的 is_source_package 与 TASK_INPUTS_RELATIVE 与 usage_enabled_notices、package.json 清理与 tests/test_cli_surface.py 守卫扩条、安装器的 inputs 目录落盘、受管入口模板一句话与 contracts §5/§7 合同更新，版本发布为 2.16.1。",
+    "non_goals": [
+      "不做 scripts/harness.py 的 4675 行体量债整理：另开专门任务，以 structure report 拿存量清单后按职责拆分（候选方向：安装/升级编排、plan check、usage 埋点）。本方案的第 1 项落地后下游不再感知该债，剩余影响收敛为本仓库在未提交状态下 assets-check --strict 恒退 1 这一条源包内部现象，不阻塞任何下游，因此不在收尾任务里顺手重构（结构护栏第 4 条存量债走定期整理、防御代码准入第 3 条不顺手加固）。",
+      "不由安装器代下游登记 CODEMAP：TODO 条目里列的备选方案。安装器往下游 docs/CODEMAP.md 写 harness 自己的模块条目，等于把源包的实现细节钉进下游的复用索引，且模块清单每次变更都要改所有下游 CODEMAP。排除比代登记轻。",
+      "不改 structure_check 的任何阈值与判定规则：FILE_RED_LINE / FUNC_RED_LINE / OVERSIZE_FILE_GROWTH_ALERT / FUNC_GROWTH_ALERT 与 _file_size_warnings / _function_warnings / _codemap_consistency_warnings 的逻辑一字不动，本次只在输入集合上做过滤。",
+      "不给 .docs-harness/inputs/ 加任何生命周期管理：不自动清理、不做保留期、不做索引。它只是一个约定位置加一个嵌套 .gitignore。",
+      "不动 .docs-harness/task-inputs/ 的 legacy 清理行为：它是 1.x 运行态目录，继续按 LEGACY_RUNTIME_NAMES 清理，不做兼容迁移、不把旧文件搬到新目录。",
+      "不把 usage 提示做成交互确认或门禁：只是 payload 里的一条字符串，不改退出码、不阻塞升级、不新增配置键。",
+      "不改 usage_log 的默认值：USAGE_LOG_DEFAULT_ENABLED 保持 true，本项只补告知，不改默认。",
+      "不改 npm 包的 files 清单口径：只删死条目、只加存在性断言，不新增也不移除任何有效条目。"
+    ],
+    "success_criteria": [
+      "下游型现场（已提交旧版 harness.py 的项目，upgrade 到新版本后）运行 structure check 的 warnings 为空、structure report 的 files_over_red_line / functions_over_red_line / codemap.unregistered_files 三处均不含 scripts/harness.py 与任何受管模块路径。",
+      "源包型现场（含 SKILL.md frontmatter version 与 evals/evals.json）同样操作后 harness.py 与受管模块的体量与登记 WARN 全部保留，排除逻辑不生效——新增受管模块未登记 CODEMAP 这道守卫不被本次改动削弱。",
+      "python3 scripts/harness.py structure check 与 assets-check 的 Structure checker 走同一条排除判定，两处输出对同一目标逐字一致。",
+      "下游型现场里 (a) package.json 非法 JSON、(b) SKILL.md 为非 UTF-8 字节 两种情况下，structure check 均正常输出且 warnings 为空、退出码 0；assets-check --fast 的 Structure 段不因这两个文件报错。这是对 is_source_package 若整体复用 read_version_sources 就会引入的新崩溃面的回归守卫。",
+      "package.json 的 files 无死条目：tests/test_v2_direct.py 已删除；tests/test_cli_surface.py 新增断言对 files 每一项做存在性检查（以 / 结尾按目录判、其余按文件判），在死条目复现时直接红。",
+      "project init 与 project upgrade --apply 后 .docs-harness/inputs/ 存在且含内容恰为 * 的 .gitignore；已存在的 .gitignore 不被覆盖；git check-ignore 对该目录下的输入文件命中；project upgrade 的 legacy 清理不删除该目录。",
+      "从 v12 config 项目 upgrade（预览与 --apply 两条路径）payload 均含 notices 且文案含日志位置、不入库不外发、关闭方法三要素；已是 v13 的项目再次 upgrade 两条路径均无 notices 键；fresh project init 无 notices 键。",
+      "受管入口模板 _managed_content 的输入 JSON 那一条末尾出现 .docs-harness/inputs/ 约定，本仓库 AGENTS.md/CLAUDE.md 受管区块随 project upgrade --apply 同步更新。",
+      "版本一致性：scripts/harness.py 的 VERSION 为 2.16.1，release sync --strict 退 0，CHANGELOG 顶部为 2.16.1。",
+      "全量 python3 -m unittest discover -s tests -p test_*.py 全绿；self-test status=passed；assets-check --strict 除预期 Structure WARN 外无 FAIL。"
+    ],
+    "execution_scope": [
+      "修改 scripts/structure_check.py：check_structure 与 structure_report 各加一个关键字参数 exempt，在拿到 changed / files 之后、进入任何判定之前过滤；不改阈值、不改任一 _*_warnings 函数。",
+      "修改 scripts/harness.py：从 read_version_sources 纯搬移抽出 _skill_version() 与 _evals_version() 两个模块级私有函数（read_version_sources 改为调用它们，行为一字不变，由 tests/test_release_version_sync.py 与 release sync --strict 守住）；新增 is_source_package()、structure_exempt_paths()、TASK_INPUTS_RELATIVE 常量、apply_task_inputs_dir()、usage_enabled_notices() 与 USAGE_ENABLED_NOTICE 文案；改 command_structure 与 command_assets_check 两个调用点；改 apply_project_install 落 inputs 目录；改 command_project 的 upgrade 预览与 apply 两条返回；改 _managed_content 的输入 JSON 那一条；VERSION 升 2.16.1。",
+      "修改 package.json：files 删 tests/test_v2_direct.py（其余 42 项已逐项核实存在）。",
+      "修改 tests/test_structure.py：新增下游型与源包型两个现场用例。",
+      "修改 tests/test_cli_surface.py：新增 files 每项存在性断言。",
+      "修改 tests/test_project_install.py：init 与 upgrade 各一条 inputs 目录与 .gitignore 断言，外加已存在 .gitignore 不覆盖一条。",
+      "修改 tests/test_project_upgrade.py：v12 升级出 notice、v13 再升级不出 notice 两条。",
+      "修改 docs/contracts.md（§5 写明 Structure 排除口径与源包判定、§7 安装合同列表加 .docs-harness/inputs/ 一项）、docs/CODEMAP.md（harness.py 条目公开接口加 is_source_package）、CHANGELOG.md（新增 ## 2.16.1 章节）、TODO.md（四条待办勾销、第五条体量债保留）。",
+      "Knowledge：更新既有 docs/knowledge/usage-observability.json（第 4 项属该资产的事实面）并新建一条下游安装面 Knowledge 承载第 1、3 项（理由见约束）。",
+      "版本同步：先改 scripts/harness.py 的 VERSION 常量，再 release sync --apply --target-version 2.16.1 同步 VERSION 文件 / SKILL.md / package.json / plan-templates / evals，不手改从源。",
+      "范围外：不改 usage_log.py / usage_report.py / managed_assets.py / asset_checks.py / plan_governance.py / knowledge_assets.py / acceptance_assets.py / adr_assets.py / script_hygiene.py / structure_ts_functions.cjs 任一受管模块；不改 LEGACY_RUNTIME_NAMES；不改 CONFIG_SCHEMA（本次不新增 config 键，v13 不变）。"
+    ],
+    "implementation": [
+      "批 1｜Structure 排除（第 1 项）：structure_check.check_structure(target, *, exempt=frozenset()) 与 structure_report(target, *, exempt=frozenset()) 加参数并在源头过滤；harness.py 新增 is_source_package() 与 structure_exempt_paths()；command_structure 与 command_assets_check 两个调用点各传 exempt；tests/test_structure.py 加下游型与源包型两个现场。验证点：python3 -m unittest tests.test_structure tests.test_assets_check；python3 scripts/harness.py structure check。改完验证锁定再进下一批。",
+      "批 2｜包清单守卫与 usage 提示（第 2 + 第 4 项）：package.json 删死条目；tests/test_cli_surface.py 加存在性断言；harness.py 新增 usage_enabled_notices() 并在 command_project 的 upgrade 预览与 apply 两条返回里各加一行条件展开（本体净增 ≤ 4 行）；tests/test_project_upgrade.py 加两条。两项同批的理由：都只改 harness.py 尾部与测试、互不触碰对方代码路径，且都不影响批 1 与批 3 的文件。验证点：python3 -m unittest tests.test_cli_surface tests.test_project_upgrade；python3 scripts/harness.py self-test。改完验证锁定再进下一批。",
+      "批 3｜inputs 约定与发布收尾（第 3 项 + 收尾）：harness.py 加 TASK_INPUTS_RELATIVE 常量与 apply_project_install 的目录落盘（抽成模块级小函数以压住 apply_project_install 的函数增长，见 module_interfaces）、_managed_content 追加一句；tests/test_project_install.py 加三条；contracts §5/§7、CODEMAP、CHANGELOG、TODO 更新；VERSION 升 2.16.1 后 release sync --apply --target-version 2.16.1 再 release sync --strict；本仓库 project upgrade --apply 同步受管区块；Knowledge 更新与新建；acceptance settle；plan settle --status implemented --governance-input。验证点：全量 python3 -m unittest discover -s tests -p test_*.py；assets-check --strict（预期只剩 Structure WARN，因对比 HEAD 且本批未提交）；plan check。",
+      "三批均不含不可逆动作：不删用户文件、不改用户根 .gitignore、不动 LEGACY_RUNTIME_NAMES、不改既有受管模块。每批可独立 git revert。"
+    ],
+    "module_interfaces": [
+      "scripts/structure_check.py check_structure(target: Path, *, exempt: frozenset[str] = frozenset()) -> dict[str, Any]（修改签名）— 契约：在 _changed_code_files(target) 返回 changed 之后、任何判定之前执行 changed = {k: v for k, v in changed.items() if k not in exempt}，此后 sources / _file_size_warnings / _collect_function_spans / _function_warnings / _codemap_registration_warnings 与 checked 计数全部作用在过滤后的集合上。exempt 为 POSIX 相对路径字符串集合，与 changed 的键同口径（_changed_code_files 的键来自 git diff --name-status -z 与 git ls-files，均为仓库根相对 POSIX 路径）。_codemap_consistency_warnings 不受 exempt 影响：它校验的是 CODEMAP 里已登记条目的路径存在性与符号存活性，登记与否是下游自己的选择，排除的语义是不替下游管 harness 的文件、不是屏蔽下游自己写的条目。默认值 frozenset() 保持既有调用行为不变。",
+      "scripts/structure_check.py structure_report(target: Path, *, exempt: frozenset[str] = frozenset()) -> dict[str, Any]（修改签名）— 契约：在 _stock_code_files(target) 返回 files 之后立即 files = [r for r in files if r not in exempt]，此后 oversized_files / oversized_functions / unregistered / checked / summary 全部作用在过滤后的列表上。与 check_structure 同一过滤位置、同一路径口径，两处不各写一份判定。",
+      "scripts/harness.py _skill_version(root: Path) -> str | None 与 _evals_version(root: Path) -> str | None（新增，纯搬移）— 契约：各自就是 read_version_sources 现有的两段（SKILL.md frontmatter 的 version；evals/evals.json 顶层 version 字符串），文件不存在或字段缺失/非字符串返回 None，行为一字不变；read_version_sources 改为调用它们，其返回 dict 的 skill / evals 两项取值与搬移前完全一致。搬移的守卫是既有的 tests/test_release_version_sync.py 与 release sync --strict——两者逐项比对六个版本源，任何行为漂移直接红。抛出面按现状保留、不新加 try：_skill_version 的 read_text 可抛 OSError 与 UnicodeDecodeError（注意它不走 read_json，因此不是 HarnessError；parse_frontmatter 是纯字符串处理，对任意 str 输入都不抛），_evals_version 经 read_json 抛 HarnessError(code=invalid_json)。",
+      "scripts/harness.py is_source_package(target: Path) -> bool（新增）— 契约：只读源包自己才有的两个标记文件，return _skill_version(target) is not None and _evals_version(target) is not None，外层 except (HarnessError, OSError, UnicodeDecodeError): return False。不复用 read_version_sources 整体：它另读 package.json 与 8 个 plan-templates JSON，全部走 read_json，而 read_json 对 OSError/UnicodeDecodeError/JSONDecodeError 一律抛 HarnessError(invalid_json)。下游任一 package.json 或模板 JSON 损坏（前端项目编辑中途的 package.json 很常见）就会让 structure check 与 pre-commit 的 assets-check --fast 因一个与结构检查无关的文件直接报错——这是 2.16.0 没有的新崩溃面，结构检查此前根本不读 package.json。收敛后少读 9 个 JSON，失败面只剩源包自己的两个标记文件。捕获异常不是吞错：is_source_package 是分类器，标记文件不可读在语义上就等于不是源包标记；与 release sync 里源包标记损坏必须炸是两个调用方的两份契约，理由写进 docstring。捕获清单按实际抛出面逐项列出（HarnessError 来自 _evals_version 的 read_json，OSError 与 UnicodeDecodeError 来自 _skill_version 的 read_text），不写裸 except Exception。判定依据：只有 docs-harness 源包同时具备 SKILL.md 的 frontmatter version 与 evals/evals.json 的 version；下游安装面只写入 scripts/、plan-templates/、scripts/githooks/、AGENTS.md、CLAUDE.md、.docs-harness/config.json 与 docs/ 骨架（见 portable_install_paths），永远不写 SKILL.md 与 evals/，已核实三个下游均无这两项；package 与 templates 两项绝不能参与判定——npm 下游必有自己的 package.json version，plan-templates 又是被安装的。不复用 command_self_test 里的 source_distribution 局部判定：那一条判的是 SCRIPT_ROOT（控制器自身所在的分发目录）而非 target，且用 VERSION/SKILL.md/package.json 三个文件的存在性——VERSION 与 package.json 在任意 npm 或前端下游项目里都可能存在，作为下游/源包判别式过弱。两者是不同问题的不同判定，本次不合并（编码质量规范第 10 条：两次重复保持原样，第三次才抽）。 docstring 必须逐项列出被判为非源包的三种不可读形态（已实测，不是推测）：(a) evals/evals.json 非法 JSON 或不可读 → read_json 抛 HarnessError(invalid_json)；(b) SKILL.md 非 UTF-8 字节 → read_text 抛 UnicodeDecodeError；(c) 两个文件的权限/IO 故障 → OSError。frontmatter 畸形不在此列：parse_frontmatter 是纯字符串处理，对任何输入都只返回 ({}, text) 从不抛，该形态经 metadata.get('version') 自然返回 None，走正常的非源包分支。",
+      "scripts/harness.py structure_exempt_paths(target: Path) -> frozenset[str]（新增）— 契约：is_source_package(target) 为真时返回 frozenset()，否则返回 frozenset({'scripts/harness.py'}) | {f'scripts/{m}' for m in MANAGED_MODULE_RELATIVE_FILES} | {f'{GIT_HOOKS_RELATIVE}/{h}' for h in GIT_HOOK_RELATIVE_FILES}。排除集在 harness.py 单点构造，受管模块不反向 import harness.py（循环依赖），structure_check 不复制清单。githooks 两项按已核实的事实是当前的空集贡献（pre-commit 无后缀、setup.sh 的 .sh 都不在 structure_check.CODE_SUFFIXES，永远进不了 changed），仍然列入以保持排除集与安装面清单同源——未来任一钩子改成带代码后缀的文件时不需要再想起补这里。",
+      "scripts/harness.py command_structure(args)（修改）— 两条返回各多算一次 exempt = structure_exempt_paths(target) 并传参；命令行不暴露任何开关，排除与否完全由目标是不是源包决定，下游没有误用面。",
+      "scripts/harness.py command_assets_check(args)（修改）— structure_checker 由裸函数引用改为闭包 lambda current: check_structure(current, exempt=structure_exempt_paths(current))，与同处已有的 plan_checker lambda 同形；asset_checks.run_assets_check 的 AssetChecker 协议（单参 target）与 _run_asset_checker 不变，不改任何受管模块。",
+      "scripts/harness.py TASK_INPUTS_RELATIVE = '.docs-harness/inputs'（新增常量）— 一次性输入 JSON（plan create --content、plan settle --governance-input、knowledge create/update --input、acceptance create/record --input、adr create --input）的约定位置，单一来源；安装器与 _managed_content 文案都引用它，不在任何分支里硬编码字面量（编码质量规范第 9 条）。与 usage_log.USAGE_DIR_RELATIVE 并列为 .docs-harness 下的两个受管子目录。",
+      "scripts/harness.py apply_task_inputs_dir(target: Path) -> list[str]（新增）— 契约：确保 <target>/.docs-harness/inputs/ 存在，且目录内 .gitignore 存在且内容为 '*\\n'；已存在的 .gitignore 一律不覆盖（用户可能改过）；返回本次实际写入的相对路径列表，供 apply_project_install 拼进 changed。抽成独立函数而非内联的理由有二：apply_project_install 现为 79 行、已超 FUNC_RED_LINE(60)，净增 >= FUNC_GROWTH_ALERT(10) 行即触发 WARN，内联写法约 8-10 行贴着阈值；且目录落盘是可独立测试的 IO 子步骤，与安装编排是两个职责（编码质量规范第 3 条分层隔离）。本函数是嵌套 .gitignore 写法的第 2 次出现（第 1 次在 scripts/usage_log.py 的 _GITIGNORE_CONTENT 与 append_event 首写逻辑），按编码质量规范第 2 条与第 10 条两次不抽，两处各自保留并在注释里互相指向；第 3 次出现时抽公共函数。",
+      "scripts/harness.py usage_enabled_notices(existing: dict[str, Any] | None, enabled: bool) -> list[str]（新增）— 契约：当且仅当 existing 是非空 dict、'usage_log' not in existing、且 enabled 为 True 时返回单元素列表 [USAGE_ENABLED_NOTICE]，否则返回 []。existing 必须非空 dict 是 fresh init 不出提示的判据（project_config 对未安装目标返回 None）；'usage_log' not in existing 把范围锁死在 v12 及更早 → v13 这一次迁移，v13 再升级时该键已在，返回空。调用方按 **({'notices': n} if n else {}) 展开，不写空键、不写 null，与仓库既有空值口径一致。文案常量 USAGE_ENABLED_NOTICE 单点定义，含三要素：日志位置 .docs-harness/usage/YYYY-MM.jsonl、只在本地不入库不外发、关闭方法把 .docs-harness/config.json 的 usage_log.enabled 改为 false。",
+      "scripts/harness.py command_project(args)（修改）— upgrade 预览与 apply 两条返回各加两行：先 notices = usage_enabled_notices(existing, <enabled>)，再在 dict 字面量里展开 **({'notices': notices} if notices else {})。不引入 usage_notice_payload 之类的包装层，也不用海象表达式——本仓库 scripts/harness.py 现有 0 处 := ，没有先例的写法不在收尾任务里开先河。预览侧 <enabled> 取 USAGE_LOG_DEFAULT_ENABLED，依据是 existing 缺 usage_log 键时 v2_config（harness.py 2725-2744）必然回落该常量，取值确定；apply 侧取 bool(project_config(target).get('usage_log', {}).get('enabled'))，读的是刚写完的新 config。existing 在两条路径上都已是升级前的配置（读取发生在 apply_project_install 之前，已核对 3436 行），无需另存。command_project 现为 217 行、已超红线，本体净增 4 行，远低于 FUNC_GROWTH_ALERT(10)。",
+      "scripts/harness.py _managed_content(target)（修改）— 在 'Plan/Knowledge/Acceptance/ADR 输入 JSON 必须携带各自 schema_version…' 那一条末尾追加一句：一次性输入 JSON 写入 `.docs-harness/inputs/`（安装器保证不入库、升级不清理）。提示词与代码流程同步第 2、5 条：代码新建了目录并保证其不被清理，提示词必须说明模型该往哪写、不必自己找位置。该改动会让所有下游下次 upgrade 的 AGENTS.md/CLAUDE.md 受管区块出现 diff，属 2.16.1 发布的正常代价。",
+      "tests/test_structure.py（修改）— 新增两个现场用例，复用 HarnessTestBase 既有的 structure_git / structure_commit_all / write_lines / run_cli / run_installed 与 project init 流程，不新增测试基类方法。下游型：临时项目 project init（安装器写入 harness.py 与受管模块）→ 把当前 harness.py 截短为一份小文件后 structure_commit_all（制造 HEAD 里有旧版本的现场）→ 还原为真实 harness.py → structure check 断言 warnings 为空、structure report 断言三处清单不含 harness.py 与受管模块。源包型：在同一现场额外写入带 frontmatter version 的 SKILL.md 与 evals/evals.json → 同样操作后断言 harness.py 的体量 WARN 与 unregistered 条目仍在。两个用例共用一个私有 setup 辅助方法，不复制粘贴现场构造代码（编码质量规范第 2 条）。 另加两个容错现场，守住 is_source_package 的读取失败面（这是整体复用 read_version_sources 会引入、收敛后必须不再出现的崩溃面）：下游型现场里 (1) 把 package.json 写成非法 JSON、(2) 把 SKILL.md 写成非 UTF-8 字节（如 b'\\xff\\xfe---\\n'），两种情况下 structure check 均正常输出、warnings 为空、退出码 0。第 (2) 条同时确认 SKILL.md 不可读被当作非源包而不是崩溃。",
+      "tests/test_cli_surface.py（修改）— 在既有 test_package_files_cover_every_managed_module 旁新增 test_package_files_entries_all_exist：逐项断言 ROOT / entry 存在，entry 以 '/' 结尾时按 is_dir() 判、否则按 exists() 判；失败消息列出全部死条目。两条守卫互补：一条防漏项（真源 → 清单），一条防死项（清单 → 磁盘），不合并成一条。",
+      "tests/test_project_install.py 与 tests/test_project_upgrade.py（修改）— 分别覆盖 inputs 目录落盘（init 一条、upgrade 一条、已存在 .gitignore 不覆盖一条）与 usage notices（v12 升级出、v13 再升级不出，预览与 apply 两条路径各断言）。沿用两个文件既有的 fixture 与断言风格，不新增辅助层。"
+    ],
+    "acceptance_plan": [
+      "四层与 acceptance_assets.ACCEPTANCE_EVIDENCE_LAYERS 的映射（criteria id 与层级以此为准，不自造标签）：contract.suite = contract_check / L1 / 无 evidence_layer；runtime.downstream = behavior_acceptance / local_runtime / L3；install.surface = behavior_acceptance / package_or_install / L4；release.consistency = contract_check / L1 / 无 evidence_layer。",
+      "合同层 contract.suite（contract_check / L1）：python3 -m unittest discover -s tests -p test_*.py 全绿（含 test_structure / test_cli_surface / test_project_install / test_project_upgrade 四个文件的新增用例）；python3 scripts/harness.py self-test status=passed；python3 scripts/harness.py assets-check --strict 除预期 Structure WARN 外无 FAIL。",
+      "运行层 runtime.downstream（behavior_acceptance / local_runtime / L3）：在临时 scratch 项目真实跑 project init → 提交一份旧版 harness.py 进 HEAD → 覆盖为 2.16.1 版本 → structure check 输出 warnings 为空、structure report 三处清单不含 harness.py 与任一受管模块；同一目录加 SKILL.md（frontmatter version）与 evals/evals.json 后重跑，WARN 与 unregistered 条目恢复出现；assets-check 的 Structure 段与 structure check 逐字一致；用 v12 config 的 scratch 项目跑 project upgrade（不带 --apply）与 project upgrade --apply，两条输出均含 notices 且文案三要素齐全，再跑一次 upgrade 无 notices；.docs-harness/inputs/ 与其 .gitignore 落盘且 git check-ignore 对目录下的输入文件命中。",
+      "安装层 install.surface（behavior_acceptance / package_or_install / L4）：project init 到全新 fixture 项目后 project check 零 finding；project upgrade --apply 从 v12 项目迁移且 .docs-harness/task-inputs/ 仍按 legacy 被清理、.docs-harness/inputs/ 不被清理；package.json 的 files 43→42 项逐项存在（目录项按目录判）；npm pack --dry-run 的文件清单含 scripts/usage_log.py 与 scripts/usage_report.py 两个受管模块且不含已删死条目；project uninstall 行为不变。",
+      "发布层 release.consistency（contract_check / L1）：scripts/harness.py 的 VERSION 改为 2.16.1 后运行 release sync --apply --target-version 2.16.1，再运行 release sync --strict 退 0；CHANGELOG 顶部版本为 2.16.1；本仓库 project upgrade --apply 后 AGENTS.md/CLAUDE.md 受管区块含新增的 inputs 一句且版本号为 2.16.1；plan check 退 0（本方案横幅与 docs/INDEX.md 符号镜像完成）。",
+      "不能自验收的层：无。四项全部可在本地 Python 与临时 fixture 项目内真实运行，不需要用户代跑。下游真实仓库的升级验证不列入本方案验收范围——那是发布后的独立动作，本方案只保证下游型现场在 fixture 内可复现。"
+    ],
+    "acceptance_required": true,
+    "knowledge_impact": "updated",
+    "constraints": [
+      "零第三方依赖：只用 Python 3 标准库，harness 自身零依赖边界不破（编码质量规范第 7 条不擅自加依赖）。",
+      "编码质量规范第 1 条先复用（已搜索 scripts/ 与 tests/ 全部文件）：is_source_package 复用的是从 read_version_sources 纯搬移出来的 _skill_version 与 _evals_version 两个函数，而不是 read_version_sources 整体——整体复用会把 package.json 与 8 个模板 JSON 的 read_json 崩溃面带进结构检查（理由见 module_interfaces），搬移后两个调用方共用同一份读取逻辑，不存在平行实现；portable_install_paths 的路径拼法被 structure_exempt_paths 沿用同一口径，但不直接复用其返回值——它含 AGENTS.md/config.json/docs 索引等非代码路径，排除集只需代码文件面；command_assets_check 既有的 plan_checker lambda 写法被 structure_checker 复用；usage_log 的嵌套 .gitignore 写法被 apply_task_inputs_dir 复用为同口径的第 2 次实现（按第 2 条两次不抽）；HarnessTestBase 的 structure_git / structure_commit_all / write_lines / run_cli / run_installed 被新增用例复用，不新增测试基类方法。未能复用的一处：command_self_test 的 source_distribution 局部判定，理由见 module_interfaces 的 is_source_package 条目。",
+      "编码质量规范第 9 条业务默认值单一来源：TASK_INPUTS_RELATIVE 与 USAGE_ENABLED_NOTICE 各自只在一处赋值；排除集只在 structure_exempt_paths 一处构造；structure_check 的 exempt 默认值 frozenset() 是行为中性的空集，不是业务默认值。",
+      "编码质量规范第 5 条体量预警：apply_project_install(79 行) 与 command_project(217 行) 均已超 FUNC_RED_LINE(60)，本次对两者的净增分别控制在 apply_project_install ≤ 2 行（只加一次 changed.extend 调用）与 command_project ≤ 4 行，都低于 FUNC_GROWTH_ALERT(10)；不为满足行数阈值机械切割它们，拆分走存量债专门任务。",
+      "编码质量规范第 6 条错误不许吞：apply_task_inputs_dir 的 mkdir 与写入不做 try/except 吞错——安装器的写入失败必须炸，与 usage_log.append_event 的 best-effort 豁免（附属观察路径）是不同性质的路径，不沿用那条豁免。",
+      "防御代码准入第 1 条证据准入：exempt 过滤有可复现运行证据（三个下游升级后的实际 WARN 输出，TODO.md 已登记复现步骤）；is_source_package 的判据有已核实事实（下游安装面不含 SKILL.md 与 evals/，portable_install_paths 可查）；usage notices 的触发条件有明确的 config 键存在性判据，不做任何无证据兜底。",
+      "防御代码准入第 2 条边界一次校验：exempt 在 harness.py 边界构造一次，structure_check 内部信任其为 POSIX 相对路径集合，不在过滤处再做规范化或路径重算。",
+      "结构护栏第 1 条动手前查 CODEMAP：批 1 与批 3 动手前查 docs/CODEMAP.md 定位可复用模块；本次不新增代码文件，只有 harness.py 条目的公开接口新增 is_source_package 需要同批更新（structure_exempt_paths / apply_task_inputs_dir / usage_enabled_notices 是模块内协作函数，按 CODEMAP 只登记唯一性强的公开接口的既有口径，不逐个列入）。",
+      "结构护栏第 5 条搜索面收敛：本任务检索限定 scripts/、tests/、docs/、CHANGELOG.md、package.json、TODO.md，排除 node_modules、__pycache__、.git、.qoder、dsh-plugin/vendor。",
+      "提示词与代码流程同步第 2、5 条：本次代码新建 .docs-harness/inputs/ 并保证其不被清理，_managed_content 必须同批说明写入位置；改完受管模板后本仓库 project upgrade --apply 使 AGENTS.md/CLAUDE.md 与模板一致。"
+    ],
+    "risks_and_rollback": [
+      "is_source_package 是启发式判定，不是权威标记：判据为 read_version_sources 的 skill 与 evals 同时非 None。误判方向一：源包若删除或改坏 SKILL.md frontmatter version 或 evals/evals.json 的 version 字段，本仓库会被当成下游，从而静默失去新增受管模块未登记 CODEMAP 这道守卫。补救与早期发现：release sync --strict 已要求六个版本源一致，缺失或非法版本会在发布前直接退非 0；此外源包型 fixture 用例直接断言排除不生效，判定被改坏时该用例红。误判方向二：下游若自建 SKILL.md 与 evals/evals.json（例如同样是 Claude Skill 的项目）会被当成源包而重新看到 harness 文件的 WARN——退化为 2.16.0 的现状，不产生新危害，且下游可自行删除 exempt 之外的干扰；若实际发生，再引入显式标记（如 config.json 的 role 键）而不是加更多启发式判据。",
+      "avatanel 下游已把 59 个一次性输入文件提交进 .docs-harness/inputs/（升级前该路径已被该项目自行使用）。加嵌套 .gitignore 后旧文件仍受 git 跟踪、新文件被忽略，出现跟踪与忽略混合状态；这不会破坏功能，但会让该仓库的 git status 与 check-ignore 结果不直观。本方案不自动处置：安装器不得对用户已提交的文件做 git rm --cached 或任何历史改写。处置留给用户，升级后由维护者自行决定保留或 git rm --cached 后提交。",
+      "受管区块变更的扩散代价：_managed_content 追加一句会改变受管入口指纹，所有 10 个下游下次 project upgrade --apply 都会在 AGENTS.md 与 CLAUDE.md 上产生 diff。这是受管模板改动的固有代价，2.16.1 一并承担；不为规避 diff 而放弃提示词同步（提示词与代码流程同步第 5 条）。若某下游对受管区块做过分叉修改，upgrade 会按既有 install_conflict 路径报错并给出三条出路，行为不变。",
+      "预期 Structure WARN（预先声明，按 WARN 消费规则在收尾转达，不在本任务内重构）：实测 scripts/harness.py 4675 行、apply_project_install 79 行、command_project 217 行、build_parser 154 行、main 62 行，均已超红线；本仓库是源包、exempt 为空集，因此三批合计对 harness.py 的净增若达到 OVERSIZE_FILE_GROWTH_ALERT(50) 行会出文件级 WARN。函数级 WARN 可避免且必须避免：apply_project_install 与 command_project 的净增已按 constraints 分别压在 2 行与 4 行以内。这也正是本仓库在未提交状态下 assets-check --strict 恒退 1 的原因，属已登记的存量债（TODO.md 第 5 条），不是本次回归。",
+      "exempt 过滤位置的隐性影响：checked 计数随之减少，下游 structure check 的 checked 会比 2.16.0 小 11 左右（harness.py + 10 个受管模块中的代码文件）。该字段只用于展示，无消费方依赖其绝对值（已核对 asset_checks.run_assets_check 只做汇总展示、不做阈值判断）。若未来有消费方按 checked 判定，需重新评估是否改为区分 checked 与 exempted 两个字段。",
+      "package.json 死条目删除的影响面：tests/test_v2_direct.py 本就不存在，npm pack 对不存在的 files 条目静默跳过，删除不改变实际打包内容。风险为零，新增断言只是把这个类别的缺陷从静默变成红灯。",
+      "usage notices 只在 v12 及更早 → v13 这一次迁移出现，是一次性窗口：已经升到 2.16.0（config 已是 v13）的下游不会再看到该提示。对这批项目而言告知渠道仍然只有 CHANGELOG 与 contracts §9，本项补不上。这是已知的覆盖缺口，写进 CHANGELOG 的 2.16.1 条目里明说，不做额外的补发机制。",
+      "回滚：三批各自可独立 git revert，均无迁移副作用。批 1 回滚即恢复下游看到 harness 文件 WARN 的 2.16.0 现状；批 2 回滚即恢复死条目与无提示；批 3 回滚后已落盘的 .docs-harness/inputs/ 目录留在下游，无害且可由用户直接删除——但注意批 3 回滚必须同时回滚 _managed_content 与版本号，否则下游受管区块会指向一个不存在的目录约定。"
+    ]
+  },
+  "acceptance_refs": [
+    "docs/acceptance/harness-2.16.1-followups.json"
+  ],
+  "governance": {
+    "acceptance_required": true,
+    "knowledge_impact": "updated",
+    "updated_knowledge_refs": [
+      "docs/knowledge/usage-observability.json",
+      "docs/knowledge/downstream-install-surface.json"
+    ],
+    "unchanged_reason": null,
+    "governance_settled_at": "2026-09-13T06:53:56+00:00"
+  },
+  "frozen_at": "2026-09-13T06:31:08+00:00",
+  "plan_fingerprint": "sha256:87ae8a7fdac6d0693a43b518a9f5a7198c35464e219964a34c7f66c386d86759"
+}

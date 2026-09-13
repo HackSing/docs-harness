@@ -1,0 +1,39 @@
+批 2 证据：v12→v13 首次开启 usage 观测的一次性提示（2026-09-13）
+方案：docs/plans/harness-2.16.1-followups.json
+验收：docs/acceptance/harness-2.16.1-followups.json（criterion runtime.downstream 的 usage 提示部分；
+      record 在批 3 与其余层级一并提交）
+
+现场构造：临时 scratch 项目 project init 后，把 .docs-harness/config.json 退回 v12 形状
+（删除 usage_log 键、schema_version 改为 docs-harness/project-config/v12）。
+
+1) project upgrade（预览）
+   mode=preview  from_version=2.16.0  to_version=2.16.0
+   notices[0] 原文：
+   本次升级开启了本地使用观测：harness 自身的命令调用会追加到 .docs-harness/usage/YYYY-MM.jsonl
+   （按月分文件）。日志只留在本地，自带嵌套 .gitignore 不入库、不外发、不遥测，也不改变任何命令的
+   行为与退出码。不需要时把 .docs-harness/config.json 的 usage_log.enabled 改为 false 即可关闭。
+
+2) project upgrade --apply
+   mode=apply  status=upgraded
+   notices[0] 原文：与预览逐字相同（同一个 USAGE_ENABLED_NOTICE 常量，单点文案）。
+
+   三要素核对：
+     日志位置      → .docs-harness/usage/YYYY-MM.jsonl
+     不入库不外发  → 自带嵌套 .gitignore 不入库、不外发、不遥测
+     关闭方法      → .docs-harness/config.json 的 usage_log.enabled 改为 false
+
+3) 再次 upgrade（此时已是 v13）
+   预览含 notices 键: False
+   apply 含 notices 键: False
+   结论：提示只在 v12 及更早 → v13 这一次迁移出现，不重复打扰。
+
+4) fresh init 不提示
+   由 tests/test_project_install.py::test_project_init_bootstraps_docs_system 断言
+   （init 与 upgrade --apply 共用同一条返回路径，靠 existing 为 None 排除）。
+
+聚焦回归：
+$ python3 -m unittest tests.test_cli_surface tests.test_project_upgrade tests.test_project_install
+Ran 47 tests in 22.715s / OK / 退出码 0
+$ python3 scripts/harness.py self-test --json      → 退出码 0，全部 check 为 true
+$ python3 scripts/harness.py structure check --json → 仅 1 条 WARN（harness.py 文件级净增 100 行），
+                                                      无 command_project 函数级 WARN（本体净增 4 行，预算内）

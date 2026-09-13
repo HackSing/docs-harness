@@ -26,6 +26,7 @@
 - [Harness 计划与验收创建体验优化及结算泄漏预警](plans/docs-harness-create-ux-and-settle-leak-warn.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-11 核对）；关键符号：`plan_select`、`validate_plan_create_payload`、`--dry-run`、`check_cross_asset_relations`
 - [Structure 函数级检查扩展到 Go 与 TS/JS](plans/structure-function-check-multilanguage.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-05 核对）；关键符号：`_ts_function_spans`、`_go_functions`、`function_language`、`TS_MODULE_DIR_ENV`
 - [本地 Usage Log 与 Usage Report 观测能力](plans/usage-observability.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-13 核对）；关键符号：`usage_log`、`append_event`、`build_report`、`USAGE_SCHEMA_VERSION`
+- [2.16.1 收尾四项：下游结构检查排除受管文件、包清单守卫、inputs 目录约定、usage 默认开启提示](plans/harness-2.16.1-followups.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-13 核对）；关键符号：`is_source_package`、`TASK_INPUTS_RELATIVE`、`usage_enabled_notices`
 <!-- docs-harness:plans-index:end -->
 
 ## 历史边界
@@ -37,6 +38,7 @@
 
 - [Docs Harness 四资产治理与双机械检查执行机制](knowledge/docs-harness-assets-governance.md) — 状态：有效（现行事实）；关键符号：`run_assets_check`、`check_structure`、`knowledge_impact`、`ADR_SPEC`
 - [Docs Harness 本地 usage 观测机制](knowledge/usage-observability.md) — 状态：有效（现行事实）；关键符号：`record_usage_invoke`、`USAGE_SCHEMA_VERSION`、`build_report`、`usage_log_invalid`
+- [Docs Harness 下游安装面：源包判定、Structure 排除与约定目录](knowledge/downstream-install-surface.md) — 状态：有效（现行事实）；关键符号：`is_source_package`、`structure_exempt_paths`、`TASK_INPUTS_RELATIVE`
 <!-- docs-harness:knowledge-index:end -->
 
 <!-- docs-harness:acceptance-index:start -->
@@ -51,6 +53,7 @@
 - [git 钩子 shim 共存模式与可执行位治理验收](acceptance/githook-shim-coexistence.md) — 状态：已验收-仅追溯；关键符号：`core.hooksPath`、`githook_drift`、`docs-harness-hook-shim`
 - [Structure 函数级检查扩展到 Go 与 TS/JS 验收](acceptance/structure-function-check-multilanguage.md) — 状态：已验收-仅追溯；关键符号：`_ts_function_spans`、`_go_functions`、`function_language`、`TS_MODULE_DIR_ENV`
 - [本地 Usage Log 与 Usage Report 观测能力验收](acceptance/usage-observability.md) — 状态：已验收-仅追溯；关键符号：`usage_log`、`append_event`、`USAGE_SCHEMA_VERSION`
+- [2.16.1 收尾四项验收：下游结构检查排除、包清单守卫、inputs 约定、usage 提示](acceptance/harness-2.16.1-followups.md) — 状态：已验收-仅追溯；关键符号：`is_source_package`、`TASK_INPUTS_RELATIVE`、`usage_enabled_notices`
 <!-- docs-harness:acceptance-index:end -->
 
 <!-- docs-harness:adr-index:start -->

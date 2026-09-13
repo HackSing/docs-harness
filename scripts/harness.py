@@ -70,7 +70,7 @@ from usage_log import (
     is_enabled as usage_log_enabled,
 )
 from usage_report import USAGE_REPORT_DEFAULT_DAYS, build_report as build_usage_report
-VERSION = "2.16.0"
+VERSION = "2.16.1"
 CONFIG_SCHEMA = "docs-harness/project-config/v13"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
     f"docs-harness/project-config/v{version}" for version in range(1, 13)
@@ -92,6 +92,9 @@ PLAN_TEMPLATE_RELATIVE_FILES = (
     "profiles/architecture.json",
     "profiles/migration-release.json",
 )
+TASK_INPUTS_RELATIVE = ".docs-harness/inputs"
+# 与 usage_log._GITIGNORE_CONTENT 同口径的嵌套忽略（该写法的第 2 次出现，第 3 次再抽）。
+TASK_INPUTS_GITIGNORE_CONTENT = "*\n"
 GIT_HOOKS_RELATIVE = "scripts/githooks"
 GIT_HOOK_RELATIVE_FILES = ("pre-commit", "setup.sh")
 MANAGED_MODULE_RELATIVE_FILES = (
@@ -517,7 +520,7 @@ Docs Harness 当前版本：{VERSION}
 - 复杂任务在 Plan 后创建 Acceptance 目标，执行中逐条记录真实证据并结项；acceptance create 同样支持 --dry-run 预检；证据文件必须位于随仓库提交的路径（如 docs/acceptance/evidence/<验收名>/），git 忽略路径会被拒绝登记；简单任务仍可直接验证，不强制创建资产。
 - 验收以真实功能为中心：能运行聚焦测试、接口、页面、应用、构建或安装流程时运行最小充分流程；改动产生运行态行为（页面、接口、应用、命令或安装流程）的任务完成后，agent 必须自己走一遍详细的运行态验证（模拟器/本地联调，可用 mock 数据），确认功能流程正常、视觉与交互对用户友好，发现不友好之处直接重新优化并复验，不把功能、视觉或交互体验的验证推给用户；纯文档、只读或不改变行为的任务只做与改动对应的验证；仅真实硬件、系统权限等本地确实无法运行的层准备最低成本环境交用户最短确认。
 - 高风险动作使用原生授权与沙箱，不建立第二套 Harness Gate 或授权协议。
-- Plan/Knowledge/Acceptance/ADR 输入 JSON 必须携带各自 schema_version 与注册字段（输入形状与示例见 python3 scripts/harness.py <cmd> --help）；校验失败报错直接附期望形状。
+- Plan/Knowledge/Acceptance/ADR 输入 JSON 必须携带各自 schema_version 与注册字段（输入形状与示例见 python3 scripts/harness.py <cmd> --help）；校验失败报错直接附期望形状；一次性输入 JSON 写入 `{TASK_INPUTS_RELATIVE}/`（安装器保证不入库、升级不清理）。
 {knowledge_line}
 - pre-2.0 项目只通过 project upgrade 单向迁移；迁移后不保留旧运行能力。
 - 不在没有证据或没有明确维护任务时自动更新 Knowledge、Changelog、TODO 或质量账本。架构决策由主 agent 通过 adr create 登记（定稿不可改，复杂决策可选只读子智能体复审）；决策失效时用 adr settle 废弃或标记被替代。
@@ -2678,6 +2681,34 @@ def apply_legacy_cleanup(target: Path, plan: dict[str, Any]) -> list[str]:
     return changed
 
 
+USAGE_ENABLED_NOTICE = (
+    "本次升级开启了本地使用观测：harness 自身的命令调用会追加到 "
+    ".docs-harness/usage/YYYY-MM.jsonl（按月分文件）。日志只留在本地，"
+    "自带嵌套 .gitignore 不入库、不外发、不遥测，也不改变任何命令的行为与退出码。"
+    "不需要时把 .docs-harness/config.json 的 usage_log.enabled 改为 false 即可关闭。"
+)
+
+
+def usage_enabled_notices(existing: dict[str, Any] | None, enabled: bool) -> list[str]:
+    """首次开启 usage 观测时的一次性告知；其余情况返回空列表。
+
+    三个条件缺一不可：existing 是非空 dict（fresh init 的 existing 为 None，
+    init 与 upgrade --apply 共用同一条返回路径，靠这一条把 init 排除在外）；
+    existing 缺 usage_log 键（把范围锁死在 v12 及更早 → v13 这一次迁移，
+    已是 v13 的项目该键必在，再升级不再提示）；新配置确实开着。
+
+    两个调用点的 enabled 取值：upgrade 预览侧尚未写 config，取 USAGE_LOG_DEFAULT_ENABLED
+    ——existing 缺 usage_log 时 v2_config 必然回落该常量，取值确定；apply 侧 config 刚由
+    v2_config 写完，usage_log.enabled 是保证存在的 bool，直接按键取（边界已校验，
+    下游不再重复防御）。
+    """
+    if not isinstance(existing, dict) or not existing:
+        return []
+    if "usage_log" in existing or not enabled:
+        return []
+    return [USAGE_ENABLED_NOTICE]
+
+
 def v2_config(
     *,
     source_script: Path,
@@ -3097,8 +3128,30 @@ def apply_project_install(
     if existing != config_value:
         atomic_write_json(config_path, config_value)
         changed.append(".docs-harness/config.json")
+    changed.extend(apply_task_inputs_dir(target))
     changed.extend(apply_legacy_cleanup(target, cleanup))
     return list(dict.fromkeys(changed)), cleanup
+
+
+def apply_task_inputs_dir(target: Path) -> list[str]:
+    """确保一次性输入 JSON 的约定目录存在且不入库；返回本次实际写入的相对路径。
+
+    根因：plan create --content、acceptance record --input 等都要求输入文件位于项目内，
+    但此前没有约定位置；1.x 运行态目录 .docs-harness/task-inputs/ 在 LEGACY_RUNTIME_NAMES
+    内，project upgrade 必清，用它会反复丢文件。inputs/ 不在该元组内，升级不清理。
+
+    嵌套 .gitignore 写法与 usage_log._GITIGNORE_CONTENT 同口径，这是它的第 2 次出现：
+    两处各自保留、互相指向，第 3 次出现时抽公共函数（编码质量规范第 2、10 条）。
+    已存在的 .gitignore 一律不覆盖——用户可能改过。写入失败不吞：安装器的写入必须炸，
+    与 usage_log.append_event 的 best-effort 豁免是两条性质不同的路径。
+    """
+    directory = target / TASK_INPUTS_RELATIVE
+    directory.mkdir(parents=True, exist_ok=True)
+    gitignore = directory / ".gitignore"
+    if gitignore.is_file():
+        return []
+    atomic_write_text(gitignore, TASK_INPUTS_GITIGNORE_CONTENT)
+    return [f"{TASK_INPUTS_RELATIVE}/.gitignore"]
 
 
 def project_findings(target: Path) -> list[dict[str, str]]:
@@ -3439,6 +3492,7 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         cleanup = legacy_cleanup_plan(target)
         changes = project_changes(target, source_root)
         if args.action == "upgrade" and not args.apply:
+            notices = usage_enabled_notices(existing, USAGE_LOG_DEFAULT_ENABLED)
             return 0, {
                 "action": "upgrade",
                 "mode": "preview",
@@ -3453,12 +3507,14 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 "apply_completion_possible": cleanup["cleanup_possible"],
                 "write_performed": False,
                 "knowledge": project_knowledge_summary(target),
+                **({"notices": notices} if notices else {}),
             }
         changed, cleanup_applied = apply_project_install(target, source_root)
         findings = project_findings(target)
         red = [item for item in findings if item["severity"] == "red"]
         delivery = project_delivery(target)
         pending = not red and delivery["delivery_status"] == "pending_commit"
+        notices = usage_enabled_notices(existing, project_config(target)["usage_log"]["enabled"])
         status = (
             "failed"
             if red
@@ -3490,6 +3546,7 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "legacy_document_cleanup": cleanup_applied,
             "preserved_existing_docs": True,
             "knowledge": project_knowledge_summary(target),
+            **({"notices": notices} if notices else {}),
         }
     if args.action == "diff":
         cleanup = legacy_cleanup_plan(target)
@@ -3664,22 +3721,87 @@ def read_version_sources(root: Path) -> dict[str, str | None]:
             script.read_text(encoding="utf-8"),
         )
         sources["controller"] = match.group(1) if match else None
-    skill = root / "SKILL.md"
-    if skill.is_file():
-        metadata, _ = parse_frontmatter(skill.read_text(encoding="utf-8"))
-        sources["skill"] = metadata.get("version")
+    sources["skill"] = _skill_version(root)
     package = root / "package.json"
     if package.is_file():
         value = read_json(package)
         if isinstance(value, dict) and isinstance(value.get("version"), str):
             sources["package"] = value["version"]
     sources["templates"] = read_template_versions(root)
-    evals_file = root / "evals" / "evals.json"
-    if evals_file.is_file():
-        value = read_json(evals_file)
-        if isinstance(value, dict) and isinstance(value.get("version"), str):
-            sources["evals"] = value["version"]
+    sources["evals"] = _evals_version(root)
     return sources
+
+
+def _skill_version(root: Path) -> str | None:
+    """SKILL.md frontmatter 的 version；文件缺失或字段缺失返回 None。
+
+    抛出面按搬移前保留：read_text 对非 UTF-8 内容抛 UnicodeDecodeError、IO 故障抛
+    OSError（注意都不是 HarnessError——这一段不走 read_json）。parse_frontmatter 是
+    纯字符串处理，对任何输入都只返回 ({}, text)，畸形 frontmatter 经 get 自然得 None。
+    """
+    skill = root / "SKILL.md"
+    if not skill.is_file():
+        return None
+    metadata, _ = parse_frontmatter(skill.read_text(encoding="utf-8"))
+    return metadata.get("version")
+
+
+def _evals_version(root: Path) -> str | None:
+    """evals/evals.json 顶层 version 字符串；文件缺失或字段非字符串返回 None。
+
+    抛出面按搬移前保留：经 read_json，不可读或非法 JSON 抛 HarnessError(invalid_json)。
+    """
+    evals_file = root / "evals" / "evals.json"
+    if not evals_file.is_file():
+        return None
+    value = read_json(evals_file)
+    if isinstance(value, dict) and isinstance(value.get("version"), str):
+        return value["version"]
+    return None
+
+
+def is_source_package(target: Path) -> bool:
+    """target 是不是 docs-harness 源包本身（而不是装了 harness 的下游项目）。
+
+    判据是源包独有的两个标记文件同时带版本：SKILL.md 的 frontmatter version 与
+    evals/evals.json 的 version。安装器只写 scripts/、plan-templates/、
+    scripts/githooks/、AGENTS.md、CLAUDE.md、.docs-harness/config.json 与 docs/ 骨架
+    （见 portable_install_paths），永不写这两个文件。不看 package.json 与 VERSION：
+    任意 npm 或前端下游都可能有它们，作为判别式过弱；也不看 plan-templates：那本就是
+    被安装的。
+
+    只读这两个文件、不复用 read_version_sources 整体，是为了不把 package.json 与 8 个
+    模板 JSON 的 read_json 崩溃面带进结构检查——结构检查此前根本不读 package.json。
+
+    读取失败一律判为"不是源包"。这不是吞错：本函数是分类器，标记文件不可读在语义上
+    就等于没有源包标记；release sync 那条链路上同样的损坏必须炸，两个调用方两份契约。
+    被视为不可读的三种形态（已实测）：(a) evals/evals.json 非法 JSON 或不可读 →
+    HarnessError(invalid_json)；(b) SKILL.md 非 UTF-8 字节 → UnicodeDecodeError；
+    (c) 两个文件的权限或 IO 故障 → OSError。捕获清单按实际抛出面逐项列出，不写裸 Exception。
+    """
+    try:
+        return _skill_version(target) is not None and _evals_version(target) is not None
+    except (HarnessError, OSError, UnicodeDecodeError):
+        return False
+
+
+def structure_exempt_paths(target: Path) -> frozenset[str]:
+    """Structure 检查对 target 应排除的路径：下游排除 harness 自带文件，源包不排除。
+
+    源包不排除是守卫所在：排除了就丢掉"新增受管模块未登记 CODEMAP"这道检查。
+    清单在此单点构造——受管模块不能反向 import harness.py（循环依赖），
+    structure_check 不复制安装清单。githooks 两项当前是空集贡献（pre-commit 无后缀、
+    setup.sh 的 .sh 都不在 structure_check.CODE_SUFFIXES），仍列入以保持与安装面同源。
+    """
+    if is_source_package(target):
+        return frozenset()
+    return frozenset(
+        [
+            "scripts/harness.py",
+            *(f"scripts/{relative}" for relative in MANAGED_MODULE_RELATIVE_FILES),
+            *(f"{GIT_HOOKS_RELATIVE}/{relative}" for relative in GIT_HOOK_RELATIVE_FILES),
+        ]
+    )
 
 
 def read_template_versions(root: Path) -> str | None:
@@ -4208,7 +4330,9 @@ def command_assets_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
         acceptance_checker=check_acceptance_assets,
         adr_checker=check_adr_assets,
         script_hygiene_checker=check_script_line_endings,
-        structure_checker=check_structure,
+        structure_checker=lambda current: check_structure(
+            current, exempt=structure_exempt_paths(current)
+        ),
     )
     return (0 if payload["status"] == "passed" else 1), payload
 
@@ -4216,9 +4340,10 @@ def command_assets_check(args: argparse.Namespace) -> tuple[int, dict[str, Any]]
 def command_structure(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     """structure check/report 的 CLI 投影；规则实现与阈值真源在 structure_check 模块。"""
     target = safe_target(args.target)
+    exempt = structure_exempt_paths(target)
     if args.action == "report":
-        return 0, structure_report(target)
-    return 0, check_structure(target)
+        return 0, structure_report(target, exempt=exempt)
+    return 0, check_structure(target, exempt=exempt)
 
 
 def command_usage(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:

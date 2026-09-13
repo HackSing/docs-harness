@@ -59,12 +59,27 @@
         "scripts/harness.py",
         "scripts/usage_report.py"
       ]
+    },
+    {
+      "id": "usage.upgrade.notice",
+      "statement": "2.16.1 起 v12 及更早 → v13 的那一次 project upgrade 会在预览与 --apply 两条 payload 里带 notices，一次性告知日志位置、不入库不外发与关闭方法；文案单一真源是 harness.USAGE_ENABLED_NOTICE，判定是 usage_enabled_notices(existing, enabled)——existing 为非空 dict、缺 usage_log 键、enabled 为真，三者缺一不可。因此 fresh init 不提示（init 与 upgrade --apply 共用同一条返回路径，靠 existing 为 None 排除），已是 v13 的项目再升级也不提示。已经升到 2.16.0 的下游错过了这个一次性窗口，对它们的告知渠道仍只有 CHANGELOG 与 contracts §9，harness 不做补发。",
+      "source_refs": [
+        "scripts/harness.py",
+        "docs/contracts.md",
+        "tests/test_project_upgrade.py"
+      ]
     }
   ],
   "status": "active",
-  "revision": 1,
-  "revision_history": [],
+  "revision": 2,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:5b07410f613debb586d5a54521ff9337d958433b18a2f9b225f80cec93604ba5",
+      "updated_at": "2026-09-13T05:10:50+00:00"
+    }
+  ],
   "created_at": "2026-09-13T05:10:50+00:00",
-  "updated_at": "2026-09-13T05:10:50+00:00",
-  "asset_fingerprint": "sha256:5b07410f613debb586d5a54521ff9337d958433b18a2f9b225f80cec93604ba5"
+  "updated_at": "2026-09-13T06:50:00+00:00",
+  "asset_fingerprint": "sha256:684c66a0802edacef9805d1be2605abce990086325103186d59c10af900a8e86"
 }

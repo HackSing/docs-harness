@@ -1,0 +1,49 @@
+批 3 证据：发布层 release.consistency（2026-09-13）
+方案：docs/plans/harness-2.16.1-followups.json
+
+1) 版本同步（先改从源常量，再由 release sync 同步其余五源，不手改）
+$ python3 - 把 scripts/harness.py 的 VERSION 常量 2.16.0 → 2.16.1
+$ python3 scripts/harness.py release sync --apply --target-version 2.16.1 --json
+  status=synced  changelog_top_version=2.16.1
+  changed=[VERSION, package.json, SKILL.md,
+           plan-templates/levels/{brief,full}.json,
+           plan-templates/profiles/{general,frontend-ui,backend-service,bugfix,architecture,migration-release}.json,
+           evals/evals.json]
+
+2) 一致性复核
+$ python3 scripts/harness.py release sync --strict --json
+  version_truth=2.16.1
+  sources: VERSION=2.16.1 controller=2.16.1 skill=2.16.1 package=2.16.1 templates=2.16.1 evals=2.16.1
+  diffs=[]  changelog_top_version=2.16.1  status=consistent
+  退出码 0
+$ python3 -m unittest tests.test_release_version_sync   → Ran 1 test / OK / 退出码 0
+
+3) CHANGELOG
+  顶部为 "## 2.16.1 - 2026-09-13"，四项各一段（动机 + 改了什么 + 测试），
+  另有一段说明 usage 提示对已升到 2.16.0 的下游来不及生效，以及行数上限第 7 次上调的事实。
+
+4) 本仓库受管区块（project upgrade --apply 后）
+  AGENTS.md:4  ## Docs Harness 2.16.1：默认直跑，能力按需
+  CLAUDE.md:4  ## Docs Harness 2.16.1：默认直跑，能力按需
+  两份均含："…校验失败报错直接附期望形状；一次性输入 JSON 写入 `.docs-harness/inputs/`
+            （安装器保证不入库、升级不清理）。"
+
+5) plan check（结算前）
+$ python3 scripts/harness.py plan check --target . --json
+  status=passed  failures=0  warnings=1  退出码 0
+  唯一 WARN 是 C8 结算泄漏预警（横幅为有效但 key_symbols 已全部在源码命中）——
+  方案 risks_and_rollback 已预先声明该 WARN 在实施完成到 plan settle 之间出现，settle 后消失。
+
+6) 行数上限余量
+  scripts/harness.py = 4800 行 < 4850（tests/test_cli_surface.py 的硬上限），余量 50 行。
+
+7) 结算后复跑（Knowledge → Acceptance → Plan 顺序完成之后）
+$ python3 scripts/harness.py plan check --target . --json
+  status=passed  failures=0  warnings=0  退出码 0
+  → C8 结算泄漏预警在 plan settle --status implemented 后如期消失。
+$ python3 scripts/harness.py assets-check --target . --strict --json
+  status=failed  failures=[]  退出码 1
+  仅剩 1 条 WARN：Structure: scripts/harness.py 已超 600 行红线仍净增 125 行（4674→4799）
+$ python3 -m unittest discover -s tests -p "test_*.py"   → 退出码 0
+$ python3 scripts/harness.py self-test --json            → 退出码 0
+$ python3 scripts/harness.py project check --target .    → red=0 yellow=0（needs_delivery 仅因未提交）

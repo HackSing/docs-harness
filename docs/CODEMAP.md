@@ -5,7 +5,7 @@
 
 ## 控制器
 
-- `scripts/harness.py` — 职责：CLI 控制器与安装/升级/发布编排，聚合各受管模块为 knowledge/plan/acceptance/adr/project/release/structure/assets-check 命令；公开接口：`main`、`build_parser`、`command_assets_check`、`command_structure`、`apply_project_install`、`git_hook_directory`、`check_githook_health`、`resolve_plan_selection_path`（--selection 的 sha256 指纹解析）、`inspect_plan_create`/`dry_run_plan_create`（--dry-run 整体校验）、`usage_invoke_event`/`record_usage_invoke`（main() 出口的 cmd.invoke 旁路埋点）、`command_usage`
+- `scripts/harness.py` — 职责：CLI 控制器与安装/升级/发布编排，聚合各受管模块为 knowledge/plan/acceptance/adr/project/release/structure/assets-check 命令；公开接口：`main`、`build_parser`、`command_assets_check`、`command_structure`、`apply_project_install`、`is_source_package`（源包/下游判定，Structure 排除集的依据）、`git_hook_directory`、`check_githook_health`、`resolve_plan_selection_path`（--selection 的 sha256 指纹解析）、`inspect_plan_create`/`dry_run_plan_create`（--dry-run 整体校验）、`usage_invoke_event`/`record_usage_invoke`（main() 出口的 cmd.invoke 旁路埋点）、`command_usage`
 
 ## 受管模块（随 project init/upgrade 安装）
 

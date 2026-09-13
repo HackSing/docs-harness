@@ -3,9 +3,9 @@
 
 # Docs Harness 本地 usage 观测机制
 
-- 修订：1
+- 修订：2
 - 关键符号：`record_usage_invoke`、`USAGE_SCHEMA_VERSION`、`build_report`、`usage_log_invalid`
-- 资产指纹：`sha256:5b07410f613debb586d5a54521ff9337d958433b18a2f9b225f80cec93604ba5`
+- 资产指纹：`sha256:684c66a0802edacef9805d1be2605abce990086325103186d59c10af900a8e86`
 
 ## 摘要
 
@@ -48,3 +48,9 @@ usage report 的输出契约沿用 structure report：build_report 返回 dict �
 acceptance record 的退出码语义是 0 if result["status"] == "passed" else 3，即退 3 表示记录已存入但整体验收仍 pending/failed，只有把资产翻绿的最后一条才退 0。因此 usage report 的返工率分母取退出码 0 与 3 两种，只认 0 会让分母只数到最后一条记录。退出码 3 在 harness 里被多个命令复用（project upgrade 的 needs_delivery、plan settle 的归档冲突），所以 usage report 的命令分布只按退出码取值分桶、不贴成败标签。
 
 证据：`scripts/harness.py`、`scripts/usage_report.py`
+
+### `usage.upgrade.notice`
+
+2.16.1 起 v12 及更早 → v13 的那一次 project upgrade 会在预览与 --apply 两条 payload 里带 notices，一次性告知日志位置、不入库不外发与关闭方法；文案单一真源是 harness.USAGE_ENABLED_NOTICE，判定是 usage_enabled_notices(existing, enabled)——existing 为非空 dict、缺 usage_log 键、enabled 为真，三者缺一不可。因此 fresh init 不提示（init 与 upgrade --apply 共用同一条返回路径，靠 existing 为 None 排除），已是 v13 的项目再升级也不提示。已经升到 2.16.0 的下游错过了这个一次性窗口，对它们的告知渠道仍只有 CHANGELOG 与 contracts §9，harness 不做补发。
+
+证据：`scripts/harness.py`、`docs/contracts.md`、`tests/test_project_upgrade.py`

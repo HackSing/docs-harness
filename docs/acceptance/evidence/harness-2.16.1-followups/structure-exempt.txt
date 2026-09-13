@@ -1,0 +1,40 @@
+批 1 证据：Structure 检查对下游排除 harness 自带文件（2026-09-13）
+方案：docs/plans/harness-2.16.1-followups.json
+验收：docs/acceptance/harness-2.16.1-followups.json（criterion runtime.downstream 的下游/源包部分；
+      本文件只是批 1 的中途证据，record 在批 3 与其余层级一并提交）
+
+1) 聚焦回归
+$ python3 -m unittest tests.test_structure tests.test_assets_check tests.test_release_version_sync
+Ran 32 tests in 7.433s
+OK (skipped=2)          # skip 2 条为既有的 TS 解析器不可用用例，与本次改动无关
+退出码 0
+
+2) 源包自身不排除（本仓库 = 源包，守卫必须保留）
+$ python3 scripts/harness.py structure check --json
+checked=15  warnings=1
+ - scripts/harness.py 已超 600 行红线仍净增 68 行（4674→4742），复核新增逻辑是否形成独立职责
+退出码 0
+结论：源包路径上排除集为空，体量守卫与 CODEMAP 登记守卫均未被削弱；
+      该条 WARN 是方案 risks_and_rollback 已预先声明的预期 WARN（净增 ≥ 50 行）。
+
+3) 版本源未被搬移影响
+$ python3 scripts/harness.py release sync --strict --json
+sources: VERSION/controller/skill/package/templates/evals 均为 2.16.0，diffs=[]，status=consistent
+退出码 0
+结论：_skill_version / _evals_version 从 read_version_sources 纯搬移后行为不变。
+
+4) 真实下游只读复核：/Users/aiware/projects/suiyi
+BEFORE（HEAD 版本 harness，经 git archive HEAD scripts/ 取出到临时目录运行）
+  checked=32  warnings=4，4 条全部是 harness 自带文件：
+   - scripts/harness.py 已超 600 行红线仍净增 116 行（4558→4674）
+   - 新增代码文件 scripts/structure_ts_functions.cjs 未登记 docs/CODEMAP.md
+   - 新增代码文件 scripts/usage_log.py 未登记 docs/CODEMAP.md
+   - 新增代码文件 scripts/usage_report.py 未登记 docs/CODEMAP.md
+AFTER（本次改动）
+  checked=27  warnings=0（warnings 正文为空列表）
+结论：与 TODO.md 登记的复现现象逐条对应，下游 WARN 由 4 归 0，且 4 条全部是本次排除的对象。
+
+对 suiyi 的写入面：仅 .docs-harness/usage/2026-09.jsonl 追加日志行（mtime 14:34），
+该文件被 .docs-harness/usage/.gitignore 的 `*` 命中（git check-ignore 已确认）。
+suiyi 工作区其余 17 个 modified 文件 mtime 均为 13:07-13:50，属用户此前的 2.16.0 升级，
+与本次只读复核无关；structure check 不写目标项目任何文件。

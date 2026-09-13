@@ -15,6 +15,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness_test_base import HarnessTestBase, ROOT, MANAGED_MODULES, REQUIRES_SYMLINK
 
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from harness import USAGE_ENABLED_NOTICE, usage_enabled_notices  # noqa: E402
+
 
 class ProjectUpgradeTest(HarnessTestBase):
     def write_v5_install(
@@ -471,3 +475,56 @@ class ProjectUpgradeTest(HarnessTestBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class UsageEnabledNoticeTest(HarnessTestBase):
+    """2.16.1：v12→v13 首次开启 usage 观测时给一次性告知。
+
+    2.16.0 让 usage_log 在 config v13 默认开启，下游 upgrade 后立即开始记录，
+    但升级输出没有任何提示，知情渠道只有 CHANGELOG/contracts §9/ADR。
+    提示只在这一次迁移出现：已是 v13 的项目该键必在，再升级不再提示。
+    """
+
+    def make_v12_project(self) -> None:
+        """把已安装项目的 config 退回 v12 形状：删 usage_log 键、schema 降版。"""
+        self.run_cli("project", "init", "--target", str(self.project))
+        config = json.loads(
+            (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
+        )
+        config.pop("usage_log")
+        config["schema_version"] = "docs-harness/project-config/v12"
+        self.write_json(".docs-harness/config.json", config)
+
+    def upgrade(self, *extra: str) -> dict[str, object]:
+        return self.run_cli("project", "upgrade", "--target", str(self.project), *extra)
+
+    def assert_notice_has_three_elements(self, payload: dict[str, object]) -> None:
+        notices = payload["notices"]
+        self.assertEqual(len(notices), 1, notices)
+        notice = notices[0]
+        self.assertIn(".docs-harness/usage/YYYY-MM.jsonl", notice)
+        self.assertIn("不入库", notice)
+        self.assertIn("usage_log.enabled", notice)
+
+    def test_v12_upgrade_preview_and_apply_both_notice(self) -> None:
+        self.make_v12_project()
+        self.assert_notice_has_three_elements(self.upgrade())
+        self.assert_notice_has_three_elements(self.upgrade("--apply"))
+
+    def test_v13_upgrade_does_not_repeat_the_notice(self) -> None:
+        self.make_v12_project()
+        self.upgrade("--apply")
+        self.assertNotIn("notices", self.upgrade())
+        self.assertNotIn("notices", self.upgrade("--apply"))
+
+    def test_usage_enabled_notices_truth_table(self) -> None:
+        """三个条件缺一不可，逐个打掉验证。"""
+        v12 = {"version": "2.16.0"}
+        self.assertEqual(usage_enabled_notices(v12, True), [USAGE_ENABLED_NOTICE])
+        self.assertEqual(usage_enabled_notices(v12, False), [], "关着就不提示")
+        self.assertEqual(usage_enabled_notices(None, True), [], "fresh init 不提示")
+        self.assertEqual(usage_enabled_notices({}, True), [], "空配置不提示")
+        self.assertEqual(
+            usage_enabled_notices({"usage_log": {"enabled": True}}, True), [],
+            "已有该键说明不是首次开启",
+        )

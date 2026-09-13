@@ -80,6 +80,7 @@ Plan/Knowledge 引用 + 验收目标与标准 → acceptance create
 - Knowledge 资产位于 `docs/knowledge/`，Acceptance 目标资产位于 `docs/acceptance/`，均使用同名 JSON/Markdown 和独立 INDEX 区块。
 - 不关联目标的兼容验收记录仍位于 Git 元数据下的 `docs-harness/v2/`，非 Git 项目位于 `.docs-harness/v2/`。
 - 不建立任务级 usage、授权或控制遥测；harness 自身命令面的本地调用日志位于 `.docs-harness/usage/`，按月分文件、经嵌套 `.gitignore` 不入库，可在 config 关闭。
+- 一次性输入 JSON（`plan create --content`、`acceptance record --input` 等）位于 `.docs-harness/inputs/`，同样经嵌套 `.gitignore` 不入库；它不在 `LEGACY_RUNTIME_NAMES` 内，`project upgrade` 不清理（1.x 运行态目录 `.docs-harness/task-inputs/` 仍按 legacy 清除）。
 - 历史设计资料位于 `docs/history/`，不进入 npm 对外文档集合和默认知识候选。
 
 ## 4. 安装边界

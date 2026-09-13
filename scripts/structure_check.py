@@ -398,11 +398,25 @@ def _codemap_registration_warnings(
     ]
 
 
-def check_structure(target: Path) -> dict[str, Any]:
-    """assets-check 第六 checker：增量体量 + CODEMAP 一致性，全部 WARN 级。"""
+def check_structure(
+    target: Path, *, exempt: frozenset[str] = frozenset()
+) -> dict[str, Any]:
+    """assets-check 第六 checker：增量体量 + CODEMAP 一致性，全部 WARN 级。
+
+    exempt 是仓库根相对 POSIX 路径集合，在判定前从改动集合里整体剔除：下游项目里
+    harness.py 与受管模块由安装器写入，体量与登记都不归下游处置。排除集由调用方
+    （harness.py）单点构造并保证口径，本模块不复制安装清单，也不在此重算路径。
+    _codemap_consistency_warnings 不受 exempt 影响：它校验的是 CODEMAP 里已登记条目
+    的存活性，登记与否是项目自己的选择。
+    """
     changed = _changed_code_files(target)
     if changed is None:
         return {"status": "passed", "failures": [], "warnings": [], "checked": 0}
+    changed = {
+        relative: status
+        for relative, status in changed.items()
+        if relative not in exempt
+    }
     warnings: list[str] = []
     sources: dict[str, tuple[str, str | None]] = {}
     for relative, status in sorted(changed.items()):
@@ -449,11 +463,17 @@ def _stock_code_files(target: Path) -> list[str] | None:
     )
 
 
-def structure_report(target: Path) -> dict[str, Any]:
-    """存量结构债报告：超红线文件/函数 + CODEMAP 覆盖缺口，供定期整理任务使用。"""
+def structure_report(
+    target: Path, *, exempt: frozenset[str] = frozenset()
+) -> dict[str, Any]:
+    """存量结构债报告：超红线文件/函数 + CODEMAP 覆盖缺口，供定期整理任务使用。
+
+    exempt 与 check_structure 同口径、同过滤位置（枚举之后、判定之前），两处不各写一份判定。
+    """
     files = _stock_code_files(target)
     if files is None:
         return {"status": "skipped", "reason": "目标不是 git 仓库，无法枚举代码文件"}
+    files = [relative for relative in files if relative not in exempt]
     oversized_files: list[dict[str, Any]] = []
     oversized_functions: list[dict[str, Any]] = []
     sources: dict[str, tuple[str, str | None]] = {}

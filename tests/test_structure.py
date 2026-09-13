@@ -254,3 +254,119 @@ class StructureFunctionLanguagesTest(HarnessTestBase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class StructureManagedFileExemptionTest(HarnessTestBase):
+    """2.16.1：下游项目的 structure 检查排除 harness 自带文件，源包自身不排除。
+
+    根因现场来自 2.16.0 升级 10 个下游：安装器写入的 scripts/harness.py 与受管模块被
+    当成下游自己的代码，WARN 几乎全是下游既无法处置也不该处置的 harness 内部文件。
+    源包不排除是守卫所在——排除了就丢掉"新增受管模块未登记 CODEMAP"这道检查。
+    """
+
+    MANAGED_SAMPLES = ("usage_log.py", "usage_report.py", "structure_ts_functions.cjs")
+    HARNESS_OWN_PATHS = ("scripts/harness.py", *(f"scripts/{n}" for n in MANAGED_SAMPLES))
+
+    def downstream_fixture(self) -> None:
+        """HEAD 里是旧版 harness 自带文件，工作区是当前版本。
+
+        复现真实升级现场：harness.py 变成 M 且净增数千行（触发超红线净增 WARN），
+        2.16.0 新增的三个受管模块变成 A 且未登记 CODEMAP（触发未登记 WARN）。
+        """
+        self.run_cli("project", "init", "--target", str(self.project))
+        scripts = self.project / "scripts"
+        saved = {
+            name: (scripts / name).read_bytes()
+            for name in ("harness.py", *self.MANAGED_SAMPLES)
+        }
+        (scripts / "harness.py").write_text('VERSION = "0.0.0"\n', encoding="utf-8")
+        for name in self.MANAGED_SAMPLES:
+            (scripts / name).unlink()
+        self.structure_git("init")
+        self.structure_commit_all()
+        for name, data in saved.items():
+            (scripts / name).write_bytes(data)
+
+    def make_source_package_markers(self) -> None:
+        """补上源包独有的两个标记文件；两者都不是代码文件，自身不产生 WARN。"""
+        (self.project / "SKILL.md").write_text(
+            "---\nname: docs-harness\nversion: 9.9.9\n---\n\n# skill\n", encoding="utf-8"
+        )
+        self.write_json("evals/evals.json", {"version": "9.9.9"})
+
+    def structure_warnings(self) -> list[str]:
+        payload = self.run_cli("structure", "check", "--target", str(self.project))
+        return list(payload["warnings"])
+
+    def test_downstream_check_ignores_harness_own_files(self) -> None:
+        self.downstream_fixture()
+        self.assertEqual(self.structure_warnings(), [])
+
+    def test_downstream_report_omits_harness_own_files(self) -> None:
+        self.downstream_fixture()
+        payload = self.run_cli("structure", "report", "--target", str(self.project))
+        listed = (
+            [item["path"] for item in payload["files_over_red_line"]]
+            + [item["path"] for item in payload["functions_over_red_line"]]
+            + list(payload["codemap"]["unregistered_files"])
+        )
+        for relative in self.HARNESS_OWN_PATHS:
+            self.assertNotIn(relative, listed, payload)
+
+    def test_downstream_still_reports_its_own_code(self) -> None:
+        """排除只针对 harness 自带文件：下游自己的超红线文件照常 WARN。"""
+        self.downstream_fixture()
+        self.write_lines("src/huge.py", [f"h{i} = {i}" for i in range(601)])
+        warnings = self.structure_warnings()
+        self.assertTrue(any("src/huge.py" in w for w in warnings), warnings)
+        self.assertFalse(any("scripts/harness.py" in w for w in warnings), warnings)
+
+    def test_source_package_keeps_its_own_structure_warnings(self) -> None:
+        self.downstream_fixture()
+        self.make_source_package_markers()
+        warnings = self.structure_warnings()
+        self.assertTrue(
+            any("scripts/harness.py" in w for w in warnings),
+            f"源包不得排除自身文件，否则丢掉体量守卫：{warnings}",
+        )
+        self.assertTrue(
+            any("scripts/usage_log.py" in w and "CODEMAP" in w for w in warnings),
+            f"源包必须保留新增受管模块未登记 CODEMAP 的守卫：{warnings}",
+        )
+
+    def test_downstream_tolerates_invalid_package_json(self) -> None:
+        """源包判定不读 package.json，下游的损坏 package.json 不进结构检查的失败面。
+
+        整体复用 read_version_sources 会连带读 package.json 与 8 个模板 JSON，任一损坏就让
+        structure check 与 pre-commit 的 assets-check --fast 因无关文件报错——这是 2.16.0
+        没有的崩溃面（结构检查此前根本不读 package.json），本用例守住它不被重新引入。
+        编辑中途的 package.json 在前端下游很常见。
+        """
+        self.downstream_fixture()
+        (self.project / "package.json").write_text("{ not json", encoding="utf-8")
+        self.assertEqual(self.structure_warnings(), [])
+        self.run_cli("assets-check", "--target", str(self.project), "--fast")
+
+    def test_unreadable_skill_marker_is_not_a_source_package(self) -> None:
+        """非 UTF-8 的 SKILL.md：read_text 抛 UnicodeDecodeError，判为非源包而不是崩溃。"""
+        self.downstream_fixture()
+        self.make_source_package_markers()
+        (self.project / "SKILL.md").write_bytes(b"\xff\xfe---\nversion: 9.9.9\n---\n")
+        self.assertEqual(self.structure_warnings(), [])
+
+    def test_unreadable_evals_marker_is_not_a_source_package(self) -> None:
+        """非法 evals/evals.json：read_json 抛 HarnessError，同样判为非源包而不是崩溃。"""
+        self.downstream_fixture()
+        self.make_source_package_markers()
+        (self.project / "evals" / "evals.json").write_text("{ not json", encoding="utf-8")
+        self.assertEqual(self.structure_warnings(), [])
+
+    def test_assets_check_structure_matches_structure_check(self) -> None:
+        """两个入口走同一条排除判定，对同一目标逐字一致。"""
+        self.downstream_fixture()
+        self.write_lines("src/huge.py", [f"h{i} = {i}" for i in range(601)])
+        direct = self.structure_warnings()
+        payload = self.run_cli("assets-check", "--target", str(self.project), "--fast")
+        prefix = "WARN: Structure: "
+        via_assets = [w[len(prefix):] for w in payload["warnings"] if w.startswith(prefix)]
+        self.assertEqual(via_assets, direct)

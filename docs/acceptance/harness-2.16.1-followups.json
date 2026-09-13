@@ -1,0 +1,157 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "2.16.1 收尾四项验收：下游结构检查排除、包清单守卫、inputs 约定、usage 提示",
+  "objective": "验证 2.16.1 四项收尾在合同、下游运行、安装与发布四层均有真实证据：下游 structure check 不再报 harness 自带文件且对损坏的 package.json / 非 UTF-8 SKILL.md 不崩、源包守卫不被削弱；package.json 无死条目且守卫覆盖；.docs-harness/inputs/ 落盘不入库不被清理；v12→v13 升级出一次性 usage 提示、v13 再升级不出；版本六源同步到 2.16.1。",
+  "key_symbols": [
+    "is_source_package",
+    "TASK_INPUTS_RELATIVE",
+    "usage_enabled_notices"
+  ],
+  "plan_ref": "docs/plans/harness-2.16.1-followups.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "contract.suite",
+      "title": "合同层：全量 unittest 全绿、self-test passed、assets-check --strict 除预期 Structure WARN 外无 FAIL",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260913T065345-dab6b2e301",
+          "objective_fingerprint": "sha256:7ec555fc77b48b904b6aaf4d7776f67708db85eea1686bd1f6ac74dc168ced7a",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "全量 unittest discover（195 通过、2 个既有 TS skip）、self-test status=passed、assets-check --strict（failures=[]，仅 2 条预先声明的 WARN）",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-2.16.1-followups/contract-suite.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-09-13T06:53:45+00:00"
+        }
+      ]
+    },
+    {
+      "id": "runtime.downstream",
+      "title": "运行层：下游型现场 structure check 零 WARN 且对损坏 package.json 与非 UTF-8 SKILL.md 不崩、源包型现场 WARN 保留、v12 升级出 notices、inputs 目录与 gitignore 落盘且 check-ignore 命中",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260913T065345-1a92a8867d",
+          "objective_fingerprint": "sha256:7ec555fc77b48b904b6aaf4d7776f67708db85eea1686bd1f6ac74dc168ced7a",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "下游型/源包型 fixture 真实跑 structure check 与 report（含非法 package.json、非 UTF-8 SKILL.md、非法 evals.json 三种容错现场）；真实下游 suiyi 只读复核 WARN 由 4 降 0；scratch 项目 v12 config 升级出 notices、v13 再升级不出；inputs 目录与嵌套 .gitignore 落盘且 git check-ignore 命中",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-2.16.1-followups/structure-exempt.txt",
+            "docs/acceptance/evidence/harness-2.16.1-followups/usage-notice.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-09-13T06:53:45+00:00"
+        }
+      ]
+    },
+    {
+      "id": "install.surface",
+      "title": "安装层：project init/upgrade 到 fixture 零 finding、inputs 不被 legacy 清理、package.json files 每项存在、npm pack --dry-run 清单含两个受管模块",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L4",
+      "evidence_layer": "package_or_install",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260913T065345-3fc1f52aa2",
+          "objective_fingerprint": "sha256:7ec555fc77b48b904b6aaf4d7776f67708db85eea1686bd1f6ac74dc168ced7a",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L4",
+          "evidence_layer": "package_or_install",
+          "method": "全新 fixture project init/upgrade --apply（inputs 落盘、task-inputs 仍按 legacy 清理、project check 零 finding）；本仓库 project upgrade --apply 走通 .gitignore 不覆盖路径；package.json files 42 项逐项存在；npm pack --dry-run 含两个受管模块且不含死条目",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-2.16.1-followups/install-surface.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-09-13T06:53:45+00:00"
+        }
+      ]
+    },
+    {
+      "id": "release.consistency",
+      "title": "发布层：release sync --strict 退 0、CHANGELOG 顶部为 2.16.1、本仓库受管区块同步、plan check 退 0",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260913T065345-dcd409e92b",
+          "objective_fingerprint": "sha256:7ec555fc77b48b904b6aaf4d7776f67708db85eea1686bd1f6ac74dc168ced7a",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "release sync --apply 同步六源后 release sync --strict 退 0（diffs=[]）、tests.test_release_version_sync 通过、CHANGELOG 顶部 2.16.1、受管区块含 inputs 一句且版本 2.16.1、plan check 退 0、harness.py 4800 行 < 4850 上限",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-2.16.1-followups/release-consistency.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-09-13T06:53:45+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 6,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:6ad597997c3754c04947785cb0d70d5246a90084f0c4e482268a6fcfb492934f",
+      "updated_at": "2026-09-13T06:31:30+00:00"
+    },
+    {
+      "revision": 2,
+      "asset_fingerprint": "sha256:61e734dcaed5081791a0b7b3b7002fac93bf9fa5a603119d42bea1dc02970c36",
+      "updated_at": "2026-09-13T06:53:45+00:00"
+    },
+    {
+      "revision": 3,
+      "asset_fingerprint": "sha256:ddfb0f065f749b73be9147996248e3ba579ba07d299ab4c6892598a3c7198add",
+      "updated_at": "2026-09-13T06:53:45+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:ab262950c71d998b420f61d6c16157c47130e55e94bf1934f4ecf250fdb78fb9",
+      "updated_at": "2026-09-13T06:53:45+00:00"
+    },
+    {
+      "revision": 5,
+      "asset_fingerprint": "sha256:5404ed3eb65f8696456ade7976ab22bdf4fd7f04cb3abe5a0fe4c53b1bebec95",
+      "updated_at": "2026-09-13T06:53:45+00:00"
+    }
+  ],
+  "created_at": "2026-09-13T06:31:30+00:00",
+  "updated_at": "2026-09-13T06:53:52+00:00",
+  "settled_at": "2026-09-13T06:53:52+00:00",
+  "asset_fingerprint": "sha256:f41dc091ca9766404537ad5b0e0d4b386bca8e583342cb776c6916b779a10b13",
+  "replacement": null
+}

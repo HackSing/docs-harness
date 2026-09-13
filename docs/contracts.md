@@ -158,6 +158,10 @@ L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 �
 
 ScriptHygiene 对 tracked 脚本（`*.sh`/`*.iss`/`*.bat`/`*.cmd`/`*.ps1`）做全仓字节级扫描：同一文件混入 CRLF 与裸 LF 即 FAIL 并指明两种行尾各自行数；目标非 git 仓库或 git 不可用时跳过（`checked=0`，不产 WARN，避免 `--strict` 对环境性跳过误报——pre-commit/CI 永远在 git 仓库内运行）。它不是生命周期资产，没有 create/update/settle 动作。
 
+Structure checker 对下游项目排除 harness 自带文件：`scripts/harness.py`、全部受管模块与 `scripts/githooks/` 由安装器写入，其体量与 CODEMAP 登记都不归下游处置（2.16.0 升级 10 个下游时 WARN 几乎全是这些文件）。排除集由 `harness.py` 的 `structure_exempt_paths()` 单点构造后经 `exempt` 参数传入 `check_structure` / `structure_report`，在枚举之后、判定之前整体剔除；受管模块不反向持有安装清单。`_codemap_consistency_warnings` 不受 exempt 影响——那校验的是项目自己登记的条目是否失活。
+
+源包自身不排除，否则会丢掉"新增受管模块未登记 CODEMAP"这道守卫。源包判定为 `is_source_package()`：当且仅当 `SKILL.md` 的 frontmatter `version` 与 `evals/evals.json` 的 `version` 同时存在。它只读这两个标记文件，不读 `package.json` 与 `plan-templates/`（任意 npm 下游都可能有 `package.json`/`VERSION`，判别式过弱；模板本就是被安装的），也因此不把 `read_json` 的崩溃面带进结构检查。三种不可读形态一律判为"不是源包"而非报错：`evals/evals.json` 非法 JSON（`HarnessError`）、`SKILL.md` 非 UTF-8（`UnicodeDecodeError`）、两者的权限或 IO 故障（`OSError`）。
+
 零资产但四类安装结构完整的项目检查通过。命令不得从 Git diff、提交信息或任务文本推断必须创建资产。
 
 ## 6. 风险、授权与数据边界
@@ -178,7 +182,8 @@ Harness 不采集用户授权、不解析 Codex usage、不保存原始用户聊
 - `scripts/githooks/`；
 - `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、`docs/adr/`、各自 archive 与 `docs/INDEX.md` 独立索引区块；
 - 缺失时的项目级 `CHANGELOG.md`、`TODO.md`、`README.md` 骨架（已存在绝不覆盖）；
-- `.docs-harness/config.json`（`docs-harness/project-config/v13`，含 `usage_log.enabled`）。
+- `.docs-harness/config.json`（`docs-harness/project-config/v13`，含 `usage_log.enabled`）；
+- `.docs-harness/inputs/`：一次性输入 JSON（`plan create --content`、`plan settle --governance-input`、`knowledge`/`acceptance`/`adr` 各自的 `--input`）的约定位置，init 与 upgrade 都确保其存在并落一个内容为 `*` 的嵌套 `.gitignore`（已存在则一律不覆盖）。它既在项目内满足输入文件必须位于项目内的要求，又不入库，且不在 `LEGACY_RUNTIME_NAMES` 内、升级不清理；1.x 运行态目录 `.docs-harness/task-inputs/` 仍按 legacy 清除，两者不做迁移。
 
 fresh init 初始化四类空资产目录、受管索引区块与缺失的项目级文档骨架，但不生成项目事实、验收结论、规则目录或任务 Runtime，不自动启动知识、ADR、Changelog、TODO 或后台治理 Job。upgrade 先补齐四类体系，再清理指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；四类用户资产、项目文档、质量账本、已修改或归属不明文件保留。`release sync --strict` 要求 CHANGELOG 顶部版本与 VERSION 一致；`project check` 对缺失的 CHANGELOG/TODO 出 red、TODO 条目格式问题出 yellow。
 
@@ -222,6 +227,8 @@ fresh init 初始化四类空资产目录、受管索引区块与缺失的项目
 ### 9.3 开关
 
 config v13 新增 `usage_log.enabled`，默认 `true`（唯一真源 `usage_log.USAGE_LOG_DEFAULT_ENABLED`）。`is_enabled` 当且仅当 `config["usage_log"]["enabled"] is True` 返回 True：config 缺失、非 JSON、非对象、键缺失、值非 True 一律不记录——没安装就没有观测面。`project upgrade` 沿用用户已显式关闭的取值；`project check` 以 `usage_log_invalid` 校验该键必须恰为 `{"enabled": bool}`。
+
+v12 及更早 → v13 的那一次升级会在 `project upgrade` 的预览与 `--apply` 两条 payload 里带一条 `notices`，一次性告知日志位置、不入库不外发、以及关闭方法。条件是升级前的 config 缺 `usage_log` 键且新值为开——因此 fresh `init` 不提示（`existing` 为 `None`），已是 v13 的项目再升级也不重复提示。
 
 ### 9.4 `usage report` 命令
 
