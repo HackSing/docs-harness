@@ -70,7 +70,7 @@ from usage_log import (
     is_enabled as usage_log_enabled,
 )
 from usage_report import USAGE_REPORT_DEFAULT_DAYS, build_report as build_usage_report
-VERSION = "2.16.1"
+VERSION = "2.16.2"
 CONFIG_SCHEMA = "docs-harness/project-config/v13"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
     f"docs-harness/project-config/v{version}" for version in range(1, 13)
@@ -3012,6 +3012,7 @@ def project_changes(target: Path, source_root: Path) -> list[dict[str, Any]]:
     changes.extend(plan_docs_structure_changes(target))
     changes.extend(asset_structure_changes(target))
     changes.extend(project_doc_changes(target))
+    changes.extend(task_inputs_changes(target))
     cleanup = legacy_cleanup_plan(target)
     changes.extend(
         {"path": path, "action": "remove_owned_legacy"}
@@ -3133,6 +3134,18 @@ def apply_project_install(
     return list(dict.fromkeys(changed)), cleanup
 
 
+def task_inputs_changes(target: Path) -> list[dict[str, str]]:
+    """一次性输入目录的预览判定：缺嵌套 .gitignore 时报一条 create，否则为空。
+
+    与 plan_docs_structure_changes / asset_structure_changes 同形：project_changes（升级预览
+    与 project diff 的共同来源）汇总它，apply_task_inputs_dir 据它写入，三处同一份判定。
+    2.16.1 只有 apply 一侧，升级预览列 13 项而实际写入 14 项，diff 也看不到它。
+    """
+    if (target / TASK_INPUTS_RELATIVE / ".gitignore").is_file():
+        return []
+    return [{"path": f"{TASK_INPUTS_RELATIVE}/.gitignore", "action": "create"}]
+
+
 def apply_task_inputs_dir(target: Path) -> list[str]:
     """确保一次性输入 JSON 的约定目录存在且不入库；返回本次实际写入的相对路径。
 
@@ -3145,13 +3158,13 @@ def apply_task_inputs_dir(target: Path) -> list[str]:
     已存在的 .gitignore 一律不覆盖——用户可能改过。写入失败不吞：安装器的写入必须炸，
     与 usage_log.append_event 的 best-effort 豁免是两条性质不同的路径。
     """
+    changes = task_inputs_changes(target)
+    if not changes:
+        return []
     directory = target / TASK_INPUTS_RELATIVE
     directory.mkdir(parents=True, exist_ok=True)
-    gitignore = directory / ".gitignore"
-    if gitignore.is_file():
-        return []
-    atomic_write_text(gitignore, TASK_INPUTS_GITIGNORE_CONTENT)
-    return [f"{TASK_INPUTS_RELATIVE}/.gitignore"]
+    atomic_write_text(directory / ".gitignore", TASK_INPUTS_GITIGNORE_CONTENT)
+    return [change["path"] for change in changes]
 
 
 def project_findings(target: Path) -> list[dict[str, str]]:

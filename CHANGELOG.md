@@ -1,5 +1,9 @@
 # Changelog
 
+## 2.16.2 - 2026-09-13
+
+- 修复 `project upgrade` 预览与 `project diff` 漏列 `.docs-harness/inputs/.gitignore`：2.16.1 的 `apply_task_inputs_dir` 没有对应的 `*_changes` 预览判定，升级预览列 13 项而实际写入 14 项，`project diff` 对缺失的嵌套 `.gitignore` 也报 `changes=[]`（升级 10 个下游到 2.16.1 时逐项核对预览与 apply 的计数差发现）。本版补 `task_inputs_changes(target)`，`project_changes`（预览与 diff 的共同来源）汇总它，`apply_task_inputs_dir` 改为据它写入，三处同一份判定，与 `plan_docs_structure_changes`/`apply_plan_docs_structure` 等既有配对同形。新增用例 `test_preview_and_diff_list_missing_gitignore_before_apply`（`tests/test_project_install.py`）；顺带把该文件里误置于 `if __name__ == "__main__"` 之后的 `TaskInputsDirectoryTest` 挪回主守卫之前（`unittest discover` 不受影响，直跑该文件时此前会漏掉整类）。
+
 ## 2.16.1 - 2026-09-13
 
 - 修复 Structure checker 对下游误报 harness 自带文件：`check_structure` 与 `structure_report` 新增 `exempt` 参数，在枚举之后、判定之前整体剔除排除路径；排除集由 `harness.py` 的 `structure_exempt_paths()` 单点构造（`scripts/harness.py` + 全部受管模块 + `scripts/githooks/`），受管模块不反向持有安装清单。动机：2.16.0 升级 10 个下游时，suiyi/opc-skills/zbuddy-desktop 的 `structure check` WARN 几乎全是安装器写入的 harness 内部文件的体量与未登记告警，下游既无法处置也不该处置。真实复核：suiyi 由 4 条 WARN（4 条全部是 harness 自带文件）降为 0 条。源包自身不排除，否则会丢掉"新增受管模块未登记 CODEMAP"这道守卫；源包判定 `is_source_package()` 只读 `SKILL.md` frontmatter `version` 与 `evals/evals.json` 的 `version` 两个标记文件，不读 `package.json` 与 `plan-templates/`——任意 npm 下游都可能有 `package.json`/`VERSION`，判别式过弱，且复用整个 `read_version_sources` 会把 9 个 JSON 的 `read_json` 崩溃面带进结构检查（下游一个编辑中途的 `package.json` 就能让 `structure check` 与 pre-commit 的 `assets-check --fast` 报错，这是 2.16.0 没有的新崩溃面）。标记文件不可读的三种形态一律判为"不是源包"而非报错。新增用例 8 条（`tests/test_structure.py`），含下游型零 WARN、源包型保留 WARN、两个入口输出逐字一致，以及非法 `package.json`／非 UTF-8 `SKILL.md`／非法 `evals.json` 三种容错现场。

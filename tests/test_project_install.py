@@ -437,8 +437,6 @@ class ProjectInstallTest(HarnessTestBase):
         self.assertTrue(any("pre-commit" in entry for entry in payload["removed"]))
 
 
-if __name__ == "__main__":
-    unittest.main()
 
 
 class TaskInputsDirectoryTest(HarnessTestBase):
@@ -488,3 +486,24 @@ class TaskInputsDirectoryTest(HarnessTestBase):
             cwd=self.project, capture_output=True, check=False,
         )
         self.assertEqual(result.returncode, 0, "约定目录下的输入文件必须被 git 忽略")
+
+    def test_preview_and_diff_list_missing_gitignore_before_apply(self) -> None:
+        """预览、diff 与 apply 走同一份判定：缺嵌套 .gitignore 时三处都看得到它。
+
+        2.16.1 的 apply_task_inputs_dir 没有 *_changes 对应物，升级预览列 13 项而实际写入
+        14 项，project diff 也报空。2.16.2 补 task_inputs_changes 后三处同源。
+        """
+        self.run_cli("project", "init", "--target", str(self.project))
+        self.gitignore().unlink()
+        expected = {"path": f"{TASK_INPUTS_RELATIVE}/.gitignore", "action": "create"}
+        preview = self.run_cli("project", "upgrade", "--target", str(self.project))
+        self.assertIn(expected, preview["changes"])
+        self.assertIn(expected, self.run_cli("project", "diff", "--target", str(self.project))["changes"])
+        applied = self.run_cli("project", "upgrade", "--target", str(self.project), "--apply")
+        self.assertIn(expected["path"], applied["changed"])
+        self.assertEqual(self.gitignore().read_text(encoding="utf-8"), "*\n")
+        self.assertEqual(self.run_cli("project", "diff", "--target", str(self.project))["changes"], [])
+
+
+if __name__ == "__main__":
+    unittest.main()
