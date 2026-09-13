@@ -11,3 +11,5 @@ test_output.log
 /.docs-harness/task-inputs/
 /.docs-harness/quality-ledger/
 /.qoder/repowiki/
+/.v2c/
+/.video_agent/
