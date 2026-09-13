@@ -15,6 +15,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import uuid
 from pathlib import Path
 from typing import Any, Sequence
@@ -62,10 +63,17 @@ from adr_assets import (
     create as create_adr_asset,
     settle as settle_adr_asset,
 )
-VERSION = "2.15.2"
-CONFIG_SCHEMA = "docs-harness/project-config/v12"
+from usage_log import (
+    USAGE_LOG_DEFAULT_ENABLED,
+    USAGE_SCHEMA_VERSION,
+    append_event as append_usage_event,
+    is_enabled as usage_log_enabled,
+)
+from usage_report import USAGE_REPORT_DEFAULT_DAYS, build_report as build_usage_report
+VERSION = "2.16.0"
+CONFIG_SCHEMA = "docs-harness/project-config/v13"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
-    f"docs-harness/project-config/v{version}" for version in range(1, 12)
+    f"docs-harness/project-config/v{version}" for version in range(1, 13)
 }
 PLAN_TEMPLATE_SCHEMA = "docs-harness/plan-template/v3"
 PLAN_SELECTION_SCHEMA = "docs-harness/plan-selection/v2"
@@ -96,6 +104,8 @@ MANAGED_MODULE_RELATIVE_FILES = (
     "script_hygiene.py",
     "structure_check.py",
     "structure_ts_functions.cjs",
+    "usage_log.py",
+    "usage_report.py",
 )
 PLAN_DOCS_RELATIVE = "docs/plans"
 PLAN_ARCHIVE_RELATIVE = "docs/plans/archive"
@@ -2711,6 +2721,13 @@ def v2_config(
         if isinstance(existing_knowledge, dict)
         else docs_preexisted
     )
+    # 升级沿用用户已显式关闭的开关；缺失或被改坏时回落唯一默认常量。
+    existing_usage = existing.get("usage_log") if existing else None
+    usage_enabled = (
+        existing_usage["enabled"]
+        if isinstance(existing_usage, dict) and isinstance(existing_usage.get("enabled"), bool)
+        else USAGE_LOG_DEFAULT_ENABLED
+    )
     return {
         "schema_version": CONFIG_SCHEMA,
         "version": VERSION,
@@ -2724,6 +2741,7 @@ def v2_config(
             "query": "on_demand",
             "docs_preexisting_at_install": bool(docs_flag),
         },
+        "usage_log": {"enabled": usage_enabled},
         "migration": migration,
         "installed_at": (
             existing.get("installed_at")
@@ -3143,6 +3161,13 @@ def project_findings(target: Path) -> list[dict[str, str]]:
                 "code": "knowledge_mode_invalid",
                 "message": "知识资产生命周期配置无效",
             }
+        )
+    usage_log = config.get("usage_log")
+    if not isinstance(usage_log, dict) or set(usage_log) != {"enabled"} or not isinstance(
+        usage_log.get("enabled"), bool
+    ):
+        findings.append(
+            {"severity": "red", "code": "usage_log_invalid", "message": "usage 观测开关配置无效"}
         )
     script = target / "scripts" / "harness.py"
     if (
@@ -4196,6 +4221,23 @@ def command_structure(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     return 0, check_structure(target)
 
 
+def command_usage(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    """usage report 的 CLI 投影；聚合规则真源在 usage_report 模块。
+
+    报告内容本身永不触发非零退出（旁路观察不做门禁）；只有参数非法与日志不可读
+    两种真实错误走 HarnessError，与其余命令的错误面一致。
+    """
+    target = safe_target(args.target)
+    if args.days <= 0:
+        raise HarnessError("usage report 的 --days 必须是正整数", code="invalid_request")
+    try:
+        return 0, build_usage_report(target, args.days)
+    except OSError as exc:
+        raise HarnessError(
+            f"无法读取 usage 日志：{exc}", code="usage_log_unreadable"
+        ) from exc
+
+
 def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
     config = project_config(target)
@@ -4227,7 +4269,7 @@ def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         "script_version": script_version_valid,
         "command_parser": all(
             name in build_parser().format_help()
-            for name in ("knowledge", "plan", "acceptance", "adr", "project", "release", "assets-check", "structure", "self-test")
+            for name in ("knowledge", "plan", "acceptance", "adr", "project", "release", "assets-check", "structure", "usage", "self-test")
         ),
         "asset_check_flags": strict_parse_ok,
         "direct_mode_default": (
@@ -4472,6 +4514,15 @@ def build_parser() -> argparse.ArgumentParser:
     structure.add_argument("action", choices=("check", "report"))
     add_target(structure)
 
+    usage = commands.add_parser(
+        "usage", help="本地使用观测：report 聚合 .docs-harness/usage 的调用日志（只读，不外发）"
+    )
+    usage.add_argument("action", choices=("report",))
+    add_target(usage)
+    usage.add_argument(
+        "--days", type=int, default=USAGE_REPORT_DEFAULT_DAYS, help="统计窗口天数（正整数，默认 %(default)s）"
+    )
+
     self_test = commands.add_parser("self-test", help=f"运行 {VERSION} 内置自检")
     add_target(self_test)
 
@@ -4498,9 +4549,67 @@ def emit(payload: dict[str, Any], as_json: bool) -> None:
         )
 
 
+# cmd.invoke 只收录枚举白名单 flag：全部来自 argparse 的 choices 或 store_true，
+# 不含任何自由文本；改这里等于改事件契约，须同步 docs/contracts.md。
+USAGE_FLAG_KEYS = ("status", "reaccept", "dry_run", "strict", "fast", "user_confirmed")
+# payload 列表键 → 事件计数字段；命令 payload 里不存在该键时事件不写对应字段。
+USAGE_COUNT_KEYS = (("facts", "hits"), ("failures", "failures"), ("warnings", "warnings"))
+# 事件另记 payload["status"] 为 result：退出码不足以表达结果——acceptance record 退 3
+# 表示记录已存入但整体验收未通过，而 3 在 project upgrade、plan settle 里语义又各不相同。
+# status 取值全部来自命令 payload 的既有枚举（created/frozen/pending/passed/failed/
+# error/dry_run_valid/needs_delivery…），不是自由文本。
+
+
+def usage_invoke_event(
+    args: argparse.Namespace, code: int, payload: dict[str, Any], duration_ms: int
+) -> dict[str, Any]:
+    """把一次命令调用投影成 cmd.invoke 事件：只取枚举白名单与计数，不取自由文本。
+
+    推导不出的字段直接不写键（不写 null），读侧统一 .get()，避免缺失与 null 两种空表示。
+    """
+    event: dict[str, Any] = {
+        "v": USAGE_SCHEMA_VERSION,
+        "ts": utc_now(),
+        "event": "cmd.invoke",
+        "command": args.command,
+        "exit_code": code,
+        "duration_ms": duration_ms,
+    }
+    action = getattr(args, "action", None)
+    if action is not None:
+        event["action"] = action
+    status = payload.get("status")
+    if isinstance(status, str):
+        event["result"] = status
+    flags = {key: getattr(args, key) for key in USAGE_FLAG_KEYS if getattr(args, key, None)}
+    if flags:
+        event["flags"] = flags
+    for source, field in USAGE_COUNT_KEYS:
+        value = payload.get(source)
+        if isinstance(value, list):
+            event[field] = len(value)
+    return event
+
+
+def record_usage_invoke(
+    args: argparse.Namespace, code: int, payload: dict[str, Any], started: float
+) -> None:
+    """旁路记录一次命令调用；未安装或开关关闭时不记录，写入失败不影响命令结果。
+
+    target 不经 safe_target：目录不存在时 is_enabled 读不到 config 自然返回 False，
+    观察路径因此不需要捕获任何异常。
+    """
+    target = Path(args.target).expanduser().resolve()
+    if not usage_log_enabled(target):
+        return
+    duration_ms = int((time.monotonic() - started) * 1000)
+    append_usage_event(target, usage_invoke_event(args, code, payload, duration_ms))
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    started = time.monotonic()
     try:
         if args.command == "knowledge":
             knowledge_handlers = {
@@ -4542,9 +4651,12 @@ def main(argv: Sequence[str] | None = None) -> int:
             code, payload = command_assets_check(args)
         elif args.command == "structure":
             code, payload = command_structure(args)
+        elif args.command == "usage":
+            code, payload = command_usage(args)
         else:
             code, payload = command_self_test(args)
         emit(payload, args.json)
+        record_usage_invoke(args, code, payload, started)
         return code
     except HarnessError as exc:
         payload = {
@@ -4554,6 +4666,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             **exc.extra_payload,
         }
         emit(payload, getattr(args, "json", False))
+        record_usage_invoke(args, exc.exit_code, payload, started)
         return exc.exit_code
 
 

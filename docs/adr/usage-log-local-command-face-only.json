@@ -1,0 +1,18 @@
+{
+  "schema_version": "docs-harness/adr-asset/v1",
+  "title": "本地 usage 观测只覆盖 harness 命令面、旁路 best-effort、不外发",
+  "key_symbols": [
+    "record_usage_invoke",
+    "USAGE_FLAG_KEYS",
+    "is_enabled"
+  ],
+  "context": "contracts.md §6 原文写「Docs Harness 不提供任务级 Gate、动作 preflight、授权文件、Host Adapter 或 usage metrics」，architecture.md 第 19 行写「不建立 Gate、preflight、Host Adapter 或 usage 采集层」、第 81 行写「不建立任务级 usage、授权或控制遥测」。2.16.0 新增本地 usage 日志与 usage report，与这三处表述字面相抵，必须裁决边界而不是绕开。原表述有两条动机，必须确认它们在新边界下是否仍成立：其一是「不能让每个业务任务承担遥测成本」（contracts.md §6 保留原句）——针对的是任务级遥测，即每个业务任务都要付出记录、上报与治理开销；其二是「不采集用户授权、不解析 Codex usage、不保存原始用户聊天或模型推理」——针对的是采集用户与模型的数据。本功能只在 harness 自身命令的 main() 出口记一行结构化计数，不介入任何业务任务的执行路径，也不读取用户授权、Codex usage、聊天或推理内容，因此两条动机在新边界下都仍然成立，冲突只在「usage」这个词的粒度上：原表述把「任务级遥测」与「工具自身命令面的本地日志」混为一谈。决策需要解决的问题是：维护者判断 3.0 砍哪些 harness 能力时没有任何事实来源，只能靠印象。",
+  "decision": "保留「不做任务级 usage 采集或遥测」的原则，把它精确化为四条边界，并据此修订 contracts.md §6 与 architecture.md 第 19、81 行：（1）只记 harness 自身命令，不监控默认直跑的普通业务任务，日志覆盖面等于 harness 命令面本身；（2）单点埋点：只在 harness.py 的 main() 出口记录 cmd.invoke，四个既有受管模块 managed_assets、asset_checks、knowledge_assets、acceptance_assets 零改动，旁路观察不侵入任何资产写入路径；（3）枚举白名单：只记 command、action、exit_code、duration_ms、result 与六个枚举 flag 及计数，不记 query 原文、路径、资产名或任何自由文本；（4）写入失败静默降级：append_event 返回 False 而不抛出，豁免范围收窄为 OSError 与 UnicodeEncodeError，任何命令不因日志内容或写入失败改变行为与退出码。日志本地留存，经嵌套 .gitignore 不入库，不外发；跨仓库汇总由维护者自行运行 usage report --json 后手工合并，harness 不提供聚合服务。",
+  "consequences": "下游项目 project upgrade 到 config v13 后默认开启（usage_log.enabled 默认 true），不接受的项目把该键改成 false 即完全静默，无需卸载或降级；project check 以 usage_log_invalid 守住该键形状。日志写在 .docs-harness/usage/YYYY-MM.jsonl，由 usage_log 首次写入时落的嵌套 .gitignore（内容为 *）挡住入库，不触碰项目根 .gitignore。usage report 只出计数、不出方向性判断：默认直跑的 2.x 哲学下多数任务本就不该走 plan，把低调用率读成缺陷是错的，解读责任留在维护者。代价有三：新增两个受管模块使安装面扩大，config schema 升到 v13 并要求 v1-v12 单向迁移；per-checker 粒度拿不到，因为 run_assets_check 把失败扁平成前缀字符串，v1 只记总数；日志对同一目录的并发写在 Windows 上不保证原子性，撕裂行由 read_events 跳过，不做锁。边界一旦需要放宽（例如记录自由文本或外发），必须另开 ADR 取代本条，不得在实现里悄悄扩大。",
+  "supersedes": [],
+  "status": "active",
+  "revision": 1,
+  "created_at": "2026-09-13T05:10:20+00:00",
+  "updated_at": "2026-09-13T05:10:20+00:00",
+  "asset_fingerprint": "sha256:712b7228138dc23f5952e13841bf126f5a50eda8ea8216164fe72aae205be974"
+}

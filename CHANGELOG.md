@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.16.0 - 2026-09-13
+
+- 新增本地使用观测与只读出口 `usage report`：`harness.py` 的 `main()` 出口单点记 `cmd.invoke` 事件到 `.docs-harness/usage/YYYY-MM.jsonl`（按月分文件、append-only），`python3 scripts/harness.py usage report [--days 30] [--json]` 聚合成命令采纳度、资产 create:settle、验收返工、方案结算分布、知识零命中率与检查结果六组计数。动机：2.x 命令面已扩到 10 个一级命令、20 余个 action，但哪些能力真被用上、哪些只活在文档里没有任何事实来源，3.0 砍能力只能靠印象。边界：只记 harness 自身命令面（不监控默认直跑的普通任务）、只记枚举值与计数（不记 query 原文、路径、资产名）、不外发不做门禁（任何命令不因日志内容或写入失败改变行为与退出码）、写入失败静默降级且豁免范围只限 `OSError`/`UnicodeEncodeError`。日志经 `usage_log` 首次写入时落的嵌套 `.gitignore`（内容 `*`）不入库，不触碰项目根 `.gitignore`、不改安装器。跨仓库汇总由维护者自行运行 `usage report --json` 后手工合并，harness 不提供聚合服务。新增受管模块 `scripts/usage_log.py`、`scripts/usage_report.py`；新增用例 `tests/test_usage.py`（51 条，含开关求值、事件投影、六组聚合与无 config／开关关闭／目录只读／日志撕裂四类降级现场）。
+- 安装配置升至 `docs-harness/project-config/v13`，新增顶层键 `usage_log`（形状恰为 `{"enabled": bool}`，默认 `true`，唯一真源 `usage_log.USAGE_LOG_DEFAULT_ENABLED`）；`KNOWN_LEGACY_CONFIG_SCHEMAS` 扩到 v1-v12，旧项目经 `project upgrade` 单向迁移并沿用用户已显式关闭的取值；`project check` 新增 `usage_log_invalid` 校验该键形状。升版的唯一理由是新增该 config 键——新增受管模块本身不构成升版理由（2.15.0 加 `structure_ts_functions.cjs` 时 schema 未变），此前 v11/v12 两次同批升版容易让人误读。
+- 修复 npm 包清单再次遗漏受管模块：`package.json` `files` 未收录 `scripts/usage_log.py` 与 `scripts/usage_report.py`，从包安装会缺模块。这是同类缺陷第三次（2.9.0 漏 `script_hygiene.py`、2.11.0 漏 `structure_check.py`，均由 2.15.0 补齐）——手工维护的 `files` 清单与 `MANAGED_MODULE_RELATIVE_FILES` 各自演进，漏项只在下游 npm 安装后炸成 `ModuleNotFoundError`，本仓库测试全绿。本版补齐并新增守卫用例 `test_package_files_cover_every_managed_module`（`tests/test_cli_surface.py`）按真源逐项比对，堵掉第四次。
+- 修订 usage 边界表述并用 ADR 登记：`docs/contracts.md` §6 原文「不提供…或 usage metrics」与 `docs/architecture.md` 第 19、81 行「不建立 usage 采集层／任务级 usage 遥测」与本功能字面相抵。三处均改为「不建立任务级 usage 采集或遥测」，并指向新增的 `docs/contracts.md` §9 本地使用观测合同（事件 schema、落盘与忽略机制、config 开关、`usage report` 命令契约与五条边界）。原表述的两条动机——不让每个业务任务承担遥测成本、不采集用户授权与 Codex usage——在新边界下仍然成立且原句保留。决策记录见 ADR `usage-log-local-command-face-only`；知识资产见 `docs/knowledge/usage-observability.json`。
+- 对冻结方案的两处偏差（来源是真实运行证据，非事后放宽）：事件新增 `result` 字段（取 `payload["status"]`，仅字符串时写入），因为退出码不足以表达结果；`usage report` 的验收返工率分母取退出码 0 与 3 两种，因为 `acceptance record` 的退出码是 `0 if result["status"] == "passed" else 3`，退 3 表示记录已存入但整体验收未通过，只认 0 会让分母只数到最后一条把资产翻绿的记录。退出码 3 在 `project upgrade`、`plan settle` 里语义各不相同，故命令分布只按退出码取值分桶、不贴成败标签。
+
 ## 2.15.2 - 2026-09-13
 
 - 受管 pre-commit 新增项目级扩展点（`scripts/githooks/pre-commit`）：assets-check 通过后若存在 `scripts/githooks/pre-commit.local` 则在同一 shell source（可用 `$PYTHON_BIN`，非零退出即中止提交）；该文件随项目提交、不计入受管指纹，升级/卸载不再与项目自定义检查冲突。动机：zbuddy-desktop/mobile 为挂两仓契约镜像校验分叉了受管钩子（commit 后每次 upgrade 撞 install_conflict、`project check` 恒报 githook_drift 红），扩展点让这类项目级检查不必分叉受管文件；受管入口（AGENTS.md/CLAUDE.md/插件 managed-entry）同步写明用法。新增用例：local 钩子被 source 且放行、local 失败阻断提交（`tests/test_project_install.py`）。

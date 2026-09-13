@@ -85,7 +85,7 @@ class ProjectInstallTest(HarnessTestBase):
         self.assertEqual(
             payload["version"], (ROOT / "VERSION").read_text(encoding="utf-8").strip()
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v12")
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v13")
         self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["direct_mode"], {"default": True})

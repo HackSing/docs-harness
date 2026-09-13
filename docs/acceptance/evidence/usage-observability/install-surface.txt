@@ -1,0 +1,33 @@
+# 安装层证据 install.surface（behavior_acceptance / package_or_install / L4）
+采集时间：2026-09-13T04:46:27Z  仓库：docs-harness  批次：批 1
+
+## 1. 本仓库真实 project upgrade --apply 后的 config（v12 -> v13）
+schema_version = docs-harness/project-config/v13
+usage_log = {"enabled": true}
+config keys = ['direct_mode', 'installed_at', 'installed_githook_fingerprints', 'installed_module_fingerprints', 'installed_plan_template_fingerprints', 'installed_script_fingerprint', 'knowledge', 'migration', 'schema_version', 'usage_log', 'version']
+new module fingerprints = {
+ "usage_log.py": "sha256:3e1f69c8fee0ff778285b543135c7e74e4862907172dd901ae6ddf13d707309a",
+ "usage_report.py": "sha256:ae927be355f20738f2d25c615c8f1ccce14205ff4936ca24425ef41940afa1e8"
+}
+
+## 2. project check（零 finding）
+status = needs_delivery
+findings = []
+
+## 3. 安装面聚焦测试（init 落盘/指纹、uninstall 删除、upgrade 沿用 enabled=false、缺键回落默认、usage_log_invalid）
+test_install_registers_usage_modules (tests.test_usage.UsageCliTest.test_install_registers_usage_modules) ... ok
+test_uninstall_removes_usage_modules (tests.test_usage.UsageCliTest.test_uninstall_removes_usage_modules) ... ok
+test_upgrade_preserves_disabled_switch (tests.test_usage.UsageCliTest.test_upgrade_preserves_disabled_switch) ... ok
+test_upgrade_restores_missing_switch_to_default (tests.test_usage.UsageCliTest.test_upgrade_restores_missing_switch_to_default) ... ok
+test_project_check_flags_broken_usage_log_config (tests.test_usage.UsageCliTest.test_project_check_flags_broken_usage_log_config) ... ok
+
+----------------------------------------------------------------------
+Ran 5 tests in 1.544s
+
+OK
+
+## 4. 既有安装/升级回归（含三处 v13 字面量断言与 MANAGED_MODULES 指纹）
+----------------------------------------------------------------------
+Ran 35 tests in 16.225s
+
+OK

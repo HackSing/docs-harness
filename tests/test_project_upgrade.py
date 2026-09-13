@@ -175,7 +175,7 @@ class ProjectUpgradeTest(HarnessTestBase):
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v12")
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v13")
         self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["migration"]["source_version"], "2.3.0")
@@ -306,7 +306,7 @@ class ProjectUpgradeTest(HarnessTestBase):
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(config["schema_version"], "docs-harness/project-config/v12")
+        self.assertEqual(config["schema_version"], "docs-harness/project-config/v13")
         self.assertEqual(set(config), self.CURRENT_CONFIG_KEYS)
         self.assertTrue(self.LEGACY_CONFIG_KEYS.isdisjoint(config))
         self.assertEqual(config["direct_mode"], {"default": True})

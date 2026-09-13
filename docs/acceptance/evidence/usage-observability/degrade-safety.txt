@@ -1,0 +1,35 @@
+# 降级层证据 degrade.safety（behavior_acceptance / local_runtime / L3）
+采集时间：2026-09-13T04:46:56Z  仓库：docs-harness  批次：批 1
+
+## 场景 (a) 无 config.json：零写入
+## 场景 (b) enabled=false：零新增
+## 场景 (c) 目录/文件不可写：append 返回 False，命令退出码与输出不变
+## 场景 (d) 撕裂行/未知 schema/坏时间戳：read_events 跳过，不废整月
+
+test_broken_config_is_not_enabled (tests.test_usage.UsageEnabledTest.test_broken_config_is_not_enabled) ... ok
+test_explicit_false_is_not_enabled (tests.test_usage.UsageEnabledTest.test_explicit_false_is_not_enabled) ... ok
+test_explicit_true_is_enabled (tests.test_usage.UsageEnabledTest.test_explicit_true_is_enabled) ... ok
+test_missing_config_is_not_enabled (tests.test_usage.UsageEnabledTest.test_missing_config_is_not_enabled) ... ok
+test_missing_directory_is_not_enabled (tests.test_usage.UsageEnabledTest.test_missing_directory_is_not_enabled) ... ok
+test_missing_key_is_not_enabled (tests.test_usage.UsageEnabledTest.test_missing_key_is_not_enabled) ... ok
+test_truthy_non_bool_is_not_enabled (tests.test_usage.UsageEnabledTest.test_truthy_non_bool_is_not_enabled) ... ok
+test_uninstalled_project_records_nothing (tests.test_usage.UsageCliTest.test_uninstalled_project_records_nothing)
+L4(a)：非 harness 项目里跑命令，零写入。 ... ok
+test_disabled_switch_stops_recording (tests.test_usage.UsageCliTest.test_disabled_switch_stops_recording)
+L4(b)：关掉开关后零新增。 ... ok
+test_append_returns_false_when_directory_cannot_be_created (tests.test_usage.UsageStoreTest.test_append_returns_false_when_directory_cannot_be_created)
+L4(c)：写不进去就返回 False，不抛出、不留半个目录。 ... ok
+test_unwritable_log_does_not_change_command_result (tests.test_usage.UsageCliTest.test_unwritable_log_does_not_change_command_result)
+L4(c) 命令层：日志写不进去，命令照常完成、退出码不变、零写入。 ... ok
+test_read_events_skips_torn_and_foreign_lines (tests.test_usage.UsageStoreTest.test_read_events_skips_torn_and_foreign_lines)
+L4(d)：撕裂行、未知 schema、坏时间戳都跳过，不废掉整个月文件。 ... ok
+test_read_events_tolerates_torn_multibyte_sequence (tests.test_usage.UsageStoreTest.test_read_events_tolerates_torn_multibyte_sequence) ... ok
+
+----------------------------------------------------------------------
+Ran 13 tests in 0.541s
+
+OK
+
+## 现场复核：未安装目录下跑命令，退出码 0 且不产生 .docs-harness/usage/
+structure check exit = 0
+usage dir exists = no

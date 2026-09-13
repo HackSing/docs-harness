@@ -162,7 +162,9 @@ ScriptHygiene 对 tracked 脚本（`*.sh`/`*.iss`/`*.bat`/`*.cmd`/`*.ps1`）做�
 
 ## 6. 风险、授权与数据边界
 
-Docs Harness 不提供任务级 Gate、动作 preflight、授权文件、Host Adapter 或 usage metrics。Git 写入、删除、发布、安装和外部系统写入使用 Codex 原生授权与沙箱。
+Docs Harness 不提供任务级 Gate、动作 preflight、授权文件或 Host Adapter。Git 写入、删除、发布、安装和外部系统写入使用 Codex 原生授权与沙箱。
+
+不建立任务级 usage 采集或遥测；harness 自身命令面的本地调用日志见 [§9](#9-本地使用观测合同)（可关、不外发、不改变任何命令的行为与退出码）。
 
 Harness 不采集用户授权、不解析 Codex usage、不保存原始用户聊天或模型推理。需要评估产品效果时，另行进行明确的只读抽样审查，不能让每个业务任务承担遥测成本。
 
@@ -171,12 +173,12 @@ Harness 不采集用户授权、不解析 Codex usage、不保存原始用户聊
 项目安装只提供：
 
 - 受管的 direct-first `AGENTS.md` 与 `CLAUDE.md` 区块；
-- `scripts/harness.py` 与受管资产生命周期模块；
+- `scripts/harness.py` 与受管资产生命周期模块（`managed_assets`、`asset_checks`、`plan_governance`、`knowledge_assets`、`acceptance_assets`、`adr_assets`、`script_hygiene`、`structure_check`、`structure_ts_functions.cjs`、`usage_log`、`usage_report`）；
 - 版本化 `plan-templates/`；
 - `scripts/githooks/`；
 - `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、`docs/adr/`、各自 archive 与 `docs/INDEX.md` 独立索引区块；
 - 缺失时的项目级 `CHANGELOG.md`、`TODO.md`、`README.md` 骨架（已存在绝不覆盖）；
-- `.docs-harness/config.json`（`docs-harness/project-config/v11`）。
+- `.docs-harness/config.json`（`docs-harness/project-config/v13`，含 `usage_log.enabled`）。
 
 fresh init 初始化四类空资产目录、受管索引区块与缺失的项目级文档骨架，但不生成项目事实、验收结论、规则目录或任务 Runtime，不自动启动知识、ADR、Changelog、TODO 或后台治理 Job。upgrade 先补齐四类体系，再清理指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；四类用户资产、项目文档、质量账本、已修改或归属不明文件保留。`release sync --strict` 要求 CHANGELOG 顶部版本与 VERSION 一致；`project check` 对缺失的 CHANGELOG/TODO 出 red、TODO 条目格式问题出 yellow。
 
@@ -187,3 +189,54 @@ fresh init 初始化四类空资产目录、受管索引区块与缺失的项目
 `run|context|progress|verify|task|background|authorization`、`--legacy-opt-in` 和知识维护 Job 已从 2.x CLI 与控制器删除。2.x 不读取、创建、继续或验证 1.x 任务状态；旧项目只通过 `project upgrade` 执行单向迁移。
 
 旧规则目录和 1.x 状态机测试不进入源码当前产品面或 npm 包。`docs/history/` 只在仓库中保留历史证据，不进入默认知识检索和安装包。完整清理、保留和失败关闭规则见 [2.0.0 迁移指南](migrations/v2.0.0.md)。
+
+## 9. 本地使用观测合同
+
+只覆盖 harness 自身命令面，供维护者判断哪些能力值得保留、简化或移除。不遥测、不外发、不做门禁。
+
+### 9.1 事件 schema
+
+`docs-harness/usage-event/v1`，落盘 `.docs-harness/usage/YYYY-MM.jsonl`，按月分文件、append-only、一行一事件。v1 只有一种事件 `cmd.invoke`，在 `harness.py` 的 `main()` 单点记录。
+
+| 字段 | 类型 | 说明 |
+|---|---|---|
+| `v` | str | 固定 `docs-harness/usage-event/v1` |
+| `ts` | str | UTC ISO8601，事件写入时刻 |
+| `event` | str | 固定 `cmd.invoke` |
+| `command` | str | 一级子命令 |
+| `action` | str | 二级动作；`assets-check`、`self-test` 无 action 时不写该键 |
+| `exit_code` | int | 命令退出码 |
+| `duration_ms` | int | 命令耗时 |
+| `result` | str | 取 `payload["status"]`，仅当其为字符串时写入（`created`/`frozen`/`pending`/`passed`/`failed`/`error`/`dry_run_valid`/`needs_delivery` 等既有枚举） |
+| `flags` | dict | 枚举白名单六项：`status`、`reaccept`、`dry_run`、`strict`、`fast`、`user_confirmed`；取值为假或 None 的键不写入 |
+| `hits` | int | `len(payload["facts"])`，仅 `knowledge query` |
+| `failures` | int | `len(payload["failures"])` |
+| `warnings` | int | `len(payload["warnings"])` |
+
+推导不出的字段直接不写键，不写 `null`；读侧统一 `.get()`。参数解析失败（argparse 直接 `SystemExit`）与非 `HarnessError` 的未捕获异常不产生事件。
+
+### 9.2 不入库
+
+`usage_log` 首次写入时在 `.docs-harness/usage/` 内落一个内容为 `*` 的 `.gitignore`。自包含、不触碰项目根 `.gitignore`、不改安装器。
+
+### 9.3 开关
+
+config v13 新增 `usage_log.enabled`，默认 `true`（唯一真源 `usage_log.USAGE_LOG_DEFAULT_ENABLED`）。`is_enabled` 当且仅当 `config["usage_log"]["enabled"] is True` 返回 True：config 缺失、非 JSON、非对象、键缺失、值非 True 一律不记录——没安装就没有观测面。`project upgrade` 沿用用户已显式关闭的取值；`project check` 以 `usage_log_invalid` 校验该键必须恰为 `{"enabled": bool}`。
+
+### 9.4 `usage report` 命令
+
+`python3 scripts/harness.py usage report [--target .] [--days 30] [--json]`。`--days` 必须是正整数，默认 30。
+
+输出键：`window_days`、`event_count`、`commands`（A 采纳度，按退出码取值分桶，不贴成败标签）、`asset_lifecycle`（B，成功＝退出码 0 且非 dry-run）、`acceptance_rework`（C，分母取退出码 0 与 3）、`plan_settlement`（D）、`knowledge_query`（E）、`checks`（F）、`summary`、`limitations`。
+
+输出契约沿用 `structure report`：返回 dict 交由既有 `emit()` 呈现，非 json 模式按 `key: value` 逐行输出，`--json` 输出整体 JSON；本命令不带独立文本渲染器。报告内容永不触发非零退出；`--days` 非法与日志不可读走 `HarnessError`（退出码 2）。
+
+`acceptance record` 退出码 3 表示记录已存入但整体验收未通过（`0 if result["status"] == "passed" else 3`），因此计入 C 组分母；退出码 3 在 `project upgrade`、`plan settle` 里语义各不相同，故 A 组只分桶不解释。
+
+### 9.5 边界
+
+- 不外发：无网络、无遥测、无自动提交；跨仓库汇总由维护者自行运行 `usage report --json` 后手工合并。
+- 不做门禁：任何命令不因日志内容或日志写入失败改变行为与退出码。
+- 只覆盖 harness 命令面：不监控默认直跑的普通任务。
+- 不记自由文本：不记 query 原文、路径、资产名，只记枚举值与计数。
+- 写入失败静默降级：`append_event` 返回 False，豁免范围只限 `OSError` 与 `UnicodeEncodeError`；`read_events` 在真实命令读路径上不豁免，只跳过无法解析的行（Windows 非原子追加下的撕裂行）。

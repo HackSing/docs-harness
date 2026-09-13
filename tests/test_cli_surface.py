@@ -13,6 +13,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness_test_base import HarnessTestBase, ROOT, HARNESS, NPM_COMMAND
 
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from harness import MANAGED_MODULE_RELATIVE_FILES  # noqa: E402
+
 
 class CliSurfaceTest(HarnessTestBase):
     def test_removed_v1_commands_are_absent_from_cli(self) -> None:
@@ -26,7 +30,7 @@ class CliSurfaceTest(HarnessTestBase):
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
         public_commands = {
             "knowledge", "plan", "acceptance", "adr", "project", "release",
-            "assets-check", "structure", "self-test",
+            "assets-check", "structure", "usage", "self-test",
         }
         for command in public_commands:
             self.assertIn(command, help_result.stdout)
@@ -42,6 +46,23 @@ class CliSurfaceTest(HarnessTestBase):
             self.assertIn("invalid choice", result.stderr)
         self.assertNotIn("--legacy-opt-in", help_result.stdout)
         self.assertFalse((self.project / ".docs-harness").exists())
+    def test_package_files_cover_every_managed_module(self) -> None:
+        """npm 包必须带齐全部受管模块。
+
+        同类缺陷已出现三次：2.9.0 漏 script_hygiene.py、2.11.0 漏 structure_check.py、
+        2.16.0 漏 usage_log.py 与 usage_report.py。手工维护的 files 清单与
+        MANAGED_MODULE_RELATIVE_FILES 各自演进，漏项只在下游 npm 安装后炸成
+        ModuleNotFoundError，本仓库测试全绿。此处按真源逐项比对，堵掉第四次。
+        """
+        package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
+        listed = set(package["files"])
+        missing = [
+            f"scripts/{name}"
+            for name in MANAGED_MODULE_RELATIVE_FILES
+            if f"scripts/{name}" not in listed
+        ]
+        self.assertEqual(missing, [], f"package.json files 缺少受管模块：{missing}")
+
     def test_package_exposes_only_current_public_docs(self) -> None:
         package = json.loads((ROOT / "package.json").read_text(encoding="utf-8"))
         files = package["files"]

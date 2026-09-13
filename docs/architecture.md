@@ -16,7 +16,8 @@ Codex Direct Executor
 - Knowledge Lifecycle Manager 管理带证据的事实创建、修订、查询、冲突、替代与归档；启动时不自动生成事实。
 - Plan Lifecycle Manager 按复杂度与领域选择模板，并管理方案生成、索引、完成和归档；简单任务不生成方案。
 - Acceptance Lifecycle Manager 先定义验收目标和标准，再逐条记录已发生的真实验收，支持重验、结项与归档；不运行旧合同补证循环。
-- 高风险动作使用 Codex 原生授权与沙箱，Harness 不建立 Gate、preflight、Host Adapter 或 usage 采集层。
+- 高风险动作使用 Codex 原生授权与沙箱，Harness 不建立 Gate、preflight、Host Adapter 或任务级 usage 采集层。
+- Usage Observer 是旁路观察面：只在 `main()` 单点记录 harness 自身命令的本地调用日志，可关、不外发、不改变任何命令的行为与退出码，`usage report` 只出计数（合同见 contracts.md §9）。
 
 ## 2. 数据流
 
@@ -78,7 +79,7 @@ Plan/Knowledge 引用 + 验收目标与标准 → acceptance create
 - 方案模板位于 `plan-templates/`；正式方案固定写入 `docs/plans/`，冻结 JSON 与可审查 Markdown 同名共存，`docs/INDEX.md` 受管区块提供发现入口。
 - Knowledge 资产位于 `docs/knowledge/`，Acceptance 目标资产位于 `docs/acceptance/`，均使用同名 JSON/Markdown 和独立 INDEX 区块。
 - 不关联目标的兼容验收记录仍位于 Git 元数据下的 `docs-harness/v2/`，非 Git 项目位于 `.docs-harness/v2/`。
-- 不建立任务级 usage、授权或控制遥测。
+- 不建立任务级 usage、授权或控制遥测；harness 自身命令面的本地调用日志位于 `.docs-harness/usage/`，按月分文件、经嵌套 `.gitignore` 不入库，可在 config 关闭。
 - 历史设计资料位于 `docs/history/`，不进入 npm 对外文档集合和默认知识候选。
 
 ## 4. 安装边界

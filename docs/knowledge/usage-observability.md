@@ -1,0 +1,50 @@
+> 状态：有效（现行事实）
+<!-- docs-harness:knowledge-document/v1 -->
+
+# Docs Harness 本地 usage 观测机制
+
+- 修订：1
+- 关键符号：`record_usage_invoke`、`USAGE_SCHEMA_VERSION`、`build_report`、`usage_log_invalid`
+- 资产指纹：`sha256:5b07410f613debb586d5a54521ff9337d958433b18a2f9b225f80cec93604ba5`
+
+## 摘要
+
+2.16.0 新增本地 usage 观测：harness.py 的 main() 单点记 cmd.invoke 事件到 .docs-harness/usage/YYYY-MM.jsonl，usage report 聚合成 A-F 六组计数。旁路观察，不外发、不做门禁、可在 config v13 的 usage_log.enabled 关闭。
+
+## 事实
+
+### `usage.event.schema`
+
+usage 事件 schema 为 docs-harness/usage-event/v1，落盘 .docs-harness/usage/YYYY-MM.jsonl，按月分文件、append-only、一行一事件；v1 只有 cmd.invoke 一种事件，字段为 v/ts/event/command/action/exit_code/duration_ms/result/flags/hits/failures/warnings，推导不出的字段不写键也不写 null。flags 是枚举白名单六项（status/reaccept/dry_run/strict/fast/user_confirmed），不记 query 原文、路径与资产名。
+
+证据：`scripts/usage_log.py`、`scripts/harness.py`、`docs/contracts.md`
+
+### `usage.single.instrumentation.point`
+
+埋点只在 scripts/harness.py 的 main() 出口，经 record_usage_invoke 在正常返回与 HarnessError 两条路径各调一次；四个既有受管模块 managed_assets/asset_checks/knowledge_assets/acceptance_assets 零改动。argparse 参数错误与非 HarnessError 的未捕获异常不产生事件，属已登记的盲点。选择 main() 而非资产模块出口的根因：plan create/settle 直接调 atomic_write_json 不走 write_asset，且 write_asset 入参拿不到旧状态，无法在通用写入层推导资产动作。
+
+证据：`scripts/harness.py`、`docs/adr/usage-log-local-command-face-only.md`
+
+### `usage.config.switch`
+
+config schema 升到 docs-harness/project-config/v13，新增顶层键 usage_log，形状恰为 {"enabled": bool}，默认值唯一真源是 usage_log.USAGE_LOG_DEFAULT_ENABLED（true）。is_enabled 当且仅当 config["usage_log"]["enabled"] is True 才记录，config 缺失或损坏一律不记录，不做 fallback 默认；project upgrade 沿用用户已显式关闭的取值，project check 以 usage_log_invalid 校验该键形状。v13 升版的唯一理由是新增该 config 键——新增受管模块本身不构成升版理由（2.15.0 加 structure_ts_functions.cjs 时 schema 未变）。
+
+证据：`scripts/usage_log.py`、`scripts/harness.py`、`docs/contracts.md`
+
+### `usage.nested.gitignore`
+
+日志不入库靠嵌套忽略：usage_log.append_event 首次写入时在 .docs-harness/usage/ 内落一个内容为 * 的 .gitignore。自包含、零安装面改动、git check-ignore 照样命中，不触碰项目根 .gitignore、不改安装器。安装器本来就不读写用户根 .gitignore，仓库里 /.docs-harness/runs/ 等条目是手写的 pre-2.0 遗留，不是受管区块。
+
+证据：`scripts/usage_log.py`、`docs/contracts.md`
+
+### `usage.report.output.contract`
+
+usage report 的输出契约沿用 structure report：build_report 返回 dict 交给 harness 既有 emit() 呈现，非 json 模式按 key: value 逐行输出、--json 输出整体 JSON，模块不带独立文本渲染器。输出键为 window_days/event_count/commands/asset_lifecycle/acceptance_rework/plan_settlement/knowledge_query/checks/summary/limitations；报告内容永不触发非零退出，--days 非法与日志不可读走 HarnessError 退 2。
+
+证据：`scripts/usage_report.py`、`scripts/harness.py`、`docs/contracts.md`
+
+### `usage.acceptance.record.exit3`
+
+acceptance record 的退出码语义是 0 if result["status"] == "passed" else 3，即退 3 表示记录已存入但整体验收仍 pending/failed，只有把资产翻绿的最后一条才退 0。因此 usage report 的返工率分母取退出码 0 与 3 两种，只认 0 会让分母只数到最后一条记录。退出码 3 在 harness 里被多个命令复用（project upgrade 的 needs_delivery、plan settle 的归档冲突），所以 usage report 的命令分布只按退出码取值分桶、不贴成败标签。
+
+证据：`scripts/harness.py`、`scripts/usage_report.py`

@@ -18,10 +18,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 HARNESS = ROOT / "scripts" / "harness.py"
+
+sys.path.insert(0, str(ROOT / "scripts"))
+
+from usage_log import USAGE_DIR_RELATIVE  # noqa: E402
+
 MANAGED_MODULES = (
     "managed_assets.py", "asset_checks.py", "plan_governance.py",
     "knowledge_assets.py", "acceptance_assets.py", "adr_assets.py",
     "script_hygiene.py", "structure_check.py", "structure_ts_functions.cjs",
+    "usage_log.py", "usage_report.py",
 )
 
 
@@ -59,6 +65,7 @@ class HarnessTestBase(unittest.TestCase):
         "installed_githook_fingerprints",
         "direct_mode",
         "knowledge",
+        "usage_log",
         "migration",
         "installed_at",
     }
@@ -81,9 +88,16 @@ class HarnessTestBase(unittest.TestCase):
         path.write_text(json.dumps(value, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         return path
     def snapshot_project(self) -> dict[str, str]:
+        """项目内容快照，排除 usage 观测日志。
+
+        该日志是 git 忽略的旁路运行态产物，任何命令都会向它追加一行；纳入快照会把
+        「这条命令没有改动项目」类断言变成必然失败，掩盖真正的改动。
+        """
         snapshot: dict[str, str] = {}
         for path in sorted(self.project.rglob("*")):
             relative = path.relative_to(self.project).as_posix()
+            if relative == USAGE_DIR_RELATIVE or relative.startswith(USAGE_DIR_RELATIVE + "/"):
+                continue
             if path.is_symlink():
                 snapshot[relative] = f"symlink:{os.readlink(path)}"
             elif path.is_dir():

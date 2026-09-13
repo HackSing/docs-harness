@@ -1,0 +1,73 @@
+# 运行层证据 runtime.events（behavior_acceptance / local_runtime / L3）
+采集时间：2026-09-13T04:59:17Z  批次：批 2
+手法：临时 scratch 项目 project init 后真实执行命令序列，逐条核对 JSONL 字段，
+     再独立手工计数与 usage report --json 的六组输出逐项比对。断言失败即脚本非零退出。
+     自由文本探针：query 原文用唯一串 zzqqxx-secret-term，另查输入文件名、方案标题与项目绝对路径。
+
+scratch 项目： /var/folders/hl/rh7jx3k53wq1pvqqx6mgfdnw0000gn/T/tmpj_q3uanv/scratch
+
+## 1. 真实命令序列（每条记录退出码）
+  project init                                   exit=0
+  knowledge query（有 --query）                     exit=0
+  plan select --level full                       exit=0
+  plan create --dry-run（有效）                      exit=0
+  acceptance create --dry-run                    exit=0
+  assets-check                                   exit=0
+  structure check                                exit=0
+  knowledge query（缺 --query，HarnessError）        exit=2
+
+## 2. 落盘事件逐条字段
+  {"v": "docs-harness/usage-event/v1", "ts": "2026-09-13T04:59:17+00:00", "event": "cmd.invoke", "command": "project", "exit_code": 0, "duration_ms": 88, "action": "init", "result": "installed"}
+  {"v": "docs-harness/usage-event/v1", "ts": "2026-09-13T04:59:17+00:00", "event": "cmd.invoke", "command": "knowledge", "exit_code": 0, "duration_ms": 1, "action": "query", "hits": 0}
+  {"v": "docs-harness/usage-event/v1", "ts": "2026-09-13T04:59:17+00:00", "event": "cmd.invoke", "command": "plan", "exit_code": 0, "duration_ms": 9, "action": "select"}
+  {"v": "docs-harness/usage-event/v1", "ts": "2026-09-13T04:59:17+00:00", "event": "cmd.invoke", "command": "plan", "exit_code": 0, "duration_ms": 0, "action": "create", "result": "dry_run_valid", "flags": {"dry_run": true}}
+  {"v": "docs-harness/usage-event/v1", "ts": "2026-09-13T04:59:17+00:00", "event": "cmd.invoke", "command": "acceptance", "exit_code": 0, "duration_ms": 0, "action": "create", "result": "dry_run_valid", "flags": {"dry_run": true}}
+  {"v": "docs-harness/usage-event/v1", "ts": "2026-09-13T04:59:17+00:00", "event": "cmd.invoke", "command": "assets-check", "exit_code": 0, "duration_ms": 19, "result": "passed", "failures": 0, "warnings": 0}
+  {"v": "docs-harness/usage-event/v1", "ts": "2026-09-13T04:59:17+00:00", "event": "cmd.invoke", "command": "structure", "exit_code": 0, "duration_ms": 9, "action": "check", "result": "passed", "failures": 0, "warnings": 0}
+  {"v": "docs-harness/usage-event/v1", "ts": "2026-09-13T04:59:17+00:00", "event": "cmd.invoke", "command": "knowledge", "exit_code": 2, "duration_ms": 0, "action": "query", "result": "error"}
+
+## 3. 字段断言
+  事件数 == 命令数：8 OK
+  每条 v/event/duration_ms/exit_code 类型正确 OK
+  knowledge query hits = 0 OK
+  assets-check failures=0 warnings=0 OK
+  plan create flags={'dry_run': True} result=dry_run_valid OK
+  acceptance create flags={'dry_run': True} result=dry_run_valid OK
+  HarnessError 路径已记录：exit_code=2 result=error OK
+  无自由文本泄漏（query 原文/路径/标题均未入事件）OK
+
+## 4. 手工计数 vs usage report --json
+  A commands[acceptance create].calls  report=1 手工=1 OK
+  A commands[assets-check].calls  report=1 手工=1 OK
+  A commands[knowledge query].calls  report=2 手工=2 OK
+  A commands[plan create].calls  report=1 手工=1 OK
+  A commands[plan select].calls  report=1 手工=1 OK
+  A commands[project init].calls  report=1 手工=1 OK
+  A commands[structure check].calls  report=1 手工=1 OK
+  event_count report=8 手工=8 OK
+  B asset_lifecycle 合计 report=0 手工=0（两次 create 均 dry-run，正确排除）OK
+  C acceptance_rework = {'records': 0, 'reaccept': 0, 'user_confirmed': 0} （本轮无 record）OK
+  D plan_settlement   = {'implemented': 0, 'deprecated': 0} （本轮无 settle）OK
+  E knowledge_query   report={'queries': 1, 'zero_hit': 1} 手工 queries=1 OK
+  F checks 覆盖命令集 report=['assets-check', 'structure check'] 手工=['assets-check', 'structure check'] OK
+  summary / limitations 两键均为字符串 OK
+
+## 5. 非 json 输出（emit 的 key: value 契约）
+  exit=0
+  | window_days: 30
+  | event_count: 9
+  | commands: {"project init": {"calls": 1, "active_days": 1, "first": "2026-09-13T04:59:17+00:00", "last": "2026-09-13T04:59:17+00:00", "exit_codes": {"0…
+  | asset_lifecycle: {"knowledge": {"create": 0, "settle": 0}, "plan": {"create": 0, "settle": 0}, "acceptance": {"create": 0, "settle": 0}, "adr": {"crea…
+  | acceptance_rework: {"records": 0, "reaccept": 0, "user_confirmed": 0}
+  | plan_settlement: {"implemented": 0, "deprecated": 0}
+  | knowledge_query: {"queries": 1, "zero_hit": 1}
+  | checks: {"assets-check": {"calls": 1, "failures": 0, "warnings": 0, "clean": 1}, "structure check": {"calls": 1, "failures": 0, "warnings": 0, "clean"…
+  | summary: usage report 30 天窗口：事件 9 条、命令面 8 个、检查类调用 2 次、acceptance 记录 0 条、knowledge 查询 1 次
+  | limitations: 以上均为本地命令调用计数，不代表能力价值，也不代表 agent 对知识的理解质量；退出码只按取值分桶、不判成败（3 在 harness 里被多个命令复用，语义各不相同）；acceptance record 退出码 3 表示记录已存入但整体验收未通过，计入 acceptanc…
+
+## 6. git check-ignore
+  exit=0  .docs-harness/usage/.gitignore:1:*	.docs-harness/usage/2026-09.jsonl
+  根 .gitignore 存在？False（False = 未触碰用户根忽略文件）
+
+== L2 全部断言通过 ==
+脚本退出码 = 0

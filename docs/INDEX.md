@@ -25,6 +25,7 @@
 - [git 钩子安装改为转发 shim 共存模式并补齐可执行位治理](plans/githook-shim-coexistence.md) — 状态：已实施-仅追溯（代码已是真源，2026-08-28 核对）；关键符号：`core.hooksPath`、`githook_drift`、`GIT_HOOK_RELATIVE_FILES`、`docs-harness-hook-shim`
 - [Harness 计划与验收创建体验优化及结算泄漏预警](plans/docs-harness-create-ux-and-settle-leak-warn.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-11 核对）；关键符号：`plan_select`、`validate_plan_create_payload`、`--dry-run`、`check_cross_asset_relations`
 - [Structure 函数级检查扩展到 Go 与 TS/JS](plans/structure-function-check-multilanguage.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-05 核对）；关键符号：`_ts_function_spans`、`_go_functions`、`function_language`、`TS_MODULE_DIR_ENV`
+- [本地 Usage Log 与 Usage Report 观测能力](plans/usage-observability.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-13 核对）；关键符号：`usage_log`、`append_event`、`build_report`、`USAGE_SCHEMA_VERSION`
 <!-- docs-harness:plans-index:end -->
 
 ## 历史边界
@@ -35,6 +36,7 @@
 ## 项目知识
 
 - [Docs Harness 四资产治理与双机械检查执行机制](knowledge/docs-harness-assets-governance.md) — 状态：有效（现行事实）；关键符号：`run_assets_check`、`check_structure`、`knowledge_impact`、`ADR_SPEC`
+- [Docs Harness 本地 usage 观测机制](knowledge/usage-observability.md) — 状态：有效（现行事实）；关键符号：`record_usage_invoke`、`USAGE_SCHEMA_VERSION`、`build_report`、`usage_log_invalid`
 <!-- docs-harness:knowledge-index:end -->
 
 <!-- docs-harness:acceptance-index:start -->
@@ -48,6 +50,7 @@
 - [Docs Harness 2.10.0 结构护栏验收（Structure checker、CODEMAP、骨架先行模板）](acceptance/docs-harness-structure-guardrails.md) — 状态：已验收-仅追溯；关键符号：`check_structure`、`structure_report`、`CODEMAP_RELATIVE`、`module_interfaces`
 - [git 钩子 shim 共存模式与可执行位治理验收](acceptance/githook-shim-coexistence.md) — 状态：已验收-仅追溯；关键符号：`core.hooksPath`、`githook_drift`、`docs-harness-hook-shim`
 - [Structure 函数级检查扩展到 Go 与 TS/JS 验收](acceptance/structure-function-check-multilanguage.md) — 状态：已验收-仅追溯；关键符号：`_ts_function_spans`、`_go_functions`、`function_language`、`TS_MODULE_DIR_ENV`
+- [本地 Usage Log 与 Usage Report 观测能力验收](acceptance/usage-observability.md) — 状态：已验收-仅追溯；关键符号：`usage_log`、`append_event`、`USAGE_SCHEMA_VERSION`
 <!-- docs-harness:acceptance-index:end -->
 
 <!-- docs-harness:adr-index:start -->
@@ -57,4 +60,5 @@
 - [新增 ScriptHygiene 作为 assets-check 第五个 checker，不建独立资产类型](adr/script-hygiene-as-checker.md) — 状态：有效（现行决策）；关键符号：`script_hygiene`、`run_assets_check`、`SCRIPT_GLOBS`
 - [Structure 增量检查作为 assets-check 第六 checker，CODEMAP 采用纯 Markdown 文档形态](adr/structure-guardrails-as-checker.md) — 状态：有效（现行决策）；关键符号：`check_structure`、`structure_report`、`CODEMAP_SCAFFOLD`
 - [Structure 的 TS/JS 函数级解析借用目标项目的 typescript 编译器，harness 自身保持零依赖](adr/structure-ts-parser-borrowed-from-target.md) — 状态：有效（现行决策）；关键符号：`_ts_parser_command`、`_ts_module_dirs`、`TS_PARSER_UNAVAILABLE_WARNING`
+- [本地 usage 观测只覆盖 harness 命令面、旁路 best-effort、不外发](adr/usage-log-local-command-face-only.md) — 状态：有效（现行决策）；关键符号：`record_usage_invoke`、`USAGE_FLAG_KEYS`、`is_enabled`
 <!-- docs-harness:adr-index:end -->

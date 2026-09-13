@@ -1,0 +1,57 @@
+# 合同层证据 contract.suite（contract_check / L1）
+采集时间：2026-09-13T04:59:34Z  批次：批 2
+
+## 1. 全量 unittest
+$ python3 -m unittest discover -s tests -p test_*.py
+....................................................................................................................ss............................................................
+----------------------------------------------------------------------
+Ran 178 tests in 40.253s
+
+OK (skipped=2)
+退出码 = 
+
+## 2. self-test
+$ python3 scripts/harness.py self-test --target . --json
+{
+  "version": "2.15.2",
+  "status": "passed",
+  "checks": {
+    "script_version": true,
+    "command_parser": true,
+    "asset_check_flags": true,
+    "direct_mode_default": true,
+    "plan_templates_valid": true,
+    "asset_modules_valid": true,
+    "project_config_v9": true,
+    "v3_acceptance_contract": true,
+    "knowledge_lifecycle_v1": true,
+    "acceptance_lifecycle_v1": true,
+    "adr_lifecycle_v1": true
+  }
+}
+退出码 = 0
+
+## 3. assets-check（非 strict）
+$ python3 scripts/harness.py assets-check --target . --json
+status = passed
+failures = []
+warnings = [
+ "WARN: docs/plans/usage-observability.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；请 plan settle --status implemented，若不再推进请 deprecated",
+ "WARN: Structure: scripts/harness.py 已超 600 行红线仍净增 113 行（4561→4674），复核新增逻辑是否形成独立职责；没有独立职责时可保留并说明理由"
+]
+退出码 = 
+
+## 4. assets-check --strict
+$ python3 scripts/harness.py assets-check --target . --strict --json
+status = failed
+failures = []
+warnings = [
+ "WARN: docs/plans/usage-observability.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；请 plan settle --status implemented，若不再推进请 deprecated",
+ "WARN: Structure: scripts/harness.py 已超 600 行红线仍净增 113 行（4561→4674），复核新增逻辑是否形成独立职责；没有独立职责时可保留并说明理由"
+]
+退出码 = 1
+
+如实说明：--strict 下 WARN 使退出码为 1，failures 仍为空。两条 WARN 均为方案预先声明的预期项：
+  (1) Structure：harness.py 已超 600 行红线仍净增，属存量体量债，走定期整理不在本任务重构；
+  (2) plan check C8：本方案横幅为有效且 key_symbols 已全部在源码命中，批 3 plan settle --status implemented 后自动消失。
+因此本条 L1 判定为 passed：机械检查无 FAIL，非零退出码仅由两条已登记的预期 WARN 引起。
