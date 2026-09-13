@@ -253,6 +253,44 @@ class ProjectInstallTest(HarnessTestBase):
         output = (result.stdout + result.stderr).decode("utf-8", errors="replace")
         self.assertEqual(result.returncode, 1, output)
         self.assertIn("assets-check", output)
+    def test_pre_commit_sources_project_local_hook(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        subprocess.run(
+            ["git", "init"], cwd=self.project, capture_output=True, check=True
+        )
+        local = self.project / "scripts/githooks/pre-commit.local"
+        local.write_text(
+            'echo "local-check ran"\n"$PYTHON_BIN" --version >/dev/null 2>&1\nexit 0\n',
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            ["sh", "scripts/githooks/pre-commit"],
+            cwd=self.project,
+            capture_output=True,
+            check=False,
+        )
+        output = (result.stdout + result.stderr).decode("utf-8", errors="replace")
+        self.assertEqual(result.returncode, 0, output)
+        self.assertIn("local-check ran", output)
+    def test_pre_commit_local_hook_failure_blocks_commit(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        subprocess.run(
+            ["git", "init"], cwd=self.project, capture_output=True, check=True
+        )
+        local = self.project / "scripts/githooks/pre-commit.local"
+        local.write_text(
+            'echo "mirror drift" >&2\nexit 1\n',
+            encoding="utf-8",
+        )
+        result = subprocess.run(
+            ["sh", "scripts/githooks/pre-commit"],
+            cwd=self.project,
+            capture_output=True,
+            check=False,
+        )
+        output = (result.stdout + result.stderr).decode("utf-8", errors="replace")
+        self.assertEqual(result.returncode, 1, output)
+        self.assertIn("mirror drift", output)
     def test_upgrade_rejects_user_modified_githook_before_any_write(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
         hook = self.project / "scripts" / "githooks" / "pre-commit"
@@ -336,7 +374,8 @@ class ProjectInstallTest(HarnessTestBase):
             "update-index", "--chmod=+x",
             "scripts/githooks/pre-commit", "scripts/githooks/setup.sh",
         )
-        self.structure_commit_all()
+        # 检查读的是索引模式（git ls-files），恢复 +x 后无需再提交；
+        # chmod 往返后索引与 HEAD 一致，再 commit 会因 nothing to commit 失败。
         payload = self.run_cli("project", "check", "--target", str(self.project))
         self.assertNotIn("githook_index_mode", {f["code"] for f in payload["findings"]})
     def test_project_check_flags_hookspath_shadowing_native_hooks(self) -> None:

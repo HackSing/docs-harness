@@ -1,7 +1,7 @@
 {
   "schema_version": "docs-harness/project-config/v12",
-  "version": "2.15.0",
-  "installed_script_fingerprint": "sha256:df7ded9c058274a022913e41d2a6c204ffef1e2e0a0f07245480a3c6e3f7e73f",
+  "version": "2.15.2",
+  "installed_script_fingerprint": "sha256:ccf1bbd5a5ff9385155d6e05778cb63a2ff5d22a0306fcbc06767ffd5f09dfb7",
   "installed_module_fingerprints": {
     "managed_assets.py": "sha256:298c73562c7a93442c592aa342a19572f88c7c0150d496ef8c944c6bb268157e",
     "asset_checks.py": "sha256:b3ebfe35fafd720061c9f295d8d680574866db967c51676f0c6be1edc3e7ae92",
@@ -14,17 +14,17 @@
     "structure_ts_functions.cjs": "sha256:50b5f1b38bbc6d28027ff45658a27e7e923eee1dccf357e019b4eba919532f1f"
   },
   "installed_plan_template_fingerprints": {
-    "levels/brief.json": "sha256:04400bc7bee0bbcc591d5aeb0218685de978de8aa33bf0efc63c6aeb44c1a179",
-    "levels/full.json": "sha256:f2e186b98dd40bba06c660c86ee127fb70b28bf249800a80ba1a8881297ce105",
-    "profiles/general.json": "sha256:8d7ea71df2db0781eb627db793e54654a6ac05a31c10ea4eedd75064b4e7f3a4",
-    "profiles/frontend-ui.json": "sha256:e5af4368e99fac66b4965d0e3b012ad8ad6beef788c89aa5ef43a7c01309e5f9",
-    "profiles/backend-service.json": "sha256:509b8f49799a75eec91dbbc098a77b11e9fd12409af221434524127566639034",
-    "profiles/bugfix.json": "sha256:ae1d4c90c88166c7c1e7f31c143423a9c48eede17e9f1495fddaa013c268e709",
-    "profiles/architecture.json": "sha256:678e8b3bacef7886544a139ded66a56b4798895eef530a2535a5b61bcd0dd7cc",
-    "profiles/migration-release.json": "sha256:e579c8f57975bf7c9032015357b96295fdba27b81548afa30e63a1ea8f568629"
+    "levels/brief.json": "sha256:17bbfbb172459efdc63550fc72f3b1109acc5613556988ec0ab3a8b03dc114d2",
+    "levels/full.json": "sha256:e4312a23c921bfb1197b70014d011734e0a25485aa6ccc48dfa0ac8be211a888",
+    "profiles/general.json": "sha256:d696ec4124b29d64c011f15cd4ec81549f53dfc3d95e59332844b204147ea484",
+    "profiles/frontend-ui.json": "sha256:48939bf1a4672b795b63470198f47bb6b27774c338e4b8b52e1b44016dad3ca6",
+    "profiles/backend-service.json": "sha256:ed4a8e7ff8da571bb940bc7bf0785f982229485d44aae7115a85d90cdcb7ecc9",
+    "profiles/bugfix.json": "sha256:c2f2195066fd83b2f95d9b2659114b1ffc1b8cff13ca4ad0924e71e4fb9cb89e",
+    "profiles/architecture.json": "sha256:4a5c6a3759b3ee8e28fc7efd67c32b36280bce12595636ece45acf3b14b59a8f",
+    "profiles/migration-release.json": "sha256:3d581568002055f0dee87a834ae232c88f314bccce3cab9751a00b3dbd7dbab8"
   },
   "installed_githook_fingerprints": {
-    "pre-commit": "sha256:1a36d24d939ae0608164e9239b67154c7f0849f6c97555ea7a2d892b24fec3e5",
+    "pre-commit": "sha256:e9b730e659176c0dabbccca9773910d3261fee972afbb51f2e379642b238048c",
     "setup.sh": "sha256:182e05edcfc08db2b51250db4bed87a64cf53d78bbaebfe7d8ce43d07d592a37"
   },
   "direct_mode": {

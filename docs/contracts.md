@@ -120,7 +120,7 @@ JSON `docs-harness/knowledge-asset/v1` 是事实真源，Markdown 是可读投�
 
 - `contract_check`：范围、格式和记录一致性；
 - `behavior_acceptance`：测试、接口、应用、服务、构建、包或安装的直接行为证据；
-- `user_acceptance`：主观体验、权限、硬件和 Codex 无法判断的最终结果。
+- `user_acceptance`：真实硬件、系统权限等 Codex 本地确实无法操作、必须经用户确认的最终结果。功能、视觉与交互体验不属于 user_acceptance——agent 必须在模拟器/本地联调中自行走查并优化。
 
 验收层级：
 
@@ -130,7 +130,7 @@ JSON `docs-harness/knowledge-asset/v1` 是事实真源，Markdown 是可读投�
 | L2 | 聚焦测试或仓库级全量测试行为成立 |
 | L3 | 本地应用或服务真实流程成立 |
 | L4 | 构建、包或安装产物成立 |
-| L5 | 真实设备行为成立，或用户可见、权限和主观体验经用户确认 |
+| L5 | 真实设备行为成立，或权限、硬件等本地无法操作的结果经用户确认 |
 
 Behavior Acceptance 必须声明下列 `evidence_layer`，且只能使用固定 L 层；任一证据层通过都不能替代其他层：
 

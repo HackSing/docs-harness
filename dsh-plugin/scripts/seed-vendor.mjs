@@ -23,12 +23,14 @@ const SEED_ROOT = path.join(PLUGIN_ROOT, 'vendor', 'harness');
  * hand-kept list silently rots the moment the engine grows a module (2.11.0's
  * `structure_check.py` was missed exactly that way, and every seed after it
  * died on ModuleNotFoundError), and the engine's own scripts directory is the
- * only place that knows what the engine is made of.
+ * only place that knows what the engine is made of. Engine modules are not
+ * Python-only: 2.15.0's `structure_ts_functions.cjs` is a managed module too,
+ * and a `.py`-only filter fails `validate_project_source` on the seed.
  * @param {string} scriptsDir - the parent engine's scripts directory.
  * @returns {string[]} the module filenames to copy.
  */
 function engineScripts(scriptsDir) {
-  return fs.readdirSync(scriptsDir).filter(name => name.endsWith('.py'));
+  return fs.readdirSync(scriptsDir).filter(name => name.endsWith('.py') || name.endsWith('.cjs'));
 }
 
 /**

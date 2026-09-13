@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.15.2 - 2026-09-13
+
+- 受管 pre-commit 新增项目级扩展点（`scripts/githooks/pre-commit`）：assets-check 通过后若存在 `scripts/githooks/pre-commit.local` 则在同一 shell source（可用 `$PYTHON_BIN`，非零退出即中止提交）；该文件随项目提交、不计入受管指纹，升级/卸载不再与项目自定义检查冲突。动机：zbuddy-desktop/mobile 为挂两仓契约镜像校验分叉了受管钩子（commit 后每次 upgrade 撞 install_conflict、`project check` 恒报 githook_drift 红），扩展点让这类项目级检查不必分叉受管文件；受管入口（AGENTS.md/CLAUDE.md/插件 managed-entry）同步写明用法。新增用例：local 钩子被 source 且放行、local 失败阻断提交（`tests/test_project_install.py`）。
+
+## 2.15.1 - 2026-09-12
+
+- 验收哲学转向 agent 自检：受管入口（AGENTS.md/CLAUDE.md/插件 managed-entry）明确——改动产生运行态行为（页面、接口、应用、命令或安装流程）的任务完成后，agent 必须自己走一遍详细的模拟器/本地联调验证（可用 mock 数据），确认功能流程正常、视觉与交互对用户友好，发现不友好之处直接重新优化并复验；功能、视觉与交互体验的验证不再推给用户；纯文档、只读或不改变行为的任务只做与改动对应的验证，仅真实硬件、系统权限等本地确实无法运行的层才准备最低成本环境交用户最短确认。
+- frontend_ui 模板 `runtime_acceptance` 字段补 guidance（`plan-templates/profiles/frontend-ui.json`）：运行态走查由 agent 自己执行，按真实用户流程逐项验证功能、视觉与交互，不友好直接优化，通过后才允许收尾；此前该字段无 guidance，弱模型默认把运行态验收写成「由用户确认」。
+- `user_acceptance` 定义同步收缩：docs/contracts.md 验收类型、L5 层级表与 SKILL.md L5 说明移除「主观体验」，限定为真实硬件、系统权限等 Codex 本地确实无法操作、必须经用户确认的结果；docs/testing.md 普通任务验收口径同步。`--user-confirmed` 门禁与 user_pending 交接合同不变。
+- 修复 dsh-plugin `seed-vendor` 漏拷 `structure_ts_functions.cjs`（`dsh-plugin/scripts/seed-vendor.mjs`）：引擎模块过滤只认 `.py`，2.15.0 起该 .cjs 是受管模块，seed 缺它即过不了 `validate_project_source`，`extract-block`/pretest/prepack 自 2.15.0 起实际不可用；过滤改为 `.py`+`.cjs`，与 2.9.0 `script_hygiene.py` 漏拷同类，均已被「读目录而非手写清单」防住一半、本次补上扩展名另一半。
+
 ## 2.15.0 - 2026-09-11
 
 - Structure 函数级体量检查从仅 Python 扩展到 Go 与 TS/JS：Go 按 gofmt 约定（`func` 起于行首、`}` 收于行首）做行级匹配，闭包计入外层函数，接收者含泛型可识别；TS/JS（.ts/.tsx/.js/.jsx/.cjs/.mjs）经新增受管模块 `scripts/structure_ts_functions.cjs` 借用目标项目 `node_modules`（或 `*/node_modules`、`DOCS_HARNESS_TS_MODULE_DIR` 指定目录）里已有的 typescript 编译器解析，harness 自身不新增任何依赖；node 或 typescript 缺失时降级为文件级：改动含 .ts/.tsx 时输出一条 WARN（TS 项目必然自带 typescript，缺失即环境不完整，strict 下按 WARN 失败），只含纯 JS 时在 `structure check` 的 `notes` 字段记录、不出 WARN，与 2.11 的文件级口径一致。测试文件不做函数级判定（describe/it 回调天然超长）；作为调用实参的匿名函数按 `callee#cb` 命名、同名取最大。`structure report` 新增 `function_check_languages` 字段。动机：下游 ZBuddy 两批搬移产生 531/367/184/150 行的 TS 函数而 assets-check 全绿，护栏对其主语言完全失明；扩展后该项目存量超线函数由 93 升至 621。决策记录见 ADR `structure-ts-parser-borrowed-from-target`。
