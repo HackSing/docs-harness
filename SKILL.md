@@ -2,7 +2,7 @@
 name: docs-harness
 description: "默认不介入普通任务；仅按需提供项目知识、方案模板和真实验收记录。"
 metadata:
-  version: 2.17.0
+  version: 2.18.0
   status: active
 ---
 
@@ -71,6 +71,8 @@ python3 scripts/harness.py plan settle --target . \
 ```
 
 废弃或被替代时改用 `--status deprecated`，可追加 `--replacement <plan.md>`。
+
+无伴随 JSON 的手写方案同样直接 `plan settle`：只改横幅与归档，不做治理终验、不接受 `--governance-input`，不得为结算手工补造冻结 JSON。关键符号已全部落地但仍在推进的部分交付方案，按 `plan check` 的 WARN 提示把横幅改为 `状态：有效-部分交付（YYYY-MM-DD 核对）`，30 天内不再提示。
 
 ## 风险与授权边界
 

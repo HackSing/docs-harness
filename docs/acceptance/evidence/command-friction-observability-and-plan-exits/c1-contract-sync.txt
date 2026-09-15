@@ -1,0 +1,24 @@
+c1 契约同步核对（逐项在对应文件或命令输出中查找约定文本）
+
+PASS  §9.1 事件字段含 error_code  [docs/contracts.md]
+PASS  §9.4 checks 改最近一次计数  [docs/contracts.md]
+PASS  §9.4 commands 含错误码分布  [docs/contracts.md]
+PASS  §3.3 部分交付第三出口  [docs/contracts.md]
+PASS  §3.3 手写方案结算  [docs/contracts.md]
+PASS  代码时效常量为 30  [scripts/harness.py]
+PASS  合同时效与代码常量一致  [docs/contracts.md]
+PASS  SKILL 时效与代码常量一致  [SKILL.md]
+PASS  SKILL 手写方案结算  [SKILL.md]
+PASS  README 手写方案结算  [README.md]
+PASS  受管入口判定纪律（CLAUDE.md）  [CLAUDE.md]
+PASS  受管入口判定纪律（AGENTS.md）  [AGENTS.md]
+PASS  受管入口 Plan 条（CLAUDE.md）  [CLAUDE.md]
+PASS  受管入口 Plan 条（AGENTS.md）  [AGENTS.md]
+PASS  plan --help 手写方案结算  [plan --help]
+PASS  plan --help 部分交付第三态  [plan --help]
+PASS  WARN 文案含第三出口  [scripts/harness.py]
+PASS  Knowledge 事件 schema 含 error_code  [docs/knowledge/usage-observability.json]
+PASS  Knowledge report 契约含 last_warnings  [docs/knowledge/usage-observability.json]
+PASS  report 实现输出最近一次计数  [scripts/usage_report.py]
+
+合计 20 项，失败 0 项

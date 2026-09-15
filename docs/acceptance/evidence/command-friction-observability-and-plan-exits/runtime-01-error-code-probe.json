@@ -1,0 +1,12 @@
+{
+  "argv": [
+    "plan",
+    "settle"
+  ],
+  "exit_code": 2,
+  "payload": {
+    "status": "error",
+    "code": "missing_plan_input",
+    "message": "plan settle 必须提供 --plan 与 --status implemented|deprecated"
+  }
+}

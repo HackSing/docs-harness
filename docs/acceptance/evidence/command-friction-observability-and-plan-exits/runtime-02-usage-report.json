@@ -1,0 +1,221 @@
+{
+  "argv": [
+    "usage",
+    "report",
+    "--days",
+    "60"
+  ],
+  "exit_code": 0,
+  "payload": {
+    "window_days": 60,
+    "event_count": 105,
+    "commands": {
+      "usage report": {
+        "calls": 2,
+        "active_days": 2,
+        "first": "2026-09-14T04:00:41+00:00",
+        "last": "2026-09-15T11:45:34+00:00",
+        "exit_codes": {
+          "0": 2
+        },
+        "errors": 0,
+        "error_codes": {}
+      },
+      "assets-check": {
+        "calls": 50,
+        "active_days": 2,
+        "first": "2026-09-14T04:07:55+00:00",
+        "last": "2026-09-15T12:01:46+00:00",
+        "exit_codes": {
+          "0": 50
+        },
+        "errors": 0,
+        "error_codes": {}
+      },
+      "plan check": {
+        "calls": 14,
+        "active_days": 1,
+        "first": "2026-09-14T11:15:08+00:00",
+        "last": "2026-09-14T12:04:25+00:00",
+        "exit_codes": {
+          "0": 14
+        },
+        "errors": 0,
+        "error_codes": {}
+      },
+      "plan settle": {
+        "calls": 13,
+        "active_days": 2,
+        "first": "2026-09-14T11:18:27+00:00",
+        "last": "2026-09-15T12:22:51+00:00",
+        "exit_codes": {
+          "2": 9,
+          "0": 4
+        },
+        "errors": 9,
+        "error_codes": {
+          "missing_plan_input": 1
+        }
+      },
+      "plan select": {
+        "calls": 1,
+        "active_days": 1,
+        "first": "2026-09-15T05:35:25+00:00",
+        "last": "2026-09-15T05:35:25+00:00",
+        "exit_codes": {
+          "0": 1
+        },
+        "errors": 0,
+        "error_codes": {}
+      },
+      "plan create": {
+        "calls": 3,
+        "active_days": 1,
+        "first": "2026-09-15T05:37:04+00:00",
+        "last": "2026-09-15T05:37:25+00:00",
+        "exit_codes": {
+          "2": 2,
+          "0": 1
+        },
+        "errors": 2,
+        "error_codes": {}
+      },
+      "acceptance create": {
+        "calls": 2,
+        "active_days": 1,
+        "first": "2026-09-15T06:34:20+00:00",
+        "last": "2026-09-15T06:34:34+00:00",
+        "exit_codes": {
+          "1": 1,
+          "0": 1
+        },
+        "errors": 1,
+        "error_codes": {}
+      },
+      "acceptance record": {
+        "calls": 8,
+        "active_days": 1,
+        "first": "2026-09-15T06:35:10+00:00",
+        "last": "2026-09-15T06:35:21+00:00",
+        "exit_codes": {
+          "3": 4,
+          "2": 3,
+          "0": 1
+        },
+        "errors": 3,
+        "error_codes": {}
+      },
+      "acceptance settle": {
+        "calls": 5,
+        "active_days": 1,
+        "first": "2026-09-15T06:35:29+00:00",
+        "last": "2026-09-15T06:36:21+00:00",
+        "exit_codes": {
+          "2": 2,
+          "1": 2,
+          "0": 1
+        },
+        "errors": 4,
+        "error_codes": {}
+      },
+      "acceptance check": {
+        "calls": 2,
+        "active_days": 1,
+        "first": "2026-09-15T06:35:30+00:00",
+        "last": "2026-09-15T06:36:22+00:00",
+        "exit_codes": {
+          "0": 2
+        },
+        "errors": 0,
+        "error_codes": {}
+      },
+      "knowledge query": {
+        "calls": 2,
+        "active_days": 1,
+        "first": "2026-09-15T11:48:23+00:00",
+        "last": "2026-09-15T11:53:35+00:00",
+        "exit_codes": {
+          "0": 2
+        },
+        "errors": 0,
+        "error_codes": {}
+      },
+      "project upgrade": {
+        "calls": 2,
+        "active_days": 1,
+        "first": "2026-09-15T11:59:13+00:00",
+        "last": "2026-09-15T12:00:28+00:00",
+        "exit_codes": {
+          "0": 1,
+          "3": 1
+        },
+        "errors": 0,
+        "error_codes": {}
+      },
+      "project check": {
+        "calls": 1,
+        "active_days": 1,
+        "first": "2026-09-15T12:00:33+00:00",
+        "last": "2026-09-15T12:00:33+00:00",
+        "exit_codes": {
+          "3": 1
+        },
+        "errors": 0,
+        "error_codes": {}
+      }
+    },
+    "asset_lifecycle": {
+      "knowledge": {
+        "create": 0,
+        "settle": 0
+      },
+      "plan": {
+        "create": 1,
+        "settle": 4
+      },
+      "acceptance": {
+        "create": 1,
+        "settle": 1
+      },
+      "adr": {
+        "create": 0,
+        "settle": 0
+      }
+    },
+    "acceptance_rework": {
+      "records": 5,
+      "reaccept": 0,
+      "user_confirmed": 0
+    },
+    "plan_settlement": {
+      "implemented": 2,
+      "deprecated": 2
+    },
+    "knowledge_query": {
+      "queries": 2,
+      "zero_hit": 0
+    },
+    "checks": {
+      "assets-check": {
+        "calls": 50,
+        "clean": 50,
+        "last_failures": 0,
+        "last_warnings": 6
+      },
+      "plan check": {
+        "calls": 14,
+        "clean": 14,
+        "last_failures": 0,
+        "last_warnings": 0
+      },
+      "acceptance check": {
+        "calls": 2,
+        "clean": 2,
+        "last_failures": 0,
+        "last_warnings": 0
+      }
+    },
+    "summary": "usage report 60 天窗口：事件 105 条、命令面 13 个、检查类调用 66 次、acceptance 记录 5 条、knowledge 查询 2 次",
+    "limitations": "以上均为本地命令调用计数，不代表能力价值，也不代表 agent 对知识的理解质量；commands 的 errors 只数 HarnessError（result=error），error_codes 为其错误码分布；exit_codes 按取值分桶不贴成败标签（3 在 harness 里被多个命令复用，语义各不相同）；checks 只报每个检查命令最近一次调用的 failures/warnings，跨调用加总会把同一条告警重复计数；资产 create/settle 的成功判定为退出码 0 且非 dry-run；acceptance record 退出码 3 表示记录已存入但整体验收未通过，计入 acceptance_rework.records 分母；跨仓库汇总需维护者自行在各仓库运行 usage report --json 后合并，harness 不外发任何数据。"
+  }
+}

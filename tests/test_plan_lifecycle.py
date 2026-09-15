@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import json
 import sys
@@ -9,8 +10,10 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
-from harness_test_base import HarnessTestBase
+import harness  # noqa: E402
+from harness_test_base import HarnessTestBase  # noqa: E402
 
 
 class PlanLifecycleTest(HarnessTestBase):
@@ -680,6 +683,103 @@ class PlanLifecycleTest(HarnessTestBase):
             any("已全部在源码命中" in item for item in fast["warnings"]),
             fast["warnings"],
         )
+
+        # 第三出口：时效内登记为部分交付则不再预警；过期与未来日期照常预警
+        document = self.project / "docs/plans/landed.md"
+        today = dt.date.today()
+        window = harness.PLAN_PARTIAL_DELIVERY_RECHECK_DAYS
+        for checked_on, expect_warning in (
+            (today, False),
+            (today - dt.timedelta(days=window), False),
+            (today - dt.timedelta(days=window + 1), True),
+            (today + dt.timedelta(days=1), True),
+        ):
+            lines = document.read_text(encoding="utf-8").splitlines()
+            banner_at = next(i for i, line in enumerate(lines[:3]) if "状态：" in line)
+            lines[banner_at] = f"> 状态：有效-部分交付（{checked_on.isoformat()} 核对）"
+            document.write_text("\n".join(lines) + "\n", encoding="utf-8")
+            marked = self.run_cli("plan", "check", "--target", str(self.project))
+            self.assertEqual(
+                any("已全部在源码命中" in item for item in marked["warnings"]),
+                expect_warning,
+                (checked_on, marked["warnings"]),
+            )
+
+    def test_plan_settle_handwritten_plan_without_frozen_json(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        index_path = self.project / "docs/INDEX.md"
+        index = harness.update_plan_index_text(
+            index_path.read_text(encoding="utf-8"),
+            entry=harness.render_plan_index_entry(
+                basename="legacy-c", title="手写方案 C",
+                symbols=["LegacyEpsilon", "LegacyZeta"], status="有效（实施中）",
+            ),
+        )
+        # 受管区块外的表格式条目是下游存量形态（如 zbuddy-desktop）
+        self.write_lines("docs/INDEX.md", index.splitlines() + [
+            "| `plans/legacy-a.md` | 手写方案 A；关键符号：`LegacyAlpha`、`LegacyBeta` |",
+            "| `plans/legacy-b.md` | 手写方案 B；关键符号：`LegacyGamma`、`LegacyDelta` |",
+        ])
+        self.write_lines("docs/plans/legacy-a.md", [
+            "# 手写方案 A", "", "> 状态：有效（待实施）｜架构决策：`docs/adr/ADR-1.md`", "", "正文",
+        ])
+        self.write_lines("docs/plans/legacy-b.md", ["# 手写方案 B", "", "> 状态：有效", "", "正文"])
+        self.write_lines("docs/plans/legacy-c.md", ["# 手写方案 C", "", "> 状态：有效", "", "正文"])
+        plans = self.project / "docs/plans"
+        governance = self.write_json("inputs/governance.json", {
+            "schema_version": "docs-harness/plan-governance-input/v1",
+            "updated_knowledge_refs": [], "unchanged_reason": "无",
+        })
+        rejected = self.run_cli(
+            "plan", "settle", "--target", str(self.project), "--plan", "docs/plans/legacy-a.md",
+            "--status", "implemented",
+            "--governance-input", str(governance.relative_to(self.project)), expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_plan_transition")
+
+        implemented = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/legacy-a.md", "--status", "implemented",
+        )
+        self.assertTrue(implemented["handwritten"])
+        self.assertIsNone(implemented["plan_ref"])
+        self.assertEqual(len(implemented["warnings"]), 1)
+        text = (plans / "legacy-a.md").read_text(encoding="utf-8")
+        self.assertIn("> 状态：已实施-仅追溯（代码已是真源", text)
+        self.assertIn("｜架构决策：`docs/adr/ADR-1.md`", text)
+        self.assertNotIn("有效（待实施）", text)
+        self.assertFalse((plans / "legacy-a.json").exists())
+
+        in_block = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/legacy-c.md", "--status", "implemented",
+        )
+        self.assertEqual(in_block["warnings"], [])
+        entries = harness.plan_index_entry_lines(index_path.read_text(encoding="utf-8"))
+        self.assertTrue(
+            any("plans/legacy-c.md" in line and "已实施-仅追溯" in line for line in entries), entries
+        )
+
+        deprecated = self.run_cli(
+            "plan", "settle", "--target", str(self.project), "--plan", "docs/plans/legacy-b.md",
+            "--status", "deprecated", "--replacement", "legacy-a.md",
+        )
+        self.assertEqual(deprecated["document_ref"], "docs/plans/archive/legacy-b.md")
+        self.assertFalse((plans / "legacy-b.md").exists())
+        self.assertIn(
+            "已废弃-被 legacy-a.md 取代", (plans / "archive/legacy-b.md").read_text(encoding="utf-8")
+        )
+        self.assertIn("`plans/archive/legacy-b.md`", index_path.read_text(encoding="utf-8"))
+        checked = self.run_cli("plan", "check", "--target", str(self.project))
+        self.assertEqual(checked["status"], "passed", checked["failures"])
+
+        # 带 Harness 文档标记却缺冻结 JSON 的方案不是手写方案，仍被拒绝
+        self.write_lines("docs/plans/broken.md", [harness.PLAN_DOCUMENT_MARKER, "> 状态：有效"])
+        broken = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/broken.md", "--status", "implemented", expected=2,
+        )
+        self.assertEqual(broken["code"], "invalid_plan_ref")
 
 if __name__ == "__main__":
     unittest.main()

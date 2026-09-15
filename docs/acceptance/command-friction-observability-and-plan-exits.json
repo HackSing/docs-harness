@@ -1,0 +1,132 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "命令摩擦治理验收：usage 错误码与最近一次检查计数、plan WARN 部分交付第三态、手写方案结算",
+  "objective": "首次失败可按错误码归因、检查告警按最近一次计数；部分交付仍有效的方案有带时效的核对出口；手写方案不经伪造冻结 JSON 即可结算。",
+  "key_symbols": [
+    "PLAN_PARTIAL_DELIVERY_RECHECK_DAYS",
+    "partial_delivery_checked_recently",
+    "last_warnings",
+    "error_codes"
+  ],
+  "plan_ref": "docs/plans/command-friction-observability-and-plan-exits.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "契约同步：合同 §3.3/§9、plan check 与 plan settle 的 --help、受管入口判定纪律、SKILL/README 与代码行为一致",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260915T122546-f5f3985434",
+          "objective_fingerprint": "sha256:c717be023465567039a3d2470527dbe28c83e6536b241eb9a9ee38b39218245c",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "脚本逐项在 docs/contracts.md、SKILL.md、README.md、CLAUDE.md、AGENTS.md、plan --help 输出、Knowledge usage-observability、harness.py 与 usage_report.py 中查找约定文本，20 项全部命中，时效常量 30 在代码、合同与 SKILL 三处一致。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/command-friction-observability-and-plan-exits/c1-contract-sync.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-09-15T12:25:46+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "聚焦测试：test_usage、test_plan_lifecycle、test_cli_surface、test_release_version_sync 全部通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260915T122546-fcbde7626c",
+          "objective_fingerprint": "sha256:c717be023465567039a3d2470527dbe28c83e6536b241eb9a9ee38b39218245c",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "python3 -m unittest tests.test_usage tests.test_plan_lifecycle tests.test_plan_governance tests.test_assets_check tests.test_cli_surface tests.test_release_version_sync：102 项通过，跳过 2 项，退出 0。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/command-friction-observability-and-plan-exits/c2-focused-tests.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-09-15T12:25:46+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "本地运行：新引擎对 zbuddy-desktop 本地克隆运行 usage report、部分交付标注后 plan check、手写方案 implemented 与 deprecated 结算，结果符合预期",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20260915T122546-1a19b787bd",
+          "objective_fingerprint": "sha256:c717be023465567039a3d2470527dbe28c83e6536b241eb9a9ee38b39218245c",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "源包新引擎对 zbuddy-desktop 本地浅克隆（复制真实 usage 日志）运行：plan settle 缺参数的事件写入 error_code=missing_plan_input；usage report 的 acceptance record errors=3 且退 3 不计错，assets-check last_warnings=6 而旧口径累计为 548；plan check 符号全命中 WARN 12 条，标注一个方案为部分交付后 11 条；手写方案 implemented 与 deprecated 结算成功，结算后 plan check passed、failures 0。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/command-friction-observability-and-plan-exits/runtime-summary.md",
+            "docs/acceptance/evidence/command-friction-observability-and-plan-exits/runtime-01-error-code-probe.json",
+            "docs/acceptance/evidence/command-friction-observability-and-plan-exits/runtime-02-usage-report.json",
+            "docs/acceptance/evidence/command-friction-observability-and-plan-exits/runtime-03-plan-check-before-mark.json",
+            "docs/acceptance/evidence/command-friction-observability-and-plan-exits/runtime-04-plan-check-after-mark.json",
+            "docs/acceptance/evidence/command-friction-observability-and-plan-exits/runtime-05-settle-handwritten-implemented.json",
+            "docs/acceptance/evidence/command-friction-observability-and-plan-exits/runtime-06-settle-handwritten-deprecated.json",
+            "docs/acceptance/evidence/command-friction-observability-and-plan-exits/runtime-07-plan-check-after-settle.json"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-09-15T12:25:46+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 5,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:cc7fc194ec55382c47982d2364ce2b9df36f976913fbbc4bf71d9cc3a256f25d",
+      "updated_at": "2026-09-15T12:10:39+00:00"
+    },
+    {
+      "revision": 2,
+      "asset_fingerprint": "sha256:0f652924e66c596e62d63b7a379b0cddf8fbb57b2b04bbe318b8512d0ee433b1",
+      "updated_at": "2026-09-15T12:25:46+00:00"
+    },
+    {
+      "revision": 3,
+      "asset_fingerprint": "sha256:369f9aac270f8051370dd8a42a7a10adb6b238f12c02ec67bd1e0dacd68439fc",
+      "updated_at": "2026-09-15T12:25:46+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:1ffed63590c24e015ce928a2ffe13c03e66ffec69b1e17e24695c01e7017219c",
+      "updated_at": "2026-09-15T12:25:46+00:00"
+    }
+  ],
+  "created_at": "2026-09-15T12:10:39+00:00",
+  "updated_at": "2026-09-15T12:25:46+00:00",
+  "settled_at": "2026-09-15T12:25:46+00:00",
+  "asset_fingerprint": "sha256:2bda34a36e030c55ec7a16d41d096d567a7345c6277718b9eeb5e72da157cda1",
+  "replacement": null
+}

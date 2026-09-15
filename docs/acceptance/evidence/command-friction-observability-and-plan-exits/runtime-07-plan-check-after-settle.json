@@ -1,0 +1,32 @@
+{
+  "argv": [
+    "plan",
+    "check"
+  ],
+  "exit_code": 0,
+  "payload": {
+    "status": "passed",
+    "strict": false,
+    "fast": false,
+    "checked": {
+      "live_docs": 57,
+      "archived_docs": 18,
+      "markdown_files": 500
+    },
+    "failures": [],
+    "warnings": [
+      "WARN: docs/plans/chat-terminal-reply-promotion-contract-plan.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；已交付请 plan settle --status implemented，不再推进请 --status deprecated；仍在推进的部分交付方案把横幅改为「> 状态：有效-部分交付（2026-09-15 核对）」，30 天内不再提示",
+      "WARN: docs/plans/chat-reply-unified-rendering-plan.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；已交付请 plan settle --status implemented，不再推进请 --status deprecated；仍在推进的部分交付方案把横幅改为「> 状态：有效-部分交付（2026-09-15 核对）」，30 天内不再提示",
+      "WARN: docs/plans/voice-input-streaming-safety-hardening-plan.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；已交付请 plan settle --status implemented，不再推进请 --status deprecated；仍在推进的部分交付方案把横幅改为「> 状态：有效-部分交付（2026-09-15 核对）」，30 天内不再提示",
+      "WARN: docs/plans/voice-input-streaming-plan.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；已交付请 plan settle --status implemented，不再推进请 --status deprecated；仍在推进的部分交付方案把横幅改为「> 状态：有效-部分交付（2026-09-15 核对）」，30 天内不再提示",
+      "WARN: docs/plans/voice-dictation-demoted-finalize-plan.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；已交付请 plan settle --status implemented，不再推进请 --status deprecated；仍在推进的部分交付方案把横幅改为「> 状态：有效-部分交付（2026-09-15 核对）」，30 天内不再提示",
+      "WARN: docs/plans/voice-copy-fallback-toast-plan.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；已交付请 plan settle --status implemented，不再推进请 --status deprecated；仍在推进的部分交付方案把横幅改为「> 状态：有效-部分交付（2026-09-15 核对）」，30 天内不再提示",
+      "WARN: docs/plans/macos-24g-permission-gate-not-connected-plan.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；已交付请 plan settle --status implemented，不再推进请 --status deprecated；仍在推进的部分交付方案把横幅改为「> 状态：有效-部分交付（2026-09-15 核对）」，30 天内不再提示",
+      "WARN: docs/plans/membership-subscription-mvp.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；已交付请 plan settle --status implemented，不再推进请 --status deprecated；仍在推进的部分交付方案把横幅改为「> 状态：有效-部分交付（2026-09-15 核对）」，30 天内不再提示",
+      "WARN: docs/plans/flash-vision-multimodal-rollout.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；已交付请 plan settle --status implemented，不再推进请 --status deprecated；仍在推进的部分交付方案把横幅改为「> 状态：有效-部分交付（2026-09-15 核对）」，30 天内不再提示",
+      "WARN: docs/plans/membership-entitlements-monthly-credits.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；已交付请 plan settle --status implemented，不再推进请 --status deprecated；仍在推进的部分交付方案把横幅改为「> 状态：有效-部分交付（2026-09-15 核对）」，30 天内不再提示",
+      "WARN: docs/plans/runtime-verification-batch3.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；已交付请 plan settle --status implemented，不再推进请 --status deprecated；仍在推进的部分交付方案把横幅改为「> 状态：有效-部分交付（2026-09-15 核对）」，30 天内不再提示"
+    ],
+    "summary": "plan check passed：活文档 57 份、归档 18 份、扫描 markdown 500 份，违规 0 条、警告 11 条"
+  }
+}

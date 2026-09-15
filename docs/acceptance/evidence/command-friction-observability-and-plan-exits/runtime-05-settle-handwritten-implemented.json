@@ -1,0 +1,24 @@
+{
+  "argv": [
+    "plan",
+    "settle",
+    "--plan",
+    "docs/plans/cross-plan-architecture-review.md",
+    "--status",
+    "implemented"
+  ],
+  "exit_code": 0,
+  "payload": {
+    "status": "implemented",
+    "plan_ref": null,
+    "handwritten": true,
+    "document_ref": "docs/plans/cross-plan-architecture-review.md",
+    "replacement": null,
+    "changed": [
+      "docs/plans/cross-plan-architecture-review.md"
+    ],
+    "warnings": [
+      "docs/INDEX.md 中 cross-plan-architecture-review.md 的条目不在受管方案区块内，状态文字与路径需手工同步"
+    ]
+  }
+}

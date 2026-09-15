@@ -4,7 +4,7 @@
 
 ## 1. 默认合同
 
-普通任务由 Codex 直接执行。默认不调用 Harness，不创建任务包，不生成 Gate，不自动加载知识或方案，也不建立任务遥测。
+普通任务不经 Harness 流程直接执行；"直接"指不走 Harness，不约束主 agent 是否拆分或委派。默认不调用 Harness，不创建任务包，不生成 Gate，不自动加载知识或方案，也不建立任务遥测。
 
 用户明确关闭 Harness 时必须尊重。Harness 未安装、不可用或全部可选能力关闭时，普通问答、只读检查、代码修改、构建和测试仍能完整进行。
 
@@ -105,6 +105,10 @@ JSON `docs-harness/knowledge-asset/v1` 是事实真源，Markdown 是可读投�
 ### 3.3 生命周期收尾
 
 `plan settle --status implemented` 对 v3 Full Plan 先执行治理终验：`acceptance_required=true` 时至少一个关联 Acceptance 必须已经结项；`knowledge_impact=updated` 时治理输入必须列出存在且 active 的 Knowledge，`unchanged` 时必须提供单行理由。Acceptance 以 failed 结项仍可表达“已实施但验收失败”，但输出 WARN。验证后 Markdown 与索引同步为“已实施-仅追溯”。`--status deprecated` 将同名 JSON/Markdown 移入 `docs/plans/archive/`、移出活索引，并更新明确匹配的 Markdown 链接；`--replacement` 可记录替代方案。
+
+`plan check`（非 `--fast`）对横幅为有效、关键符号已全部在源码命中的方案报 WARN，给出三个出口：已交付走 `--status implemented`，不再推进走 `--status deprecated`，仍在推进的部分交付方案把横幅改为 `状态：有效-部分交付（YYYY-MM-DD 核对）`。核对日起 `PLAN_PARTIAL_DELIVERY_RECHECK_DAYS`（30）天内不再报该 WARN；过期、日期非法或为未来日期时照常报。该横幅仍属"有效"，其余横幅与时效检查不变。
+
+无伴随 JSON、前 3 行无 Harness 文档标记但有状态横幅的手写方案 Markdown 同样可以 `plan settle`（2.18.0 起）：`implemented` 改写横幅，方案条目位于受管方案区块内时同步改写条目状态；`deprecated` 改写横幅、移入 `docs/plans/archive/` 并改写明确匹配的链接。手写方案没有冻结治理合同，不做治理终验，传 `--governance-input` 以 `invalid_plan_transition` 拒绝。横幅首个 `｜` 之后的附注原样保留。受管区块外的 INDEX 条目属项目正文，不改写，结果以 `handwritten=true` 与 `warnings` 提示手工同步。带 Harness 文档标记却缺冻结 JSON 的方案仍以 `invalid_plan_ref` 拒绝。
 
 ### 3.4 ADR
 
@@ -213,6 +217,7 @@ fresh init 初始化四类空资产目录、受管索引区块与缺失的项目
 | `exit_code` | int | 命令退出码 |
 | `duration_ms` | int | 命令耗时 |
 | `result` | str | 取 `payload["status"]`，仅当其为字符串时写入（`created`/`frozen`/`pending`/`passed`/`failed`/`error`/`dry_run_valid`/`needs_delivery` 等既有枚举） |
+| `error_code` | str | 仅 `result=error`（`HarnessError` 路径）时取 `payload["code"]`，为标识符枚举（如 `invalid_plan_ref`）；不记错误 message。2.18.0 新增的可选键，schema 版本不变 |
 | `flags` | dict | 枚举白名单六项：`status`、`reaccept`、`dry_run`、`strict`、`fast`、`user_confirmed`；取值为假或 None 的键不写入 |
 | `hits` | int | `len(payload["facts"])`，仅 `knowledge query` |
 | `failures` | int | `len(payload["failures"])` |
@@ -234,7 +239,7 @@ v12 及更早 → v13 的那一次升级会在 `project upgrade` 的预览与 `-
 
 `python3 scripts/harness.py usage report [--target .] [--days 30] [--json]`。`--days` 必须是正整数，默认 30。
 
-输出键：`window_days`、`event_count`、`commands`（A 采纳度，按退出码取值分桶，不贴成败标签）、`asset_lifecycle`（B，成功＝退出码 0 且非 dry-run）、`acceptance_rework`（C，分母取退出码 0 与 3）、`plan_settlement`（D）、`knowledge_query`（E）、`checks`（F）、`summary`、`limitations`。
+输出键：`window_days`、`event_count`、`commands`（A 采纳度：`exit_codes` 按退出码取值分桶、不贴成败标签；`errors` 只数 `result=error`，`error_codes` 为其错误码分布）、`asset_lifecycle`（B，成功＝退出码 0 且非 dry-run）、`acceptance_rework`（C，分母取退出码 0 与 3）、`plan_settlement`（D）、`knowledge_query`（E）、`checks`（F：每个检查命令的 `calls`、`clean` 与最近一次调用的 `last_failures`/`last_warnings`；2.18.0 起不再跨调用加总，未处置的同一条告警每次提交都会重复计入）、`summary`、`limitations`。
 
 输出契约沿用 `structure report`：返回 dict 交由既有 `emit()` 呈现，非 json 模式按 `key: value` 逐行输出，`--json` 输出整体 JSON；本命令不带独立文本渲染器。报告内容永不触发非零退出；`--days` 非法与日志不可读走 `HarnessError`（退出码 2）。
 

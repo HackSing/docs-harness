@@ -1,0 +1,8 @@
+命令：python3 -m unittest tests.test_usage tests.test_plan_lifecycle tests.test_plan_governance tests.test_assets_check tests.test_cli_surface tests.test_release_version_sync
+时间：2026-09-15T20:24:18+08:00
+
+..........s.....................................s.....................................................
+----------------------------------------------------------------------
+Ran 102 tests in 39.463s
+OK (skipped=2)
+exit=0

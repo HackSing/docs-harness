@@ -1,0 +1,25 @@
+{
+  "argv": [
+    "plan",
+    "settle",
+    "--plan",
+    "docs/plans/agent-grep-discoverability-plan.md",
+    "--status",
+    "deprecated"
+  ],
+  "exit_code": 0,
+  "payload": {
+    "status": "deprecated",
+    "plan_ref": null,
+    "handwritten": true,
+    "document_ref": "docs/plans/archive/agent-grep-discoverability-plan.md",
+    "replacement": null,
+    "changed": [
+      "docs/plans/archive/agent-grep-discoverability-plan.md",
+      "docs/INDEX.md"
+    ],
+    "warnings": [
+      "docs/INDEX.md 中 agent-grep-discoverability-plan.md 的条目不在受管方案区块内，状态文字与路径需手工同步"
+    ]
+  }
+}

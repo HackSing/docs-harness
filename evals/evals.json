@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v2",
-  "version": "2.17.0",
+  "version": "2.18.0",
   "cases": [
     {
       "id": "direct-default-no-state",
@@ -9,6 +9,14 @@
     {
       "id": "user-disables-harness",
       "expected": ["direct-execution", "zero-harness-state", "host-native-safety-only"]
+    },
+    {
+      "id": "parallel-independent-branches",
+      "expected": ["batch-dependency-annotated", "independent-branches-parallel", "subagent-brief-has-path-scope", "subagent-report-conclusion-only", "main-agent-integration-verify", "managed-shared-files-serial"]
+    },
+    {
+      "id": "parallel-light-tasks-no-spawn",
+      "expected": ["same-message-parallel-tool-calls", "zero-subagent-spawn", "single-task-direct"]
     },
     {
       "id": "legacy-cli-absent",

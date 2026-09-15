@@ -248,6 +248,16 @@ class UsageEventProjectionTest(unittest.TestCase):
 
     def test_non_string_status_is_not_recorded(self) -> None:
         self.assertNotIn("result", harness.usage_invoke_event(self.args(), 0, {"status": 1}, 1))
+
+    def test_error_code_recorded_only_on_error_status(self) -> None:
+        payload = {"status": "error", "code": "invalid_plan_ref", "message": "机密路径 docs/x.md"}
+        event = harness.usage_invoke_event(self.args(), 2, payload, 1)
+        self.assertEqual(event["error_code"], "invalid_plan_ref")
+        self.assertNotIn("机密路径", json.dumps(event, ensure_ascii=False))
+        passed = harness.usage_invoke_event(self.args(), 0, {"status": "passed", "code": "x"}, 1)
+        self.assertNotIn("error_code", passed)
+        non_string = harness.usage_invoke_event(self.args(), 2, {"status": "error", "code": 7}, 1)
+        self.assertNotIn("error_code", non_string)
         self.assertNotIn("result", harness.usage_invoke_event(self.args(), 0, {}, 1))
 
 
@@ -296,6 +306,12 @@ class UsageCliTest(HarnessTestBase):
         self.assertTrue(events)
         self.assertEqual(events[-1]["exit_code"], 2)
         self.assertEqual(events[-1]["flags"], {"dry_run": True})
+        # dry-run 校验不通过是 dry_run_invalid 结果而非 HarnessError，不写 error_code
+        self.assertNotIn("error_code", events[-1])
+        payload = self.run_cli("plan", "settle", "--target", str(self.project), expected=2)
+        settle = [e for e in usage_log.read_events(self.project, 1) if e.get("action") == "settle"]
+        self.assertEqual(settle[-1]["result"], "error")
+        self.assertEqual(settle[-1]["error_code"], payload["code"])
 
     def test_knowledge_query_records_hit_count(self) -> None:
         self.install()
@@ -445,6 +461,19 @@ class UsageReportTest(HarnessTestBase):
         entry = self.report()["commands"]["project upgrade"]
         self.assertEqual(entry["exit_codes"], {"0": 1, "1": 1, "2": 1, "3": 1})
         self.assertNotIn("failed", json.dumps(entry))
+        self.assertEqual(entry["errors"], 0)
+
+    def test_group_a_counts_errors_by_result_not_exit_code(self) -> None:
+        """退 3 的记录已存入不算报错；无 error_code 的旧事件计入 errors 但不进分布。"""
+        self.seed(command="acceptance", action="record", exit_code=3, result="pending")
+        self.seed(
+            command="acceptance", action="record", exit_code=2,
+            result="error", error_code="acceptance_record_mismatch",
+        )
+        self.seed(command="acceptance", action="record", exit_code=2, result="error")
+        entry = self.report()["commands"]["acceptance record"]
+        self.assertEqual(entry["errors"], 2)
+        self.assertEqual(entry["error_codes"], {"acceptance_record_mismatch": 1})
 
     def test_group_b_excludes_dry_run_and_failures(self) -> None:
         self.seed(command="plan", action="create", exit_code=0)
@@ -485,13 +514,17 @@ class UsageReportTest(HarnessTestBase):
         query = self.report()["knowledge_query"]
         self.assertEqual(query, {"queries": 2, "zero_hit": 1})
 
-    def test_group_f_check_totals(self) -> None:
-        self.seed(command="assets-check", action=None, exit_code=0, failures=0, warnings=2)
+    def test_group_f_reports_latest_counts_not_cross_call_sums(self) -> None:
+        earlier = _iso(_now() - dt.timedelta(minutes=5))
+        self.seed(ts=earlier, command="assets-check", action=None, exit_code=0, failures=0, warnings=2)
         self.seed(command="assets-check", action=None, exit_code=1, failures=3, warnings=1)
+        # 文件顺序在后但时间更早的事件不得覆盖最近一次
+        self.seed(ts=earlier, command="assets-check", action=None, exit_code=1, failures=9, warnings=9)
         self.seed(command="plan", action="check", exit_code=0, failures=0, warnings=0)
         checks = self.report()["checks"]
         self.assertEqual(
-            checks["assets-check"], {"calls": 2, "failures": 3, "warnings": 3, "clean": 1}
+            checks["assets-check"],
+            {"calls": 3, "clean": 1, "last_failures": 3, "last_warnings": 1},
         )
         self.assertEqual(checks["plan check"]["clean"], 1)
 

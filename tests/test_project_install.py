@@ -368,22 +368,22 @@ class ProjectInstallTest(HarnessTestBase):
     def test_project_check_flags_non_executable_githook_index_mode(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
         self.structure_git("init")
+        # 钉死 core.filemode=false：基线提交的钩子模式否则随平台漂移（Windows 默认 false
+        # 入库 100644；类 Unix 默认 true 按磁盘可执行位入库 100755），本用例曾在两边各挂一次。
+        # false 下新文件一律以 100644 入索引，工作区可执行位也不参与 diff，两平台现场一致。
+        self.structure_git("config", "core.filemode", "false")
         self.structure_commit_all()
-        # 模拟缺陷现场：core.filemode=false 的 Windows 提交会让钩子以 100644 入库，
-        # 类 Unix 克隆上 pre-commit 静默不运行；内容指纹比对检测不到模式差异。
-        self.structure_git(
-            "update-index", "--chmod=-x",
-            "scripts/githooks/pre-commit", "scripts/githooks/setup.sh",
-        )
+        # 缺陷现场：钩子以 100644 入库，类 Unix 克隆上 pre-commit 静默不运行；
+        # 内容指纹比对检测不到模式差异。
         payload = self.run_cli("project", "check", "--target", str(self.project))
         codes = {f["code"]: f["severity"] for f in payload["findings"]}
         self.assertEqual(codes.get("githook_index_mode"), "yellow")
+        # 修复路径与真实操作一致：索引设 +x 后提交，索引与 HEAD 同为 100755。
         self.structure_git(
             "update-index", "--chmod=+x",
             "scripts/githooks/pre-commit", "scripts/githooks/setup.sh",
         )
-        # 检查读的是索引模式（git ls-files），恢复 +x 后无需再提交；
-        # chmod 往返后索引与 HEAD 一致，再 commit 会因 nothing to commit 失败。
+        self.structure_git("commit", "-m", "hooks executable")
         payload = self.run_cli("project", "check", "--target", str(self.project))
         self.assertNotIn("githook_index_mode", {f["code"] for f in payload["findings"]})
     def test_project_check_flags_hookspath_shadowing_native_hooks(self) -> None:

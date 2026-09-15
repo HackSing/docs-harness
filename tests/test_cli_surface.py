@@ -135,13 +135,15 @@ class CliSurfaceTest(HarnessTestBase):
         # 命令面与校验编排，校验逻辑下沉在 plan_governance/acceptance_assets，上限随之上调。
         # 2.16.1 收尾四项（下游结构检查排除集与源包判定、usage 首开提示、inputs 目录
         # 约定），控制器只增判定与安装面接线，上限随之上调——第 7 次上调。
+        # 2.18.0 命令摩擦治理（usage 错误码接线、plan check 部分交付第三态、手写方案结算分支），
+        # 控制器只增判定与结算分支，聚合逻辑在 usage_report，行数与字节上限随之上调——第 8 次上调。
         # 两道体量闸的分工：本地由 Structure 增量 WARN 触发结构评估；CI 由本上限硬拦。
         # Structure 增量检查对比 HEAD，提交后增量恒为空，CI 的 assets-check --strict
         # 永远看不到 harness.py 的体量 WARN，所以本上限是 CI 中唯一拦得住 harness.py
         # 无限增长的硬闸，"每次上调都要动测试文件"正是它的守卫方式。
         # 上限的去留由 TODO.md 第 5 条登记的体量债整理任务决定，不在功能任务里处置。
-        self.assertLess(HARNESS.stat().st_size, 210_000)
-        self.assertLess(len(source.splitlines()), 4_850)
+        self.assertLess(HARNESS.stat().st_size, 220_000)
+        self.assertLess(len(source.splitlines()), 4_900)
         for symbol in (
             "def command_run(",
             "def command_context(",

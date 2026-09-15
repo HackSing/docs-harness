@@ -177,6 +177,8 @@ python3 scripts/harness.py plan settle --target . \
 
 `plan create` 会同时生成冻结 JSON、可读 Markdown，并维护 `docs/INDEX.md`。已实施方案留在活目录作为追溯记录；废弃或被替代的方案成对移入 `docs/plans/archive/`。
 
+无伴随 JSON 的手写方案同样直接 `plan settle`：只改横幅与归档，不做治理终验、不接受 `--governance-input`，不得为结算手工补造冻结 JSON。关键符号已全部落地但仍在推进的部分交付方案，按 `plan check` 的 WARN 提示把横幅改为 `状态：有效-部分交付（YYYY-MM-DD 核对）`，30 天内不再提示。
+
 ### Knowledge 生命周期
 
 ```text

@@ -3,9 +3,9 @@
 
 # Docs Harness 本地 usage 观测机制
 
-- 修订：2
+- 修订：3
 - 关键符号：`record_usage_invoke`、`USAGE_SCHEMA_VERSION`、`build_report`、`usage_log_invalid`
-- 资产指纹：`sha256:684c66a0802edacef9805d1be2605abce990086325103186d59c10af900a8e86`
+- 资产指纹：`sha256:c3a07b8017bfd683cef506a3b2299d32b028bb8d2edaa2fbd136018d8f86eed8`
 
 ## 摘要
 
@@ -15,7 +15,7 @@
 
 ### `usage.event.schema`
 
-usage 事件 schema 为 docs-harness/usage-event/v1，落盘 .docs-harness/usage/YYYY-MM.jsonl，按月分文件、append-only、一行一事件；v1 只有 cmd.invoke 一种事件，字段为 v/ts/event/command/action/exit_code/duration_ms/result/flags/hits/failures/warnings，推导不出的字段不写键也不写 null。flags 是枚举白名单六项（status/reaccept/dry_run/strict/fast/user_confirmed），不记 query 原文、路径与资产名。
+usage 事件 schema 为 docs-harness/usage-event/v1，落盘 .docs-harness/usage/YYYY-MM.jsonl，按月分文件、append-only、一行一事件；v1 只有 cmd.invoke 一种事件，字段为 v/ts/event/command/action/exit_code/duration_ms/result/error_code/flags/hits/failures/warnings，推导不出的字段不写键也不写 null。error_code 仅在 result=error（HarnessError 路径）时取 payload.code 标识符枚举，是 2.18.0 新增的可选键、schema 版本不变；dry-run 校验不通过返回 dry_run_invalid 结果，不写 error_code。flags 是枚举白名单六项（status/reaccept/dry_run/strict/fast/user_confirmed），不记 query 原文、路径、资产名与错误 message。
 
 证据：`scripts/usage_log.py`、`scripts/harness.py`、`docs/contracts.md`
 
@@ -39,7 +39,7 @@ config schema 升到 docs-harness/project-config/v13，新增顶层键 usage_log
 
 ### `usage.report.output.contract`
 
-usage report 的输出契约沿用 structure report：build_report 返回 dict 交给 harness 既有 emit() 呈现，非 json 模式按 key: value 逐行输出、--json 输出整体 JSON，模块不带独立文本渲染器。输出键为 window_days/event_count/commands/asset_lifecycle/acceptance_rework/plan_settlement/knowledge_query/checks/summary/limitations；报告内容永不触发非零退出，--days 非法与日志不可读走 HarnessError 退 2。
+usage report 的输出契约沿用 structure report：build_report 返回 dict 交给 harness 既有 emit() 呈现，非 json 模式按 key: value 逐行输出、--json 输出整体 JSON，模块不带独立文本渲染器。输出键为 window_days/event_count/commands/asset_lifecycle/acceptance_rework/plan_settlement/knowledge_query/checks/summary/limitations；commands 每项含 exit_codes（按退出码分桶不贴成败标签）、errors（只数 result=error）与 error_codes 分布；checks 每项为 calls/clean/last_failures/last_warnings，只报最近一次调用的计数，2.18.0 起不再跨调用加总（未处置的同一条告警会被 pre-commit 反复计入）。报告内容永不触发非零退出，--days 非法与日志不可读走 HarnessError 退 2。
 
 证据：`scripts/usage_report.py`、`scripts/harness.py`、`docs/contracts.md`
 
