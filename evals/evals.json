@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v2",
-  "version": "2.19.0",
+  "version": "2.20.0",
   "cases": [
     {
       "id": "direct-default-no-state",
@@ -25,6 +25,10 @@
     {
       "id": "subagent-evidence-checked",
       "expected": ["evidence-checked-before-adopt", "no-verbatim-relay"]
+    },
+    {
+      "id": "fix-plan-self-check",
+      "expected": ["read-owner-and-all-consumers", "callers-confirmed-by-symbol-search", "consumer-patch-revised-to-owner-layer", "redundant-change-removed", "self-check-line-in-output", "revision-stated-when-changed"]
     },
     {
       "id": "legacy-cli-absent",
