@@ -17,7 +17,12 @@ from harness_test_base import HarnessTestBase, ROOT, REQUIRES_SYMLINK
 
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from harness import LEGACY_RUNTIME_NAMES, TASK_INPUTS_RELATIVE  # noqa: E402
+from harness import (  # noqa: E402
+    LEGACY_RUNTIME_NAMES,
+    LOCAL_ONLY_DIRS,
+    TASK_INPUTS_RELATIVE,
+    TASKS_RELATIVE,
+)
 
 
 class ProjectInstallTest(HarnessTestBase):
@@ -439,69 +444,87 @@ class ProjectInstallTest(HarnessTestBase):
 
 
 
-class TaskInputsDirectoryTest(HarnessTestBase):
-    """2.16.1：一次性输入 JSON 的约定目录 .docs-harness/inputs/。
+class LocalOnlyDirectoryTest(HarnessTestBase):
+    """本地约定目录：.docs-harness/inputs/（2.16.1，一次性输入 JSON）与
+    .docs-harness/tasks/（2.19.0，长任务进度清单）。
 
     此前没有约定位置，1.x 运行态目录 .docs-harness/task-inputs/ 在 LEGACY_RUNTIME_NAMES
-    内会被 project upgrade 清理，2.16.0 任务为此三次重建备份。inputs/ 不在该元组内。
+    内会被 project upgrade 清理，2.16.0 任务为此三次重建备份。两个约定目录都不在该元组内。
     """
 
-    def gitignore(self) -> Path:
-        return self.project / TASK_INPUTS_RELATIVE / ".gitignore"
+    def gitignore(self, relative: str) -> Path:
+        return self.project / relative / ".gitignore"
 
-    def test_init_creates_inputs_dir_with_nested_gitignore(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
-        self.assertTrue((self.project / TASK_INPUTS_RELATIVE).is_dir())
-        self.assertEqual(self.gitignore().read_text(encoding="utf-8"), "*\n")
+    def test_local_only_dirs_cover_inputs_and_tasks(self) -> None:
+        self.assertEqual(LOCAL_ONLY_DIRS, (TASK_INPUTS_RELATIVE, TASKS_RELATIVE))
 
-    def test_upgrade_creates_inputs_dir_and_never_cleans_it(self) -> None:
+    def test_init_creates_dirs_with_nested_gitignore(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
-        shutil.rmtree(self.project / TASK_INPUTS_RELATIVE)
+        for relative in LOCAL_ONLY_DIRS:
+            with self.subTest(relative=relative):
+                self.assertTrue((self.project / relative).is_dir())
+                self.assertEqual(self.gitignore(relative).read_text(encoding="utf-8"), "*\n")
+
+    def test_upgrade_creates_dirs_and_never_cleans_them(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project))
+        for relative in LOCAL_ONLY_DIRS:
+            shutil.rmtree(self.project / relative)
         payload = self.run_cli(
             "project", "upgrade", "--target", str(self.project), "--apply"
         )
-        self.assertIn(f"{TASK_INPUTS_RELATIVE}/.gitignore", payload["changed"])
-        self.assertEqual(self.gitignore().read_text(encoding="utf-8"), "*\n")
-        # task-inputs 是 1.x 运行态目录，继续按 legacy 清理；inputs 不受影响。
+        for relative in LOCAL_ONLY_DIRS:
+            with self.subTest(relative=relative):
+                self.assertIn(f"{relative}/.gitignore", payload["changed"])
+                self.assertEqual(self.gitignore(relative).read_text(encoding="utf-8"), "*\n")
+                self.assertNotIn(Path(relative).name, LEGACY_RUNTIME_NAMES)
+        # task-inputs 是 1.x 运行态目录，继续按 legacy 清理；约定目录不受影响。
         self.assertIn("task-inputs", LEGACY_RUNTIME_NAMES)
-        self.assertNotIn("inputs", LEGACY_RUNTIME_NAMES)
 
     def test_existing_gitignore_is_never_overwritten(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
-        self.gitignore().write_text("*\n!keep.json\n", encoding="utf-8")
+        for relative in LOCAL_ONLY_DIRS:
+            self.gitignore(relative).write_text("*\n!keep.json\n", encoding="utf-8")
         payload = self.run_cli(
             "project", "upgrade", "--target", str(self.project), "--apply"
         )
-        self.assertNotIn(f"{TASK_INPUTS_RELATIVE}/.gitignore", payload["changed"])
-        self.assertEqual(self.gitignore().read_text(encoding="utf-8"), "*\n!keep.json\n")
+        for relative in LOCAL_ONLY_DIRS:
+            with self.subTest(relative=relative):
+                self.assertNotIn(f"{relative}/.gitignore", payload["changed"])
+                self.assertEqual(
+                    self.gitignore(relative).read_text(encoding="utf-8"), "*\n!keep.json\n"
+                )
 
-    def test_inputs_file_is_git_ignored(self) -> None:
+    def test_files_in_local_only_dirs_are_git_ignored(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project))
         self.structure_git("init")
-        (self.project / TASK_INPUTS_RELATIVE / "plan-content.json").write_text(
-            "{}\n", encoding="utf-8"
-        )
-        result = subprocess.run(
-            ["git", "check-ignore", "-q", f"{TASK_INPUTS_RELATIVE}/plan-content.json"],
-            cwd=self.project, capture_output=True, check=False,
-        )
-        self.assertEqual(result.returncode, 0, "约定目录下的输入文件必须被 git 忽略")
+        samples = {TASK_INPUTS_RELATIVE: "plan-content.json", TASKS_RELATIVE: "migrate-client.md"}
+        for relative, name in samples.items():
+            with self.subTest(relative=relative):
+                (self.project / relative / name).write_text("x\n", encoding="utf-8")
+                result = subprocess.run(
+                    ["git", "check-ignore", "-q", f"{relative}/{name}"],
+                    cwd=self.project, capture_output=True, check=False,
+                )
+                self.assertEqual(result.returncode, 0, "约定目录下的文件必须被 git 忽略")
 
     def test_preview_and_diff_list_missing_gitignore_before_apply(self) -> None:
         """预览、diff 与 apply 走同一份判定：缺嵌套 .gitignore 时三处都看得到它。
 
-        2.16.1 的 apply_task_inputs_dir 没有 *_changes 对应物，升级预览列 13 项而实际写入
-        14 项，project diff 也报空。2.16.2 补 task_inputs_changes 后三处同源。
+        2.16.1 只有 apply 一侧，升级预览列 13 项而实际写入 14 项，project diff 也报空。
+        2.16.2 补 *_changes 判定后三处同源；2.19.0 起该判定为 local_only_dir_changes。
         """
         self.run_cli("project", "init", "--target", str(self.project))
-        self.gitignore().unlink()
-        expected = {"path": f"{TASK_INPUTS_RELATIVE}/.gitignore", "action": "create"}
+        for relative in LOCAL_ONLY_DIRS:
+            self.gitignore(relative).unlink()
+        expected = [{"path": f"{relative}/.gitignore", "action": "create"} for relative in LOCAL_ONLY_DIRS]
         preview = self.run_cli("project", "upgrade", "--target", str(self.project))
-        self.assertIn(expected, preview["changes"])
-        self.assertIn(expected, self.run_cli("project", "diff", "--target", str(self.project))["changes"])
+        diff = self.run_cli("project", "diff", "--target", str(self.project))
         applied = self.run_cli("project", "upgrade", "--target", str(self.project), "--apply")
-        self.assertIn(expected["path"], applied["changed"])
-        self.assertEqual(self.gitignore().read_text(encoding="utf-8"), "*\n")
+        for item in expected:
+            with self.subTest(path=item["path"]):
+                self.assertIn(item, preview["changes"])
+                self.assertIn(item, diff["changes"])
+                self.assertIn(item["path"], applied["changed"])
         self.assertEqual(self.run_cli("project", "diff", "--target", str(self.project))["changes"], [])
 
 

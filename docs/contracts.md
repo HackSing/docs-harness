@@ -6,6 +6,8 @@
 
 普通任务不经 Harness 流程直接执行；"直接"指不走 Harness，不约束主 agent 是否拆分或委派。默认不调用 Harness，不创建任务包，不生成 Gate，不自动加载知识或方案，也不建立任务遥测。
 
+需要停下来等用户的只有受管入口写明的确认点、用户另有要求与宿主原生授权提示三种情况；其余步骤直接继续，进度说明与下一步动作同一条消息给出，不以阶段汇报或"是否继续"的征询收尾（2.19.0）。
+
 用户明确关闭 Harness 时必须尊重。Harness 未安装、不可用或全部可选能力关闭时，普通问答、只读检查、代码修改、构建和测试仍能完整进行。
 
 2.8.0 保留四组相互独立、可串联的按需资产能力，并增加统一检查入口：
@@ -188,6 +190,7 @@ Harness 不采集用户授权、不解析 Codex usage、不保存原始用户聊
 - 缺失时的项目级 `CHANGELOG.md`、`TODO.md`、`README.md` 骨架（已存在绝不覆盖）；
 - `.docs-harness/config.json`（`docs-harness/project-config/v13`，含 `usage_log.enabled`）；
 - `.docs-harness/inputs/`：一次性输入 JSON（`plan create --content`、`plan settle --governance-input`、`knowledge`/`acceptance`/`adr` 各自的 `--input`）的约定位置，init 与 upgrade 都确保其存在并落一个内容为 `*` 的嵌套 `.gitignore`（已存在则一律不覆盖）。它既在项目内满足输入文件必须位于项目内的要求，又不入库，且不在 `LEGACY_RUNTIME_NAMES` 内、升级不清理；1.x 运行态目录 `.docs-harness/task-inputs/` 仍按 legacy 清除，两者不做迁移。
+- `.docs-harness/tasks/`（2.19.0）：长任务进度清单的约定位置，与 `inputs/` 同一套判定（`LOCAL_ONLY_DIRS`）：init 与 upgrade 确保存在并落内容为 `*` 的嵌套 `.gitignore`（已存在不覆盖），不入库、升级不清理。有 Plan 的任务清单只引用 Plan 路径并记进度，进度不写回冻结合同。
 
 fresh init 初始化四类空资产目录、受管索引区块与缺失的项目级文档骨架，但不生成项目事实、验收结论、规则目录或任务 Runtime，不自动启动知识、ADR、Changelog、TODO 或后台治理 Job。upgrade 先补齐四类体系，再清理指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；四类用户资产、项目文档、质量账本、已修改或归属不明文件保留。`release sync --strict` 要求 CHANGELOG 顶部版本与 VERSION 一致；`project check` 对缺失的 CHANGELOG/TODO 出 red、TODO 条目格式问题出 yellow。
 

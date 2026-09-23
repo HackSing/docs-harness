@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v2",
-  "version": "2.18.0",
+  "version": "2.19.0",
   "cases": [
     {
       "id": "direct-default-no-state",
@@ -17,6 +17,14 @@
     {
       "id": "parallel-light-tasks-no-spawn",
       "expected": ["same-message-parallel-tool-calls", "zero-subagent-spawn", "single-task-direct"]
+    },
+    {
+      "id": "long-run-keeps-going",
+      "expected": ["no-stop-without-named-checkpoint", "status-with-next-action", "lock-is-verify-gate", "progress-checklist-in-tasks-dir", "checklist-references-plan-not-copy", "closing-lists-user-decisions-first"]
+    },
+    {
+      "id": "subagent-evidence-checked",
+      "expected": ["evidence-checked-before-adopt", "no-verbatim-relay"]
     },
     {
       "id": "legacy-cli-absent",
