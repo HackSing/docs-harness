@@ -56,7 +56,7 @@ class ProjectUpgradeTest(HarnessTestBase):
         self.write_json(".docs-harness/config.json", config)
         return config
     def test_upgrade_source_flag_repairs_installed_copy(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         template = self.project / "plan-templates" / "levels" / "brief.json"
         template.unlink()
         payload = self.run_installed(
@@ -101,7 +101,7 @@ class ProjectUpgradeTest(HarnessTestBase):
         )
         self.assertEqual(payload["code"], "invalid_source")
     def test_upgrade_source_flag_rejects_version_mismatched_source(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         fake = Path(self.temp.name) / "fake-source"
         (fake / "scripts").mkdir(parents=True)
         shutil.copytree(ROOT / "plan-templates", fake / "plan-templates")
@@ -143,7 +143,7 @@ class ProjectUpgradeTest(HarnessTestBase):
         self.assertEqual(payload["code"], "legacy_document_cleanup_conflict")
         self.assertEqual(self.snapshot_project(), before)
     def test_project_check_and_upgrade_reject_asset_module_drift(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         module = self.project / "scripts" / "knowledge_assets.py"
         module.write_bytes(module.read_bytes() + b"# user tweak\n")
         checked = self.run_cli("project", "check", "--target", str(self.project), expected=1)
@@ -192,7 +192,7 @@ class ProjectUpgradeTest(HarnessTestBase):
                 self.githook_digest(name),
             )
     def test_upgrade_accepts_exact_241_templates_with_historical_bad_config_fingerprint(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         legacy_brief = (
             '{\n  "schema_version": "docs-harness/plan-template/v2",\n'
             '  "kind": "level",\n  "id": "brief",\n  "version": "2.4.1",\n'
@@ -224,7 +224,7 @@ class ProjectUpgradeTest(HarnessTestBase):
             (ROOT / "plan-templates" / "levels" / "brief.json").read_bytes(),
         )
     def test_upgrade_still_rejects_modified_legacy_template(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         brief = self.project / "plan-templates" / "levels" / "brief.json"
         brief.write_bytes(brief.read_bytes() + b"\n")
         before = self.snapshot_project()
@@ -436,7 +436,7 @@ class ProjectUpgradeTest(HarnessTestBase):
         self.assertFalse((self.project / "scripts" / "harness.py").exists())
 
     def test_upgrade_reports_all_modified_managed_files_at_once(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         for relative in ("scripts/harness.py", "scripts/acceptance_assets.py"):
             path = self.project / relative
             path.write_bytes(path.read_bytes() + b"# user tweak\n")
@@ -462,7 +462,7 @@ class ProjectUpgradeTest(HarnessTestBase):
         self.assertEqual(self.snapshot_project(), before)
 
     def test_upgrade_reports_single_modified_managed_file(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         module = self.project / "scripts" / "acceptance_assets.py"
         module.write_bytes(module.read_bytes() + b"# user tweak\n")
         payload = self.run_cli(
@@ -487,7 +487,7 @@ class UsageEnabledNoticeTest(HarnessTestBase):
 
     def make_v12_project(self) -> None:
         """把已安装项目的 config 退回 v12 形状：删 usage_log 键、schema 降版。"""
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
         )

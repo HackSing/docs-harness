@@ -49,7 +49,7 @@ class AssetsCheckTest(HarnessTestBase):
         fixed = self.run_cli("release", "sync", "--target", str(self.project), "--strict")
         self.assertEqual(fixed["status"], "consistent")
     def test_assets_check_passes_for_initialized_zero_asset_project(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         payload = self.run_cli("assets-check", "--target", str(self.project))
         self.assertEqual(payload["status"], "passed")
         self.assertEqual(payload["checked"]["knowledge"], 0)
@@ -63,7 +63,7 @@ class AssetsCheckTest(HarnessTestBase):
             "非 git 目标应跳过 Structure（checked=0，不产生 WARN）",
         )
     def test_assets_check_rejects_tampered_knowledge_asset(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         source = self.project / "src/runtime.txt"
         source.parent.mkdir(parents=True)
         source.write_text("KnowledgeOwner owns the runtime.\n", encoding="utf-8")
@@ -85,7 +85,7 @@ class AssetsCheckTest(HarnessTestBase):
         )
         self.assertTrue(any("资产指纹无效" in item for item in payload["failures"]))
     def test_assets_check_rejects_orphan_managed_index_entry(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         index_path = self.project / "docs/INDEX.md"
         index = index_path.read_text(encoding="utf-8")
         index = index.replace(
@@ -99,7 +99,7 @@ class AssetsCheckTest(HarnessTestBase):
         )
         self.assertTrue(any("没有对应活资产" in item for item in payload["failures"]))
     def test_assets_check_rejects_mixed_line_ending_script(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         (self.project / "deploy.sh").write_bytes(b"#!/bin/sh\r\necho mixed\n")
         (self.project / "clean.sh").write_bytes(b"#!/bin/sh\necho clean\n")
         for args in (("git", "init"), ("git", "add", "deploy.sh", "clean.sh")):
@@ -118,7 +118,7 @@ class AssetsCheckTest(HarnessTestBase):
             "纯 LF 脚本不应被误判为混合行尾",
         )
     def test_assets_check_strict_blocks_slow_warning_but_fast_skips_it(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         selection = self.run_cli(
             "plan", "select", "--target", str(self.project),
             "--level", "brief", "--profile", "general",
@@ -157,7 +157,7 @@ class AssetsCheckTest(HarnessTestBase):
         )
         self.assertEqual(fast["status"], "passed")
     def test_assets_check_warns_when_acceptance_settled_but_plan_not(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.create_full_plan(
             acceptance_required=True, knowledge_impact="unchanged", basename="leak",
         )
@@ -210,7 +210,7 @@ class AssetsCheckTest(HarnessTestBase):
             settled["warnings"],
         )
     def test_assets_check_warns_when_plan_frozen_too_long_without_settle(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.create_full_plan(
             acceptance_required=False, knowledge_impact="unchanged", basename="stale",
         )

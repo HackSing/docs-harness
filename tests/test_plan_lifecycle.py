@@ -634,7 +634,7 @@ class PlanLifecycleTest(HarnessTestBase):
         self.assertFalse((self.project / "docs/plans/dry-run-valid.json").exists())
 
     def test_plan_check_warns_when_active_plan_symbols_all_landed(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         selection = self.run_cli(
             "plan", "select", "--target", str(self.project), "--level", "brief",
         )
@@ -706,7 +706,7 @@ class PlanLifecycleTest(HarnessTestBase):
             )
 
     def test_plan_settle_handwritten_plan_without_frozen_json(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         index_path = self.project / "docs/INDEX.md"
         index = harness.update_plan_index_text(
             index_path.read_text(encoding="utf-8"),

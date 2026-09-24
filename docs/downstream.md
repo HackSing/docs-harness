@@ -33,6 +33,6 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 4. 复核：`python3 scripts/harness.py project check --target <下游目录>`，期望 `status: passed`、`delivery_status: in_head`。
 5. 推送：`git -C <下游目录> push origin main`。
 
-新项目首次接入改用 `project init --target <下游目录> --apply`。注意 `project init` 没有预览模式，不带 `--apply` 也会直接写入；目标工作区有未提交改动时，先基于 `origin/main` 建干净的 worktree 再接入。在 Windows 上接入时，提交前先执行 `git -C <下游目录> update-index --chmod=+x scripts/githooks/pre-commit scripts/githooks/setup.sh`，否则钩子会以 `100644` 入库，类 Unix 克隆上不会执行（`project check` 报 `githook_index_mode`）。
+新项目首次接入改用 `project init --target <下游目录> --apply`，不带 `--apply` 时只预览（2.21.1 及更早的 `init` 没有预览模式，不带 `--apply` 也会直接写入）。目标工作区有未提交改动时，先基于 `origin/main` 建干净的 worktree 再接入。在 Windows 上接入时，提交前先执行 `git -C <下游目录> update-index --chmod=+x scripts/githooks/pre-commit scripts/githooks/setup.sh`，否则钩子会以 `100644` 入库，类 Unix 克隆上不会执行（`project check` 报 `githook_index_mode`）。
 
 每次升级都会在下游 `AGENTS.md`/`CLAUDE.md` 上产生一次受管区块 diff；`.docs-harness/tasks/.gitignore` 等本地约定目录不入库，不需要提交。

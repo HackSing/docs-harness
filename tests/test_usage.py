@@ -266,7 +266,7 @@ class UsageCliTest(HarnessTestBase):
         return self.project / usage_log.USAGE_DIR_RELATIVE
 
     def install(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
 
     def test_uninstalled_project_records_nothing(self) -> None:
         """L4(a)：非 harness 项目里跑命令，零写入。"""
@@ -540,7 +540,7 @@ class UsageReportTest(HarnessTestBase):
 
 class UsageReportCliTest(HarnessTestBase):
     def test_report_runs_in_both_formats(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         payload = self.run_cli("usage", "report", "--target", str(self.project))
         self.assertGreaterEqual(payload["event_count"], 1)
         self.assertIn("project init", payload["commands"])
@@ -549,7 +549,7 @@ class UsageReportCliTest(HarnessTestBase):
         self.assertIn("acceptance record 退出码 3", payload["limitations"])
 
     def test_report_text_output_carries_summary_and_limitations(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         result = subprocess.run(
             [sys.executable, str(ROOT / "scripts" / "harness.py"),
              "usage", "report", "--target", str(self.project)],
@@ -560,7 +560,7 @@ class UsageReportCliTest(HarnessTestBase):
         self.assertIn("limitations: ", result.stdout)
 
     def test_report_rejects_non_positive_days(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         for days in ("0", "-5"):
             payload = self.run_cli(
                 "usage", "report", "--target", str(self.project), "--days", days, expected=2
@@ -572,7 +572,7 @@ class UsageReportCliTest(HarnessTestBase):
         self.assertEqual(payload["event_count"], 0)
 
     def test_result_field_is_recorded_from_payload_status(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.run_cli("structure", "check", "--target", str(self.project))
         events = [
             e for e in usage_log.read_events(self.project, 1) if e["command"] == "structure"

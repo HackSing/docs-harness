@@ -85,7 +85,7 @@ Plan/Knowledge 引用 + 验收目标与标准 → acceptance create
 
 ## 4. 安装边界
 
-`project init` 同步受管宿主说明、控制器、资产模块、方案模板、git 钩子和 v9 配置，并初始化 `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、各自 archive 与 `docs/INDEX.md` 独立索引区块。`project upgrade` 先预览、补齐三类体系，再清理所有权明确的旧规则、知识地图、受管版本区块和旧 Runtime；用户资产、项目正文与归属不明文件不进入自动删除范围。
+`project init --apply` 同步受管宿主说明（不带 `--apply` 只预览，与 upgrade/uninstall 一致）、控制器、资产模块、方案模板、git 钩子和 v9 配置，并初始化 `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、各自 archive 与 `docs/INDEX.md` 独立索引区块。`project upgrade` 先预览、补齐三类体系，再清理所有权明确的旧规则、知识地图、受管版本区块和旧 Runtime；用户资产、项目正文与归属不明文件不进入自动删除范围。
 
 安装不创建项目知识事实或验收结论，不自动启动知识 bootstrap 或后台治理 Job；三类索引只维护各自独立标记区块，不修改项目自己的索引正文。
 

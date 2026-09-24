@@ -112,7 +112,7 @@ class StructureGuardrailTest(HarnessTestBase):
         self.assertFalse(payload["codemap"]["present"])
         self.assertIn("legacy.py", payload["codemap"]["unregistered_files"])
     def test_assets_check_carries_structure_warnings(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.structure_git("init")
         self.structure_commit_all()
         self.write_lines("src/huge.py", [f"h{i} = {i}" for i in range(601)])
@@ -273,7 +273,7 @@ class StructureManagedFileExemptionTest(HarnessTestBase):
         复现真实升级现场：harness.py 变成 M 且净增数千行（触发超红线净增 WARN），
         2.16.0 新增的三个受管模块变成 A 且未登记 CODEMAP（触发未登记 WARN）。
         """
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         scripts = self.project / "scripts"
         saved = {
             name: (scripts / name).read_bytes()

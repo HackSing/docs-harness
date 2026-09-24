@@ -4,6 +4,8 @@
 
 ## 待办
 
+- [ ] dsh-plugin 恢复维护时，`dsh-plugin/src/host/project-ops.js` 的 ACTION_INIT 参数与 `dsh-plugin/scripts/extract-managed-block.mjs` 的 `project init` 调用要补 `--apply`：2.22.0 起 `init` 不带 `--apply` 只预览，重新 seed-vendor 后插件安装会静默变成只预览（当前 vendor 停在 2.12.3，暂不受影响；dsh-plugin 已暂停维护）（aiware，2026-09-24）
+
 - [ ] `scripts/harness.py` 存量体量债 4800 行（2.16.1 实测）（`project_findings` 266 行、`command_plan_check` 240 行、`command_project` 221 行），每次改动必撞 Structure WARN 使本仓库 `assets-check --strict` 在未提交状态恒退 1；以 `structure report` 开专门整理任务，候选拆分方向：安装/升级编排、plan check、usage 埋点各自成模块（aiware，2026-09-13）
 
 - [ ] usage 事件缺 `source` 字段：`assets-check --fast` 无法区分 pre-commit 触发与手动收尾触发，本次审计只能靠事件时间与 git log 人肉对齐才发现 09-13 以来 8 次提交零钩子事件；建议在 `usage_invoke_event` 加来源标记（kimi，2026-09-14）

@@ -618,7 +618,7 @@ class AcceptanceTest(HarnessTestBase):
         self.assertFalse((self.project / "docs/acceptance/dry-run-valid.json").exists())
 
     def test_acceptance_settle_input_lists_unknown_fields(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         target = self.acceptance_target()
         target_input = self.write_json("inputs/acceptance-target.json", target)
         self.run_cli(

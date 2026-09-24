@@ -27,7 +27,7 @@ from harness import (  # noqa: E402
 
 class ProjectInstallTest(HarnessTestBase):
     def test_project_init_bootstraps_docs_system(self) -> None:
-        init = self.run_cli("project", "init", "--target", str(self.project))
+        init = self.run_cli("project", "init", "--target", str(self.project), "--apply")
         # fresh init 与 upgrade --apply 共用同一条返回路径：usage 提示只针对
         # v12→v13 迁移，全新安装不该出现（existing 为 None 即被排除）。
         self.assertNotIn("notices", init)
@@ -43,9 +43,25 @@ class ProjectInstallTest(HarnessTestBase):
         self.assertIn("docs-harness:plans-index:end", index)
         self.assertIn("docs-harness:knowledge-index:start", index)
         self.assertIn("docs-harness:acceptance-index:start", index)
+    def test_project_init_without_apply_is_preview_only(self) -> None:
+        # 与 upgrade/uninstall 同一约定：不带 --apply 只预览、不落任何文件。
+        before = sorted(p.name for p in self.project.iterdir())
+        payload = self.run_cli("project", "init", "--target", str(self.project))
+        self.assertEqual(payload["action"], "init")
+        self.assertEqual(payload["mode"], "preview")
+        self.assertIs(payload["write_performed"], False)
+        self.assertIsNone(payload["from_version"])
+        self.assertIn(
+            {"path": "scripts/harness.py", "action": "create"}, payload["changes"]
+        )
+        self.assertEqual(sorted(p.name for p in self.project.iterdir()), before)
+        # docs/INDEX.md 承载四个索引区块，文件级清单里只出现一次。
+        index_entries = [c for c in payload["changes"] if c["path"] == "docs/INDEX.md"]
+        self.assertEqual(index_entries, [{"path": "docs/INDEX.md", "action": "create"}])
+
     def test_init_creates_project_doc_scaffolds_idempotently(self) -> None:
         (self.project / "README.md").write_text("# 我的项目\n\n自定义正文。\n", encoding="utf-8")
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.assertEqual(
             (self.project / "README.md").read_text(encoding="utf-8"),
             "# 我的项目\n\n自定义正文。\n",
@@ -54,10 +70,10 @@ class ProjectInstallTest(HarnessTestBase):
         self.assertTrue((self.project / "TODO.md").is_file())
         self.assertTrue((self.project / "docs/adr/README.md").is_file())
         before = self.snapshot_project()
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.assertEqual(self.snapshot_project(), before)
     def test_project_check_flags_missing_and_malformed_project_docs(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         payload = self.run_cli("project", "check", "--target", str(self.project))
         self.assertNotIn("project_todo_missing", [f["code"] for f in payload["findings"]])
         (self.project / "TODO.md").unlink()
@@ -73,7 +89,7 @@ class ProjectInstallTest(HarnessTestBase):
         template = self.project / "plan-templates" / "levels" / "brief.json"
         template.parent.mkdir(parents=True)
         template.write_text('{"owned_by":"user"}\n', encoding="utf-8")
-        payload = self.run_cli("project", "init", "--target", str(self.project), expected=2)
+        payload = self.run_cli("project", "init", "--target", str(self.project), "--apply", expected=2)
         self.assertEqual(payload["code"], "install_conflict")
         self.assertEqual(template.read_text(encoding="utf-8"), '{"owned_by":"user"}\n')
         self.assertFalse((self.project / "scripts" / "harness.py").exists())
@@ -85,13 +101,13 @@ class ProjectInstallTest(HarnessTestBase):
         (self.project / "scripts").symlink_to(outside, target_is_directory=True)
         before = self.snapshot_project()
         payload = self.run_cli(
-            "project", "init", "--target", str(self.project), expected=2
+            "project", "init", "--target", str(self.project), "--apply", expected=2
         )
         self.assertEqual(payload["code"], "install_conflict")
         self.assertEqual(self.snapshot_project(), before)
         self.assertEqual(list(outside.iterdir()), [])
     def test_project_init_installs_pure_v11_without_legacy_rules(self) -> None:
-        payload = self.run_cli("project", "init", "--target", str(self.project))
+        payload = self.run_cli("project", "init", "--target", str(self.project), "--apply")
         config = json.loads(
             (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
         )
@@ -122,7 +138,7 @@ class ProjectInstallTest(HarnessTestBase):
         ):
             self.assertTrue((self.project / "scripts" / module).is_file())
     def test_installed_controller_can_check_diff_and_self_test_itself(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         installed = self.project / "scripts" / "harness.py"
         for command in (
             [sys.executable, str(installed), "project", "check", "--target", str(self.project), "--json"],
@@ -144,7 +160,7 @@ class ProjectInstallTest(HarnessTestBase):
             if command[2] == "self-test":
                 self.assertEqual(payload["status"], "passed")
     def test_installed_controller_runs_knowledge_and_acceptance_lifecycles(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         source = self.project / "src/owner.txt"
         source.parent.mkdir(parents=True)
         source.write_text("InstalledOwner owns lifecycle.\n", encoding="utf-8")
@@ -201,7 +217,7 @@ class ProjectInstallTest(HarnessTestBase):
             "passed",
         )
     def test_uninstall_removes_only_owned_install_and_preserves_project_docs(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         user_doc = self.project / "docs" / "product.md"
         user_doc.parent.mkdir(parents=True, exist_ok=True)
         user_doc.write_text("# 用户文档\n", encoding="utf-8")
@@ -214,7 +230,7 @@ class ProjectInstallTest(HarnessTestBase):
         self.assertFalse((self.project / ".docs-harness" / "config.json").exists())
         self.assertFalse((self.project / "plan-templates").exists())
     def test_project_init_installs_githooks_with_activation_hint(self) -> None:
-        payload = self.run_cli("project", "init", "--target", str(self.project))
+        payload = self.run_cli("project", "init", "--target", str(self.project), "--apply")
         for name in ("pre-commit", "setup.sh"):
             installed = self.project / "scripts" / "githooks" / name
             self.assertTrue(installed.is_file())
@@ -237,7 +253,7 @@ class ProjectInstallTest(HarnessTestBase):
         check = self.run_cli("project", "check", "--target", str(self.project))
         self.assertEqual(check["status"], "passed")
     def test_pre_commit_blocks_tampered_knowledge_asset(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         subprocess.run(
             ["git", "init"], cwd=self.project, capture_output=True, check=True
         )
@@ -267,7 +283,7 @@ class ProjectInstallTest(HarnessTestBase):
         self.assertEqual(result.returncode, 1, output)
         self.assertIn("assets-check", output)
     def test_pre_commit_sources_project_local_hook(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         subprocess.run(
             ["git", "init"], cwd=self.project, capture_output=True, check=True
         )
@@ -286,7 +302,7 @@ class ProjectInstallTest(HarnessTestBase):
         self.assertEqual(result.returncode, 0, output)
         self.assertIn("local-check ran", output)
     def test_pre_commit_local_hook_failure_blocks_commit(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         subprocess.run(
             ["git", "init"], cwd=self.project, capture_output=True, check=True
         )
@@ -305,7 +321,7 @@ class ProjectInstallTest(HarnessTestBase):
         self.assertEqual(result.returncode, 1, output)
         self.assertIn("mirror drift", output)
     def test_upgrade_rejects_user_modified_githook_before_any_write(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         hook = self.project / "scripts" / "githooks" / "pre-commit"
         hook.write_bytes(hook.read_bytes() + b"# user tweak\n")
         before = self.snapshot_project()
@@ -321,7 +337,7 @@ class ProjectInstallTest(HarnessTestBase):
     def test_autocrlf_crlf_worktree_is_not_treated_as_user_modification(self) -> None:
         # Windows core.autocrlf=true 会把工作区文本检出为 CRLF；纯行尾差异不得
         # 阻断 check/upgrade/diff（真实事故：v1.2.0 项目升级被误判为用户修改）。
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         for relative in (
             "scripts/harness.py",
             "scripts/knowledge_assets.py",
@@ -338,7 +354,7 @@ class ProjectInstallTest(HarnessTestBase):
         )
         self.assertEqual(repeated["changed"], [])
     def test_autocrlf_crlf_worktree_still_rejects_real_modification(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.to_crlf("scripts/harness.py")
         script = self.project / "scripts" / "harness.py"
         script.write_bytes(script.read_bytes() + b"# user tweak\r\n")
@@ -349,7 +365,7 @@ class ProjectInstallTest(HarnessTestBase):
         self.assertEqual(payload["code"], "install_conflict")
         self.assertEqual(self.snapshot_project(), before)
     def test_upgrade_githooks_idempotent(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         repeated = self.run_cli(
             "project", "upgrade", "--target", str(self.project), "--apply"
         )
@@ -357,7 +373,7 @@ class ProjectInstallTest(HarnessTestBase):
         diff = self.run_cli("project", "diff", "--target", str(self.project))
         self.assertEqual(diff["changes"], [])
     def test_uninstall_removes_only_unmodified_githooks(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         modified = self.project / "scripts" / "githooks" / "setup.sh"
         modified.write_bytes(modified.read_bytes() + b"# user tweak\n")
         preview = self.run_cli("project", "uninstall", "--target", str(self.project))
@@ -371,7 +387,7 @@ class ProjectInstallTest(HarnessTestBase):
         self.assertTrue(modified.is_file())
         self.assertTrue((self.project / "scripts" / "githooks").is_dir())
     def test_project_check_flags_non_executable_githook_index_mode(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.structure_git("init")
         # 钉死 core.filemode=false：基线提交的钩子模式否则随平台漂移（Windows 默认 false
         # 入库 100644；类 Unix 默认 true 按磁盘可执行位入库 100755），本用例曾在两边各挂一次。
@@ -392,7 +408,7 @@ class ProjectInstallTest(HarnessTestBase):
         payload = self.run_cli("project", "check", "--target", str(self.project))
         self.assertNotIn("githook_index_mode", {f["code"] for f in payload["findings"]})
     def test_project_check_flags_hookspath_shadowing_native_hooks(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.structure_git("init")
         hooks = self.project / ".git" / "hooks"
         (hooks / "post-commit").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
@@ -407,7 +423,7 @@ class ProjectInstallTest(HarnessTestBase):
             "githook_hookspath_conflict", {f["code"] for f in payload["findings"]}
         )
     def test_setup_shim_lifecycle_and_uninstall_cleanup(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.structure_git("init")
         hooks = self.project / ".git" / "hooks"
         # 共存对象：第三方钩子原样保留
@@ -459,14 +475,14 @@ class LocalOnlyDirectoryTest(HarnessTestBase):
         self.assertEqual(LOCAL_ONLY_DIRS, (TASK_INPUTS_RELATIVE, TASKS_RELATIVE))
 
     def test_init_creates_dirs_with_nested_gitignore(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         for relative in LOCAL_ONLY_DIRS:
             with self.subTest(relative=relative):
                 self.assertTrue((self.project / relative).is_dir())
                 self.assertEqual(self.gitignore(relative).read_text(encoding="utf-8"), "*\n")
 
     def test_upgrade_creates_dirs_and_never_cleans_them(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         for relative in LOCAL_ONLY_DIRS:
             shutil.rmtree(self.project / relative)
         payload = self.run_cli(
@@ -481,7 +497,7 @@ class LocalOnlyDirectoryTest(HarnessTestBase):
         self.assertIn("task-inputs", LEGACY_RUNTIME_NAMES)
 
     def test_existing_gitignore_is_never_overwritten(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         for relative in LOCAL_ONLY_DIRS:
             self.gitignore(relative).write_text("*\n!keep.json\n", encoding="utf-8")
         payload = self.run_cli(
@@ -495,7 +511,7 @@ class LocalOnlyDirectoryTest(HarnessTestBase):
                 )
 
     def test_files_in_local_only_dirs_are_git_ignored(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.structure_git("init")
         samples = {TASK_INPUTS_RELATIVE: "plan-content.json", TASKS_RELATIVE: "migrate-client.md"}
         for relative, name in samples.items():
@@ -513,7 +529,7 @@ class LocalOnlyDirectoryTest(HarnessTestBase):
         2.16.1 只有 apply 一侧，升级预览列 13 项而实际写入 14 项，project diff 也报空。
         2.16.2 补 *_changes 判定后三处同源；2.19.0 起该判定为 local_only_dir_changes。
         """
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         for relative in LOCAL_ONLY_DIRS:
             self.gitignore(relative).unlink()
         expected = [{"path": f"{relative}/.gitignore", "action": "create"} for relative in LOCAL_ONLY_DIRS]

@@ -26,7 +26,7 @@ class AdrTest(HarnessTestBase):
         value.update(overrides)
         return value
     def test_adr_lifecycle_create_check_settle(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.assertTrue((self.project / "docs/adr/README.md").is_file())
         content = self.write_json("inputs/adr.json", self._adr_input())
         created = self.run_cli(
@@ -75,7 +75,7 @@ class AdrTest(HarnessTestBase):
         self.assertEqual(assets["status"], "passed")
         self.assertEqual(assets["checked"]["adr"], 2)
     def test_adr_rejects_tampered_asset(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         content = self.write_json("inputs/adr.json", self._adr_input())
         self.run_cli(
             "adr", "create", "--target", str(self.project),
@@ -89,7 +89,7 @@ class AdrTest(HarnessTestBase):
         self.assertEqual(payload["status"], "failed")
         self.assertTrue(any("指纹" in item for item in payload["failures"]))
     def test_adr_rejects_unknown_supersedes_ref(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         content = self.write_json(
             "inputs/adr.json", self._adr_input(supersedes=["docs/adr/ghost.json"])
         )
@@ -102,7 +102,7 @@ class AdrTest(HarnessTestBase):
         adr_dir.mkdir(parents=True)
         (adr_dir / "ADR-0001.md").write_text("# 既有手写决策\n", encoding="utf-8")
         (adr_dir / "INDEX.md").write_text("# 既有索引\n", encoding="utf-8")
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.assertEqual(
             (adr_dir / "ADR-0001.md").read_text(encoding="utf-8"), "# 既有手写决策\n"
         )

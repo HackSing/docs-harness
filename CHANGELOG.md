@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.22.0 - 2026-09-24
+
+- **命令契约变更**：`project init` 不带 `--apply` 时改为只预览（`mode: preview`、`write_performed: false`，不落任何文件），与 `upgrade`、`uninstall` 统一为「默认预览，`--apply` 才写入」。动机：旧 `init` 没有预览模式、不带 `--apply` 也直接写入，2026-09-24 给新下游接入时照 upgrade 的约定"先预览"，结果把 harness 直接装进了带未提交改动的工作区，只能手工回滚。
+- 迁移：脚本或插件里原本写 `project init --target <dir>` 的调用要补 `--apply`，否则只会预览、不再安装。2.21.1 及更早的 `init` 会忽略 `--apply`，所以现在就补上对新旧版本都兼容。
+- `project init`/`upgrade`/`diff` 的变更清单去掉完全相同的重复条目：`docs/INDEX.md` 承载四类资产的索引区块，此前全新安装的预览里会列 4 次同一条 `create`。
+- 去掉写死的旧版本号：`scripts/harness.py` 模块说明（2.9.0）、`SKILL.md` 标题与示例命令（2.9.1）、`docs/README.md` 标题（2.7.1）；版本号只以 `VERSION` 与各版本源为准。
+- `project --apply` 补了 `--help` 说明；README、SKILL.md、docs/contracts.md、docs/architecture.md、docs/downstream.md 已同步。
+- 受管入口模板不变；下游升级只刷新脚本与版本号。
+
 ## 2.21.1 - 2026-09-24
 
 - 补齐 2.21.0 迁移用户全局 CLAUDE.md 时漏掉的两句，补完后全局文件可以退役：

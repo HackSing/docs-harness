@@ -212,7 +212,7 @@ class PlanGovernanceTest(HarnessTestBase):
         frozen = json.loads(plan_path.read_text(encoding="utf-8"))
         self.assertEqual(frozen["acceptance_refs"], ["docs/acceptance/new.json"])
     def test_assets_check_warns_when_plan_declaration_conflicts_with_refs(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.create_full_plan(
             acceptance_required=False,
             knowledge_impact="unchanged",
@@ -234,7 +234,7 @@ class PlanGovernanceTest(HarnessTestBase):
         )
         self.assertEqual(strict["status"], "failed")
     def test_assets_check_fails_when_settled_knowledge_is_archived(self) -> None:
-        self.run_cli("project", "init", "--target", str(self.project))
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.create_full_plan(
             acceptance_required=False,
             knowledge_impact="updated",

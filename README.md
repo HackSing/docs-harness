@@ -63,8 +63,12 @@ cd docs-harness
 ### 2. 初始化新项目
 
 ```bash
+# 先预览将写入哪些文件（不落盘）
 python3 /path/to/docs-harness/scripts/harness.py \
   project init --target /path/to/project --json
+# 确认后写入
+python3 /path/to/docs-harness/scripts/harness.py \
+  project init --target /path/to/project --apply --json
 ```
 
 初始化会安装受管入口、控制器、资产模块、方案模板和 Git Hook 文件，并创建：
@@ -285,7 +289,7 @@ GitHub Actions --strict
 
 ## 安全与兼容边界
 
-- `project init` 直接初始化目标项目；`upgrade` 与 `uninstall` 默认只预览，只有 `--apply` 才写入；
+- `project init`、`upgrade` 与 `uninstall` 默认只预览，只有 `--apply` 才写入（2.22.0 起 `init` 也遵守这一约定）；
 - 不使用旧项目中的旧控制器执行跨版本升级；
 - 用户修改或归属不明的文件失败关闭，不强制覆盖；
 - pre-2.0 项目只通过当前控制器执行单向迁移，不继续运行旧任务控制流程；

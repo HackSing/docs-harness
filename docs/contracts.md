@@ -192,7 +192,7 @@ Harness 不采集用户授权、不解析 Codex usage、不保存原始用户聊
 - `.docs-harness/inputs/`：一次性输入 JSON（`plan create --content`、`plan settle --governance-input`、`knowledge`/`acceptance`/`adr` 各自的 `--input`）的约定位置，init 与 upgrade 都确保其存在并落一个内容为 `*` 的嵌套 `.gitignore`（已存在则一律不覆盖）。它既在项目内满足输入文件必须位于项目内的要求，又不入库，且不在 `LEGACY_RUNTIME_NAMES` 内、升级不清理；1.x 运行态目录 `.docs-harness/task-inputs/` 仍按 legacy 清除，两者不做迁移。
 - `.docs-harness/tasks/`（2.19.0）：长任务进度清单的约定位置，与 `inputs/` 同一套判定（`LOCAL_ONLY_DIRS`）：init 与 upgrade 确保存在并落内容为 `*` 的嵌套 `.gitignore`（已存在不覆盖），不入库、升级不清理。有 Plan 的任务清单只引用 Plan 路径并记进度，进度不写回冻结合同。
 
-fresh init 初始化四类空资产目录、受管索引区块与缺失的项目级文档骨架，但不生成项目事实、验收结论、规则目录或任务 Runtime，不自动启动知识、ADR、Changelog、TODO 或后台治理 Job。upgrade 先补齐四类体系，再清理指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；四类用户资产、项目文档、质量账本、已修改或归属不明文件保留。`release sync --strict` 要求 CHANGELOG 顶部版本与 VERSION 一致；`project check` 对缺失的 CHANGELOG/TODO 出 red、TODO 条目格式问题出 yellow。
+`project init`、`upgrade`、`uninstall` 不带 `--apply` 时只返回 `mode: preview` 与 `write_performed: false`，不落任何文件（`init` 自 2.22.0 起）。fresh init 初始化四类空资产目录、受管索引区块与缺失的项目级文档骨架，但不生成项目事实、验收结论、规则目录或任务 Runtime，不自动启动知识、ADR、Changelog、TODO 或后台治理 Job。upgrade 先补齐四类体系，再清理指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；四类用户资产、项目文档、质量账本、已修改或归属不明文件保留。`release sync --strict` 要求 CHANGELOG 顶部版本与 VERSION 一致；`project check` 对缺失的 CHANGELOG/TODO 出 red、TODO 条目格式问题出 yellow。
 
 2.4.1 曾发布错误的方案模板配置指纹。upgrade 只把与 2.4.1 官方发布文件逐字匹配的已知指纹作为兼容归属；内容有任何额外修改仍拒绝覆盖。成功升级后统一写回当前真实文件指纹，不长期保留双重归属状态。指纹偏离类 `install_conflict` 一次性列出全部偏离文件（不再先撞先报），message 附三条出路（恢复安装版本后重试升级／确需保留的修改合入 docs-harness 随新版本升级／保持分叉则跳过升级），`extra_payload.install_conflicts` 携带结构化清单（path/reason/actual_fingerprint/allowed_fingerprints）供 agent 消费；symlink、非常规文件、安装指纹无效等结构性错误保持即时抛，`code` 与退出码不变。
 
