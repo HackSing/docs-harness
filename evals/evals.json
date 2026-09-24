@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v2",
-  "version": "2.20.0",
+  "version": "2.21.0",
   "cases": [
     {
       "id": "direct-default-no-state",
@@ -29,6 +29,10 @@
     {
       "id": "fix-plan-self-check",
       "expected": ["read-owner-and-all-consumers", "callers-confirmed-by-symbol-search", "consumer-patch-revised-to-owner-layer", "redundant-change-removed", "self-check-line-in-output", "revision-stated-when-changed"]
+    },
+    {
+      "id": "intent-and-premise-first",
+      "expected": ["false-premise-corrected-in-first-sentence", "completeness-ambiguity-resolved-with-stated-assumption", "plan-changing-ambiguity-confirmed-first", "scope-expansion-asked-not-done", "non-runtime-deliverable-verified-by-receiver-usage", "assumptions-listed-in-pending-decisions"]
     },
     {
       "id": "legacy-cli-absent",
