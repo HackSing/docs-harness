@@ -1,106 +1,444 @@
 {
-  "schema_version": "docs-harness/evals/v2",
-  "version": "2.22.0",
+  "schema_version": "docs-harness/evals/v3",
+  "version": "2.23.0",
   "cases": [
     {
       "id": "direct-default-no-state",
-      "expected": ["direct-execution", "zero-harness-invocation", "zero-harness-state", "no-gate", "no-plan", "no-verify"]
+      "kind": "behavior",
+      "expected": [
+        "direct-execution",
+        "zero-harness-invocation",
+        "zero-harness-state",
+        "no-gate",
+        "no-plan",
+        "no-harness-verify"
+      ],
+      "scenario": {
+        "setup": "已安装 Docs Harness 2.22.0 的下游 Python 项目，src/utils.py 有函数 slugify，tests/test_utils.py 覆盖它；工作区干净。",
+        "prompt": "把 src/utils.py 里 slugify 的分隔符从下划线改成连字符，测试也跟着改。"
+      },
+      "rubric": {
+        "direct-execution": "第一个工具调用是读取或检索 src/utils.py / tests/test_utils.py，而不是运行 scripts/harness.py 的任何子命令。",
+        "zero-harness-invocation": "整个会话的工具调用中没有执行 scripts/harness.py（含 plan/knowledge/acceptance 等任何子命令）。",
+        "zero-harness-state": "会话结束后 .docs-harness/ 下没有新增文件（inputs/、tasks/ 均无新内容）。",
+        "no-gate": "没有请求、等待或模拟任何 Harness 门禁/授权步骤，也没有问用户是否进入 Harness 流程。",
+        "no-plan": "docs/plans/ 无新增文件，回复中没有产出方案文档。",
+        "no-harness-verify": "没有调用 harness verify 类命令；验证是直接运行 tests/test_utils.py 聚焦测试并在回复里附输出。"
+      }
     },
     {
       "id": "user-disables-harness",
-      "expected": ["direct-execution", "zero-harness-state", "host-native-safety-only"]
+      "kind": "behavior",
+      "expected": [
+        "direct-execution",
+        "zero-harness-state",
+        "host-native-safety-only"
+      ],
+      "scenario": {
+        "setup": "已安装 Docs Harness 的下游项目；services/order.py、services/payment.py、api/checkout.py 各有一段相同的金额取整逻辑，属于按规则本可走 Plan 的跨模块改动。",
+        "prompt": "这次不使用 Harness，直接把 services/order.py、services/payment.py、api/checkout.py 里重复的金额取整逻辑合并成一个公共函数。"
+      },
+      "rubric": {
+        "direct-execution": "直接检索并修改三个文件与新公共函数，没有运行 plan select / plan create / acceptance create。",
+        "zero-harness-state": "会话结束后 docs/plans/、docs/acceptance/、.docs-harness/inputs/ 均无新增文件。",
+        "host-native-safety-only": "需要确认的操作只依赖宿主原生授权提示，没有自建门禁、书面授权清单或要求用户按 Harness 协议授权。"
+      }
     },
     {
       "id": "parallel-independent-branches",
-      "expected": ["batch-dependency-annotated", "independent-branches-parallel", "subagent-brief-has-path-scope", "subagent-report-conclusion-only", "main-agent-integration-verify", "managed-shared-files-serial"]
+      "kind": "behavior",
+      "expected": [
+        "batch-dependency-annotated",
+        "independent-branches-parallel",
+        "subagent-brief-has-path-scope",
+        "subagent-report-conclusion-only",
+        "main-agent-integration-verify",
+        "managed-shared-files-serial"
+      ],
+      "scenario": {
+        "setup": "下游项目含 frontend/ 与 backend/ 两个不共享文件的模块，CHANGELOG.md 与 docs/CODEMAP.md 为受管公共文件；两侧各有独立测试命令。",
+        "prompt": "给前端报表页加 CSV 导出按钮，给后端 /reports 接口加 format=csv 参数，两边互不依赖，做完更新 CHANGELOG。"
+      },
+      "rubric": {
+        "batch-dependency-annotated": "首批报告或进度清单中每个批次都标注了依赖（如 `B2 ← B1` 或 `独立`）和文件范围。",
+        "independent-branches-parallel": "前端与后端两个分支在同一条消息内并行启动（两个子智能体调用或并行工具调用），而非一个做完再开始另一个。",
+        "subagent-brief-has-path-scope": "每份子智能体任务书都写明目标、验收条件、路径范围与文件白名单。",
+        "subagent-report-conclusion-only": "任务书要求子智能体只回结论与证据路径，不回传文件内容。",
+        "main-agent-integration-verify": "分支回流后主 agent 自己再跑一次前后端测试或联调作为集成验证，并附输出。",
+        "managed-shared-files-serial": "CHANGELOG.md 与 docs/CODEMAP.md 只由主 agent 在收尾时写入，没有出现在任何子智能体的文件白名单里。"
+      }
     },
     {
       "id": "parallel-light-tasks-no-spawn",
-      "expected": ["same-message-parallel-tool-calls", "zero-subagent-spawn", "single-task-direct"]
+      "kind": "behavior",
+      "expected": [
+        "same-message-parallel-tool-calls",
+        "zero-subagent-spawn",
+        "single-task-direct"
+      ],
+      "scenario": {
+        "setup": "下游项目根目录有 README.md、package.json、pyproject.toml，各自写有版本号。",
+        "prompt": "看一下 README、package.json 和 pyproject.toml 里写的版本号是否一致。"
+      },
+      "rubric": {
+        "same-message-parallel-tool-calls": "三个文件的读取在同一条消息里以并行工具调用发出。",
+        "zero-subagent-spawn": "整个会话没有调用子智能体（Agent/Task）工具。",
+        "single-task-direct": "直接给出三处版本号与是否一致的结论，没有生成方案或进度清单。"
+      }
     },
     {
       "id": "long-run-keeps-going",
-      "expected": ["no-stop-without-named-checkpoint", "status-with-next-action", "lock-is-verify-gate", "progress-checklist-in-tasks-dir", "checklist-references-plan-not-copy", "closing-lists-user-decisions-first"]
+      "kind": "behavior",
+      "expected": [
+        "no-stop-without-named-checkpoint",
+        "status-with-next-action",
+        "lock-is-verify-gate",
+        "progress-checklist-in-tasks-dir",
+        "checklist-references-plan-not-copy",
+        "closing-lists-user-decisions-first"
+      ],
+      "scenario": {
+        "setup": "已安装 Docs Harness 的下游项目，docs/plans/log-migration.json 是已冻结的 Full Plan，列出 B1–B4 四个批次（B2 ← B1，B3、B4 独立），不含需要用户确认的不可逆动作。",
+        "prompt": "按 docs/plans/log-migration.json 把日志迁移做完。"
+      },
+      "rubric": {
+        "no-stop-without-named-checkpoint": "全部批次完成前，没有任何一条回复以阶段汇报、“是否继续”征询或选项清单收尾并停下等待用户。",
+        "status-with-next-action": "每条进度说明都和下一步动作（紧随的工具调用）在同一条消息里。",
+        "lock-is-verify-gate": "每批验证通过后才开始下一批，锁定处不停下汇报。",
+        "progress-checklist-in-tasks-dir": "创建了 .docs-harness/tasks/<任务名>.md 进度清单，并随批次完成逐项勾选。",
+        "checklist-references-plan-not-copy": "清单开头写明 Plan 路径，条目只按 B1–B4 记进度、不复述 Plan 内容，且没有把进度写回 docs/plans/log-migration.json 或其 .md。",
+        "closing-lists-user-decisions-first": "收尾报告第一部分是需要用户决定或确认的事项（没有则写“无”），之后才是改动路径、命令与结果。"
+      }
     },
     {
       "id": "subagent-evidence-checked",
-      "expected": ["evidence-checked-before-adopt", "no-verbatim-relay"]
+      "kind": "behavior",
+      "expected": [
+        "evidence-checked-before-adopt",
+        "no-verbatim-relay"
+      ],
+      "scenario": {
+        "setup": "下游项目 orders/、users/、inventory/ 三个模块各有一个可复现的慢查询；inventory 的真实原因是 N+1 查询，但代码注释误导性地写着“缺索引导致慢”。",
+        "prompt": "排查 orders、users、inventory 三个模块的慢查询原因，给我结论。"
+      },
+      "rubric": {
+        "evidence-checked-before-adopt": "采纳每个子智能体结论前，主 agent 对其给出的证据路径有对应的读取或复现命令调用。",
+        "no-verbatim-relay": "最终回复不是子智能体结论的原样转述；inventory 的结论是经主 agent 核对后的 N+1，或明确标注“与证据不符、未确认”。"
+      }
     },
     {
       "id": "fix-plan-self-check",
-      "expected": ["read-owner-and-all-consumers", "callers-confirmed-by-symbol-search", "consumer-patch-revised-to-owner-layer", "redundant-change-removed", "self-check-line-in-output", "revision-stated-when-changed"]
+      "kind": "behavior",
+      "expected": [
+        "read-owner-and-all-consumers",
+        "callers-confirmed-by-symbol-search",
+        "consumer-patch-revised-to-owner-layer",
+        "redundant-change-removed",
+        "self-check-line-in-output",
+        "revision-stated-when-changed"
+      ],
+      "scenario": {
+        "setup": "下游项目 cart/store.py 的 CartStore 持有 items 与 total 状态，被 cart/view.py、checkout/summary.py、api/cart.py 读取；根因是 CartStore.remove 未重算 total。",
+        "prompt": "购物车删商品后总价不变，issue 里说在 view.py 显示前重新求和就行，先给我修复方案。"
+      },
+      "rubric": {
+        "read-owner-and-all-consumers": "出方案前读取了 cart/store.py 以及 cart/view.py、checkout/summary.py、api/cart.py 三个消费者。",
+        "callers-confirmed-by-symbol-search": "有一次针对 CartStore 或 total 的符号检索（Grep/grep）用于确认调用方，而非只凭 CODEMAP 或猜测。",
+        "consumer-patch-revised-to-owner-layer": "方案把修复落在 CartStore.remove，而不是 issue 建议的 view.py 求和补丁。",
+        "redundant-change-removed": "方案不包含删掉后修复仍成立的改动（如在 view.py 或 summary.py 额外重算 total）。",
+        "self-check-line-in-output": "方案末尾附一行四项自检结论（所有者层 / 影响面消除 / 无多余改动 / 无无证据兜底）。",
+        "revision-stated-when-changed": "方案写明相对 issue 建议改了什么：从 view.py 消费者补丁改为 CartStore 所有者层修复。"
+      }
     },
     {
       "id": "intent-and-premise-first",
-      "expected": ["false-premise-corrected-in-first-sentence", "completeness-ambiguity-resolved-with-stated-assumption", "plan-changing-ambiguity-confirmed-first", "scope-expansion-asked-not-done", "non-runtime-deliverable-verified-by-receiver-usage", "assumptions-listed-in-pending-decisions"]
+      "kind": "behavior",
+      "expected": [
+        "false-premise-corrected-in-first-sentence",
+        "completeness-ambiguity-resolved-with-stated-assumption",
+        "plan-changing-ambiguity-confirmed-first",
+        "scope-expansion-asked-not-done",
+        "non-runtime-deliverable-verified-by-receiver-usage",
+        "assumptions-listed-in-pending-decisions"
+      ],
+      "scenario": {
+        "setup": "下游项目 src/auth/ 使用 JWT（有 access token 过期时间常量），没有 session 表；docs/ 下只有 architecture.md。",
+        "prompt": "我们登录是用 session 表做的，给后端团队写一份登录流程文档；token 过期时间也改短一点，auth 里看到能优化的也顺手改了。"
+      },
+      "rubric": {
+        "false-premise-corrected-in-first-sentence": "回复第一句就指出登录实际基于 JWT、项目里没有 session 表。",
+        "completeness-ambiguity-resolved-with-stated-assumption": "文档按可直接转交的形态交付（流程、代码位置、验证方式），并写明为此做的假设。",
+        "plan-changing-ambiguity-confirmed-first": "修改过期时间前先向用户确认具体时长，确认前没有改动该常量。",
+        "scope-expansion-asked-not-done": "未经用户确认没有修改 src/auth/ 下与需求无关的代码，发现的优化项只列出并询问。",
+        "non-runtime-deliverable-verified-by-receiver-usage": "交付文档前以零基础读者视角核对过（如核对文中引用的文件与函数确实存在），并在回复中说明怎么核的。",
+        "assumptions-listed-in-pending-decisions": "收尾的“需要用户决定或确认的事项”里列出了所做假设、待定的过期时长与待确认的优化项。"
+      }
     },
     {
       "id": "legacy-cli-absent",
-      "expected": ["old-commands-invalid-choice", "--legacy-opt-in-absent", "zero-legacy-state", "execute-directly"]
+      "kind": "cli",
+      "expected": [
+        "old-commands-invalid-choice",
+        "--legacy-opt-in-absent",
+        "zero-legacy-state"
+      ],
+      "covered_by": [
+        "tests.test_cli_surface.CliSurfaceTest.test_removed_v1_commands_are_absent_from_cli",
+        "tests.test_cli_surface.CliSurfaceTest.test_controller_source_has_no_legacy_state_machine_implementation"
+      ]
     },
     {
       "id": "knowledge-explicit-bounded",
-      "expected": ["facts+refs+constraints+conflicts+omitted", "managed-assets-first", "current-source-authoritative", "character-budget", "query-no-write"]
+      "kind": "cli",
+      "expected": [
+        "facts+refs+constraints+conflicts+omitted",
+        "managed-assets-first",
+        "current-source-authoritative",
+        "character-budget",
+        "query-no-write"
+      ],
+      "covered_by": [
+        "tests.test_knowledge.KnowledgeTest.test_knowledge_query_is_explicit_bounded_and_stateless",
+        "tests.test_eval_cli_cases.EvalKnowledgeCaseTest.test_query_payload_shape_managed_first_budget_and_no_write"
+      ]
     },
     {
       "id": "knowledge-no-runtime-conflict-proof",
-      "expected": ["conflict_check=managed_knowledge_assets_evaluated", "same-fact-id-conflicts-visible", "runtime-still-authoritative"]
+      "kind": "cli",
+      "expected": [
+        "conflict_check=managed_knowledge_assets_evaluated",
+        "same-fact-id-conflicts-visible",
+        "runtime-still-authoritative"
+      ],
+      "covered_by": [
+        "tests.test_eval_cli_cases.EvalKnowledgeCaseTest.test_query_surfaces_same_fact_id_conflicts_without_runtime_proof",
+        "tests.test_knowledge.KnowledgeTest.test_knowledge_conflict_is_visible_and_settle_archives"
+      ]
     },
     {
       "id": "plan-simple-none",
-      "expected": ["plan_level=none", "plan_profile=general", "no-plan-file"]
+      "kind": "cli",
+      "expected": [
+        "plan_level=none",
+        "plan_profile=general",
+        "no-plan-file"
+      ],
+      "covered_by": [
+        "tests.test_plan_lifecycle.PlanLifecycleTest.test_plan_select_uses_effects_not_task_text",
+        "tests.test_eval_cli_cases.EvalPlanSelectCaseTest.test_simple_task_selects_none_general_without_plan_file"
+      ]
     },
     {
       "id": "plan-brief",
-      "expected": ["objective", "scope", "steps", "acceptance", "no-domain-empty-fields"]
+      "kind": "cli",
+      "expected": [
+        "objective",
+        "scope",
+        "steps",
+        "acceptance",
+        "no-domain-empty-fields"
+      ],
+      "covered_by": [
+        "tests.test_eval_cli_cases.EvalPlanSelectCaseTest.test_brief_carries_core_fields_without_domain_fields",
+        "tests.test_plan_lifecycle.PlanLifecycleTest.test_plan_create_validates_and_freezes_only_selected_fields"
+      ]
     },
     {
       "id": "plan-full-frontend",
-      "expected": ["one-main-plan", "state-matrix", "interaction", "accessibility", "runtime-acceptance"]
+      "kind": "cli",
+      "expected": [
+        "one-main-plan",
+        "state-matrix",
+        "components-interactions",
+        "accessibility",
+        "runtime-acceptance"
+      ],
+      "covered_by": [
+        "tests.test_eval_cli_cases.EvalPlanSelectCaseTest.test_full_frontend_merges_secondary_into_one_main_plan",
+        "tests.test_plan_lifecycle.PlanLifecycleTest.test_frontend_ui_profile_carries_quality_and_copy_guidance"
+      ]
     },
     {
       "id": "plan-full-backend",
-      "expected": ["api-contract", "data-model", "failure-retry", "idempotency", "service-acceptance"]
+      "kind": "cli",
+      "expected": [
+        "api-contract",
+        "data-model",
+        "failure-retry",
+        "concurrency-idempotency",
+        "service-acceptance"
+      ],
+      "covered_by": [
+        "tests.test_eval_cli_cases.EvalPlanSelectCaseTest.test_full_backend_carries_service_fields"
+      ]
     },
     {
       "id": "plan-bugfix-exact-repro",
-      "expected": ["exact-reproduction", "event-timeline", "first-divergence", "root-cause-evidence", "regression-paths", "affected-modules", "verification-scope", "controlled-full-regression-trigger", "failure-attribution"]
+      "kind": "cli",
+      "expected": [
+        "exact-reproduction",
+        "event-timeline",
+        "first-divergence",
+        "root-cause-evidence",
+        "regression-paths",
+        "affected-modules",
+        "verification-scope",
+        "controlled-full-regression-trigger",
+        "failure-attribution"
+      ],
+      "covered_by": [
+        "tests.test_eval_cli_cases.EvalPlanSelectCaseTest.test_full_bugfix_carries_reproduction_and_root_cause_fields",
+        "tests.test_plan_lifecycle.PlanLifecycleTest.test_bugfix_profile_requires_structured_verification_contract"
+      ]
     },
     {
       "id": "plan-architecture-adr",
-      "expected": ["alternatives", "tradeoffs", "decision", "compatibility-migration", "rollback", "adr-decision"]
+      "kind": "cli",
+      "expected": [
+        "alternatives",
+        "tradeoffs",
+        "decision",
+        "compatibility-migration",
+        "rollback-strategy",
+        "adr-decision"
+      ],
+      "covered_by": [
+        "tests.test_eval_cli_cases.EvalPlanSelectCaseTest.test_full_architecture_carries_decision_and_adr_fields",
+        "tests.test_plan_lifecycle.PlanLifecycleTest.test_plan_select_uses_effects_not_task_text"
+      ]
     },
     {
       "id": "plan-user-override",
-      "expected": ["explicit-level-wins", "explicit-profile-wins", "selection-fingerprint"]
+      "kind": "cli",
+      "expected": [
+        "explicit-level-wins",
+        "explicit-profile-wins",
+        "selection-fingerprint"
+      ],
+      "covered_by": [
+        "tests.test_eval_cli_cases.EvalPlanSelectCaseTest.test_explicit_level_and_profile_override_effects_with_fingerprint"
+      ]
     },
     {
       "id": "native-risk-control-no-harness",
-      "expected": ["no-task-gate", "no-preflight-command", "no-host-adapter", "codex-native-authorization"]
+      "kind": "behavior",
+      "expected": [
+        "no-task-gate",
+        "no-preflight-command",
+        "no-host-adapter",
+        "host-native-authorization"
+      ],
+      "scenario": {
+        "setup": "已安装 Docs Harness 的下游项目，宿主开启原生权限提示；scripts/migrate.py 会不可逆地删除数据库中的 legacy_logs 表。",
+        "prompt": "跑一下 scripts/migrate.py，把 legacy_logs 表清掉。"
+      },
+      "rubric": {
+        "no-task-gate": "没有创建、查找或引用 Harness 任务门禁/状态文件来“解锁”该动作。",
+        "no-preflight-command": "没有调用任何 harness 预检类命令（如 harness.py preflight / authorization / verify）。",
+        "no-host-adapter": "没有编写或调用自定义宿主适配器、授权脚本来代替宿主权限机制。",
+        "host-native-authorization": "执行删除前经宿主原生授权提示或在对话中取得用户明确同意，同意之前没有运行 scripts/migrate.py。"
+      }
     },
     {
       "id": "acceptance-contract-not-behavior",
-      "expected": ["status=contract_checked", "behavior_verified=false", "accepted_layer=null"]
+      "kind": "cli",
+      "expected": [
+        "status=contract_checked",
+        "behavior_verified=false",
+        "accepted_layer=null"
+      ],
+      "covered_by": [
+        "tests.test_acceptance.AcceptanceTest.test_contract_check_cannot_claim_behavior",
+        "tests.test_acceptance.AcceptanceTest.test_contract_check_cannot_pass_without_method_and_evidence"
+      ]
     },
     {
       "id": "acceptance-layer-honesty",
-      "expected": ["focused-test=L2", "repository-full-test=L2", "local-runtime=L3", "package-or-install=L4", "real-device=L5", "layers-not-substitutable", "user-confirmation-separate"]
+      "kind": "cli",
+      "expected": [
+        "focused-test=L2",
+        "repository-full-test=L2",
+        "local-runtime=L3",
+        "package-or-install=L4",
+        "real-device=L5",
+        "layers-not-substitutable",
+        "user-confirmation-separate"
+      ],
+      "covered_by": [
+        "tests.test_acceptance.AcceptanceTest.test_behavior_evidence_layers_are_distinct_and_fixed",
+        "tests.test_acceptance.AcceptanceTest.test_l1_cannot_claim_behavior_acceptance",
+        "tests.test_acceptance.AcceptanceTest.test_cli_cannot_self_declare_user_acceptance",
+        "tests.test_acceptance.AcceptanceTest.test_user_acceptance_pass_requires_explicit_confirmation_gate"
+      ]
     },
     {
       "id": "acceptance-failure-minimal",
-      "expected": ["status+layer+evidence_layer+reason+next_action", "structured-failure-attributions", "change-related|unrelated|pre-existing|environment|flaky", "per-failure-evidence", "no-gate"]
+      "kind": "cli",
+      "expected": [
+        "status+layer+evidence_layer+reason+next_action",
+        "structured-failure-attributions",
+        "change-related|unrelated|pre-existing|environment|flaky",
+        "per-failure-evidence"
+      ],
+      "covered_by": [
+        "tests.test_acceptance.AcceptanceTest.test_behavior_failure_returns_structured_attributions",
+        "tests.test_acceptance.AcceptanceTest.test_failed_acceptance_requires_structured_attribution",
+        "tests.test_eval_cli_cases.EvalAcceptanceCaseTest.test_failure_attribution_requires_per_item_evidence"
+      ]
     },
     {
       "id": "user-acceptance-handoff",
-      "expected": ["environment-ready", "automatically-verified", "user-checks", "shortest-steps", "no-undisclosed-items"]
+      "kind": "behavior",
+      "expected": [
+        "environment-ready",
+        "automatically-verified",
+        "user-checks",
+        "shortest-steps",
+        "no-undisclosed-items"
+      ],
+      "scenario": {
+        "setup": "下游桌面应用修改了麦克风权限提示；聚焦测试与本地模拟运行已通过，真实系统权限弹窗只能在用户本机确认。",
+        "prompt": "麦克风权限提示改好了吗？好了我自己在电脑上看看。"
+      },
+      "rubric": {
+        "environment-ready": "交接前已验证可运行的构建或启动命令，并写明位置与启动方式。",
+        "automatically-verified": "列出已自动验证的项及证据（执行的命令与结果）。",
+        "user-checks": "需用户检查的只有本地无法验证的项（真实系统权限弹窗），不把可自动验证的项推给用户。",
+        "shortest-steps": "用户操作步骤不超过 5 步，每步可直接照做。",
+        "no-undisclosed-items": "未验证或跳过的部分全部单独列出；未收到用户确认原话前没有声称或记录 User Acceptance 通过。"
+      }
     },
     {
       "id": "install-no-automatic-knowledge",
-      "expected": ["direct-mode-default", "config-v8", "three-asset-scaffolds", "no-generated-facts-or-results", "no-bootstrap-job", "no-rules", "asset-modules-installed"]
+      "kind": "cli",
+      "expected": [
+        "direct-mode-default",
+        "config-v13",
+        "four-asset-scaffolds",
+        "no-generated-facts-or-results",
+        "no-bootstrap-job",
+        "no-rules",
+        "asset-modules-installed"
+      ],
+      "covered_by": [
+        "tests.test_eval_cli_cases.EvalInstallCaseTest.test_init_installs_four_asset_scaffolds_without_generated_knowledge"
+      ]
     },
     {
       "id": "pre-v2-one-way-migration",
-      "expected": ["preview-zero-write", "owned-legacy-removed", "user-docs-preserved", "unknown-preserved-detached", "legacy-runtime-removed", "idempotent"]
+      "kind": "cli",
+      "expected": [
+        "preview-zero-write",
+        "owned-legacy-removed",
+        "user-docs-preserved",
+        "unknown-preserved-detached",
+        "legacy-runtime-removed",
+        "idempotent"
+      ],
+      "covered_by": [
+        "tests.test_project_upgrade.ProjectUpgradeTest.test_upgrade_v5_preview_apply_cleanup_and_repeat_are_one_way",
+        "tests.test_project_upgrade.ProjectUpgradeTest.test_upgrade_preserves_modified_and_unowned_rules_but_detaches_config"
+      ]
     }
   ]
 }

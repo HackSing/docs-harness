@@ -112,3 +112,23 @@
 ## 10. 2.15.0 Structure 多语言函数级检查验收证据（2026-09-05）
 
 见 `docs/acceptance/structure-function-check-multilanguage.md` 与证据目录 `docs/acceptance/evidence/structure-function-check-multilanguage/`：TS/Go 解析用例、增量与存量报告用例、解析器不可用降级用例，`npm test` 全量、`self-test`、`release sync --strict`、`assets-check --strict`、`npm pack --dry-run` 清单，以及下游 zbuddy-desktop 升级后 `project check`/`structure check` 结果。TS 用例在仓库自身无 node_modules 时经 `DOCS_HARNESS_TS_MODULE_DIR` 指向含 typescript 的目录运行，未设置则 skip 并说明。
+
+## 11. 行为用例（evals behavior）手动运行
+
+`evals/evals.json`（`schema_version: docs-harness/evals/v3`）是用例登记表，每条用例的 `kind` 二选一：
+
+- `cli`：可由命令确定性验证的行为（Plan 等级/Profile 选择、Knowledge、Acceptance、安装、迁移、旧 CLI 缺席）。`covered_by` 列出真正断言该行为的 unittest 完整 id，随 `npm test` 运行；`tests/test_evals.py` 机械守护登记表本身（schema、kind、id 唯一、`covered_by` 每项可被 `unittest` 解析为真实测试、behavior 的 `rubric` 键集合与 `expected` 一致）。测试改名或删除时必须同步 `covered_by`，否则 `test_evals` 失败。
+- `behavior`：考察模型是否遵守受管入口规则（直接执行、并行、长任务不停、子智能体证据核对、根因自检、按意图交付、原生授权、用户验收交接）。`scenario.setup` 描述初始环境，`scenario.prompt` 是给模型的用户输入原文，`rubric` 对 `expected` 中每个标签给一条可观察的判定标准。暂无自动运行器。
+
+何时运行：受管入口规则（仓库根 `CLAUDE.md`/`AGENTS.md` 的受管区块）有变更的版本，在发版前运行受影响规则对应的 behavior 用例；规则未变的版本不运行。
+
+怎么运行：
+
+1. 建临时下游项目：新建目录并 `git init`，从当前源码运行 `python3 <源仓>/scripts/harness.py project init --target <临时目录> --apply`（2.22.0 起不带 `--apply` 只预览），再按用例 `scenario.setup` 补齐文件与状态。
+2. 在该目录启动一个新的模型会话，原样输入 `scenario.prompt`，不追加提示。
+3. 会话结束后逐条对照 `rubric`，只看输出文本、工具调用与文件改动判定通过/不通过，不凭模型自述。
+4. 把结果追加到本节下方的运行记录：版本、日期、模型、用例 id、每个标签的通过情况、不通过标签的一句证据。
+
+### 运行记录
+
+（暂无）

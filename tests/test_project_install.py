@@ -407,6 +407,57 @@ class ProjectInstallTest(HarnessTestBase):
         self.structure_git("commit", "-m", "hooks executable")
         payload = self.run_cli("project", "check", "--target", str(self.project))
         self.assertNotIn("githook_index_mode", {f["code"] for f in payload["findings"]})
+    def hook_index_modes(self) -> dict[str, str]:
+        listed = subprocess.run(
+            ["git", "ls-files", "-s", "--", "scripts/githooks"],
+            cwd=self.project, capture_output=True, check=True,
+        ).stdout.decode("utf-8")
+        return {
+            line.split("\t", 1)[1]: line.split(None, 1)[0]
+            for line in listed.splitlines()
+        }
+
+    def test_init_registers_githooks_executable_when_filemode_false(self) -> None:
+        # Windows 默认 core.filemode=false：安装器负责以 100755 登记钩子，
+        # 否则首次提交按 100644 入库（2026-09-24 ai_study 接入现场）。
+        self.structure_git("init")
+        self.structure_git("config", "core.filemode", "false")
+        payload = self.run_cli(
+            "project", "init", "--target", str(self.project), "--apply", expected=3
+        )
+        self.assertEqual(
+            sorted(payload["githook_index_mode_registered"]),
+            ["scripts/githooks/pre-commit", "scripts/githooks/setup.sh"],
+        )
+        self.assertEqual(
+            self.hook_index_modes(),
+            {"scripts/githooks/pre-commit": "100755", "scripts/githooks/setup.sh": "100755"},
+        )
+        self.structure_commit_all()
+        payload = self.run_cli("project", "check", "--target", str(self.project))
+        self.assertNotIn("githook_index_mode", {f["code"] for f in payload["findings"]})
+        # 已是 100755 时不重复登记。
+        payload = self.run_cli("project", "upgrade", "--target", str(self.project), "--apply")
+        self.assertEqual(payload["githook_index_mode_registered"], [])
+
+    def test_upgrade_repairs_githooks_committed_as_100644(self) -> None:
+        # 存量现场：先安装后 git init，钩子已按 100644 提交；upgrade 顺带修正。
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
+        self.structure_git("init")
+        self.structure_git("config", "core.filemode", "false")
+        self.structure_commit_all()
+        check = self.run_cli("project", "check", "--target", str(self.project))
+        messages = [f["message"] for f in check["findings"] if f["code"] == "githook_index_mode"]
+        self.assertTrue(messages and "update-index --chmod=+x" in messages[0])
+        payload = self.run_cli(
+            "project", "upgrade", "--target", str(self.project), "--apply", expected=3
+        )
+        self.assertEqual(
+            sorted(payload["githook_index_mode_registered"]),
+            ["scripts/githooks/pre-commit", "scripts/githooks/setup.sh"],
+        )
+        self.assertEqual(set(self.hook_index_modes().values()), {"100755"})
+
     def test_project_check_flags_hookspath_shadowing_native_hooks(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project), "--apply")
         self.structure_git("init")

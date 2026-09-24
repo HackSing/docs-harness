@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.23.0 - 2026-09-24
+
+- 安装器在 `core.filemode=false`（Windows 默认）的 git 仓库里，把索引中缺失或非 `100755` 的两个受管钩子以 `git update-index --add --chmod=+x` 登记进暂存区（内容随之暂存），`init`/`upgrade --apply` 的 payload 新增 `githook_index_mode_registered`；登记失败以 `githook_index_mode_failed` 报错并给出手工命令。动机：filemode=false 时 git 首次登记读不到磁盘可执行位，钩子按 `100644` 入库，类 Unix 克隆上 pre-commit 不运行（2026-09-24 ai_study 接入现场）。已按 `100644` 提交的存量仓库，`upgrade --apply` 一次即修正；`project check` 的 `githook_index_mode` 提示附修复命令。
+- `evals/evals.json` 改为可核对的登记表（schema `docs-harness/evals/v3`）：25 条用例分 `cli`（15 条，`covered_by` 指向实际断言该行为的单元测试）与 `behavior`（10 条，补 `scenario` 与逐标签 `rubric`，按 `docs/testing.md` 第 11 节手动运行）。新增 `tests/test_evals.py` 机械校验登记表、`tests/test_eval_cli_cases.py` 补 11 个此前无断言的聚焦测试。修正过时标签：`config-v8`→`config-v13`、`three-asset-scaffolds`→`four-asset-scaffolds` 等。此前用例只有 id 与标签、没有任何代码执行。
+- 控制器行数上限按惯例第 9 次上调（4900→5000），新增逻辑与已有钩子健康检查同属钩子安装面。
+- **所有下游下次 `project upgrade --apply` 会在 `AGENTS.md`/`CLAUDE.md` 上产生一次受管区块 diff。**
+
 ## 2.22.0 - 2026-09-24
 
 - **命令契约变更**：`project init` 不带 `--apply` 时改为只预览（`mode: preview`、`write_performed: false`，不落任何文件），与 `upgrade`、`uninstall` 统一为「默认预览，`--apply` 才写入」。动机：旧 `init` 没有预览模式、不带 `--apply` 也直接写入，2026-09-24 给新下游接入时照 upgrade 的约定"先预览"，结果把 harness 直接装进了带未提交改动的工作区，只能手工回滚。
