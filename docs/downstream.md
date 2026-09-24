@@ -11,6 +11,7 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 | suiyi | `HackSing/suiyi` | |
 | zbuddy-mobile | `HackSing/zbuddy-mobile` | |
 | zbuddy-desktop | `HackSing/zbuddy-desktop` | `origin` 配了 GitHub 与 codeup 两个 pushurl，推送 `origin` 会同时推两边；推送前先 `git config --get-all remote.origin.pushurl` 确认 |
+| ai_study | `HackSing/ai_study` | 2026-09-24 以 2.21.1 接入 main。功能分支 `feat/theorem-formula-rules` 也新增过 `CLAUDE.md`，合并 main 时会出现双方新增冲突：保留分支版本，再跑一次 `project upgrade --apply` 补回受管区块 |
 
 ## 暂停维护
 
@@ -31,5 +32,7 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 3. 提交受管文件，提交信息格式：`chore(harness): 升级 Docs Harness <旧版本> → <新版本> — <一句话摘要>`。受管 pre-commit 会执行 `assets-check --fast`。
 4. 复核：`python3 scripts/harness.py project check --target <下游目录>`，期望 `status: passed`、`delivery_status: in_head`。
 5. 推送：`git -C <下游目录> push origin main`。
+
+新项目首次接入改用 `project init --target <下游目录> --apply`。注意 `project init` 没有预览模式，不带 `--apply` 也会直接写入；目标工作区有未提交改动时，先基于 `origin/main` 建干净的 worktree 再接入。
 
 每次升级都会在下游 `AGENTS.md`/`CLAUDE.md` 上产生一次受管区块 diff；`.docs-harness/tasks/.gitignore` 等本地约定目录不入库，不需要提交。
