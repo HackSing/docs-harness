@@ -8,6 +8,7 @@
 - [代码能力索引](CODEMAP.md)
 - [测试与验收](testing.md)
 - [当前待办](todo.md)
+- [下游项目](downstream.md)
 
 <!-- docs-harness:plans-index:start -->
 ## 任务方案

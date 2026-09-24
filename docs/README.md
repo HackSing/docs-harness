@@ -11,6 +11,7 @@
 - [完整方案管理生命周期实施方案](plans/docs-harness-plan-lifecycle-management-plan.md)
 - [三类资产全生命周期实施方案](plans/docs-harness-asset-lifecycle-plan.md)
 - [当前待办](todo.md)
+- [下游项目](downstream.md)
 
 ## 历史边界
 
