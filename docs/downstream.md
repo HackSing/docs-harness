@@ -12,6 +12,8 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 | zbuddy-mobile | `HackSing/zbuddy-mobile` | |
 | zbuddy-desktop | `HackSing/zbuddy-desktop` | `origin` 配了 GitHub 与 codeup 两个 pushurl，推送 `origin` 会同时推两边；推送前先 `git config --get-all remote.origin.pushurl` 确认 |
 | ai_study | `HackSing/ai_study` | 2026-09-24 以 2.21.1 接入 main。功能分支 `feat/theorem-formula-rules` 也新增过 `CLAUDE.md`，合并 main 时会出现双方新增冲突：保留分支版本，再跑一次 `project upgrade --apply` 补回受管区块 |
+| onceright | `HackSing/onceright` | 2026-09-27 以 2.24.0 接入 main。`CLAUDE.md` 用 `@AGENTS.md` 导入项目规约，受管区块在两个文件里各一份，Claude 会话会加载两遍（内容相同，不冲突） |
+| awesome-llm-made-videos | `HackSing/awesome-llm-made-videos` | 2026-09-27 以 2.24.0 接入 main。公开仓库 |
 
 ## 暂停维护
 
