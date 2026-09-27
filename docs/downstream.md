@@ -14,6 +14,7 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 | ai_study | `HackSing/ai_study` | 2026-09-24 以 2.21.1 接入 main。功能分支 `feat/theorem-formula-rules` 也新增过 `CLAUDE.md`，合并 main 时会出现双方新增冲突：保留分支版本，再跑一次 `project upgrade --apply` 补回受管区块 |
 | onceright | `HackSing/onceright` | 2026-09-27 以 2.24.0 接入 main。`CLAUDE.md` 用 `@AGENTS.md` 导入项目规约，受管区块在两个文件里各一份，Claude 会话会加载两遍（内容相同，不冲突） |
 | awesome-llm-made-videos | `HackSing/awesome-llm-made-videos` | 2026-09-27 以 2.24.0 接入 main。公开仓库 |
+| avatanel | `HackSing/avatanel` | 默认分支是 `master`，推送用 `git -C <下游目录> push origin master`。`.docs-harness/inputs/` 里有早期提交入库的一次性输入文件，2.16.1 起该目录带嵌套 `.gitignore`，会出现旧文件受跟踪、新文件被忽略的混合状态，处置待定 |
 
 ## 暂停维护
 
@@ -33,7 +34,7 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 2. 在源仓根目录运行升级：`python3 scripts/harness.py project upgrade --target <下游目录> --apply`。受管文件已写入、等待提交时退出码为 3（`needs_delivery`），属正常状态，脚本里不要用 `set -e` 把它当失败。
 3. 提交受管文件，提交信息格式：`chore(harness): 升级 Docs Harness <旧版本> → <新版本> — <一句话摘要>`。受管 pre-commit 会执行 `assets-check --fast`。
 4. 复核：`python3 scripts/harness.py project check --target <下游目录>`，期望 `status: passed`、`delivery_status: in_head`。
-5. 推送：`git -C <下游目录> push origin main`。
+5. 推送：`git -C <下游目录> push origin main`（默认分支不是 `main` 的项目见上表备注）。
 
 新项目首次接入改用 `project init --target <下游目录> --apply`，不带 `--apply` 时只预览（2.21.1 及更早的 `init` 没有预览模式，不带 `--apply` 也会直接写入）。目标工作区有未提交改动时，先基于 `origin/main` 建干净的 worktree 再接入。2.23.0 起，在 Windows（`core.filemode=false`）上接入时安装器会自动把钩子以 `100755` 登记进暂存区；用更早版本接入、钩子已按 `100644` 提交的仓库，`project check` 会报 `githook_index_mode` 并给出修复命令，或直接 `upgrade --apply` 一次即可修正。
 
