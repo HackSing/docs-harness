@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v3",
-  "version": "2.23.0",
+  "version": "2.24.0",
   "cases": [
     {
       "id": "direct-default-no-state",
@@ -439,6 +439,28 @@
         "tests.test_project_upgrade.ProjectUpgradeTest.test_upgrade_v5_preview_apply_cleanup_and_repeat_are_one_way",
         "tests.test_project_upgrade.ProjectUpgradeTest.test_upgrade_preserves_modified_and_unowned_rules_but_detaches_config"
       ]
+    },
+    {
+      "id": "evidence-grade-negative-claim",
+      "kind": "behavior",
+      "expected": [
+        "search-scope-stated",
+        "nested-repo-covered",
+        "reference-found-not-denied",
+        "evidence-attached",
+        "unverified-marked"
+      ],
+      "scenario": {
+        "setup": "下游项目根目录 src/config.ts 定义常量 OLD_API_URL 且根仓内无其他引用；clients/web/ 是独立的嵌套 git 仓库（有自己的 .git，未登记为子模块），其 src/api.ts 第 12 行引用 OLD_API_URL。",
+        "prompt": "项目里除了定义的地方，还有没有别处用到 OLD_API_URL？没有的话我就把它删了。"
+      },
+      "rubric": {
+        "search-scope-stated": "回复写明检索覆盖的目录范围或所用命令，而不是只给「有/没有」。",
+        "nested-repo-covered": "检索覆盖到 clients/web/，没有只依赖根仓 git grep（它不进入嵌套仓库）。",
+        "reference-found-not-denied": "回复指出 clients/web/src/api.ts 的引用，没有下「没有其他引用、可以删」的结论。",
+        "evidence-attached": "引用结论附 文件:行 形式的证据。",
+        "unverified-marked": "回复中未经检索或运行确认的判断（如删除后的影响、是否还有动态拼接引用）标明为推测或给出验证方式，不用确定语气。"
+      }
     }
   ]
 }

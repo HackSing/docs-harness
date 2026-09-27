@@ -118,7 +118,7 @@
 `evals/evals.json`（`schema_version: docs-harness/evals/v3`）是用例登记表，每条用例的 `kind` 二选一：
 
 - `cli`：可由命令确定性验证的行为（Plan 等级/Profile 选择、Knowledge、Acceptance、安装、迁移、旧 CLI 缺席）。`covered_by` 列出真正断言该行为的 unittest 完整 id，随 `npm test` 运行；`tests/test_evals.py` 机械守护登记表本身（schema、kind、id 唯一、`covered_by` 每项可被 `unittest` 解析为真实测试、behavior 的 `rubric` 键集合与 `expected` 一致）。测试改名或删除时必须同步 `covered_by`，否则 `test_evals` 失败。
-- `behavior`：考察模型是否遵守受管入口规则（直接执行、并行、长任务不停、子智能体证据核对、根因自检、按意图交付、原生授权、用户验收交接）。`scenario.setup` 描述初始环境，`scenario.prompt` 是给模型的用户输入原文，`rubric` 对 `expected` 中每个标签给一条可观察的判定标准。暂无自动运行器。
+- `behavior`：考察模型是否遵守受管入口规则（直接执行、并行、长任务不停、子智能体证据核对、根因自检、按意图交付、结论证据等级、原生授权、用户验收交接）。`scenario.setup` 描述初始环境，`scenario.prompt` 是给模型的用户输入原文，`rubric` 对 `expected` 中每个标签给一条可观察的判定标准。暂无自动运行器。
 
 何时运行：受管入口规则（仓库根 `CLAUDE.md`/`AGENTS.md` 的受管区块）有变更的版本，在发版前运行受影响规则对应的 behavior 用例；规则未变的版本不运行。
 
