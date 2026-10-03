@@ -177,13 +177,16 @@ class CliSurfaceTest(HarnessTestBase):
         claude = (ROOT / "CLAUDE.md").read_text(encoding="utf-8")
         self.assertIn(harness.managed_agent_block(ROOT), agents)
         self.assertIn(harness.claude_block(ROOT), claude)
+        # 规约只在 AGENTS.md 一份：CLAUDE.md 受管区块只导入它，不复制正文。
+        self.assertEqual(harness.claude_block(ROOT),
+                         f"{harness.CLAUDE_BEGIN}\n@AGENTS.md\n{harness.CLAUDE_END}")
+        self.assertNotIn("## 工作流规则", claude)
         # 受管入口不再指向 SKILL.md，改为指向 --help（示例已下沉到 CLI 现场）。
-        for surface in (agents, claude):
-            self.assertNotIn("输入形状见 SKILL.md", surface)
-            self.assertIn("python3 scripts/harness.py <cmd> --help", surface)
-            self.assertIn("超过 60 行、单个文件超过 600 行时必须进行结构评估", surface)
-            self.assertIn("不得仅为满足行数阈值机械切割", surface)
-            self.assertNotIn("超过 500 行时必须拆分", surface)
+        self.assertNotIn("输入形状见 SKILL.md", agents)
+        self.assertIn("python3 scripts/harness.py <cmd> --help", agents)
+        self.assertIn("超过 60 行、单个文件超过 600 行时必须进行结构评估", agents)
+        self.assertIn("不得仅为满足行数阈值机械切割", agents)
+        self.assertNotIn("超过 500 行时必须拆分", agents)
     def test_cli_help_carries_input_schema_examples(self) -> None:
         cases = {
             ("knowledge", "create"): (

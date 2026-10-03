@@ -473,6 +473,24 @@ class ProjectUpgradeTest(HarnessTestBase):
         self.assertEqual(len(conflicts), 1)
         self.assertEqual(conflicts[0]["path"], "scripts/acceptance_assets.py")
 
+    def test_upgrade_turns_a_copied_claude_bridge_into_an_import(self) -> None:
+        # 2.24.0 及更早的 CLAUDE.md 受管区块是受管正文的整份副本；升级后只剩一行导入，块外内容原样保留。
+        from harness import CLAUDE_BEGIN, CLAUDE_END, _managed_content, claude_block
+
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
+        claude = self.project / "CLAUDE.md"
+        old_bridge = f"{CLAUDE_BEGIN}\n{_managed_content()}\n{CLAUDE_END}"
+        claude.write_text(f"# CLAUDE.md\n\n项目自己的说明，升级后保留。\n\n{old_bridge}\n", encoding="utf-8")
+        payload = self.run_cli("project", "upgrade", "--target", str(self.project))
+        self.assertIn({"path": "CLAUDE.md", "action": "update_managed_block"}, payload["changes"])
+        self.run_cli("project", "upgrade", "--target", str(self.project), "--apply")
+        text = claude.read_text(encoding="utf-8")
+        self.assertIn(claude_block(self.project), text)
+        self.assertIn("项目自己的说明，升级后保留。", text)
+        self.assertNotIn("## 工作流规则", text)
+        self.assertIn("## 工作流规则", (self.project / "AGENTS.md").read_text(encoding="utf-8"))
+        self.run_cli("project", "check", "--target", str(self.project))
+
 if __name__ == "__main__":
     unittest.main()
 
