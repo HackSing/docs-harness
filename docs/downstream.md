@@ -12,7 +12,7 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 | zbuddy-mobile | `HackSing/zbuddy-mobile` | |
 | zbuddy-desktop | `HackSing/zbuddy-desktop` | `origin` 配了 GitHub 与 codeup 两个 pushurl，推送 `origin` 会同时推两边；推送前先 `git config --get-all remote.origin.pushurl` 确认 |
 | ai_study | `HackSing/ai_study` | 2026-09-24 以 2.21.1 接入 main。功能分支 `feat/theorem-formula-rules` 也新增过 `CLAUDE.md`，合并 main 时会出现双方新增冲突：保留分支版本，再跑一次 `project upgrade --apply` 补回受管区块 |
-| onceright | `HackSing/onceright` | 2026-09-27 以 2.24.0 接入 main。`CLAUDE.md` 用 `@AGENTS.md` 导入项目规约，受管区块在两个文件里各一份，Claude 会话会加载两遍（内容相同，不冲突） |
+| onceright | `HackSing/onceright` | 2026-09-27 以 2.24.0 接入 main；2026-10-03 升级到 2.25.0，删掉 `CLAUDE.md` 块外自己写的 `@AGENTS.md`，改由受管区块导入，受管正文只加载一遍 |
 | awesome-llm-made-videos | `HackSing/awesome-llm-made-videos` | 2026-09-27 以 2.24.0 接入 main。公开仓库 |
 | avatanel | `HackSing/avatanel` | 默认分支是 `master`，推送用 `git -C <下游目录> push origin master`。`.docs-harness/inputs/` 里有早期提交入库的一次性输入文件，2.16.1 起该目录带嵌套 `.gitignore`，会出现旧文件受跟踪、新文件被忽略的混合状态，处置待定 |
 
