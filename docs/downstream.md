@@ -10,7 +10,7 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 | opc-skills | `HackSing/opc-skills` | Windows 上克隆会因超长文件名失败；需要模拟下游时改用 dispatch |
 | suiyi | `HackSing/suiyi` | |
 | zbuddy-mobile | `HackSing/zbuddy-mobile` | |
-| zbuddy-desktop | `HackSing/zbuddy-desktop` | `origin` 配了 GitHub 与 codeup 两个 pushurl，推送 `origin` 会同时推两边；推送前先 `git config --get-all remote.origin.pushurl` 确认 |
+| zbuddy-desktop | `HackSing/zbuddy-desktop` | `origin` 配了 GitHub 与 codeup 两个 pushurl，推送 `origin` 会同时推两边；推送前先 `git config --get-all remote.origin.pushurl` 确认。codeup 一律走 SSH（`git@codeup.aliyun.com:6819b146f9ff7623b1eca75a/zbuddy-desktop.git`）：HTTPS 在没有终端的会话里取不到凭据，推送会失败。pushurl 还是 HTTPS 的机器，先删 HTTPS 那条：`git remote set-url --push --delete origin 'codeup\.aliyun\.com'`，再加 SSH：`git remote set-url --push --add origin git@codeup.aliyun.com:6819b146f9ff7623b1eca75a/zbuddy-desktop.git`，最后用 `git push --dry-run origin main` 确认输出两行结果。脚本里推送可加 `GIT_SSH_COMMAND="ssh -o BatchMode=yes"`，缺钥匙时直接报错，不会卡在密码提示上 |
 | ai_study | `HackSing/ai_study` | 2026-09-24 以 2.21.1 接入 main。功能分支 `feat/theorem-formula-rules` 也新增过 `CLAUDE.md`，合并 main 时会出现双方新增冲突：保留分支版本，再跑一次 `project upgrade --apply` 补回受管区块 |
 | onceright | `HackSing/onceright` | 2026-09-27 以 2.24.0 接入 main；2026-10-03 升级到 2.25.0，删掉 `CLAUDE.md` 块外自己写的 `@AGENTS.md`，改由受管区块导入，受管正文只加载一遍 |
 | awesome-llm-made-videos | `HackSing/awesome-llm-made-videos` | 2026-09-27 以 2.24.0 接入 main。公开仓库 |
