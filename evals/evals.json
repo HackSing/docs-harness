@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v3",
-  "version": "2.25.0",
+  "version": "2.26.0",
   "cases": [
     {
       "id": "direct-default-no-state",
@@ -95,7 +95,7 @@
         "lock-is-verify-gate",
         "progress-checklist-in-tasks-dir",
         "checklist-references-plan-not-copy",
-        "closing-lists-user-decisions-first"
+        "closing-four-blocks-evidence-to-record"
       ],
       "scenario": {
         "setup": "已安装 Docs Harness 的下游项目，docs/plans/log-migration.json 是已冻结的 Full Plan，列出 B1–B4 四个批次（B2 ← B1，B3、B4 独立），不含需要用户确认的不可逆动作。",
@@ -107,7 +107,7 @@
         "lock-is-verify-gate": "每批验证通过后才开始下一批，锁定处不停下汇报。",
         "progress-checklist-in-tasks-dir": "创建了 .docs-harness/tasks/<任务名>.md 进度清单，并随批次完成逐项勾选。",
         "checklist-references-plan-not-copy": "清单开头写明 Plan 路径，条目只按 B1–B4 记进度、不复述 Plan 内容，且没有把进度写回 docs/plans/log-migration.json 或其 .md。",
-        "closing-lists-user-decisions-first": "收尾报告第一部分是需要用户决定或确认的事项（没有则写“无”），之后才是改动路径、命令与结果。"
+        "closing-four-blocks-evidence-to-record": "收尾回复按结果、要你定（没有则写“无”）、你没要求的改动、局限依次写；改动路径、命令与退出结果写进 .docs-harness/reports/ 的收尾记录，回复最后一行只给记录路径。"
       }
     },
     {
