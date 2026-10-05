@@ -118,7 +118,7 @@ JSON `docs-harness/knowledge-asset/v1` 是事实真源，Markdown 是可读投�
 
 ## 4. 真实验收合同
 
-`acceptance create` 使用 `docs-harness/acceptance-target-input/v1`，输出固定为 `docs/acceptance/<name>.json`。目标包含标题、2–4 个关键符号、objective 和非空 criteria；可用 `plan_ref` 与 `knowledge_refs` 关联上游受管资产。引用 v3 Plan 时 Harness 自动维护其 `acceptance_refs[]`，模型无需手填；Acceptance superseded 时移除旧反向引用。每条 criterion 固定 id、类型、L 层与必要的 evidence_layer。
+`acceptance create` 使用 `docs-harness/acceptance-target-input/v1`，输出固定为 `docs/acceptance/<name>.json`。目标包含标题、2–4 个关键符号、objective 和非空 criteria；可用 `plan_ref` 与 `knowledge_refs` 关联上游受管资产。引用 v3 Plan 时 Harness 自动维护其 `acceptance_refs[]`，模型无需手填；Acceptance superseded 或 deprecated 时移除旧反向引用，此后不再计入该 Plan 的已结项验收。每条 criterion 固定 id、类型、L 层与必要的 evidence_layer。
 
 `acceptance record` 继续使用 `docs-harness/acceptance-input/v3`，只登记已经发生的验收，不自动执行测试，也不决定应该跑全量还是聚焦验证。带 `--acceptance` 时必须提供 criterion_id，记录进入 `docs-harness/acceptance-asset/v1` 并更新该标准和总体聚合状态；不带资产时保留 2.0 的独立 Runtime 记录兼容路径。
 
@@ -152,7 +152,7 @@ L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 �
 
 通过必须提供实际方法和项目内已存在的常规证据文件；User Acceptance 的明确 confirmation 是独立证据门禁。证据准入：登记入口先逐条校验存在性（缺失报 `acceptance_evidence_missing`），再经 `git check-ignore` 判定，证据落在 git 忽略路径直接拒绝登记（`acceptance_evidence_ignored`），应存放于随仓库提交的路径（如 `docs/acceptance/evidence/<验收名>/`）；验收证据与失败归因证据共用同一校验函数，非 git 目标不被锁死。失败必须提供总体原因、下一步和非空 `failure_attributions[]`；每项包含 `category`、`summary`、`blocking` 与非空 `evidence_refs`，类别只允许 `change_related|unrelated|pre_existing|environment|flaky`。归因重复、类别未知或证据不存在时拒绝记录。`user_pending` 必须包含已自动验证内容、待用户检查项、最短步骤和 `environment_ready=true`。
 
-结项后的资产再次记录必须显式 `--reaccept`；`acceptance settle --status passed|failed` 必须与逐条标准聚合状态一致，`superseded` 需要 replacement 并归档。`acceptance check` 校验指纹、投影、索引、上游引用和通过证据，且只对每个 criterion 的最新一条 record 校验证据存在性与用户确认——被 `--reaccept` 取代的历史记录是纯留痕，不再要求已作废证据永久存在；最新记录违规仍 FAIL。
+结项后的资产再次记录必须显式 `--reaccept`；`acceptance settle --status passed|failed` 必须与逐条标准聚合状态一致，`superseded` 需要 replacement（本仓库另一份活跃 Acceptance）并归档；`deprecated` 用于方案废弃或工作迁出本仓库，可选 replacement 写一行自由文本去向（不解析为本仓库资产，不得含换行与反引号），未完成的 criterion 原样留档，不做聚合一致性要求，同样归档。`acceptance check` 校验指纹、投影、索引、上游引用和通过证据，且只对每个 criterion 的最新一条 record 校验证据存在性与用户确认——被 `--reaccept` 取代的历史记录是纯留痕，不再要求已作废证据永久存在；最新记录违规仍 FAIL。
 
 ## 4a. 架构决策（ADR）合同
 

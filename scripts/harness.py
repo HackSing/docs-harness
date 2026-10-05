@@ -47,6 +47,8 @@ from acceptance_assets import (
     ACCEPTANCE_EVIDENCE_LAYERS,
     ACCEPTANCE_LAYERS,
     ACCEPTANCE_SETTLE_INPUT_SCHEMA,
+    ACCEPTANCE_SETTLE_STATUS_NOTES,
+    ACCEPTANCE_SETTLE_STATUSES,
     ACCEPTANCE_SPEC,
     ACCEPTANCE_TARGET_INPUT_SCHEMA,
     check as check_acceptance_assets,
@@ -2421,7 +2423,7 @@ ACCEPTANCE_SETTLE_INPUT_NOTES = (
     "records 为空数组等价于不传 --input；单条记录按状态必填规则与 acceptance record 完全一致；",
     "records 内 criterion_id 不得重复，且目标 criterion 必须当前 pending；",
     "成功时返回 payload 追加 recorded/record_ids 便于核对。",
-)
+) + ACCEPTANCE_SETTLE_STATUS_NOTES
 
 
 def read_settle_input(
@@ -4741,7 +4743,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="仅校验（仅 create）：一次性报告全部输入错误与冲突，不写任何文件",
     )
     acceptance.add_argument("--acceptance")
-    acceptance.add_argument("--status", choices=("passed", "failed", "superseded"))
+    acceptance.add_argument("--status", choices=ACCEPTANCE_SETTLE_STATUSES)
     acceptance.add_argument("--replacement")
     acceptance.add_argument("--user-confirmed", action="store_true")
     acceptance.add_argument("--reaccept", action="store_true")

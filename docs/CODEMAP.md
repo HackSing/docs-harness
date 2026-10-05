@@ -13,7 +13,7 @@
 - `scripts/asset_checks.py` — 职责：assets-check 统一编排——六 checker 聚合、跨资产关系校验、FAIL/WARN 汇总；公开接口：`run_assets_check`、`check_cross_asset_relations`、`ASSET_STALE_DAYS`
 - `scripts/plan_governance.py` — 职责：Plan v3 治理合同——冻结指纹、bugfix 校验合同、结算校验与遗留模板指纹；公开接口：`validate_plan`、`collect_bugfix_plan_errors`（收集全部合同错误，validate_bugfix_plan_contract 抛首个）、`legacy_plan_template_fingerprints`、`PLAN_SCHEMA_V3`、`PLAN_GOVERNANCE_INPUT_SCHEMA`
 - `scripts/knowledge_assets.py` — 职责：Knowledge 资产生命周期——输入校验、创建/更新/结项与检查；公开接口：`KNOWLEDGE_SPEC`、`KNOWLEDGE_INPUT_SCHEMA`、`KNOWLEDGE_SETTLE_STATUSES`
-- `scripts/acceptance_assets.py` — 职责：Acceptance 资产生命周期——验收目标/记录/结项的输入校验与层级映射；公开接口：`ACCEPTANCE_SPEC`、`ACCEPTANCE_EVIDENCE_LAYERS`、`ACCEPTANCE_SETTLE_INPUT_SCHEMA`、`collect_input_errors`/`collect_create_errors`（--dry-run 错误收集器，validate_input 抛首个）
+- `scripts/acceptance_assets.py` — 职责：Acceptance 资产生命周期——验收目标/记录/结项的输入校验与层级映射；公开接口：`ACCEPTANCE_SPEC`、`ACCEPTANCE_EVIDENCE_LAYERS`、`ACCEPTANCE_SETTLE_INPUT_SCHEMA`、`ACCEPTANCE_SETTLE_STATUSES`（CLI --status 选项的唯一来源）、`ACCEPTANCE_SETTLE_STATUS_NOTES`（--status 的 --help 说明）、`collect_input_errors`/`collect_create_errors`（--dry-run 错误收集器，validate_input 抛首个）
 - `scripts/adr_assets.py` — 职责：ADR 资产生命周期——架构决策创建（定稿不可改）、废弃/被替代结项与检查；公开接口：`ADR_SPEC`、`ADR_INPUT_SCHEMA`、`ADR_SETTLE_STATUSES`
 - `scripts/script_hygiene.py` — 职责：脚本卫生检查——tracked 脚本混合行尾字节级扫描（assets-check 第五 checker）；公开接口：`check_script_line_endings`、`SCRIPT_GLOBS`
 - `scripts/structure_check.py` — 职责：结构护栏——增量体量预警与 CODEMAP 一致性（assets-check 第六 checker）、存量结构债报告，函数级覆盖 Python（ast）、Go（gofmt 行级匹配）与 TS/JS（经 structure_ts_functions.cjs 借用目标项目 typescript）；公开接口：`check_structure`、`structure_report`、`CODEMAP_SCAFFOLD`、`FILE_RED_LINE`

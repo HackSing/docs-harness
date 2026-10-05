@@ -97,7 +97,7 @@ python3 scripts/harness.py acceptance record --target . \
   --input <acceptance.json> --acceptance docs/acceptance/<task>.json --json
 ```
 
-Contract Check、Behavior Acceptance 和 User Acceptance 必须分开。Behavior Acceptance 使用 `evidence_layer=focused_test|repository_full_test|local_runtime|package_or_install|real_device`，并固定映射到 L2/L2/L3/L4/L5；任一层不得替代另一层。失败必须用 `failure_attributions[]` 分项记录 `change_related|unrelated|pre_existing|environment|flaky`、阻断性和证据。结项后重验必须显式 `--reaccept`；只有收到用户明确确认后才能用 `--user-confirmed` 登记 User Acceptance 通过。最后运行 `acceptance settle` 与 `acceptance check`。
+Contract Check、Behavior Acceptance 和 User Acceptance 必须分开。Behavior Acceptance 使用 `evidence_layer=focused_test|repository_full_test|local_runtime|package_or_install|real_device`，并固定映射到 L2/L2/L3/L4/L5；任一层不得替代另一层。失败必须用 `failure_attributions[]` 分项记录 `change_related|unrelated|pre_existing|environment|flaky`、阻断性和证据。结项后重验必须显式 `--reaccept`；只有收到用户明确确认后才能用 `--user-confirmed` 登记 User Acceptance 通过。最后运行 `acceptance settle` 与 `acceptance check`。方案废弃或工作迁出本仓库时，未完成的验收用 `acceptance settle --status deprecated --replacement <去向>` 归档，不记成 passed 或 failed。
 
 ## 输入形状
 

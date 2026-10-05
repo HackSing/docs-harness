@@ -4,6 +4,8 @@
 
 ## 待办
 
+- [ ] 下次发版时带出 acceptance `deprecated` 结算（已提交未发版）：把 CHANGELOG「未发布」改成版本号；发版后升级 opc-skills，再对 `docs/acceptance/self-media-workflow-integration.json`、`docs/acceptance/content-strategy-layer.json` 执行 `acceptance settle --status deprecated --replacement "~/content-system/TODO.md（内容工作 2026-10-05 迁出 opc-skills）"`，确认 `assets-check` 那 2 条 WARN 消失。顺序必须先升级再结算（旧版不认 deprecated）；opc-skills 升级前确认工作区干净（10-04 的改动已于 10-05 提交并推送，8e95a22）（claude，2026-10-05）
+
 - [ ] dsh-plugin 恢复维护时，`dsh-plugin/src/host/project-ops.js` 的 ACTION_INIT 参数与 `dsh-plugin/scripts/extract-managed-block.mjs` 的 `project init` 调用要补 `--apply`：2.22.0 起 `init` 不带 `--apply` 只预览，重新 seed-vendor 后插件安装会静默变成只预览（当前 vendor 停在 2.12.3，暂不受影响；dsh-plugin 已暂停维护）（aiware，2026-09-24）
 
 - [ ] `scripts/harness.py` 存量体量债 4800 行（2.16.1 实测）（`project_findings` 266 行、`command_plan_check` 240 行、`command_project` 221 行），每次改动必撞 Structure WARN 使本仓库 `assets-check --strict` 在未提交状态恒退 1；以 `structure report` 开专门整理任务，候选拆分方向：安装/升级编排、plan check、usage 埋点各自成模块（aiware，2026-09-13）

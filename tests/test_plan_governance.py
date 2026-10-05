@@ -337,6 +337,110 @@ class PlanGovernanceTest(HarnessTestBase):
         self.assertEqual(rejected["code"], "acceptance_plan_ref_invalid")
         self.assertEqual(self.snapshot_project(), before)
 
+    def _create_linked_acceptance(self, plan_basename: str, name: str) -> None:
+        target = self.acceptance_target("contract_check")
+        target["plan_ref"] = f"docs/plans/{plan_basename}.json"
+        target_input = self.write_json(f"inputs/{name}-target.json", target)
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(target_input.relative_to(self.project)),
+            "--output", f"docs/acceptance/{name}.json",
+        )
+
+    def test_acceptance_deprecate_after_plan_moved_out_clears_warning(self) -> None:
+        # 工作迁出本仓库：Plan 先 settle deprecated，未完成的 pending Acceptance
+        # 再 settle deprecated 并写外部去向；不必伪造 passed/failed，也不再留 WARN。
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
+        self.create_full_plan(
+            acceptance_required=False,
+            knowledge_impact="unchanged",
+            basename="moved-out",
+        )
+        self._create_linked_acceptance("moved-out", "moved")
+        self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/moved-out.json", "--status", "deprecated",
+        )
+        before = self.run_cli("assets-check", "--target", str(self.project), "--fast")
+        archived_warnings = [item for item in before["warnings"] if "指向已归档 Plan" in item]
+        self.assertEqual(len(archived_warnings), 1)
+        self.assertIn("acceptance settle --status deprecated", archived_warnings[0])
+
+        destination = "~/other-repo/TODO.md（工作 2026-10-05 迁出）"
+        settled = self.run_cli(
+            "acceptance", "settle", "--target", str(self.project),
+            "--acceptance", "docs/acceptance/moved.json", "--status", "deprecated",
+            "--replacement", destination,
+        )
+        self.assertEqual(settled["status"], "deprecated")
+        self.assertEqual(settled["acceptance_ref"], "docs/acceptance/archive/moved.json")
+        archived_plan = json.loads(
+            (self.project / "docs/plans/archive/moved-out.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(archived_plan["acceptance_refs"], [])
+        asset = json.loads(
+            (self.project / "docs/acceptance/archive/moved.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(asset["replacement"], destination)
+        self.assertEqual({item["status"] for item in asset["criteria"]}, {"pending"})
+        document = (self.project / "docs/acceptance/archive/moved.md").read_text(encoding="utf-8")
+        self.assertIn("> 状态：已废弃\n", document)
+        self.assertIn(f"- 去向：`{destination}`", document)
+
+        after = self.run_cli("assets-check", "--target", str(self.project), "--fast")
+        self.assertFalse([item for item in after["warnings"] if "指向已归档 Plan" in item])
+        self.assertEqual(
+            self.run_cli("acceptance", "check", "--target", str(self.project))["status"], "passed"
+        )
+
+    def test_acceptance_deprecate_destination_is_optional_single_line(self) -> None:
+        target_input = self.write_json("inputs/solo-target.json", self.acceptance_target("contract_check"))
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(target_input.relative_to(self.project)),
+            "--output", "docs/acceptance/solo.json",
+        )
+        before = self.snapshot_project()
+        for bad in ("第一行\n第二行", "带`反引号`的去向"):
+            rejected = self.run_cli(
+                "acceptance", "settle", "--target", str(self.project),
+                "--acceptance", "docs/acceptance/solo.json", "--status", "deprecated",
+                "--replacement", bad, expected=1,
+            )
+            self.assertEqual(rejected["code"], "acceptance_replacement_invalid")
+            self.assertEqual(self.snapshot_project(), before)
+        settled = self.run_cli(
+            "acceptance", "settle", "--target", str(self.project),
+            "--acceptance", "docs/acceptance/solo.json", "--status", "deprecated",
+        )
+        self.assertEqual(settled["acceptance_ref"], "docs/acceptance/archive/solo.json")
+        asset = json.loads(
+            (self.project / "docs/acceptance/archive/solo.json").read_text(encoding="utf-8")
+        )
+        self.assertIsNone(asset["replacement"])
+        document = (self.project / "docs/acceptance/archive/solo.md").read_text(encoding="utf-8")
+        self.assertIn("- 去向：未注明", document)
+
+    def test_deprecated_acceptance_does_not_satisfy_plan_implemented(self) -> None:
+        # deprecated 退出 Plan 反向登记，不能拿来充当"已结项验收"让 Plan 标为已实施。
+        self.create_full_plan(
+            acceptance_required=True,
+            knowledge_impact="unchanged",
+            basename="needs-acceptance",
+        )
+        self._create_linked_acceptance("needs-acceptance", "dropped")
+        self.run_cli(
+            "acceptance", "settle", "--target", str(self.project),
+            "--acceptance", "docs/acceptance/dropped.json", "--status", "deprecated",
+        )
+        rejected = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/needs-acceptance.json", "--status", "implemented",
+            expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_plan_governance")
+        self.assertIn("没有已结项验收", rejected["message"])
+
     def test_plan_settle_governance_input_lists_unknown_fields(self) -> None:
         self.create_full_plan(
             acceptance_required=False,

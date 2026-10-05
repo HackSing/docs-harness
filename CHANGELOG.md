@@ -1,5 +1,13 @@
 # Changelog
 
+## 未发布
+
+- `acceptance settle` 新增 `--status deprecated`：方案废弃或工作迁出本仓库时，未完成的验收可以如实结项，不必记成 passed 或 failed。可选 `--replacement` 写一行自由文本去向（如外部仓库的待办路径），不解析为本仓库资产，不得含换行与反引号；未完成的 criterion 原样留档，退出 Plan 反向登记并归档，Markdown 显示「已废弃」与「去向」。退出登记后不计入 Plan 的已结项验收，不能借它让 Plan 以 implemented 结项。动机：2026-10-05 opc-skills 的两份内容方案因工作迁到 content-system 而 `plan settle --status deprecated`，关联验收只能留在 pending，`assets-check` 固定报 2 条「pending Acceptance 指向已归档 Plan」，`--strict` 下退出非 0。
+- 该 WARN 末尾补上处理命令。
+- `--status` 选项与帮助说明改为从 `acceptance_assets` 的状态元组生成，不再在控制器里另写一份。
+- 不改受管入口文字。passed、failed、superseded 的行为不变。
+- **下游须先升级再结算**：旧版（≤2.26.2）不认 `deprecated`，会把已结算的验收报成「Acceptance 状态无效」，受管 pre-commit 会拦下提交。
+
 ## 2.26.2 - 2026-10-04
 
 - 「呈现形式」补一条：画图优先写声明式源码（如 Mermaid），坐标交给布局引擎算，不手算；必须手写 SVG 时，渲染后截图核对箭头落点和文字是否出框。动机：表里「结构、流程、因果 → 图」只说用图、没说怎么画，而 Claude 桌面宿主画图的默认路径（`show_widget`、Artifact 里的 inline SVG）就是手写坐标。2026-10-04 分析 `QingYunA/answer-me-with-html` 时，该项目把这类问题列为模型直写 HTML 的主要失败模式（箭头指向空白处），解法正是让模型只写声明式稿、坐标交给 dagre 布局。这是预防项：用户自己的会话里还没有查到画歪的实例。
