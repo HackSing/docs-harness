@@ -45,6 +45,7 @@
     "scripts/structure_ts_functions.cjs",
     "scripts/usage_log.py",
     "scripts/usage_report.py",
+    "scripts/diagram_view.py",
     "tests/test_release_version_sync.py"
   ],
   "scripts": {

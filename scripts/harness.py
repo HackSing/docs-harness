@@ -73,6 +73,7 @@ from usage_log import (
     is_enabled as usage_log_enabled,
 )
 from usage_report import USAGE_REPORT_DEFAULT_DAYS, build_report as build_usage_report
+from diagram_view import VIEWS_RELATIVE, open_in_browser, write_view
 VERSION = "2.27.2"
 CONFIG_SCHEMA = "docs-harness/project-config/v13"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
@@ -99,7 +100,7 @@ TASK_INPUTS_RELATIVE = ".docs-harness/inputs"
 TASKS_RELATIVE = ".docs-harness/tasks"
 REPORTS_RELATIVE = ".docs-harness/reports"
 # 不入库、升级不清理的本地约定目录；共用下方嵌套忽略与 local_only_dir_changes 一份判定。
-LOCAL_ONLY_DIRS = (TASK_INPUTS_RELATIVE, TASKS_RELATIVE, REPORTS_RELATIVE)
+LOCAL_ONLY_DIRS = (TASK_INPUTS_RELATIVE, TASKS_RELATIVE, REPORTS_RELATIVE, VIEWS_RELATIVE)
 # 与 usage_log._GITIGNORE_CONTENT 同口径的嵌套忽略（该写法的第 2 次出现，第 3 次再抽）。
 LOCAL_ONLY_GITIGNORE_CONTENT = "*\n"
 GIT_HOOKS_RELATIVE = "scripts/githooks"
@@ -116,6 +117,7 @@ MANAGED_MODULE_RELATIVE_FILES = (
     "structure_ts_functions.cjs",
     "usage_log.py",
     "usage_report.py",
+    "diagram_view.py",
 )
 PLAN_DOCS_RELATIVE = "docs/plans"
 PLAN_ARCHIVE_RELATIVE = "docs/plans/archive"
@@ -3287,7 +3289,8 @@ def apply_local_only_dirs(target: Path) -> list[str]:
     项目内，此前没有约定位置；1.x 运行态目录 .docs-harness/task-inputs/ 在
     LEGACY_RUNTIME_NAMES 内，project upgrade 必清，用它会反复丢文件。
     tasks/（2.19.0）：长任务的进度清单，上下文压缩后以文件为准。
-    reports/（2.26.0）：收尾记录，回复只给路径，证据留给日后追查。三者都不在该元组内，升级不清理。
+    reports/（2.26.0）：收尾记录，回复只给路径，证据留给日后追查。
+    views/：view 命令写出的 Mermaid 页面（渲染产物；常量真源在 diagram_view）。四者都不在该元组内，升级不清理。
 
     嵌套 .gitignore 写法与 usage_log._GITIGNORE_CONTENT 同口径，这是它的第 2 次出现：
     新增目录只进 LOCAL_ONLY_DIRS，不另写一份；第 3 次出现时抽公共函数（编码质量规范第 2、10 条）。
@@ -4530,6 +4533,33 @@ def command_usage(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         ) from exc
 
 
+def command_view(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    """view 的 CLI 投影：渲染、落盘与打开在 diagram_view，这里只把异常映射成错误码。
+
+    UnicodeDecodeError 是 ValueError 的子类，必须排在 ValueError 之前捕获。
+    """
+    target = safe_target(args.target)
+    try:
+        written = write_view(target, Path(args.source).expanduser().resolve())
+    except FileNotFoundError as exc:
+        raise HarnessError(str(exc), code="view_source_missing") from exc
+    except UnicodeDecodeError as exc:
+        raise HarnessError(f"Mermaid 源文件不是 UTF-8：{args.source}", code="view_source_not_utf8") from exc
+    except ValueError as exc:
+        raise HarnessError(str(exc), code="view_source_empty") from exc
+    relative = written.relative_to(target).as_posix()
+    if args.open:
+        try:
+            open_in_browser(written)
+        except (OSError, subprocess.CalledProcessError) as exc:
+            raise HarnessError(
+                f"页面已写入 {relative}，但无法用系统浏览器打开：{exc}",
+                code="view_open_failed",
+                extra_payload={"path": relative},
+            ) from exc
+    return 0, {"status": "written", "path": relative, "opened": args.open}
+
+
 def command_self_test(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     target = safe_target(args.target)
     config = project_config(target)
@@ -4823,6 +4853,13 @@ def build_parser() -> argparse.ArgumentParser:
         "--days", type=int, default=USAGE_REPORT_DEFAULT_DAYS, help="统计窗口天数（正整数，默认 %(default)s）"
     )
 
+    view = commands.add_parser(
+        "view", help=f"把 Mermaid 源码渲染成 {VIEWS_RELATIVE}/ 下的独立 HTML 页面"
+    )
+    view.add_argument("source", help="Mermaid 源码文件，整个文件是一张图（约定 .mmd；相对路径按当前目录解析）")
+    add_target(view)
+    view.add_argument("--open", action="store_true", help="写完后用系统默认浏览器打开")
+
     self_test = commands.add_parser("self-test", help=f"运行 {VERSION} 内置自检")
     add_target(self_test)
 
@@ -4963,6 +5000,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             code, payload = command_structure(args)
         elif args.command == "usage":
             code, payload = command_usage(args)
+        elif args.command == "view":
+            code, payload = command_view(args)
         else:
             code, payload = command_self_test(args)
         emit(payload, args.json)

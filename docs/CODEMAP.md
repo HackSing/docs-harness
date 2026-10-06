@@ -5,7 +5,7 @@
 
 ## 控制器
 
-- `scripts/harness.py` — 职责：CLI 控制器与安装/升级/发布编排，聚合各受管模块为 knowledge/plan/acceptance/adr/project/release/structure/assets-check 命令；公开接口：`main`、`build_parser`、`command_assets_check`、`command_structure`、`apply_project_install`、`is_source_package`（源包/下游判定，Structure 排除集的依据）、`git_hook_directory`、`check_githook_health`、`resolve_plan_selection_path`（--selection 的 sha256 指纹解析）、`inspect_plan_create`/`dry_run_plan_create`（--dry-run 整体校验）、`usage_invoke_event`/`record_usage_invoke`（main() 出口的 cmd.invoke 旁路埋点，HarnessError 路径带 error_code）、`command_usage`、`partial_delivery_checked_recently`（plan check 部分交付第三态的时效判定）、`settle_handwritten_plan`（无冻结 JSON 的手写方案结算）
+- `scripts/harness.py` — 职责：CLI 控制器与安装/升级/发布编排，聚合各受管模块为 knowledge/plan/acceptance/adr/project/release/structure/usage/view/assets-check 命令；公开接口：`main`、`build_parser`、`command_assets_check`、`command_structure`、`apply_project_install`、`is_source_package`（源包/下游判定，Structure 排除集的依据）、`git_hook_directory`、`check_githook_health`、`resolve_plan_selection_path`（--selection 的 sha256 指纹解析）、`inspect_plan_create`/`dry_run_plan_create`（--dry-run 整体校验）、`usage_invoke_event`/`record_usage_invoke`（main() 出口的 cmd.invoke 旁路埋点，HarnessError 路径带 error_code）、`command_usage`、`partial_delivery_checked_recently`（plan check 部分交付第三态的时效判定）、`settle_handwritten_plan`（无冻结 JSON 的手写方案结算）、`command_view`（view 的 CLI 投影，把 diagram_view 抛出的异常映射成 view_* 错误码）
 
 ## 受管模块（随 project init/upgrade 安装）
 
@@ -19,4 +19,5 @@
 - `scripts/structure_check.py` — 职责：结构护栏——增量体量预警与 CODEMAP 一致性（assets-check 第六 checker）、存量结构债报告，函数级覆盖 Python（ast）、Go（gofmt 行级匹配）与 TS/JS（经 structure_ts_functions.cjs 借用目标项目 typescript）；公开接口：`check_structure`、`structure_report`、`CODEMAP_SCAFFOLD`、`FILE_RED_LINE`
 - `scripts/usage_log.py` — 职责：本地 usage 事件的追加与读取，以及 `usage_log.enabled` 开关求值；旁路观察面，写入失败不改变任何命令的行为与退出码；公开接口：`USAGE_SCHEMA_VERSION`、`USAGE_DIR_RELATIVE`、`USAGE_LOG_DEFAULT_ENABLED`、`is_enabled`、`append_event`、`read_events`
 - `scripts/usage_report.py` — 职责：usage 事件的纯聚合，输出契约沿用 `structure report`（返回 dict 交由 harness 既有 `emit` 呈现，本模块不带渲染器）；公开接口：`USAGE_REPORT_DEFAULT_DAYS`、`build_report`
+- `scripts/diagram_view.py` — 职责：`harness view` 的 Mermaid → 独立 HTML 页面，渲染（纯函数）、落盘到 `.docs-harness/views/` 与系统浏览器打开三层分开，错误一律向上传递；公开接口：`render_mermaid_html`、`write_view`、`open_in_browser`、`VIEWS_RELATIVE`（views 目录常量真源，harness 导入并列入 LOCAL_ONLY_DIRS）
 - `scripts/structure_ts_functions.cjs` — 职责：Structure 的 TS/JS 函数体量解析子进程（stdin JSON 源码批 → stdout 函数限定名→行数），在目标项目 node_modules 或 DOCS_HARNESS_TS_MODULE_DIR 目录加载 typescript，harness 自身零依赖；公开接口：`collectSpans`、`functionName`（命令行调用，无模块导出）

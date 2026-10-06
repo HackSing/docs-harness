@@ -20,7 +20,6 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from harness import (  # noqa: E402
     LEGACY_RUNTIME_NAMES,
     LOCAL_ONLY_DIRS,
-    REPORTS_RELATIVE,
     TASK_INPUTS_RELATIVE,
     TASKS_RELATIVE,
 )
@@ -513,8 +512,8 @@ class ProjectInstallTest(HarnessTestBase):
 
 
 class LocalOnlyDirectoryTest(HarnessTestBase):
-    """本地约定目录：.docs-harness/inputs/（2.16.1，一次性输入 JSON）、
-    .docs-harness/tasks/（2.19.0，长任务进度清单）与 .docs-harness/reports/（2.26.0，收尾记录）。
+    """本地约定目录（.docs-harness/ 下）：inputs/（2.16.1，一次性输入 JSON）、tasks/（2.19.0，
+    长任务进度清单）、reports/（2.26.0，收尾记录）与 views/（view 命令写出的 Mermaid 页面）。
 
     此前没有约定位置，1.x 运行态目录 .docs-harness/task-inputs/ 在 LEGACY_RUNTIME_NAMES
     内会被 project upgrade 清理，2.16.0 任务为此三次重建备份。约定目录都不在该元组内。
@@ -523,8 +522,9 @@ class LocalOnlyDirectoryTest(HarnessTestBase):
     def gitignore(self, relative: str) -> Path:
         return self.project / relative / ".gitignore"
 
-    def test_local_only_dirs_cover_inputs_tasks_and_reports(self) -> None:
-        self.assertEqual(LOCAL_ONLY_DIRS, (TASK_INPUTS_RELATIVE, TASKS_RELATIVE, REPORTS_RELATIVE))
+    def test_local_only_dirs_cover_inputs_tasks_reports_and_views(self) -> None:
+        expected = tuple(f".docs-harness/{name}" for name in ("inputs", "tasks", "reports", "views"))
+        self.assertEqual(LOCAL_ONLY_DIRS, expected)
 
     def test_init_creates_dirs_with_nested_gitignore(self) -> None:
         self.run_cli("project", "init", "--target", str(self.project), "--apply")

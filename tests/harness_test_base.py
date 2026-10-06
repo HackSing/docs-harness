@@ -27,7 +27,7 @@ MANAGED_MODULES = (
     "managed_assets.py", "asset_checks.py", "plan_governance.py",
     "knowledge_assets.py", "acceptance_assets.py", "adr_assets.py",
     "script_hygiene.py", "structure_check.py", "structure_ts_functions.cjs",
-    "usage_log.py", "usage_report.py",
+    "usage_log.py", "usage_report.py", "diagram_view.py",
 )
 
 

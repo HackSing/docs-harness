@@ -98,7 +98,7 @@ class CliSurfaceTest(HarnessTestBase):
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
         public_commands = {
             "knowledge", "plan", "acceptance", "adr", "project", "release",
-            "assets-check", "structure", "usage", "self-test",
+            "assets-check", "structure", "usage", "view", "self-test",
         }
         for command in public_commands:
             self.assertIn(command, help_result.stdout)
@@ -209,13 +209,15 @@ class CliSurfaceTest(HarnessTestBase):
         # 与同文件的 check_githook_health 同属钩子安装面），行数上限随之上调——第 9 次上调。
         # 2.27.0 归档移动后 Knowledge source_refs 跟随改写（逻辑在 knowledge_assets，控制器只增
         # plan settle 接线）与非 create 动作拒收 --dry-run，字节上限随之上调——第 10 次上调。
+        # view 命令（Mermaid → HTML，渲染/落盘/打开在 diagram_view，控制器只增注册面与错误码映射），
+        # 行数与字节上限随之上调——第 11 次上调。
         # 两道体量闸的分工：本地由 Structure 增量 WARN 触发结构评估；CI 由本上限硬拦。
         # Structure 增量检查对比 HEAD，提交后增量恒为空，CI 的 assets-check --strict
         # 永远看不到 harness.py 的体量 WARN，所以本上限是 CI 中唯一拦得住 harness.py
         # 无限增长的硬闸，"每次上调都要动测试文件"正是它的守卫方式。
         # 上限的去留由 TODO.md 第 5 条登记的体量债整理任务决定，不在功能任务里处置。
-        self.assertLess(HARNESS.stat().st_size, 221_000)
-        self.assertLess(len(source.splitlines()), 5_000)
+        self.assertLess(HARNESS.stat().st_size, 223_000)
+        self.assertLess(len(source.splitlines()), 5_050)
         for symbol in (
             "def command_run(",
             "def command_context(",
