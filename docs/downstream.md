@@ -15,6 +15,7 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 | onceright | `HackSing/onceright` | 2026-09-27 以 2.24.0 接入 main；2026-10-03 升级到 2.25.0，删掉 `CLAUDE.md` 块外自己写的 `@AGENTS.md`，改由受管区块导入，受管正文只加载一遍 |
 | awesome-llm-made-videos | `HackSing/awesome-llm-made-videos` | 2026-09-27 以 2.24.0 接入 main。公开仓库 |
 | avatanel | `HackSing/avatanel` | 默认分支是 `master`，推送用 `git -C <下游目录> push origin master`。`.docs-harness/inputs/` 里有早期提交入库的一次性输入文件，2.16.1 起该目录带嵌套 `.gitignore`，会出现旧文件受跟踪、新文件被忽略的混合状态，处置待定 |
+| content-system | 无（只有本地 git） | 2026-10-06 以 2.28.0 接入 main。没有远端，升级步骤第 5 步「推送」跳过，只做本地提交。克隆不在其他下游所在的项目目录里，按目录批量枚举下游时会漏掉它。接入时删掉了 `CLAUDE.md` 里自己写的 `@AGENTS.md`，改由受管区块导入（同 onceright），`@TODO.md` 保留 |
 
 ## 暂停维护
 
