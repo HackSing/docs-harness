@@ -1,6 +1,6 @@
 {
   "schema_version": "docs-harness/evals/v3",
-  "version": "2.26.2",
+  "version": "2.27.0",
   "cases": [
     {
       "id": "direct-default-no-state",

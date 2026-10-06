@@ -12,7 +12,7 @@
 - `scripts/managed_assets.py` — 职责：受管资产通用层——AssetSpec 定义、指纹密封、原子写入、受管索引区块渲染；公开接口：`AssetSpec`、`AssetError`、`load_asset`、`seal_asset`、`atomic_write_text`、`atomic_write_json`
 - `scripts/asset_checks.py` — 职责：assets-check 统一编排——六 checker 聚合、跨资产关系校验、FAIL/WARN 汇总；公开接口：`run_assets_check`、`check_cross_asset_relations`、`ASSET_STALE_DAYS`
 - `scripts/plan_governance.py` — 职责：Plan v3 治理合同——冻结指纹、bugfix 校验合同、结算校验与遗留模板指纹；公开接口：`validate_plan`、`collect_bugfix_plan_errors`（收集全部合同错误，validate_bugfix_plan_contract 抛首个）、`legacy_plan_template_fingerprints`、`PLAN_SCHEMA_V3`、`PLAN_GOVERNANCE_INPUT_SCHEMA`
-- `scripts/knowledge_assets.py` — 职责：Knowledge 资产生命周期——输入校验、创建/更新/结项与检查；公开接口：`KNOWLEDGE_SPEC`、`KNOWLEDGE_INPUT_SCHEMA`、`KNOWLEDGE_SETTLE_STATUSES`
+- `scripts/knowledge_assets.py` — 职责：Knowledge 资产生命周期——输入校验、创建/更新/结项与检查；公开接口：`KNOWLEDGE_SPEC`、`KNOWLEDGE_INPUT_SCHEMA`、`KNOWLEDGE_SETTLE_STATUSES`、`follow_archived_refs`（资产移入 archive/ 后改写 Knowledge source_refs，四类归档 settle 共用）
 - `scripts/acceptance_assets.py` — 职责：Acceptance 资产生命周期——验收目标/记录/结项的输入校验与层级映射；公开接口：`ACCEPTANCE_SPEC`、`ACCEPTANCE_EVIDENCE_LAYERS`、`ACCEPTANCE_SETTLE_INPUT_SCHEMA`、`ACCEPTANCE_SETTLE_STATUSES`（CLI --status 选项的唯一来源）、`ACCEPTANCE_SETTLE_STATUS_NOTES`（--status 的 --help 说明）、`collect_input_errors`/`collect_create_errors`（--dry-run 错误收集器，validate_input 抛首个）
 - `scripts/adr_assets.py` — 职责：ADR 资产生命周期——架构决策创建（定稿不可改）、废弃/被替代结项与检查；公开接口：`ADR_SPEC`、`ADR_INPUT_SCHEMA`、`ADR_SETTLE_STATUSES`
 - `scripts/script_hygiene.py` — 职责：脚本卫生检查——tracked 脚本混合行尾字节级扫描（assets-check 第五 checker）；公开接口：`check_script_line_endings`、`SCRIPT_GLOBS`

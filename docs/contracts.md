@@ -20,6 +20,8 @@ adr create | settle | check
 assets-check [--fast] [--strict]
 ```
 
+`--dry-run` 只用于 `plan create` 与 `acceptance create`。2.27.0 起，其他动作带上它以 `dry_run_unsupported`（退出码 2）拒绝、不写任何文件；此前会被静默忽略并照常写入。
+
 ## 2. 按需知识合同
 
 ### 2.1 触发条件
@@ -59,6 +61,8 @@ assets-check [--fast] [--strict]
 JSON `docs-harness/knowledge-asset/v1` 是事实真源，Markdown 是可读投影，`docs/INDEX.md` 是发现入口。`knowledge update` 校验当前资产指纹后递增 revision，并保存上一修订指纹；手工篡改、证据缺失、同键冲突均由 `knowledge check` 失败关闭。
 
 `knowledge settle --status deprecated|superseded` 将同名 JSON/Markdown 移入 archive、退出活索引并更新明确链接；superseded 必须提供有效 replacement。Harness 不在没有证据或没有明确维护任务时自动创建、修改 Knowledge。
+
+归档移动跟随（2.27.0 起）：`plan settle --status deprecated` 与 Knowledge、ADR、Acceptance 的归档 settle 把 `<目录>/<名>.json|.md` 移入 `archive/` 后，活跃与归档 Knowledge 中 `source_refs` 指向这两个旧路径的引用（含 `:行号` 后缀）一并改为 archive 路径。只改引用，不改事实、revision 与时间戳；改后重封指纹、重渲染 Markdown 投影，被改写的 Knowledge JSON 列在 plan settle 的 `changed` 与其余三类 settle 的 `rewritten_source_refs`。提及旧路径的 Knowledge 指纹无效时不重封（重封会掩盖手工篡改），命令以该资产的指纹错误码失败，此时归档已经完成，修复该资产后按 archive 路径改引用。`plan settle --status implemented` 不移动文件，不触发改写。
 
 ## 3. 方案合同
 

@@ -19,6 +19,7 @@ from managed_assets import (
     seal_asset,
     write_asset,
 )
+from knowledge_assets import follow_archived_refs
 from plan_governance import (
     PLAN_SCHEMAS,
     PlanGovernanceError,
@@ -534,6 +535,9 @@ def settle(
                 target, current["plan_ref"], raw_asset, add=True, allow_archived_plan=True
             )
         raise
+    if archiving:
+        # 放在补偿块之外：此时归档已完成，改写失败不应回登记 Plan 反向引用。
+        payload["rewritten_source_refs"] = follow_archived_refs(target, ACCEPTANCE_SPEC.root, source.stem)
     if records:
         payload["recorded"] = recorded
         payload["record_ids"] = record_ids

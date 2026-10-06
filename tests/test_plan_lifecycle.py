@@ -554,6 +554,16 @@ class PlanLifecycleTest(HarnessTestBase):
         self.assertEqual(payload["code"], "invalid_plan_content")
         self.assertIn("schema_version", payload["message"])
 
+    def test_dry_run_outside_create_is_rejected_without_writes(self) -> None:
+        self.create_full_plan(acceptance_required=False, knowledge_impact="unchanged", basename="kept")
+        before = self.snapshot_project()
+        for args in (
+            ("plan", "settle", "--plan", "docs/plans/kept.json", "--status", "deprecated"),
+            ("acceptance", "record", "--acceptance", "docs/acceptance/missing.json"),
+        ):
+            rejected = self.run_cli(*args, "--target", str(self.project), "--dry-run", expected=2)
+            self.assertEqual(rejected["code"], "dry_run_unsupported")
+        self.assertEqual(self.snapshot_project(), before)
     def test_plan_create_dry_run_collects_all_errors_without_writes(self) -> None:
         selection = self.run_cli(
             "plan", "select", "--target", str(self.project),

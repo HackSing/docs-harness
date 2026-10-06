@@ -4,7 +4,7 @@
 
 ## 待办
 
-- [ ] 下次发版时带出 acceptance `deprecated` 结算（已提交未发版）：把 CHANGELOG「未发布」改成版本号；发版后升级 opc-skills，再对 `docs/acceptance/self-media-workflow-integration.json`、`docs/acceptance/content-strategy-layer.json` 执行 `acceptance settle --status deprecated --replacement "~/content-system/TODO.md（内容工作 2026-10-05 迁出 opc-skills）"`，确认 `assets-check` 那 2 条 WARN 消失。顺序必须先升级再结算（旧版不认 deprecated）；opc-skills 升级前确认工作区干净（10-04 的改动已于 10-05 提交并推送，8e95a22）（claude，2026-10-05）
+- [ ] acceptance `deprecated` 结算已随 2.27.0 发版（2026-10-06），剩下游一步：升级 opc-skills，再对 `docs/acceptance/self-media-workflow-integration.json`、`docs/acceptance/content-strategy-layer.json` 执行 `acceptance settle --status deprecated --replacement "~/content-system/TODO.md（内容工作 2026-10-05 迁出 opc-skills）"`，确认 `assets-check` 那 2 条 WARN 消失。顺序必须先升级再结算（旧版不认 deprecated）；opc-skills 升级前确认工作区干净（10-04 的改动已于 10-05 提交并推送，8e95a22）（claude，2026-10-05）
 
 - [ ] dsh-plugin 恢复维护时，`dsh-plugin/src/host/project-ops.js` 的 ACTION_INIT 参数与 `dsh-plugin/scripts/extract-managed-block.mjs` 的 `project init` 调用要补 `--apply`：2.22.0 起 `init` 不带 `--apply` 只预览，重新 seed-vendor 后插件安装会静默变成只预览（当前 vendor 停在 2.12.3，暂不受影响；dsh-plugin 已暂停维护）（aiware，2026-09-24）
 

@@ -39,6 +39,7 @@ from knowledge_assets import (
     KNOWLEDGE_SPEC,
     check as check_knowledge_assets,
     create as create_knowledge_asset,
+    follow_archived_refs,
     query as query_knowledge_assets,
     settle as settle_knowledge_asset,
     update as update_knowledge_asset,
@@ -72,7 +73,7 @@ from usage_log import (
     is_enabled as usage_log_enabled,
 )
 from usage_report import USAGE_REPORT_DEFAULT_DAYS, build_report as build_usage_report
-VERSION = "2.26.2"
+VERSION = "2.27.0"
 CONFIG_SCHEMA = "docs-harness/project-config/v13"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
     f"docs-harness/project-config/v{version}" for version in range(1, 13)
@@ -1904,6 +1905,10 @@ def settle_deprecated_plan(
         atomic_write_text(index_path, updated_index)
         changed.append(PLAN_INDEX_RELATIVE)
     changed.extend(rewrite_archived_plan_links(target, basename))
+    try:
+        changed.extend(follow_archived_refs(target, PLAN_DOCS_RELATIVE, basename))
+    except AssetError as exc:
+        raise translate_asset_error(exc) from exc
     return plan_json, document, list(dict.fromkeys(changed))
 
 
@@ -4900,6 +4905,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parser.parse_args(argv)
     started = time.monotonic()
     try:
+        if getattr(args, "dry_run", False) and args.action != "create":
+            raise HarnessError(
+                f"{args.command} {args.action} 不支持 --dry-run（仅 create 有预检），去掉后重跑",
+                code="dry_run_unsupported",
+            )
         if args.command == "knowledge":
             knowledge_handlers = {
                 "create": knowledge_create,

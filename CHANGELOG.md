@@ -1,7 +1,12 @@
 # Changelog
 
-## 未发布
+## 2.27.0 - 2026-10-06
 
+- 归档移动后，Knowledge 的 `source_refs` 跟着改到 archive 路径。`plan settle --status deprecated`，以及 Knowledge、ADR、Acceptance 的归档 settle，把 `<目录>/<名>.json|.md` 移进 `archive/` 后，活跃与已归档 Knowledge 中指向这两个旧路径的引用（含 `:行号`）一并改写。只改引用，不改事实、revision 与时间戳；改后重封指纹、重渲染 Markdown 投影。plan settle 把改过的 Knowledge 列进 `changed`，其余三类 settle 的输出新增 `rewritten_source_refs`。提及旧路径的 Knowledge 指纹无效时不重封（重封会掩盖手工篡改），命令以该资产的指纹错误码失败，此时归档已完成。
+- 动机：原来归档只改写 Markdown 链接，Knowledge JSON 里的引用成了断链，`knowledge check` 失败；引用方 Knowledge 已归档时 `knowledge update` 又拒绝，只能手改 JSON 再用 `managed_assets.fingerprint` 重封。2026-09-11 zbuddy-desktop 废弃方案 `video-i2v-upload-protocol` 时，已归档的 Knowledge `video-generation-contract-20260907` 就是这样手修的（手修结果指纹有效，升级后不用再动）。另一个表现：Knowledge 的 Markdown 投影会被链接改写改掉 `.md` 引用、留下 `.json` 引用，和 JSON 不一致，现在统一从 JSON 重渲染。2026-10-06 扫本机 6 个有 Knowledge 的项目（含本仓库），Knowledge 引用中指向会被归档移动的资产文件本身的：ADR 21 处、方案 14 处、Knowledge 3 处、验收资产 1 处（另有 35 处指向验收证据文件，归档不移动它们）。ADR 比方案还多，所以四类归档一起修。
+- 只有 `deprecated` 会移动方案；`plan settle --status implemented` 只改横幅与索引、不移动文件，不会造成这类断链。
+- 不新增「归档 Knowledge 只改 refs」的命令：归档移动已经自动跟随；源码删改导致 Knowledge 断链的情况，同一次扫描 0 例（但已归档 Knowledge 全部只有 1 份，样本小），暂不给封存资产开修改口子。
+- `--dry-run` 只用于 `plan create` 与 `acceptance create`。`plan settle`、`acceptance record` 等其他动作带上它，改为以 `dry_run_unsupported`（退出码 2）拒绝、不写文件。原来会静默忽略并照常写入，`plan settle --status deprecated --dry-run` 会直接归档方案。settle 不另做预检：结算是有意执行的终态操作，改了哪些文件列在输出里，可用 Git 回退。
 - `acceptance settle` 新增 `--status deprecated`：方案废弃或工作迁出本仓库时，未完成的验收可以如实结项，不必记成 passed 或 failed。可选 `--replacement` 写一行自由文本去向（如外部仓库的待办路径），不解析为本仓库资产，不得含换行与反引号；未完成的 criterion 原样留档，退出 Plan 反向登记并归档，Markdown 显示「已废弃」与「去向」。退出登记后不计入 Plan 的已结项验收，不能借它让 Plan 以 implemented 结项。动机：2026-10-05 opc-skills 的两份内容方案因工作迁到 content-system 而 `plan settle --status deprecated`，关联验收只能留在 pending，`assets-check` 固定报 2 条「pending Acceptance 指向已归档 Plan」，`--strict` 下退出非 0。
 - 该 WARN 末尾补上处理命令。
 - `--status` 选项与帮助说明改为从 `acceptance_assets` 的状态元组生成，不再在控制器里另写一份。
