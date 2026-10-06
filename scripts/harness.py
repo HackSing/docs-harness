@@ -73,7 +73,7 @@ from usage_log import (
     is_enabled as usage_log_enabled,
 )
 from usage_report import USAGE_REPORT_DEFAULT_DAYS, build_report as build_usage_report
-VERSION = "2.27.1"
+VERSION = "2.27.2"
 CONFIG_SCHEMA = "docs-harness/project-config/v13"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
     f"docs-harness/project-config/v{version}" for version in range(1, 13)
@@ -519,7 +519,7 @@ _GENERIC_STANDARDS = """
 - 宿主渲染不了图或网页时，一律退回文字。
 - 画图优先写声明式源码（如 Mermaid），坐标交给布局引擎算，不手算。必须手写 SVG 时，渲染后截图核对箭头落点和文字是否出框。
 - 图、卡片和网页里的判断同样标证据等级；排版不能把推测变成定论。
-- 一句只说一件事。内部代号首次出现时换成大白话，或附一句解释。同一个东西全文只用一个叫法。
+- 句子按 ASD-STE100（简化技术英语）的规则写，中文同样适用。一句只说一件事。内部代号首次出现时换成大白话，或附一句解释。同一个东西全文只用一个叫法。范围、区间和前提条件照原样保留，不压成单个值。有因果关系的几句留在同一段，不拆成逐条列表。
 
 ## 收尾
 
