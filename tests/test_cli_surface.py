@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -17,8 +18,70 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from harness import MANAGED_MODULE_RELATIVE_FILES  # noqa: E402
 
+# CPython ≤3.9 把 .py 当脚本运行时，tokenizer 每次 fgets 只读 BUFSIZ-1 字节并逐块校验 UTF-8，
+# 多字节字符跨读块边界就误报 "Non-UTF-8 code ... but no encoding declared"（2.20.0 起 macOS
+# 系统 Python 3.9.6 运行 harness.py 即失败）。import 与 py_compile 整文件解码，不受影响。
+# BUFSIZ 取常见平台最小值：macOS 1024（实测）、Windows MSVC 512、glibc 8192；含非 ASCII 的
+# 物理行不超过 511 字节，任何读块都装得下整行。长正文在三引号内用行尾反斜杠续行，字符串值不变。
+PY39_TOKENIZER_CHUNK_BYTES = 511
+
+
+def _readme_minimum_python() -> tuple[int, int]:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    match = re.search(r"Python (\d+)\.(\d+) 或更高版本", readme)
+    if match is None:
+        raise AssertionError("README.md 缺少「Python X.Y 或更高版本」的环境要求")
+    return int(match.group(1)), int(match.group(2))
+
+
+def _find_python(version: tuple[int, int]) -> str | None:
+    """找本机该版本的解释器：PATH 上的 pythonX.Y，或 macOS 开发者工具自带的 python3。
+
+    直接用开发者目录里的真身而不是 /usr/bin/python3 垫片：未装命令行工具时垫片会弹安装框。
+    """
+    candidates = [shutil.which(f"python{version[0]}.{version[1]}")]
+    if sys.platform == "darwin":
+        developer = subprocess.run(["xcode-select", "-p"], capture_output=True, text=True, check=False)
+        if developer.returncode == 0:
+            candidates.append(str(Path(developer.stdout.strip()) / "usr" / "bin" / "python3"))
+    for candidate in candidates:
+        if not candidate or not Path(candidate).is_file():
+            continue
+        probe = subprocess.run(
+            [candidate, "-c", "import sys; print('%d.%d' % sys.version_info[:2])"],
+            capture_output=True, text=True, check=False,
+        )
+        if probe.returncode == 0 and probe.stdout.strip() == f"{version[0]}.{version[1]}":
+            return candidate
+    return None
+
 
 class CliSurfaceTest(HarnessTestBase):
+    def test_script_sources_fit_py39_tokenizer_chunks(self) -> None:
+        offenders = [
+            f"{path.relative_to(ROOT)}:{number}（{len(line)} 字节）"
+            for path in sorted((ROOT / "scripts").glob("*.py"))
+            for number, line in enumerate(path.read_bytes().split(b"\n"), 1)
+            if len(line) > PY39_TOKENIZER_CHUNK_BYTES and not line.isascii()
+        ]
+        self.assertEqual(
+            offenders, [],
+            f"含非 ASCII 的物理行超过 {PY39_TOKENIZER_CHUNK_BYTES} 字节，Python 3.9 运行脚本会误报 "
+            "Non-UTF-8；三引号正文在中文标点后加行尾反斜杠续行拆短",
+        )
+    def test_harness_script_runs_under_minimum_python(self) -> None:
+        minimum = _readme_minimum_python()
+        interpreter = _find_python(minimum)
+        if interpreter is None:
+            self.skipTest(f"本机没有 Python {minimum[0]}.{minimum[1]} 解释器")
+        result = subprocess.run(
+            [interpreter, str(HARNESS), "--help"],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, f"{interpreter}: {result.stderr}")
     def test_removed_v1_commands_are_absent_from_cli(self) -> None:
         help_result = subprocess.run(
             [sys.executable, str(HARNESS), "--help"],

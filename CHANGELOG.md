@@ -1,5 +1,16 @@
 # Changelog
 
+## 2.27.1 - 2026-10-06
+
+- 修复：在 macOS 系统自带的 Python 3.9.6（`/usr/bin/python3`）上直接运行 `scripts/harness.py`，立即报 `SyntaxError: Non-UTF-8 code starting with '\xe3' ... but no encoding declared`。所有命令和受管 pre-commit 都跑不起来，2.20.0 起出现。
+- 根因：CPython 3.9 及更早版本把 `.py` 当脚本运行时，tokenizer 每次只读 BUFSIZ−1 字节（macOS 为 1023），并逐块校验 UTF-8；多字节字符跨读块边界，就被误判为非 UTF-8。2.20.0 把受管正文「根因优先」一行加长到 1025 字节，第 1022 字节起的中文字符正好跨界。`import` 和 `py_compile` 先整文件解码，不受影响；3.10 重写了 tokenizer，也不受影响。CI 用的是 3.x 最新版，所以一直没发现。
+- 修法：受管正文中含非 ASCII 字符、超过 511 字节的 9 个物理行，在中文标点后加行尾反斜杠续行（三引号字符串内的续行不进入字符串值）。渲染出的受管区块逐字节不变。最低版本仍是 Python 3.9。
+- 新增两条回归测试：
+  - `scripts/*.py` 中含非 ASCII 字符的物理行不得超过 511 字节。511 按 Windows MSVC 的 BUFSIZ（512）取下限；这条是静态检查，CI 在 Linux 上也能拦住。
+  - 本机有 README 写明的最低版本解释器时，用它运行 `harness.py --help`。查找范围：PATH 上的 `python3.9`，以及 macOS 开发者工具目录里的 `python3`。找不到就跳过。
+- 不改命令契约、Plan 模板字段、资产流程与受管入口文字。
+- **2.20.0–2.27.0 期间，`python3` 指向 macOS 系统 3.9 的下游机器上，pre-commit 一直失败。** 升级命令在源仓运行，不受下游旧版本影响。下次 `project upgrade --apply` 在 `AGENTS.md` 上只有版本号 diff。
+
 ## 2.27.0 - 2026-10-06
 
 - 归档移动后，Knowledge 的 `source_refs` 跟着改到 archive 路径。`plan settle --status deprecated`，以及 Knowledge、ADR、Acceptance 的归档 settle，把 `<目录>/<名>.json|.md` 移进 `archive/` 后，活跃与已归档 Knowledge 中指向这两个旧路径的引用（含 `:行号`）一并改写。只改引用，不改事实、revision 与时间戳；改后重封指纹、重渲染 Markdown 投影。plan settle 把改过的 Knowledge 列进 `changed`，其余三类 settle 的输出新增 `rewritten_source_refs`。提及旧路径的 Knowledge 指纹无效时不重封（重封会掩盖手工篡改），命令以该资产的指纹错误码失败，此时归档已完成。
