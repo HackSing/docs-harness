@@ -14,6 +14,7 @@
 - 发布包清单：`npm run pack:check`；
 - 版本一致性：`python3 scripts/harness.py release sync --target . --json`（`--strict` 同时强制 CHANGELOG 顶部版本与 VERSION 一致）。
 - 统一资产检查：本地/钩子运行 `assets-check --fast`，发布与 CI 运行 `assets-check --strict`。
+- CI 解释器：`assets-check --strict` 与 `npm test` 在 README 写明的最低版本（3.9）和最新 3.x 上各跑一遍；矩阵首项与 README 是否一致由 `test_ci_matrix_starts_with_minimum_python` 核对。
 
 ## 3. 验证选择矩阵
 

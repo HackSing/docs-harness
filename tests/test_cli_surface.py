@@ -82,6 +82,11 @@ class CliSurfaceTest(HarnessTestBase):
             check=False,
         )
         self.assertEqual(result.returncode, 0, f"{interpreter}: {result.stderr}")
+    def test_ci_matrix_starts_with_minimum_python(self) -> None:
+        workflow = (ROOT / ".github" / "workflows" / "assets-check.yml").read_text(encoding="utf-8")
+        match = re.search(r'python-version: \["(\d+)\.(\d+)"', workflow)
+        self.assertIsNotNone(match, "assets-check.yml 的 matrix.python-version 首项应为最低版本")
+        self.assertEqual((int(match.group(1)), int(match.group(2))), _readme_minimum_python())
     def test_removed_v1_commands_are_absent_from_cli(self) -> None:
         help_result = subprocess.run(
             [sys.executable, str(HARNESS), "--help"],

@@ -7,6 +7,11 @@ on:
 jobs:
   assets-check:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 首项是 README 写明的最低版本，tests/test_cli_surface.py 核对两处一致。
+        python-version: ["3.9", "3.x"]
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -15,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.x"
+          python-version: ${{ matrix.python-version }}
       - name: Check managed assets
         run: python3 scripts/harness.py assets-check --target . --strict
       - name: Run repository tests

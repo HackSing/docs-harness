@@ -8,6 +8,7 @@
 - 新增两条回归测试：
   - `scripts/*.py` 中含非 ASCII 字符的物理行不得超过 511 字节。511 按 Windows MSVC 的 BUFSIZ（512）取下限；这条是静态检查，CI 在 Linux 上也能拦住。
   - 本机有 README 写明的最低版本解释器时，用它运行 `harness.py --help`。查找范围：PATH 上的 `python3.9`，以及 macOS 开发者工具目录里的 `python3`。找不到就跳过。
+- CI 改为在 Python 3.9 和最新 3.x 上各跑一遍 `assets-check --strict` 与 `npm test`，防止以后用上 3.10 及以后才有的语法或标准库。CI 在 Linux 上一次读 8191 字节，本次的跨块问题靠上面的静态检查拦，不靠 3.9 任务。新增测试核对 CI 矩阵首项与 README 的最低版本一致。
 - 不改命令契约、Plan 模板字段、资产流程与受管入口文字。
 - **2.20.0–2.27.0 期间，`python3` 指向 macOS 系统 3.9 的下游机器上，pre-commit 一直失败。** 升级命令在源仓运行，不受下游旧版本影响。下次 `project upgrade --apply` 在 `AGENTS.md` 上只有版本号 diff。
 
