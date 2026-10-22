@@ -1,0 +1,11 @@
+$ python -m unittest tests.test_report_check
+exit=0
+['Ran 4 tests in 0.872s', '', 'OK']
+
+$ report check --path .docs-harness/inputs/report-check-sample.md
+exit=0
+status: passed
+checked: 5
+found: {"path": true, "command": true, "exit": true, "layer": true, "uncovered": true}
+missing: []
+report_ref: .docs-harness/inputs/report-check-sample.md

@@ -6,7 +6,7 @@
 
 默认直接完成任务；仅在确有长期价值时，管理 Plan、Knowledge、Acceptance、ADR 四类项目资产的完整生命周期。
 
-[![Version](https://img.shields.io/badge/version-2.9.1-2563eb.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.31.0-2563eb.svg)](CHANGELOG.md)
 [![Assets Check](https://github.com/HackSing/docs-harness/actions/workflows/assets-check.yml/badge.svg)](https://github.com/HackSing/docs-harness/actions/workflows/assets-check.yml)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776ab.svg)](https://www.python.org/)
 [![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-16a34a.svg)](scripts/harness.py)
@@ -51,6 +51,8 @@ Docs Harness 将这些内容沉淀为项目内、可版本管理的资产，同�
 - Python 3.9 或更高版本；
 - Node.js 与 npm 仅用于开发者运行仓库测试，不是目标项目的运行依赖。
 
+Windows 上 `python3` 可能指向 Microsoft Store 占位符；请改用 `py -3` 或 `python`。受管 pre-commit 已自动探测 `python`/`python3`。
+
 Docs Harness 当前通过源码分发，`package.json` 标记为 `private`，不提供 npm registry 安装入口。
 
 ### 1. 获取源码
@@ -78,7 +80,8 @@ docs/
 ├── INDEX.md
 ├── plans/
 ├── knowledge/
-└── acceptance/
+├── acceptance/
+└── adr/
 ```
 
 它不会生成虚构的项目事实或验收结果，不修改业务代码，也不会自动提交或推送。
@@ -171,15 +174,18 @@ python3 scripts/harness.py plan select --target . \
 
 ```bash
 python3 scripts/harness.py plan create --target . \
-  --selection selection.json --content content.json \
-  --output docs/plans/task.json --json
+  --level full --profile architecture --complexity complex \
+  --content content.json --output docs/plans/task.json --json
+
+python3 scripts/harness.py plan show --target . \
+  --plan docs/plans/task.json --json
 
 python3 scripts/harness.py plan settle --target . \
   --plan docs/plans/task.json --status implemented \
   --governance-input plan-governance.json --json
 ```
 
-`plan create` 会同时生成冻结 JSON、可读 Markdown，并维护 `docs/INDEX.md`。已实施方案留在活目录作为追溯记录；废弃或被替代的方案成对移入 `docs/plans/archive/`。
+`plan create` 会同时生成冻结 JSON、可读 Markdown，并维护 `docs/INDEX.md`。`execution_projection` 是完整 `content`；`plan show` 可在长任务或上下文压缩后重新读取。已实施方案留在活目录作为追溯记录；废弃或被替代的方案成对移入 `docs/plans/archive/`。
 
 无伴随 JSON 的手写方案同样直接 `plan settle`：只改横幅与归档，不做治理终验、不接受 `--governance-input`，不得为结算手工补造冻结 JSON。关键符号已全部落地但仍在推进的部分交付方案，按 `plan check` 的 WARN 提示把横幅改为 `状态：有效-部分交付（YYYY-MM-DD 核对）`，30 天内不再提示。
 
@@ -262,7 +268,7 @@ GitHub Actions --strict
 `assets-check` 聚合 Plan、Knowledge、Acceptance、ADR 领域检查、ScriptHygiene 脚本卫生扫描及其跨资产关系：
 
 - FAIL 始终返回失败；
-- WARN 默认提示，在 `--strict` 下返回失败；
+- WARN 默认提示，在 `--strict` 下返回失败；默认按类别聚合为 `warning_summary` 并只显示 5 条可行动预览，`--verbose` 查看全部，JSON 始终保留完整列表；
 - `--fast` 跳过 Plan 的源码符号存活与 Git 时效慢检查；
 - ScriptHygiene 对 tracked 脚本（`*.sh`/`*.iss`/`*.bat`/`*.cmd`/`*.ps1`）做全仓字节级混合行尾扫描，同一文件混入 CRLF 与裸 LF 即 FAIL；目标非 git 仓库时跳过（checked=0，不产 WARN）；
 - 零资产项目只要目录结构完整即可通过；
@@ -277,11 +283,13 @@ GitHub Actions --strict
 | `project diff` | 只读查看安装态与来源包差异 |
 | `project check` | 检查版本、指纹、结构、项目文档和 Git 交付状态 |
 | `project uninstall` | 预览或移除所有权明确的受管程序 |
-| `knowledge create/update/query/settle/check` | 管理 Knowledge 生命周期 |
-| `plan select/create/settle/check` | 管理 Plan 生命周期，check 检查 Plan 文档、索引、符号与链接 |
-| `acceptance create/record/settle/check` | 管理 Acceptance 生命周期 |
-| `adr create/settle/check` | 管理架构决策记录（ADR）生命周期（定稿不可改） |
-| `assets-check` | 统一检查四类资产、ScriptHygiene 脚本卫生与跨资产关系 |
+| `knowledge create/update/query/show/settle/check` | 管理 Knowledge 生命周期 |
+| `plan select/create/show/list/amend/settle/check` | 管理 Plan 生命周期，check 检查 Plan 文档、索引、符号与链接 |
+| `acceptance create/amend/record/show/list/settle/check` | 管理 Acceptance 生命周期 |
+| `adr create/amend/show/settle/check` | 管理架构决策记录（ADR）生命周期（定稿不可改） |
+| `assets-check` | 统一检查四类资产、ScriptHygiene 脚本卫生与跨资产关系；`--verbose` 输出全部 WARN |
+| `report check` | 校验当次收尾报告是否含改动路径、验证命令/退出码、验证层级与未覆盖项 |
+| `usage report` | 聚合本地命令调用、真实失败率、WARN 率与收尾报告完整率 |
 | `self-test` | 运行安装副本的内置合同检查 |
 | `release sync` | 检查版本真源是否一致（--strict 强制 CHANGELOG 顶部版本一致） |
 

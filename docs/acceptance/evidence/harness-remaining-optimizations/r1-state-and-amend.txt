@@ -1,0 +1,28 @@
+$ python -m unittest discover -s tests -p test_show_list.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 1.668s
+
+OK
+EXIT=0
+$ python -m unittest discover -s tests -p test_plan_amend.py
+....
+----------------------------------------------------------------------
+Ran 4 tests in 2.344s
+
+OK
+EXIT=0
+$ python -m unittest discover -s tests -p test_acceptance_amend.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 2.225s
+
+OK
+EXIT=0
+$ python -m unittest discover -s tests -p test_cli_surface.py
+.....s..........
+----------------------------------------------------------------------
+Ran 16 tests in 3.174s
+
+OK (skipped=1)
+EXIT=0

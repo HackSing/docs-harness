@@ -115,7 +115,10 @@ class AdrTest(HarnessTestBase):
         # 回归：裸字符串作为 notes 传入 _schema_example_block 会被逐字符 extend（2.8.0 起）。
         sys.path.insert(0, str(ROOT / "scripts"))
         import harness
-        note = "ADR 定稿后不可更新；失效时 adr settle --status deprecated|superseded（superseded 需 --replacement）。"
+        note = (
+            "定稿后不得手改；内容修正用 adr amend --input（同 create 形状）并必填 --reason。"
+            "失效时 adr settle --status deprecated|superseded（superseded 需 --replacement）。"
+        )
         self.assertIn(note, harness.ADR_EPILOG.splitlines())
         result = subprocess.run(
             [sys.executable, str(HARNESS), "adr", "--help"],
@@ -126,6 +129,37 @@ class AdrTest(HarnessTestBase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn(note, result.stdout.splitlines())
+
+    def test_adr_amend_increments_revision_and_requires_reason(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
+        content = self.write_json("inputs/adr.json", self._adr_input())
+        self.run_cli(
+            "adr", "create", "--target", str(self.project),
+            "--input", str(content), "--output", "docs/adr/first.json",
+        )
+        revised = self.write_json(
+            "inputs/adr-revised.json",
+            self._adr_input(decision="修订后的决策"),
+        )
+        payload = self.run_cli(
+            "adr", "amend", "--target", str(self.project),
+            "--adr", "docs/adr/first.json",
+            "--input", str(revised),
+            "--reason", "审查后措辞更准确",
+        )
+        self.assertEqual(payload["status"], "amended")
+        self.assertEqual(payload["revision"], 2)
+        asset = json.loads((self.project / "docs/adr/first.json").read_text(encoding="utf-8"))
+        self.assertEqual(asset["decision"], "修订后的决策")
+        self.assertEqual(len(asset["revision_history"]), 1)
+        md = (self.project / "docs/adr/first.md").read_text(encoding="utf-8")
+        self.assertIn("最近修订", md)
+        self.run_cli(
+            "adr", "amend", "--target", str(self.project),
+            "--adr", "docs/adr/first.json",
+            "--input", str(revised),
+            "--reason", "", expected=2,
+        )
 
 if __name__ == "__main__":
     unittest.main()

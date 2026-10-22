@@ -1,0 +1,157 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "Harness P0/P1 修复验收",
+  "objective": "验证 P0/P1 修复：完整执行投影、一步 plan 创建、验收闭环、知识检索、检查器与诊断改进。",
+  "key_symbols": [
+    "execution_projection",
+    "plan_show",
+    "acceptance_amend",
+    "symbol_hit"
+  ],
+  "plan_ref": "docs/plans/harness-p0-p1-fixes.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "b1.plan_flow",
+      "title": "B1 执行投影、plan show 与选择流程通过聚焦测试",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T062212-26914fffc2",
+          "objective_fingerprint": "sha256:2d32037799a0905c5349f152229526be6826ef64f7827ee71fcff6277f7cd224",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "运行 test_plan_lifecycle、test_eval_cli_cases、test_plan_amend、test_plan_governance 聚焦测试，全部通过",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-p0-p1/b1-plan-flow.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T06:22:12+00:00"
+        }
+      ]
+    },
+    {
+      "id": "b2.acceptance_flow",
+      "title": "B2 验收闭环与 amend 通过聚焦测试",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T062213-b0df9d2c6e",
+          "objective_fingerprint": "sha256:2d32037799a0905c5349f152229526be6826ef64f7827ee71fcff6277f7cd224",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "运行 test_acceptance、test_plan_amend、test_plan_governance 聚焦测试，全部通过",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-p0-p1/b2-acceptance-flow.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T06:22:13+00:00"
+        }
+      ]
+    },
+    {
+      "id": "b3.knowledge_checks",
+      "title": "B3 知识检索与检查器通过聚焦测试",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T062213-3e028832d7",
+          "objective_fingerprint": "sha256:2d32037799a0905c5349f152229526be6826ef64f7827ee71fcff6277f7cd224",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "运行 test_knowledge、test_structure、test_assets_check、test_adr 聚焦测试，全部通过",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-p0-p1/b3-knowledge-checks.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T06:22:13+00:00"
+        }
+      ]
+    },
+    {
+      "id": "b4.diagnostics_docs",
+      "title": "B4 诊断、CLI 参数边界与文档基线通过检查",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T062213-b11cf617d0",
+          "objective_fingerprint": "sha256:2d32037799a0905c5349f152229526be6826ef64f7827ee71fcff6277f7cd224",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "运行 test_cli_surface、test_release_version_sync 与 assets-check --fast，全部通过",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-p0-p1/b4-diagnostics-docs.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T06:22:13+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 6,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:a666137dacedcede9c5e03d8c583dff20b48e55ebe709f82a63b8398b19ce4e3",
+      "updated_at": "2026-10-22T05:48:26+00:00"
+    },
+    {
+      "revision": 2,
+      "asset_fingerprint": "sha256:263c30c1916f4433ec81303e1ffaba719693e98cf4bab63e78be253864201cd4",
+      "updated_at": "2026-10-22T06:22:12+00:00"
+    },
+    {
+      "revision": 3,
+      "asset_fingerprint": "sha256:8fed99a8547eeeb9c130a6d792ab39c001044efab280f5659a0a756c4f7e61c6",
+      "updated_at": "2026-10-22T06:22:13+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:c40dba18f02d3263926c302eecebeac6fa159d19c5c292e885d4df500926a245",
+      "updated_at": "2026-10-22T06:22:13+00:00"
+    },
+    {
+      "revision": 5,
+      "asset_fingerprint": "sha256:80ef91e70cef20c3f9763be978371f0d816a352dd3de89fe918b909cd5c569da",
+      "updated_at": "2026-10-22T06:22:13+00:00"
+    }
+  ],
+  "created_at": "2026-10-22T05:48:26+00:00",
+  "updated_at": "2026-10-22T06:22:18+00:00",
+  "settled_at": "2026-10-22T06:22:18+00:00",
+  "asset_fingerprint": "sha256:0ca9889f365a0866d0c5fb6f7deb8e252bcf4418b59d1118531033199b66dc31",
+  "replacement": null
+}

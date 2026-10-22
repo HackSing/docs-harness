@@ -10,6 +10,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -27,7 +28,10 @@ MANAGED_MODULES = (
     "managed_assets.py", "asset_checks.py", "plan_governance.py",
     "knowledge_assets.py", "acceptance_assets.py", "adr_assets.py",
     "script_hygiene.py", "structure_check.py", "structure_ts_functions.cjs",
-    "usage_log.py", "usage_report.py", "diagram_view.py",
+    "usage_log.py", "usage_report.py", "report_check.py", "symbol_check.py",
+    "acceptance_diagnostics.py", "diagram_view.py", "plan_amend.py",
+    "plan_selection.py", "plan_check.py", "acceptance_amend.py", "acceptance_render.py", "asset_query.py", "cli_support.py",
+    "agent_prompt.md",
 )
 
 
@@ -51,6 +55,32 @@ REQUIRES_SYMLINK = unittest.skipUnless(
 
 # Windows 上 npm 是 npm.CMD，CreateProcess 不做 PATHEXT 解析，须经 cmd 调起。
 NPM_COMMAND = ["cmd", "/c", "npm"] if os.name == "nt" else ["npm"]
+
+
+def posix_shell_executable() -> str:
+    """Git 钩子脚本是 #!/bin/sh；Windows 上 PATH 常无 sh，从 git 同捆目录解析。"""
+    found = shutil.which("sh")
+    if found:
+        return found
+    git = shutil.which("git")
+    if git:
+        git_root = Path(git).resolve().parent.parent
+        for name in ("sh.exe", "sh", "bash.exe", "bash"):
+            candidate = git_root / "bin" / name
+            if candidate.is_file():
+                return str(candidate)
+    if os.name == "nt":
+        for env in ("ProgramFiles", "ProgramFiles(x86)"):
+            base = os.environ.get(env)
+            if not base:
+                continue
+            for name in ("sh.exe", "bash.exe"):
+                candidate = Path(base) / "Git" / "bin" / name
+                if candidate.is_file():
+                    return str(candidate)
+    raise FileNotFoundError(
+        "未找到 sh/bash；请安装 Git for Windows 或将 Git\\bin 加入 PATH"
+    )
 
 
 class HarnessTestBase(unittest.TestCase):
@@ -211,6 +241,14 @@ class HarnessTestBase(unittest.TestCase):
             "--output", f"docs/plans/{basename}.json",
         )
         return self.project / f"docs/plans/{basename}.json"
+    def run_posix_shell_script(self, script_relative: str) -> subprocess.CompletedProcess[bytes]:
+        return subprocess.run(
+            [posix_shell_executable(), script_relative],
+            cwd=self.project,
+            capture_output=True,
+            check=False,
+        )
+
     def structure_git(self, *args: str) -> None:
         subprocess.run(
             ["git", "-c", "user.name=test", "-c", "user.email=test@example.com", *args],

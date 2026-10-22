@@ -1,0 +1,69 @@
+$ python scripts/harness.py assets-check --target . --strict --json
+{
+  "status": "failed",
+  "strict": true,
+  "fast": false,
+  "checked": {
+    "plans": {
+      "live_docs": 18,
+      "archived_docs": 0,
+      "markdown_files": 92
+    },
+    "knowledge": 3,
+    "acceptance": 13,
+    "adr": 5,
+    "script_hygiene": 1,
+    "structure": 50,
+    "cross": 30
+  },
+  "failures": [],
+  "warnings": [
+    "WARN: docs/plans/harness-remaining-optimizations.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付；已交付请 plan settle --status implemented，不再推进请 --status deprecated；仍在推进的部分交付方案把横幅改为「> 状态：有效-部分交付（2026-10-22 核对）」，30 天内不再提示"
+  ],
+  "summary": "assets-check failed：Plan/Knowledge/Acceptance/ADR/ScriptHygiene/Structure 已检查，违规 0 条、警告 1 条"
+}
+EXIT=1
+$ python -m unittest discover -s tests -p test_project_install.py
+......................s.......
+----------------------------------------------------------------------
+Ran 30 tests in 65.781s
+
+OK (skipped=1)
+EXIT=0
+$ python -m unittest discover -s tests -p test_project_upgrade.py
+.....ss..............
+----------------------------------------------------------------------
+Ran 21 tests in 25.698s
+
+OK (skipped=2)
+EXIT=0
+$ python -m unittest discover -s tests -p test_cli_surface.py
+.....s..........
+----------------------------------------------------------------------
+Ran 16 tests in 3.206s
+
+OK (skipped=1)
+EXIT=0
+$ python scripts/harness.py assets-check --target . --strict --json
+{
+  "status": "passed",
+  "strict": true,
+  "fast": false,
+  "checked": {
+    "plans": {
+      "live_docs": 18,
+      "archived_docs": 0,
+      "markdown_files": 92
+    },
+    "knowledge": 3,
+    "acceptance": 13,
+    "adr": 5,
+    "script_hygiene": 1,
+    "structure": 50,
+    "cross": 30
+  },
+  "failures": [],
+  "warnings": [],
+  "summary": "assets-check passed：Plan/Knowledge/Acceptance/ADR/ScriptHygiene/Structure 已检查，违规 0 条、警告 0 条"
+}
+EXIT=0

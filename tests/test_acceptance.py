@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness_test_base import HarnessTestBase
 
-
 class AcceptanceTest(HarnessTestBase):
     def test_contract_check_cannot_claim_behavior(self) -> None:
         record = self.write_json(
@@ -138,6 +137,10 @@ class AcceptanceTest(HarnessTestBase):
                 "reason",
                 "next_action",
                 "failure_attributions",
+                "persisted_to",
+                "linked",
+                "record_id",
+                "warning",
             },
         )
         self.assertEqual(payload["layer"], "local_runtime")

@@ -1,0 +1,67 @@
+$ python -m unittest discover -s tests -p test_knowledge.py
+....s.......
+----------------------------------------------------------------------
+Ran 12 tests in 7.973s
+
+OK (skipped=1)
+EXIT=0
+$ python -m unittest discover -s tests -p test_structure.py
+....ss...................
+----------------------------------------------------------------------
+Ran 25 tests in 16.721s
+
+OK (skipped=2)
+EXIT=0
+$ python -m unittest discover -s tests -p test_plan_selection_show.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 3.205s
+
+OK
+EXIT=0
+$ python scripts/harness.py assets-check --target . --fast --json
+{
+  "status": "passed",
+  "strict": false,
+  "fast": true,
+  "checked": {
+    "plans": {
+      "live_docs": 18,
+      "archived_docs": 0,
+      "markdown_files": 92
+    },
+    "knowledge": 3,
+    "acceptance": 13,
+    "adr": 5,
+    "script_hygiene": 1,
+    "structure": 50,
+    "cross": 30
+  },
+  "failures": [],
+  "warnings": [],
+  "summary": "assets-check passed：Plan/Knowledge/Acceptance/ADR/ScriptHygiene/Structure 已检查，违规 0 条、警告 0 条"
+}
+EXIT=0
+$ python scripts/harness.py assets-check --target . --strict --json（Plan settle 后）
+{
+  "status": "passed",
+  "strict": true,
+  "fast": false,
+  "checked": {
+    "plans": {
+      "live_docs": 18,
+      "archived_docs": 0,
+      "markdown_files": 92
+    },
+    "knowledge": 3,
+    "acceptance": 13,
+    "adr": 5,
+    "script_hygiene": 1,
+    "structure": 50,
+    "cross": 30
+  },
+  "failures": [],
+  "warnings": [],
+  "summary": "assets-check passed：Plan/Knowledge/Acceptance/ADR/ScriptHygiene/Structure 已检查，违规 0 条、警告 0 条"
+}
+EXIT=0

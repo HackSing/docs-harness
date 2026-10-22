@@ -1,5 +1,52 @@
 # Changelog
 
+## 2.31.0 - 2026-10-22
+
+本版把 2026-10-21/22 完成的 P0/P1/P2 修复从 2.30.0 条目中独立出来；2.30.0 已发布内容不变。
+
+### P0/P1 修复
+
+- **Plan 执行投影完整化**：`plan create` 的 `execution_projection` 现在包含完整 `content`，不再只保留少量字段；新增只读 `plan show`，长任务/上下文压缩后可用它恢复冻结内容与投影。
+- **Plan 创建与选择**：`plan create` 可直接用 `--level/--profile/--complexity` 创建；`plan select` 升级为 `plan-selection/v3`，新增 `contract_fingerprint` 与 `content_template`，模板文案或 `reason` 变化不再让旧选择失效；合同不一致返回字段级 `differences`；次级 Profile 字段默认 optional。
+- **Acceptance 闭环**：未关联资产的 `acceptance record` 明确返回 `persisted_to=runtime`、`linked=false` 与 warning；带 `criterion_id` 但无 `--acceptance` 直接拒绝；`plan settle --status implemented` 要求至少一份 passed/failed 结项验收，只有 deprecated/superseded 不足以证明已实施。
+- **新增 amend 能力**：`plan amend` 可带 `--reason` 修改 `acceptance_required`/`knowledge_impact`（清空旧结算输入）；新增 `acceptance amend`，仅 pending 且无记录时修订目标，`plan_ref` 不可改。
+- **Knowledge 检索**：受管事实按 token 覆盖度排序；事实返回 `source_ok`；create/update 返回即时冲突；`omitted` 计入受管事实；`constraints` 从活跃 ADR 的 `decision` 投影。
+- **检查器**：Plan/CODEMAP 符号改为定义级匹配；Plan INDEX/横幅与冻结 JSON 交叉校验；Knowledge/Acceptance/ADR 的 Markdown 与 INDEX 状态与 JSON 对齐；`structure check --base` 支持任务起始基线。
+- **诊断与 CLI 边界**：错误 envelope 支持 `expected`/`next_action`/`details`；JSON 解析错误带行列；plan/acceptance create 聚合全部校验错误；拒绝与当前 action 无关的 flag；未预期异常返回结构化 `internal_error`。
+- **文档与基线**：去掉 architecture/contracts/testing 标题中的硬编码版本号，README badge、SKILL 配置 schema、self-test 键与当前版本对齐；`release sync` 仍校验 VERSION、控制器、SKILL、package、模板与 evals 六个版本源。
+
+### 剩余优化（P0/P1/P2）
+
+- **结构门禁转绿**：受管提示词外置为 `scripts/agent_prompt.md`；拆出 `plan_selection`、`plan_check`、`acceptance_amend`、`acceptance_render`、`asset_query`、`cli_support` 模块，拆分超大函数与测试文件；`assets-check --strict` 恢复 0 失败 0 警告。
+- **只读查询面**：新增 `plan list`、`acceptance show/list`、`knowledge show`、`adr show`。
+- **轻量修订**：`plan amend` 支持 `--patch` 浅合并；`plan amend`、`acceptance amend/record/settle` 支持 `--dry-run`。
+- **检查器策略**：Full Plan 可选 `progress.remaining_steps`，非空时不报 C8 符号全命中；部分交付核对期内的方案不再触发 C6 陈旧告警；已 settle 方案不再因历史 amend 次数重复提示。
+- **检查器降噪**：CODEMAP 符号存活改为「去注释后词边界匹配」，兼容 Dart/Kotlin 字段、枚举成员、类型标注赋值、shell 环境变量与带点引用；ADR/Knowledge 状态比较忽略括号内核对备注与 INDEX 截断括号。zbuddy-mobile 实测 WARN 从 88 条降到 4 条。
+- **性能与检索**：Plan/Knowledge 文档扫描优先使用 git 索引；Plan check 的归档死链扫描改为一次预读；知识文档片段按 Markdown 标题截取，`source_ok` 查询内缓存。
+- **提示词与平台**：维护者专用“提示词与代码流程同步”移入 `docs/contributing.md`；SKILL/contracts/architecture 统一使用 agent 用语；README 补 Windows `py -3`/`python` 说明；`read_json` 接受 UTF-8 BOM。
+
+### 遵循率优化（B0–B4）
+
+- **持续指标**：`usage report` 新增 `adherence`（真实失败率、检查 WARN 率）与 `report_completeness`（收尾报告五项字段完整率）；`commands` 增加 `real_failures`/`real_failure_rate`/`warning_runs`/`warning_rate`。基线：zbuddy-mobile 真实失败率 16.5%、WARN 率 46.8%、报告完整率 6.8%；zbuddy-desktop 9.3%、84.5%、2.3%。
+- **WARN 降噪**：`assets-check` 与 `plan check` 增加 `warning_summary`（分组、可行动/提示、重复数）和 5 条预览，`--verbose` 输出全部；JSON 保留完整 `warnings`。检查器符号存活改为去注释 token 批量匹配，兼容 Dart/Kotlin 字段、枚举、类型标注、shell 环境变量与带点引用；ADR/Knowledge 状态比较忽略核对备注。zbuddy-mobile 的 WARN 从 88 条降到 4 条。
+- **验收闭环诊断**：`acceptance settle/record` 失败时返回 `details`（待处理标准、期望/实际层级等）与 `next_action`；`acceptance list` 增加 `criteria_total`/`criteria_pending`/`pending_criteria`。
+- **输出契约**：新增 `report check --path <报告>`，校验收尾报告五项字段；受管入口把“验收层”统一为“验证层级”并给出枚举值。
+- **检查性能**：`plan check` 对全部方案符号一次分词批量判断，zbuddy-desktop 完整检查从约 130 秒降到约 5 秒；新增模块 `scripts/report_check.py`、`scripts/symbol_check.py`、`scripts/acceptance_diagnostics.py` 并加入安装清单。
+- **行为基线与规则修正**：11 条 behavior 用例完成两轮真实会话，两轮均为 49/52。direct 评测把 `report check` 误判为生命周期调用，已改为 `zero-lifecycle-invocation`；native-risk 初跑未确认即 DROP TABLE，受管入口补充“删除/清空/覆盖/迁移必须取得用户明确同意”，第二轮通过 AskUserQuestion 请求确认后执行。subagent-evidence 的 2 项与 intent 的零基础读者核对 1 项仍未示范。
+
+## 2.30.0 - 2026-10-14
+
+- **Harness Plan 与 IDE Plan 区分**：AGENTS.md / SKILL.md / 受管入口明确口语「走 plan / 方案模式」指 `plan select|create|…` 方案资产流程，不得用 IDE Plan 聊天模式代替 `plan create` 冻结合同。
+- **Full 方案模板**：`plan-templates/levels/full.json` 新增必填 `process_flowchart`（Mermaid 流程图）与 `ux_journey`（体验或操作者路径）；brief 级不变。`plan create` 生成的 Markdown 自动渲染为独立章节。
+- **下游升级醒目提示**：从低于 2.30.0 的版本升级到 2.30.0 时，`project upgrade` 预览与 `--apply` 的 payload 带 `notices`，人类可读输出在末尾以分隔线打印「重要提示」；内容即 Harness Plan 与 IDE Plan 区分及 Full 新字段说明。
+- **所有下游下次 `project upgrade --apply` 会在 `AGENTS.md`/`CLAUDE.md` 上产生一次受管区块 diff，并刷新 `plan-templates/`。**
+
+## 2.29.0 - 2026-10-13
+
+- 新增受控资产修订：`plan amend --plan <path> --content <JSON> --reason "<原因>"` 与 `adr amend --adr <path> --input <JSON> --reason "<原因>"`。目标与验收语义不变时修订活方案/活跃 ADR，不必废弃重建；必填 `--reason`，记录指纹前后与修订历史（Plan 的 `governance.amend_log` 或 brief 根级 `amend_log`；ADR 的 `revision` + `revision_history`）。
+- 门禁：已 settle、已归档、手写 Plan（无冻结 JSON）不可 amend；Plan amend 不得改变 `acceptance_required` / `knowledge_impact`；ADR amend 不得改变 `supersedes`。`assets-check` 对 amend ≥3 次 WARN；冻结超期 WARN 按 `max(frozen_at, last_amended_at)` 计时。
+- AGENTS.md 受管区块补充 amend 与 supersede 判据。
+
 ## 2.28.0 - 2026-10-06
 
 - 新增 `view` 命令：`python3 scripts/harness.py view <源码文件> [--open]`。它把一个 Mermaid 源码文件渲染成独立 HTML 页面，写到 `.docs-harness/views/<文件名>.html`。加 `--open` 时用系统默认浏览器打开。页面从 CDN 加载 mermaid，harness 不加依赖；离线时只显示源码文本。`.docs-harness/views/` 和 inputs/、tasks/、reports/ 一样不入库，升级不清理。错误码：`view_source_missing`、`view_source_empty`、`view_source_not_utf8`、`view_open_failed`。新模块 `scripts/diagram_view.py` 随 init/upgrade 安装。

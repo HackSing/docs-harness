@@ -273,12 +273,7 @@ class ProjectInstallTest(HarnessTestBase):
         asset = json.loads(asset_path.read_text(encoding="utf-8"))
         asset["summary"] = "已被手工篡改"
         self.write_json("docs/knowledge/runtime-owner.json", asset)
-        result = subprocess.run(
-            ["sh", "scripts/githooks/pre-commit"],
-            cwd=self.project,
-            capture_output=True,
-            check=False,
-        )
+        result = self.run_posix_shell_script("scripts/githooks/pre-commit")
         output = (result.stdout + result.stderr).decode("utf-8", errors="replace")
         self.assertEqual(result.returncode, 1, output)
         self.assertIn("assets-check", output)
@@ -292,12 +287,7 @@ class ProjectInstallTest(HarnessTestBase):
             'echo "local-check ran"\n"$PYTHON_BIN" --version >/dev/null 2>&1\nexit 0\n',
             encoding="utf-8",
         )
-        result = subprocess.run(
-            ["sh", "scripts/githooks/pre-commit"],
-            cwd=self.project,
-            capture_output=True,
-            check=False,
-        )
+        result = self.run_posix_shell_script("scripts/githooks/pre-commit")
         output = (result.stdout + result.stderr).decode("utf-8", errors="replace")
         self.assertEqual(result.returncode, 0, output)
         self.assertIn("local-check ran", output)
@@ -311,12 +301,7 @@ class ProjectInstallTest(HarnessTestBase):
             'echo "mirror drift" >&2\nexit 1\n',
             encoding="utf-8",
         )
-        result = subprocess.run(
-            ["sh", "scripts/githooks/pre-commit"],
-            cwd=self.project,
-            capture_output=True,
-            check=False,
-        )
+        result = self.run_posix_shell_script("scripts/githooks/pre-commit")
         output = (result.stdout + result.stderr).decode("utf-8", errors="replace")
         self.assertEqual(result.returncode, 1, output)
         self.assertIn("mirror drift", output)
@@ -481,10 +466,7 @@ class ProjectInstallTest(HarnessTestBase):
         (hooks / "post-commit").write_text("#!/bin/sh\nexit 0\n", encoding="utf-8")
         # 迁移路径：旧版 setup.sh 设过的 core.hooksPath 被清除
         self.structure_git("config", "core.hooksPath", "scripts/githooks")
-        result = subprocess.run(
-            ["sh", "scripts/githooks/setup.sh"],
-            cwd=self.project, capture_output=True, check=False,
-        )
+        result = self.run_posix_shell_script("scripts/githooks/setup.sh")
         self.assertEqual(result.returncode, 0, result.stderr.decode("utf-8", errors="replace"))
         current = subprocess.run(
             ["git", "config", "--get", "core.hooksPath"],
@@ -494,10 +476,7 @@ class ProjectInstallTest(HarnessTestBase):
         shim = hooks / "pre-commit"
         self.assertIn("docs-harness-hook-shim", shim.read_text(encoding="utf-8"))
         # 幂等
-        again = subprocess.run(
-            ["sh", "scripts/githooks/setup.sh"],
-            cwd=self.project, capture_output=True, check=False,
-        )
+        again = self.run_posix_shell_script("scripts/githooks/setup.sh")
         self.assertEqual(again.returncode, 0, again.stderr.decode("utf-8", errors="replace"))
         self.assertIn("docs-harness-hook-shim", shim.read_text(encoding="utf-8"))
         # uninstall 按标记清理 shim，不动他人钩子

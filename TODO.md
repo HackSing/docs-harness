@@ -8,7 +8,16 @@
 
 - [ ] dsh-plugin 恢复维护时，`dsh-plugin/src/host/project-ops.js` 的 ACTION_INIT 参数与 `dsh-plugin/scripts/extract-managed-block.mjs` 的 `project init` 调用要补 `--apply`：2.22.0 起 `init` 不带 `--apply` 只预览，重新 seed-vendor 后插件安装会静默变成只预览（当前 vendor 停在 2.12.3，暂不受影响；dsh-plugin 已暂停维护）（aiware，2026-09-24）
 
-- [ ] `scripts/harness.py` 存量体量债 4800 行（2.16.1 实测）（`project_findings` 266 行、`command_plan_check` 240 行、`command_project` 221 行），每次改动必撞 Structure WARN 使本仓库 `assets-check --strict` 在未提交状态恒退 1；以 `structure report` 开专门整理任务，候选拆分方向：安装/升级编排、plan check、usage 埋点各自成模块（aiware，2026-09-13）
+- [x] `scripts/harness.py` 与 `acceptance_assets.py` 的 strict 门禁债已处理：2.31.0 外置 `agent_prompt.md`，拆出 `plan_selection`、`plan_check`、`acceptance_amend`、`acceptance_render`、`asset_query`、`cli_support`，`assets-check --strict` 恢复 0 失败 0 警告（aiware，2026-09-13）
+- [ ] `scripts/harness.py` 仍约 4,917 行，strict 已绿但体量仍大；后续可继续拆 project 安装/升级编排、`command_plan_check`、usage 埋点与 dispatch（2026-10-22）
+
+- [ ] behavior evals 两轮基线已完成（11 条/52 检查点，两轮均 49/52；见 `docs/acceptance/evidence/harness-adherence-optimization/c6-behavior-baseline.md`），但仍无自动运行器；subagent-evidence 的 2 项两轮都未触发子智能体，需决定它与“轻量任务不开子智能体”的边界；intent 的零基础读者核对仍未单独说明（aiware，2026-10-22）
+
+- [ ] 用加重后的 `subagent-evidence-checked` fixture（每模块 3–5 个查询文件、schema 与慢查询日志）重跑该用例；两轮基线的轻量 fixture 未触发子智能体，不能据此判定该规则失败（aiware，2026-10-22）
+
+- [ ] zbuddy-mobile 已升级 2.31.0（提交 7c57951），需在 2026-10-23 至 2026-10-29 观察真实调用：对比 assets-check WARN 率、acceptance settle/record 失败率与收尾报告完整率；desktop 尚未升级（aiware，2026-10-22）
+
+- [x] `plan check` 大型下游性能：zbuddy-desktop 完整检查约 130 秒；2.31.0 改为去注释 token 批量匹配后约 6 秒，mobile 约 1 秒（2026-10-22）
 
 - [ ] usage 事件缺 `source` 字段：`assets-check --fast` 无法区分 pre-commit 触发与手动收尾触发，本次审计只能靠事件时间与 git log 人肉对齐才发现 09-13 以来 8 次提交零钩子事件；建议在 `usage_invoke_event` 加来源标记（kimi，2026-09-14）
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import shutil
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -15,6 +16,7 @@ from harness_test_base import HarnessTestBase, ROOT
 
 sys.path.insert(0, str(ROOT / "scripts"))
 import structure_check  # noqa: E402
+import symbol_check  # noqa: E402
 
 
 class StructureGuardrailTest(HarnessTestBase):
@@ -89,6 +91,95 @@ class StructureGuardrailTest(HarnessTestBase):
             any("src/example/module.py" in w for w in warnings),
             "脚手架示例行不应被当作条目解析",
         )
+    def test_codemap_symbol_requires_word_boundary(self) -> None:
+        self.structure_git("init")
+        self.write_lines("src/service.py", ["def domain():", "    pass"])
+        self.structure_commit_all()
+        (self.project / "docs").mkdir(exist_ok=True)
+        (self.project / "docs" / "CODEMAP.md").write_text(
+            "# CODEMAP\n\n"
+            "- `src/service.py` — 职责：服务入口；公开接口：`main`\n",
+            encoding="utf-8",
+        )
+        payload = self.run_cli("structure", "check", "--target", str(self.project))
+        self.assertTrue(
+            any("`main`" in item and "索引已失活" in item for item in payload["warnings"]),
+            payload["warnings"],
+        )
+    def test_symbol_hit_accepts_code_forms_and_ignores_comments(self) -> None:
+        cases = (
+            ("final String? pendingTranscription;", "pendingTranscription", ".dart", True),
+            ("enum ScoRecordingSource { bluetoothSco, recordingCard }", "recordingCard", ".dart", True),
+            ('const val SOURCE_CHANGED_METHOD = "sourceChanged"', "sourceChanged", ".kt", True),
+            ("fun getCaptureStats(): Map<String, Any>", "getCaptureStats", ".kt", True),
+            ("ARTBOARDS: dict[str, Artboard] = {}", "ARTBOARDS", ".py", True),
+            ('if [ "${CONFIGURATION:-}" != "Release" ]; then', "CONFIGURATION", ".sh", True),
+            ("/// [MemoryRecordingCardService] 供 fake 模式与测试。", "MemoryRecordingCardService", ".dart", False),
+            ("// sourceChanged\nval other = 1", "sourceChanged", ".kt", False),
+            ("def domain(): pass", "main", ".py", False),
+            ("const myMain = 1", "main", ".js", False),
+            ("import { Foo } from './foo'; Foo.bar()", "Foo.bar", ".ts", True),
+        )
+        for content, symbol, suffix, expected in cases:
+            with self.subTest(symbol=symbol, suffix=suffix):
+                self.assertIs(symbol_check.symbol_hit(content, symbol, suffix), expected)
+
+    def test_symbol_hits_batches_match_single_symbol_checks(self) -> None:
+        content = (
+            "final String? pendingTranscription;\n"
+            "AccountDefaults.bindingStatusPlaceholder = value;\n"
+            "// MemoryRecordingCardService only in comment\n"
+        )
+        symbols = [
+            "pendingTranscription",
+            "AccountDefaults.bindingStatusPlaceholder",
+            "MemoryRecordingCardService",
+            "missing",
+        ]
+        self.assertEqual(
+            symbol_check.symbol_hits(content, symbols, ".dart"),
+            {"pendingTranscription", "AccountDefaults.bindingStatusPlaceholder"},
+        )
+        for symbol in symbols:
+            self.assertEqual(
+                symbol_check.symbol_hit(content, symbol, ".dart"),
+                symbol in {"pendingTranscription", "AccountDefaults.bindingStatusPlaceholder"},
+            )
+
+    def test_symbol_hit_does_not_let_block_marker_in_line_comment_eat_code(self) -> None:
+        content = "# typescript path <target>/*/node_modules\nCODEMAP_SCAFFOLD = 1\n"
+        self.assertTrue(symbol_check.symbol_hit(content, "CODEMAP_SCAFFOLD", ".py"))
+        ts_content = "// path /*/node_modules\nconst KeepMe = 1;\n"
+        self.assertTrue(symbol_check.symbol_hit(ts_content, "KeepMe", ".ts"))
+
+    def test_symbol_hits_matches_qualified_reference_segments(self) -> None:
+        content = "state.lastSyncAt; RecordingForegroundService.stop(activity); data.phone"
+        self.assertEqual(
+            symbol_check.symbol_hits(
+                content, ["lastSyncAt", "RecordingForegroundService", "phone"], ".dart"
+            ),
+            {"lastSyncAt", "RecordingForegroundService", "phone"},
+        )
+
+    def test_structure_check_supports_explicit_base(self) -> None:
+        self.structure_git("init")
+        self.write_lines("src/base.py", ["def base():", "    pass"])
+        self.structure_commit_all()
+        base = subprocess.run(
+            ["git", "-C", str(self.project), "rev-parse", "HEAD"],
+            capture_output=True, text=True, check=True,
+        ).stdout.strip()
+        self.write_lines(
+            "src/base.py",
+            ["def grown():"] + ["    pass"] * 70,
+        )
+        self.structure_commit_all()
+        default = self.run_cli("structure", "check", "--target", str(self.project))
+        self.assertFalse(any("grown" in item for item in default["warnings"]))
+        with_base = self.run_cli(
+            "structure", "check", "--target", str(self.project), "--base", base,
+        )
+        self.assertTrue(any("grown" in item for item in with_base["warnings"]), with_base["warnings"])
     def test_structure_check_flags_unregistered_dart(self) -> None:
         self.structure_git("init")
         self.write_lines("lib/main.dart", ["void main() {}"])

@@ -1,0 +1,221 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "Docs Harness 遵循率优化验收",
+  "objective": "验证下游数据驱动的遵循率优化：检查器降噪、验收闭环诊断、输出契约、plan check 性能与持续指标。",
+  "key_symbols": [
+    "run_assets_check",
+    "build_report",
+    "symbol_hit",
+    "plan_check_banner"
+  ],
+  "plan_ref": "docs/plans/harness-adherence-optimization.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "c1.warn_noise",
+      "title": "检查器无新增误报，可行动 WARN 收敛",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T112720-906053c6fc",
+          "objective_fingerprint": "sha256:d1676d2b2bd56063123e28637c53e57075d14bfac99e69a7e1d8567151c34715",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "对 zbuddy-mobile/desktop 运行 assets-check --fast；mobile 4 条 WARN、desktop 33 条，无新增误报。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-adherence-optimization/c1-warn-noise.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T11:27:20+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2.acceptance_diagnostics",
+      "title": "acceptance settle/record 一次给出缺项与下一步命令",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T112720-6bf72b24b1",
+          "objective_fingerprint": "sha256:d1676d2b2bd56063123e28637c53e57075d14bfac99e69a7e1d8567151c34715",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "运行 acceptance 诊断测试；在 zbuddy-mobile 运行 acceptance list，12 份 pending 资产列出缺项 id。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-adherence-optimization/c2-acceptance-diagnostics.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T11:27:20+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3.output_contract",
+      "title": "收尾报告字段校验与模板可用",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T112720-3ac916c019",
+          "objective_fingerprint": "sha256:d1676d2b2bd56063123e28637c53e57075d14bfac99e69a7e1d8567151c34715",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "运行 report check 测试与五项字段样例报告，检查通过。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-adherence-optimization/c3-output-contract.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T11:27:20+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c4.plan_check_perf",
+      "title": "zbuddy-desktop 增量 plan check 不超过 30 秒",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T112721-c9bcc8954e",
+          "objective_fingerprint": "sha256:d1676d2b2bd56063123e28637c53e57075d14bfac99e69a7e1d8567151c34715",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "对 zbuddy-desktop/mobile 运行完整 plan check：5.8 秒 / 1.2 秒，低于 30 秒目标。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-adherence-optimization/c4-plan-check-perf.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T11:27:21+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c5.usage_metrics",
+      "title": "usage report 提供 WARN 率、真实失败率与报告完整率",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T112721-b6dfab3c9d",
+          "objective_fingerprint": "sha256:d1676d2b2bd56063123e28637c53e57075d14bfac99e69a7e1d8567151c34715",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "运行 usage report --json，检查 adherence 与 report_completeness 字段及基线。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-adherence-optimization/c5-usage-metrics.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T11:27:21+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c6.behavior_baseline",
+      "title": "behavior evals 11 条/52 检查点有基线记录与复测对比",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T121249-7a6c7f4133",
+          "objective_fingerprint": "sha256:d1676d2b2bd56063123e28637c53e57075d14bfac99e69a7e1d8567151c34715",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "两轮 11 条/52 检查点真实会话：第一轮 49/52（native-risk 初跑 2/4，规则修正后复测 4/4），第二轮 49/52；3 项未示范已在证据中列明。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-adherence-optimization/c6-behavior-baseline.md"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T12:12:49+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 8,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:9fc09e8e7040c40a297a899a91112f9c9a10475ec50f22325c9a50b3cd1eabd2",
+      "updated_at": "2026-10-22T10:33:45+00:00"
+    },
+    {
+      "revision": 2,
+      "asset_fingerprint": "sha256:b06741ba5e559903f18ab8726b9989151c2240fc6bc44573aa9db29d085aa813",
+      "updated_at": "2026-10-22T11:27:20+00:00"
+    },
+    {
+      "revision": 3,
+      "asset_fingerprint": "sha256:382e7336ed3da3ee0eb15e6ec2e3e9f98d845b8ab69dde55f3b084e4af90ebf6",
+      "updated_at": "2026-10-22T11:27:20+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:04a97be71a78342f3c814b4d2d0b6c8bc8cfee909c9c3b31488e55b574d7e3be",
+      "updated_at": "2026-10-22T11:27:20+00:00"
+    },
+    {
+      "revision": 5,
+      "asset_fingerprint": "sha256:55b9ef22ed5e54887867bb1afa82c7f8a86587e71c8c5b7de5c7bd300702e870",
+      "updated_at": "2026-10-22T11:27:21+00:00"
+    },
+    {
+      "revision": 6,
+      "asset_fingerprint": "sha256:b604ed9a90eac289eff25f252db789db0c544b36ceaddc16bc40fc9316a0b9c6",
+      "updated_at": "2026-10-22T11:27:21+00:00"
+    },
+    {
+      "revision": 7,
+      "asset_fingerprint": "sha256:a7f462b87fe5a003bffdd610487c89a6c9cdc07c8cda016ab704b883363725d7",
+      "updated_at": "2026-10-22T12:12:49+00:00"
+    }
+  ],
+  "created_at": "2026-10-22T10:33:45+00:00",
+  "updated_at": "2026-10-22T12:12:52+00:00",
+  "settled_at": "2026-10-22T12:12:52+00:00",
+  "asset_fingerprint": "sha256:3539e4b541eef9f2bd397a3d46c2c9e4152377d345e935b189c1beee19931b8b",
+  "replacement": null
+}

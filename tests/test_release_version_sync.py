@@ -29,6 +29,17 @@ class ReleaseVersionConsistencyTest(unittest.TestCase):
         self.assertIn(f"version: {version}", skill_text)
         evals = json.loads((ROOT / "evals" / "evals.json").read_text(encoding="utf-8"))
         self.assertEqual(evals["version"], version)
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn(f"badge/version-{version}-", readme)
+        for relative, title in (
+            ("docs/architecture.md", "# Docs Harness 架构"),
+            ("docs/contracts.md", "# Docs Harness 产品合同"),
+            ("docs/testing.md", "# Docs Harness 测试与验收"),
+        ):
+            self.assertTrue(
+                (ROOT / relative).read_text(encoding="utf-8").startswith(title),
+                f"{relative} 标题不应硬编码版本号",
+            )
         for template in (ROOT / "plan-templates").rglob("*.json"):
             value = json.loads(template.read_text(encoding="utf-8"))
             self.assertEqual(value["version"], version, str(template))

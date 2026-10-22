@@ -1,0 +1,45 @@
+$ python -m unittest discover -s tests -p test_cli_surface.py
+.....s.........
+----------------------------------------------------------------------
+Ran 15 tests in 3.476s
+
+OK (skipped=1)
+EXIT=0
+$ python -m unittest discover -s tests -p test_release_version_sync.py
+.
+----------------------------------------------------------------------
+Ran 1 test in 0.020s
+
+OK
+EXIT=0
+$ python scripts/harness.py assets-check --target . --fast --json
+{
+  "status": "passed",
+  "strict": false,
+  "fast": true,
+  "checked": {
+    "plans": {
+      "live_docs": 17,
+      "archived_docs": 0,
+      "markdown_files": 89
+    },
+    "knowledge": 3,
+    "acceptance": 12,
+    "adr": 5,
+    "script_hygiene": 1,
+    "structure": 35,
+    "cross": 28
+  },
+  "failures": [],
+  "warnings": [
+    "WARN: Structure: scripts/acceptance_assets.py 本次净增 66 行（582→648），突破 600 行结构评估阈值，检查职责是否混合；职责单一可保留并说明理由",
+    "WARN: Structure: scripts/harness.py 已超 600 行红线仍净增 579 行（5034→5613），复核新增逻辑是否形成独立职责；没有独立职责时可保留并说明理由",
+    "WARN: Structure: tests/test_acceptance.py 已超 600 行红线仍净增 103 行（646→749），复核新增逻辑是否形成独立职责；没有独立职责时可保留并说明理由",
+    "WARN: Structure: tests/test_plan_lifecycle.py 已超 600 行红线仍净增 156 行（795→951），复核新增逻辑是否形成独立职责；没有独立职责时可保留并说明理由",
+    "WARN: Structure: scripts/harness.py 函数 build_parser 本次增长 17 行（165→182），已超 60 行结构评估阈值，复核是否产生可独立测试的子步骤",
+    "WARN: Structure: scripts/harness.py 函数 command_project 本次增长 10 行（224→234），已超 60 行结构评估阈值，复核是否产生可独立测试的子步骤",
+    "WARN: Structure: scripts/harness.py 新增函数 record_unlinked_acceptance 共 68 行，超过 60 行结构评估阈值，检查是否含可独立测试的子步骤；职责单一可保留并说明理由"
+  ],
+  "summary": "assets-check passed：Plan/Knowledge/Acceptance/ADR/ScriptHygiene/Structure 已检查，违规 0 条、警告 7 条"
+}
+EXIT=0

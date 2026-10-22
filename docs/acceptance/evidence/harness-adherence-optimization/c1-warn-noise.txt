@@ -1,0 +1,7 @@
+D:/Project/zbuddy-mobile
+exit=0 seconds=1.1
+warnings=4 warning_summary={"total": 4, "unique": 4, "duplicates": 0, "actionable": 4, "advisory": 0, "groups": [{"group": "plan.index", "count": 2, "actionable": true}, {"group": "structure.codemap", "count": 2, "actionable": true}]}
+
+D:/Project/zbuddy-desktop
+exit=0 seconds=1.6
+warnings=33 warning_summary={"total": 33, "unique": 33, "duplicates": 0, "actionable": 33, "advisory": 0, "groups": [{"group": "structure.codemap", "count": 29, "actionable": true}, {"group": "plan.index", "count": 3, "actionable": true}, {"group": "plan.amend", "count": 1, "actionable": true}]}

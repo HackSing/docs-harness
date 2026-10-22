@@ -1,8 +1,8 @@
-# Docs Harness 2.10.0 测试与验收
+# Docs Harness 测试与验收
 
 ## 1. 普通项目任务
 
-普通项目任务不运行旧 Harness Verify。Codex 按修改面选择成本最低、但能够直接覆盖用户目标的真实流程：纯函数用聚焦输入输出或单元测试，API 启动最小服务并调用，Web/桌面界面运行真实交互，构建与安装检查真实产物；功能、视觉与交互体验由 agent 在模拟器/本地联调中自行走查（可用 mock 数据），发现不友好直接重新优化并复验，仅真实硬件、系统权限等本地确实无法运行的层准备环境后交给用户。
+普通项目任务不运行旧 Harness Verify。agent 按修改面选择成本最低、但能够直接覆盖用户目标的真实流程：纯函数用聚焦输入输出或单元测试，API 启动最小服务并调用，Web/桌面界面运行真实交互，构建与安装检查真实产物；功能、视觉与交互体验由 agent 在模拟器/本地联调中自行走查（可用 mock 数据），发现不友好直接重新优化并复验，仅真实硬件、系统权限等本地确实无法运行的层准备环境后交给用户。
 
 每次结论同时标注 L1–L5 与具体 `evidence_layer`。L2 的 `focused_test` 与 `repository_full_test` 分开，L4 的 `package_or_install`、L5 的 `real_device` 也不能由源码测试代替；真实设备客观行为不等于用户主观确认。
 
@@ -114,19 +114,48 @@
 
 见 `docs/acceptance/structure-function-check-multilanguage.md` 与证据目录 `docs/acceptance/evidence/structure-function-check-multilanguage/`：TS/Go 解析用例、增量与存量报告用例、解析器不可用降级用例，`npm test` 全量、`self-test`、`release sync --strict`、`assets-check --strict`、`npm pack --dry-run` 清单，以及下游 zbuddy-desktop 升级后 `project check`/`structure check` 结果。TS 用例在仓库自身无 node_modules 时经 `DOCS_HARNESS_TS_MODULE_DIR` 指向含 typescript 的目录运行，未设置则 skip 并说明。
 
+## 10a. 2.31.0 P0/P1/P2 修复验收证据（2026-10-22）
+
+对应验收资产：`docs/acceptance/harness-p0-p1-fixes.md`、`docs/acceptance/harness-remaining-optimizations.md`；证据目录：`docs/acceptance/evidence/harness-p0-p1/`。
+
+- L2 聚焦：Plan/Knowledge/Acceptance/ADR/Structure/CLI/show-list/amend-dry-run 相关套件全部退出码 0。
+- L2 仓库全量：`python -m unittest discover -s tests -p "test_*.py"` 运行 275 项，OK，跳过 9 项。
+- L1 合同：`plan check` 通过；`release sync` 版本源一致；`self-test` 通过。
+- L1 统一检查：`assets-check --strict` 退出码 0，0 failures，0 warnings。受管提示词已外置为 `scripts/agent_prompt.md`；控制器拆出 `plan_selection`、`plan_check`、`acceptance_amend`、`acceptance_render`、`asset_query`、`cli_support`。
+- 运行态/平台：新增 `show/list`、plan patch/acceptance amend/record/settle dry-run、Plan `progress`、UTF-8 BOM 输入、git 索引扫描与知识片段缓存测试；Windows `python3` 占位符在 README 给出 `py -3`/`python` 说明。
+- 未覆盖：`npm pack`/fresh install、下游项目升级、真实设备与用户可见验收。
+
+## 10b. 2.31.0 遵循率优化验收证据（2026-10-22）
+
+对应验收资产：`docs/acceptance/harness-adherence-optimization.md`；证据目录：`docs/acceptance/evidence/harness-adherence-optimization/`。
+
+- B0 指标：`usage report` 新增 `adherence` 与 `report_completeness`。40 天窗口基线：zbuddy-mobile 真实失败率 16.0%、WARN 率 49.2%、报告完整率 6.8%；zbuddy-desktop 9.2%、85.0%、2.3%。
+- B1 降噪：mobile 的 assets-check WARN 从 88 条降到 4 条，desktop 从历史最高 829 条降到 33 条；新增 `warning_summary`/5 条预览/`--verbose`，JSON 保留完整列表。
+- B2 验收诊断：`acceptance settle/record` 返回 `details` 与 `next_action`；`acceptance list` 在 mobile 上直接列出 12 份有 pending 标准的资产及缺项 id。
+- B3 输出契约：`report check` 五项字段校验可用；受管入口把“验收层”统一为“验证层级”，给出 focused_test / repository_full_test / local_runtime / package_or_install / real_device 枚举。
+- B4 性能：zbuddy-desktop 完整 `plan check` 从约 130 秒降到约 6 秒，mobile 约 3 秒；未使用持久缓存，靠去注释 token 批量匹配。
+- L2 聚焦：`test_structure`、`test_acceptance`、`test_acceptance_diagnostics`、`test_usage`、`test_usage_adherence`、`test_assets_check`、`test_report_check`、`test_cli_surface` 全部退出码 0。
+- L2 仓库全量：`python -m unittest discover -s tests -p "test_*.py"` 运行 293 项，OK，跳过 9 项。
+- L1 统一检查：`assets-check --strict` 退出码 0，0 failures，0 warnings；`plan check`、`acceptance check`、`self-test`、`release sync --strict` 通过。
+- L4 打包：`npm pack --dry-run` 退出码 0，63 个文件，包含 `report_check.py`、`symbol_check.py`、`acceptance_diagnostics.py`。
+- L4 下游升级：zbuddy-mobile 2.30.0→2.31.0，提交 `7c57951`；`project check` 为 `passed/in_head`，`self-test` 通过，`assets-check --fast` 4 条 WARN（2 条 Plan INDEX 漂移、2 条仅存在于注释的 CODEMAP 符号）。
+- 行为基线：11 条/52 检查点完成两轮真实会话（见 `docs/acceptance/evidence/harness-adherence-optimization/c6-behavior-baseline.md`）：第一轮 49/52（native-risk 初跑 2/4，补强确认规则后复测 4/4），第二轮 49/52。direct 用例的 `zero-harness-invocation` 改为 `zero-lifecycle-invocation`，允许 `report check`；native-risk 第二轮先用 AskUserQuestion 请求确认并备份。c6 已记录 passed。
+- 验收结算：acceptance `passed`，plan `implemented`；`plan check` 与 `acceptance check` 通过。
+- 未覆盖：subagent-evidence 的 2 项与 intent 的零基础读者核对 1 项仍未示范；未做同一版本第 3 轮稳定性采样；下游只升级 mobile，尚未做 3–7 天指标复测。
+
 ## 11. 行为用例（evals behavior）手动运行
 
 `evals/evals.json`（`schema_version: docs-harness/evals/v3`）是用例登记表，每条用例的 `kind` 二选一：
 
 - `cli`：可由命令确定性验证的行为（Plan 等级/Profile 选择、Knowledge、Acceptance、安装、迁移、旧 CLI 缺席）。`covered_by` 列出真正断言该行为的 unittest 完整 id，随 `npm test` 运行；`tests/test_evals.py` 机械守护登记表本身（schema、kind、id 唯一、`covered_by` 每项可被 `unittest` 解析为真实测试、behavior 的 `rubric` 键集合与 `expected` 一致）。测试改名或删除时必须同步 `covered_by`，否则 `test_evals` 失败。
-- `behavior`：考察模型是否遵守受管入口规则（直接执行、并行、长任务不停、子智能体证据核对、根因自检、按意图交付、结论证据等级、原生授权、用户验收交接）。`scenario.setup` 描述初始环境，`scenario.prompt` 是给模型的用户输入原文，`rubric` 对 `expected` 中每个标签给一条可观察的判定标准。暂无自动运行器。
+- `behavior`：考察模型是否遵守受管入口规则（直接执行、并行、长任务不停、子智能体证据核对、根因自检、按意图交付、结论证据等级、原生授权、用户验收交接）。`scenario.setup` 描述初始环境，`scenario.prompt` 是给模型的用户输入原文，`rubric` 对 `expected` 中每个标签给一条可观察的判定标准。暂无自动运行器。2.31.0 起 `direct-default-no-state` 的 `zero-harness-invocation` 改为 `zero-lifecycle-invocation`：允许 `report check` 做收尾字段校验，仍禁止 plan/knowledge/acceptance/verify/assets-check 等生命周期或门禁命令。
 
 何时运行：受管入口规则（仓库根 `CLAUDE.md`/`AGENTS.md` 的受管区块）有变更的版本，在发版前运行受影响规则对应的 behavior 用例；规则未变的版本不运行。
 
 怎么运行：
 
 1. 建临时下游项目：新建目录并 `git init`，从当前源码运行 `python3 <源仓>/scripts/harness.py project init --target <临时目录> --apply`（2.22.0 起不带 `--apply` 只预览），再按用例 `scenario.setup` 补齐文件与状态。
-2. 在该目录启动一个新的模型会话，原样输入 `scenario.prompt`，不追加提示。
+2. 在该目录启动一个新的模型会话，原样输入 `scenario.prompt`，不追加提示（2026-10-22 首轮基线在会话前只补充了工作目录路径，其余原文不变）。
 3. 会话结束后逐条对照 `rubric`，只看输出文本、工具调用与文件改动判定通过/不通过，不凭模型自述。
 4. 把结果追加到本节下方的运行记录：版本、日期、模型、用例 id、每个标签的通过情况、不通过标签的一句证据。
 

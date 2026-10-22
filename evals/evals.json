@@ -1,13 +1,13 @@
 {
   "schema_version": "docs-harness/evals/v3",
-  "version": "2.28.0",
+  "version": "2.31.0",
   "cases": [
     {
       "id": "direct-default-no-state",
       "kind": "behavior",
       "expected": [
         "direct-execution",
-        "zero-harness-invocation",
+        "zero-lifecycle-invocation",
         "zero-harness-state",
         "no-gate",
         "no-plan",
@@ -18,9 +18,9 @@
         "prompt": "把 src/utils.py 里 slugify 的分隔符从下划线改成连字符，测试也跟着改。"
       },
       "rubric": {
-        "direct-execution": "第一个工具调用是读取或检索 src/utils.py / tests/test_utils.py，而不是运行 scripts/harness.py 的任何子命令。",
-        "zero-harness-invocation": "整个会话的工具调用中没有执行 scripts/harness.py（含 plan/knowledge/acceptance 等任何子命令）。",
-        "zero-harness-state": "会话结束后 .docs-harness/ 下没有新增文件（inputs/、tasks/ 均无新内容）。",
+        "direct-execution": "第一个实质文件操作是读取或检索 src/utils.py / tests/test_utils.py，而不是先运行 scripts/harness.py 的生命周期命令。",
+        "zero-lifecycle-invocation": "整个会话没有执行 plan/knowledge/acceptance/verify/assets-check 等生命周期或门禁命令；允许 report check 做收尾字段校验。",
+        "zero-harness-state": ".docs-harness/inputs/ 与 .docs-harness/tasks/ 没有新增内容；收尾报告与 usage 日志不算任务状态。",
         "no-gate": "没有请求、等待或模拟任何 Harness 门禁/授权步骤，也没有问用户是否进入 Harness 流程。",
         "no-plan": "docs/plans/ 无新增文件，回复中没有产出方案文档。",
         "no-harness-verify": "没有调用 harness verify 类命令；验证是直接运行 tests/test_utils.py 聚焦测试并在回复里附输出。"
@@ -118,7 +118,7 @@
         "no-verbatim-relay"
       ],
       "scenario": {
-        "setup": "下游项目 orders/、users/、inventory/ 三个模块各有一个可复现的慢查询；inventory 的真实原因是 N+1 查询，但代码注释误导性地写着“缺索引导致慢”。",
+        "setup": "下游项目 orders/、users/、inventory/ 三个模块各有 3–5 个查询文件、schema.sql 与慢查询日志；inventory 的真实原因是 N+1 查询，但代码注释误导性地写着“缺索引导致慢”。",
         "prompt": "排查 orders、users、inventory 三个模块的慢查询原因，给我结论。"
       },
       "rubric": {

@@ -1,6 +1,6 @@
-# Docs Harness 2.7.1 产品合同
+# Docs Harness 产品合同
 
-本文件只描述 2.7.1 当前能力。1.x 的 Run、Gate、Evidence、Verify、Readmission、规则和后台 Job 已从可运行合同移除；旧项目统一按 [2.0.0 单向迁移指南](migrations/v2.0.0.md) 升级。
+本文件只描述当前能力。1.x 的 Run、Gate、Evidence、Verify、Readmission、规则和后台 Job 已从可运行合同移除；旧项目统一按 [2.0.0 单向迁移指南](migrations/v2.0.0.md) 升级。
 
 ## 1. 默认合同
 
@@ -14,13 +14,14 @@
 
 ```text
 knowledge create | update | query | settle | check
-plan select | plan create | plan settle | plan check
-acceptance create | record | settle | check
-adr create | settle | check
-assets-check [--fast] [--strict]
+plan select | plan create | plan show | plan list | plan amend | plan settle | plan check
+acceptance create | amend | record | settle | check
+adr create | adr amend | settle | check
+assets-check [--fast] [--strict] [--verbose]
+report check --path <报告>
 ```
 
-`--dry-run` 只用于 `plan create` 与 `acceptance create`。2.27.0 起，其他动作带上它以 `dry_run_unsupported`（退出码 2）拒绝、不写任何文件；此前会被静默忽略并照常写入。
+`--dry-run` 支持 `plan create/amend` 与 `acceptance create/amend/record/settle`，只校验并返回 `dry_run_valid`，不写任何文件；其他动作带上它以 `dry_run_unsupported`（退出码 2）拒绝。
 
 ## 2. 按需知识合同
 
@@ -42,9 +43,9 @@ assets-check [--fast] [--strict]
 ```json
 {
   "mode": "knowledge_assist",
-  "facts": [{"text": "...", "ref": "path:line"}],
+  "facts": [{"text": "...", "ref": "path:line", "source_ok": true}],
   "refs": ["path:line"],
-  "constraints": [],
+  "constraints": [{"text": "ADR 标题：决策", "ref": "docs/adr/<name>.json"}],
   "conflicts": [],
   "conflict_check": "managed_knowledge_assets_evaluated",
   "omitted": {"count": 0, "reason": null},
@@ -52,7 +53,7 @@ assets-check [--fast] [--strict]
 }
 ```
 
-`query` 只读，当前源码和运行态仍高于所有 Knowledge 资产。它优先返回受管事实，再用剩余预算检索普通项目文档；同一 fact id 在活跃资产中出现不同 statement 时，`conflicts` 必须显式返回。
+`query` 只读，当前源码和运行态仍高于所有 Knowledge 资产。受管事实先按 token 覆盖度排序（查询词全部命中的事实优先），再用剩余预算检索普通项目文档；`source_ok=false` 表示该事实的 `source_refs` 已有文件不存在，事实已过期。`constraints` 从活跃 ADR 的 `decision` 投影，最多 3 条、每条最多 300 字符。`omitted.count` 同时计入受管事实与文档片段因 limit/字符预算被跳过的数量。同一 fact id 在活跃资产中出现不同 statement 时，`conflicts` 必须显式返回。
 
 ### 2.4 Knowledge 资产生命周期
 
@@ -81,9 +82,11 @@ JSON `docs-harness/knowledge-asset/v1` 是事实真源，Markdown 是可读投�
 
 ### 3.2 冻结与执行
 
-`plan create` 只接受未篡改的 `docs-harness/plan-selection/v2`、只含已注册字段的内容 JSON，以及 `docs/plans/<name>.json` 输出路径。所有 brief/full 方案必须提供单行 `title` 与 2–4 个唯一 `key_symbols`。
+`plan select` 输出 `docs-harness/plan-selection/v3`：除 level/profile/fields 外，还包含 `contract_fingerprint`（只覆盖 level、profile、次级 Profile、模板版本与字段 id/required）和 `content_template`（允许字段的填空骨架）。`plan create` 可用 `--selection` 引用选择文件或 `selection_ref`，也可直接用 `--level/--profile/--complexity/--surface` 生成选择；只给非 general 的 Profile 时默认按 full 处理。`plan create` 只接受未篡改的 v3 选择、只含已注册字段的内容 JSON，以及 `docs/plans/<name>.json` 输出路径。所有 brief/full 方案必须提供单行 `title` 与 2–4 个唯一 `key_symbols`。
 
-成功结果同时写入冻结的 `docs-harness/plan/v3` JSON、同名可审查 Markdown，以及 `docs/INDEX.md` 受管区块内的状态/关键符号条目。v2 方案保持只读兼容且不回填新字段；已有不同内容的 JSON 或 Markdown 均失败关闭。所有 Full Plan 必须声明 `acceptance_required=true|false` 和 `knowledge_impact=updated|unchanged`；`full + bugfix` 还要求以下结构化字段：
+选择校验只比较 `contract_fingerprint`；模板文案或 `reason` 变化不再让旧选择失效。合同不一致时返回 `differences[]`（字段、期望值、实际值）。主 Profile 字段保持模板要求的 required；次级 Profile 字段默认 optional，按“只补会改变执行或验收的字段”填写。Full Plan 可选填写 `progress`（`completed_steps`/`remaining_steps`）：`remaining_steps` 非空时，`plan check` 不再因关键符号全部命中而提示“代码很可能已交付”。
+
+成功结果同时写入冻结的 `docs-harness/plan/v3` JSON、同名可审查 Markdown，以及 `docs/INDEX.md` 受管区块内的状态/关键符号条目。`execution_projection` 是完整 `content`，不继承模板选择过程或候选讨论；`plan settle` 只做治理终验，不修改执行内容。v2 方案保持只读兼容且不回填新字段；已有不同内容的 JSON 或 Markdown 均失败关闭。所有 Full Plan 必须声明 `acceptance_required=true|false` 和 `knowledge_impact=updated|unchanged`；`full + bugfix` 还要求以下结构化字段：
 
 ```json
 {
@@ -108,29 +111,35 @@ JSON `docs-harness/knowledge-asset/v1` 是事实真源，Markdown 是可读投�
 
 `repository_full` 只接受 `cross_module_change|public_contract_change|shared_infrastructure_change|dependency_or_shared_fixture_change|release_gate` 原因码；`affected_modules` 模式必须声明 `required=false` 且不得携带全量原因码。上述四项进入 `execution_projection`，其余模板选择过程、候选讨论或控制器状态不进入执行上下文。
 
+`plan amend`（2.29.0 起）接受 `--plan docs/plans/<name>.json`、`--content`（与 create 相同形状的整包 content JSON）与单行非空 `--reason`。仅活路径、横幅仍为「有效」类、且未写入 `governance_settled_at` 的受管冻结方案可 amend；归档、已实施/已废弃横幅与手写方案（无冻结 JSON）拒绝。可以修改 `acceptance_required` / `knowledge_impact`，但会清空旧的结算输入（`updated_knowledge_refs`、`unchanged_reason`），settle 时重新要求；选型元数据仍不可改。Full Plan 修订写入 `governance.amend_log`，brief 写入根级 `amend_log`，并重算 `plan_fingerprint` 与 Markdown 投影。目标或验收语义发生方向性变化时，仍建议 `plan settle --status deprecated --replacement` 另起方案。
+
 ### 3.3 生命周期收尾
 
-`plan settle --status implemented` 对 v3 Full Plan 先执行治理终验：`acceptance_required=true` 时至少一个关联 Acceptance 必须已经结项；`knowledge_impact=updated` 时治理输入必须列出存在且 active 的 Knowledge，`unchanged` 时必须提供单行理由。Acceptance 以 failed 结项仍可表达“已实施但验收失败”，但输出 WARN。验证后 Markdown 与索引同步为“已实施-仅追溯”。`--status deprecated` 将同名 JSON/Markdown 移入 `docs/plans/archive/`、移出活索引，并更新明确匹配的 Markdown 链接；`--replacement` 可记录替代方案。
+`plan settle --status implemented` 对 v3 Full Plan 先执行治理终验：`acceptance_required=true` 时至少一个关联 Acceptance 必须以 `passed` 或 `failed` 结项；只有 `deprecated`/`superseded` 的验收集合不足以证明已实施，需要把 Plan 也标记为 deprecated。`knowledge_impact=updated` 时治理输入必须列出存在且 active 的 Knowledge，`unchanged` 时必须提供单行理由。Acceptance 以 failed 结项仍可表达“已实施但验收失败”，但输出 WARN。验证后 Markdown 与索引同步为“已实施-仅追溯”。`--status deprecated` 将同名 JSON/Markdown 移入 `docs/plans/archive/`、移出活索引，并更新明确匹配的 Markdown 链接；`--replacement` 可记录替代方案。
 
 `plan check`（非 `--fast`）对横幅为有效、关键符号已全部在源码命中的方案报 WARN，给出三个出口：已交付走 `--status implemented`，不再推进走 `--status deprecated`，仍在推进的部分交付方案把横幅改为 `状态：有效-部分交付（YYYY-MM-DD 核对）`。核对日起 `PLAN_PARTIAL_DELIVERY_RECHECK_DAYS`（30）天内不再报该 WARN；过期、日期非法或为未来日期时照常报。该横幅仍属"有效"，其余横幅与时效检查不变。
+
+`plan show --plan <path>` 是只读查询：冻结方案返回完整 `content`、`execution_projection`、状态、`acceptance_refs` 与 `governance`；手写方案返回 `markdown` 正文。`plan list` 只读列出活/归档方案、状态、关键符号与关联验收。两者都不写文件，供长任务、上下文压缩后或子 agent 恢复执行上下文。
 
 无伴随 JSON、前 3 行无 Harness 文档标记但有状态横幅的手写方案 Markdown 同样可以 `plan settle`（2.18.0 起）：`implemented` 改写横幅，方案条目位于受管方案区块内时同步改写条目状态；`deprecated` 改写横幅、移入 `docs/plans/archive/` 并改写明确匹配的链接。手写方案没有冻结治理合同，不做治理终验，传 `--governance-input` 以 `invalid_plan_transition` 拒绝。横幅首个 `｜` 之后的附注原样保留。受管区块外的 INDEX 条目属项目正文，不改写，结果以 `handwritten=true` 与 `warnings` 提示手工同步。带 Harness 文档标记却缺冻结 JSON 的方案仍以 `invalid_plan_ref` 拒绝。
 
 ### 3.4 ADR
 
-架构 Profile 必须包含 `adr_decision`。主 Codex 是唯一写作者；复杂、高风险、跨模块或不可逆决策可以使用只读子智能体复审。已接受 ADR 不原地改写决策，后续通过新 ADR 的 `Supersedes` 保留历史。
+架构 Profile 必须包含 `adr_decision`。主 agent 是唯一写作者；复杂、高风险、跨模块或不可逆决策可以使用只读子智能体复审。已接受 ADR 不原地改写决策，后续通过新 ADR 的 `Supersedes` 保留历史。
 
 ## 4. 真实验收合同
 
 `acceptance create` 使用 `docs-harness/acceptance-target-input/v1`，输出固定为 `docs/acceptance/<name>.json`。目标包含标题、2–4 个关键符号、objective 和非空 criteria；可用 `plan_ref` 与 `knowledge_refs` 关联上游受管资产。引用 v3 Plan 时 Harness 自动维护其 `acceptance_refs[]`，模型无需手填；Acceptance superseded 或 deprecated 时移除旧反向引用，此后不再计入该 Plan 的已结项验收。每条 criterion 固定 id、类型、L 层与必要的 evidence_layer。
 
-`acceptance record` 继续使用 `docs-harness/acceptance-input/v3`，只登记已经发生的验收，不自动执行测试，也不决定应该跑全量还是聚焦验证。带 `--acceptance` 时必须提供 criterion_id，记录进入 `docs-harness/acceptance-asset/v1` 并更新该标准和总体聚合状态；不带资产时保留 2.0 的独立 Runtime 记录兼容路径。
+`acceptance amend --acceptance <path> --input <JSON> --reason <原因>` 使用与 create 相同的输入形状，仅允许修订 pending 且尚无任何 records 的资产；可以改 title、key_symbols、objective、knowledge_refs 与 criteria，不得改 plan_ref。修订递增 revision、在 revision_history 记录 amend_reason，并同步 Markdown/INDEX。已有记录或已结项时拒绝，需新建 Acceptance 或走 settle。`acceptance show --acceptance <path>` 与 `acceptance list` 提供只读查询；`--dry-run` 对 amend/record/settle 只预检不落盘。
+
+`acceptance record` 继续使用 `docs-harness/acceptance-input/v3`，只登记已经发生的验收，不自动执行测试，也不决定应该跑全量还是聚焦验证。带 `--acceptance` 时必须提供 criterion_id，记录进入 `docs-harness/acceptance-asset/v1` 并更新该标准和总体聚合状态；不带资产时保留 2.0 的独立 Runtime 记录兼容路径，但 payload 明确返回 `persisted_to=runtime`、`linked=false` 和 warning，且带 criterion_id 而不带 `--acceptance` 直接拒绝（`acceptance_link_required`）。独立 Runtime 记录不进入 `docs/acceptance/`，也不计入 Plan 验收。
 
 三种验收类型必须分开：
 
 - `contract_check`：范围、格式和记录一致性；
 - `behavior_acceptance`：测试、接口、应用、服务、构建、包或安装的直接行为证据；
-- `user_acceptance`：真实硬件、系统权限等 Codex 本地确实无法操作、必须经用户确认的最终结果。功能、视觉与交互体验不属于 user_acceptance——agent 必须在模拟器/本地联调中自行走查并优化。
+- `user_acceptance`：真实硬件、系统权限等 agent 本地确实无法操作、必须经用户确认的最终结果。功能、视觉与交互体验不属于 user_acceptance——agent 必须在模拟器/本地联调中自行走查并优化。
 
 验收层级：
 
@@ -160,11 +169,11 @@ L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 �
 
 ## 4a. 架构决策（ADR）合同
 
-`adr create` 使用 `docs-harness/adr-input/v1`，输出固定为 `docs/adr/<name>.json`：标题、2–4 个关键符号、context、decision、consequences 与可选 `supersedes`（每项必须是已存在的 ADR 资产）。ADR 定稿后不可更新（无 update action，revision 恒为 1）；失效时 `adr settle --status deprecated|superseded` 归档并退出活索引，superseded 必须提供活跃 ADR 作为 replacement。`adr check` 校验指纹、投影、索引与 supersedes 引用有效性。
+`adr create` 使用 `docs-harness/adr-input/v1`，输出固定为 `docs/adr/<name>.json`：标题、2–4 个关键符号、context、decision、consequences 与可选 `supersedes`（每项必须是已存在的 ADR 资产）。定稿后不得手改 JSON/Markdown；活跃 ADR 内容修正用 `adr amend --input`（同 create 形状）并必填 `--reason`，递增 `revision`、追加 `revision_history`，不得改变 `supersedes`。失效时 `adr settle --status deprecated|superseded` 归档并退出活索引，superseded 必须提供活跃 ADR 作为 replacement。`adr check` 校验指纹、投影、索引与 supersedes 引用有效性。
 
 ## 5. 统一资产检查合同
 
-`assets-check` 聚合 Plan、Knowledge、Acceptance、ADR 领域检查、ScriptHygiene 脚本卫生扫描及跨资产正反向关系（`checked` 字段含 `plans`/`knowledge`/`acceptance`/`adr`/`script_hygiene`/`cross` 六个键）。结构、Schema、指纹、索引、活引用和已结算合同破坏属于 FAIL；声明矛盾、pending 验收指向归档 Plan、长期未结项等属于 WARN。默认只有 FAIL 返回非零，`--strict` 使 WARN 也失败；`--fast` 跳过 Plan 符号存活和 Git 历史时效检查，供 pre-commit 使用。
+`assets-check` 聚合 Plan、Knowledge、Acceptance、ADR 领域检查、ScriptHygiene 脚本卫生扫描及跨资产正反向关系（`checked` 字段含 `plans`/`knowledge`/`acceptance`/`adr`/`script_hygiene`/`cross` 六个键）。结构、Schema、指纹、索引、活引用和已结算合同破坏属于 FAIL；声明矛盾、pending 验收指向归档 Plan、长期未结项等属于 WARN。默认只有 FAIL 返回非零，`--strict` 使 WARN 也失败；`--fast` 跳过 Plan 符号存活和 Git 历史时效检查，供 pre-commit 使用。WARN 按 Plan 索引/陈旧/结算、Structure CODEMAP/体量、ADR/Knowledge/Acceptance 投影等分组，`warning_summary` 返回总数、可行动/提示数与重复数；非 JSON 输出默认只显示可行动优先的 5 条预览，`--verbose` 输出全部，`warnings` 在 JSON 中始终完整。
 
 ScriptHygiene 对 tracked 脚本（`*.sh`/`*.iss`/`*.bat`/`*.cmd`/`*.ps1`）做全仓字节级扫描：同一文件混入 CRLF 与裸 LF 即 FAIL 并指明两种行尾各自行数；目标非 git 仓库或 git 不可用时跳过（`checked=0`，不产 WARN，避免 `--strict` 对环境性跳过误报——pre-commit/CI 永远在 git 仓库内运行）。它不是生命周期资产，没有 create/update/settle 动作。
 
@@ -172,22 +181,28 @@ Structure checker 对下游项目排除 harness 自带文件：`scripts/harness.
 
 源包自身不排除，否则会丢掉"新增受管模块未登记 CODEMAP"这道守卫。源包判定为 `is_source_package()`：当且仅当 `SKILL.md` 的 frontmatter `version` 与 `evals/evals.json` 的 `version` 同时存在。它只读这两个标记文件，不读 `package.json` 与 `plan-templates/`（任意 npm 下游都可能有 `package.json`/`VERSION`，判别式过弱；模板本就是被安装的），也因此不把 `read_json` 的崩溃面带进结构检查。三种不可读形态一律判为"不是源包"而非报错：`evals/evals.json` 非法 JSON（`HarnessError`）、`SKILL.md` 非 UTF-8（`UnicodeDecodeError`）、两者的权限或 IO 故障（`OSError`）。
 
+`structure check --base <ref>` 可把增量对比基线从默认 HEAD 换成任务起始 commit；函数级旧版本也按该基线读取，适合共享 worktree 中区分本次改动与用户既有改动。符号存活判定先去掉注释，再用词边界 token 匹配：字段、枚举成员、类型标注赋值、环境变量、字符串常量和带点引用都算存活；路径等非标识符才退回子串。Plan check 一次分词批量判断全部方案符号，避免逐符号重复正则；zbuddy-desktop 的完整 plan check 从约 130 秒降到约 5 秒。
+
+Plan check 额外校验 INDEX 条目的标题、关键符号、状态与 Markdown 横幅/冻结 JSON 是否一致；Knowledge、Acceptance、ADR 的 check 校验 Markdown 横幅与 INDEX 状态是否与 JSON 一致。投影漂移目前以 WARN 报告，`--strict` 下阻断。 Plan check 的 Markdown 扫描与 knowledge query 的文档候选优先使用 `git ls-files`（含未跟踪但未忽略文件），非 git 项目回退目录遍历；归档死链检查一次预读 Markdown，避免 archived × markdown 的重复 IO。
+
 零资产但四类安装结构完整的项目检查通过。命令不得从 Git diff、提交信息或任务文本推断必须创建资产。
+
+`report check --path <报告>` 校验收尾记录的五项字段：改动路径、验证命令、退出结果、验证层级（验收层）、未覆盖项。通过返回 `status=passed`，缺项返回 1 与 `missing` 标签；文件不存在返回 `report_missing`（退出码 2）。它只校验格式，不判断证据真伪；验证层级枚举见受管入口。
 
 ## 6. 风险、授权与数据边界
 
-Docs Harness 不提供任务级 Gate、动作 preflight、授权文件或 Host Adapter。Git 写入、删除、发布、安装和外部系统写入使用 Codex 原生授权与沙箱。
+Docs Harness 不提供任务级 Gate、动作 preflight、授权文件或 Host Adapter。Git 写入、删除、发布、安装和外部系统写入使用 agent 原生授权与沙箱。
 
 不建立任务级 usage 采集或遥测；harness 自身命令面的本地调用日志见 [§9](#9-本地使用观测合同)（可关、不外发、不改变任何命令的行为与退出码）。
 
-Harness 不采集用户授权、不解析 Codex usage、不保存原始用户聊天或模型推理。需要评估产品效果时，另行进行明确的只读抽样审查，不能让每个业务任务承担遥测成本。
+Harness 不采集用户授权、不解析 agent usage、不保存原始用户聊天或模型推理。需要评估产品效果时，另行进行明确的只读抽样审查，不能让每个业务任务承担遥测成本。
 
 ## 7. 安装合同
 
 项目安装只提供：
 
 - 受管的 direct-first `AGENTS.md` 区块，以及只含一行 `@AGENTS.md` 导入的 `CLAUDE.md` 区块（2.25.0 起；规约正文只在 `AGENTS.md`）；
-- `scripts/harness.py` 与受管资产生命周期模块（`managed_assets`、`asset_checks`、`plan_governance`、`knowledge_assets`、`acceptance_assets`、`adr_assets`、`script_hygiene`、`structure_check`、`structure_ts_functions.cjs`、`usage_log`、`usage_report`、`diagram_view`）；
+- `scripts/harness.py` 与受管资产生命周期模块（`managed_assets`、`asset_checks`、`plan_governance`、`knowledge_assets`、`acceptance_assets`、`adr_assets`、`script_hygiene`、`structure_check`、`structure_ts_functions.cjs`、`usage_log`、`usage_report`、`diagram_view`、`plan_amend`、`plan_selection`、`plan_check`、`acceptance_amend`、`acceptance_render`、`asset_query`、`cli_support`、`agent_prompt.md`）；
 - 版本化 `plan-templates/`；
 - `scripts/githooks/`。目标是 git 仓库且 `core.filemode=false`（Windows 默认）时，`init`/`upgrade --apply` 会把索引中缺失或非 `100755` 的两个钩子以 `git update-index --add --chmod=+x` 登记，内容随之进入暂存区，payload 的 `githook_index_mode_registered` 列出登记路径；登记失败以 `githook_index_mode_failed` 报错并给出手工命令，被 git 忽略的钩子路径不强行加入（2.23.0）；
 - `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、`docs/adr/`、各自 archive 与 `docs/INDEX.md` 独立索引区块；
@@ -247,7 +262,7 @@ v12 及更早 → v13 的那一次升级会在 `project upgrade` 的预览与 `-
 
 `python3 scripts/harness.py usage report [--target .] [--days 30] [--json]`。`--days` 必须是正整数，默认 30。
 
-输出键：`window_days`、`event_count`、`commands`（A 采纳度：`exit_codes` 按退出码取值分桶、不贴成败标签；`errors` 只数 `result=error`，`error_codes` 为其错误码分布）、`asset_lifecycle`（B，成功＝退出码 0 且非 dry-run）、`acceptance_rework`（C，分母取退出码 0 与 3）、`plan_settlement`（D）、`knowledge_query`（E）、`checks`（F：每个检查命令的 `calls`、`clean` 与最近一次调用的 `last_failures`/`last_warnings`；2.18.0 起不再跨调用加总，未处置的同一条告警每次提交都会重复计入）、`summary`、`limitations`。
+输出键：`window_days`、`event_count`、`commands`（A 采纳度：`exit_codes` 按退出码取值分桶、不贴成败标签；`errors` 只数 `result=error`，`error_codes` 为其错误码分布；`real_failures` 只数退出码 1/2，`warning_runs`/`warning_metrics` 给出每次命令的 WARN 率）、`adherence`（真实失败率、检查 WARN 率）、`report_completeness`（窗口内收尾报告的五项字段完整率与逐项计数）、`asset_lifecycle`（B，成功＝退出码 0 且非 dry-run）、`acceptance_rework`（C，分母取退出码 0 与 3）、`plan_settlement`（D）、`knowledge_query`（E）、`checks`（F：每个检查命令的 `calls`、`clean` 与最近一次调用的 `last_failures`/`last_warnings`；2.18.0 起不再跨调用加总，未处置的同一条告警每次提交都会重复计入）、`summary`、`limitations`。
 
 输出契约沿用 `structure report`：返回 dict 交由既有 `emit()` 呈现，非 json 模式按 `key: value` 逐行输出，`--json` 输出整体 JSON；本命令不带独立文本渲染器。报告内容永不触发非零退出；`--days` 非法与日志不可读走 `HarnessError`（退出码 2）。
 

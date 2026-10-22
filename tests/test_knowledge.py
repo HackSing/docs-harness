@@ -200,6 +200,150 @@ class KnowledgeTest(HarnessTestBase):
         self.assertEqual(updated["revision"], 2)
         checked = self.run_cli("knowledge", "check", "--target", str(self.project))
         self.assertEqual(checked["status"], "passed")
+    def test_knowledge_query_ranks_managed_facts_by_token_coverage(self) -> None:
+        source = self.project / "src/runtime.txt"
+        source.parent.mkdir(parents=True)
+        source.write_text("source\n", encoding="utf-8")
+        for name, fact_id, statement in (
+            ("alpha", "alpha.fact", "Alpha Beta owns the runtime."),
+            ("beta", "beta.fact", "Alpha only owns the runtime."),
+        ):
+            value = self.knowledge_input(name, statement)
+            value["facts"][0]["id"] = fact_id
+            input_path = self.write_json(f"inputs/{name}.json", value)
+            self.run_cli(
+                "knowledge", "create", "--target", str(self.project),
+                "--input", str(input_path.relative_to(self.project)),
+                "--output", f"docs/knowledge/{name}.json",
+            )
+        payload = self.run_cli(
+            "knowledge", "query", "--target", str(self.project),
+            "--query", "Alpha Beta", "--limit", "2",
+        )
+        self.assertEqual(payload["facts"][0]["fact_id"], "alpha.fact")
+    def test_knowledge_query_marks_missing_source_refs(self) -> None:
+        source = self.project / "src/runtime.txt"
+        source.parent.mkdir(parents=True)
+        source.write_text("KnowledgeOwner owns the runtime.\n", encoding="utf-8")
+        value = self.write_json("inputs/source-ok.json", self.knowledge_input("来源检查", "KnowledgeOwner 拥有运行时。"))
+        self.run_cli(
+            "knowledge", "create", "--target", str(self.project),
+            "--input", str(value.relative_to(self.project)),
+            "--output", "docs/knowledge/source-ok.json",
+        )
+        before = self.run_cli(
+            "knowledge", "query", "--target", str(self.project),
+            "--query", "KnowledgeOwner", "--limit", "1",
+        )
+        self.assertTrue(before["facts"][0]["source_ok"])
+        source.unlink()
+        after = self.run_cli(
+            "knowledge", "query", "--target", str(self.project),
+            "--query", "KnowledgeOwner", "--limit", "1",
+        )
+        self.assertFalse(after["facts"][0]["source_ok"])
+    def test_knowledge_query_includes_active_adr_constraints(self) -> None:
+        adr = self.write_json(
+            "inputs/constraint-adr.json",
+            {
+                "schema_version": "docs-harness/adr-input/v1",
+                "title": "约束决策",
+                "key_symbols": ["ADR_SPEC", "adr_create"],
+                "context": "背景",
+                "decision": "所有存储写入必须原子化。",
+                "consequences": "影响",
+            },
+        )
+        self.run_cli(
+            "adr", "create", "--target", str(self.project),
+            "--input", str(adr.relative_to(self.project)),
+            "--output", "docs/adr/constraint.json",
+        )
+        payload = self.run_cli(
+            "knowledge", "query", "--target", str(self.project),
+            "--query", "runtime", "--limit", "1",
+        )
+        self.assertTrue(
+            any("所有存储写入必须原子化" in item["text"] for item in payload["constraints"]),
+            payload["constraints"],
+        )
+        self.assertTrue(
+            any(item["ref"] == "docs/adr/constraint.json" for item in payload["constraints"]),
+            payload["constraints"],
+        )
+    def test_knowledge_check_warns_on_markdown_and_index_status_drift(self) -> None:
+        source = self.project / "src/runtime.txt"
+        source.parent.mkdir(parents=True)
+        source.write_text("KnowledgeOwner owns the runtime.\n", encoding="utf-8")
+        value = self.write_json("inputs/drift.json", self.knowledge_input("漂移检查", "KnowledgeOwner 拥有运行时。"))
+        self.run_cli(
+            "knowledge", "create", "--target", str(self.project),
+            "--input", str(value.relative_to(self.project)),
+            "--output", "docs/knowledge/drift.json",
+        )
+        document = self.project / "docs/knowledge/drift.md"
+        document.write_text(
+            document.read_text(encoding="utf-8").replace(
+                "> 状态：有效（现行事实）", "> 状态：已废弃"
+            ),
+            encoding="utf-8",
+        )
+        index_path = self.project / "docs/INDEX.md"
+        index_path.write_text(
+            index_path.read_text(encoding="utf-8").replace(
+                "knowledge/drift.md) — 状态：有效（现行事实）",
+                "knowledge/drift.md) — 状态：已废弃",
+            ),
+            encoding="utf-8",
+        )
+        checked = self.run_cli("knowledge", "check", "--target", str(self.project))
+        self.assertTrue(
+            any("Markdown 状态" in item and "不一致" in item for item in checked["warnings"]),
+            checked["warnings"],
+        )
+        self.assertTrue(
+            any("docs/INDEX.md" in item and "不一致" in item for item in checked["warnings"]),
+            checked["warnings"],
+        )
+    def test_knowledge_status_note_is_not_projection_drift(self) -> None:
+        source = self.project / "src/runtime.txt"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("source\n", encoding="utf-8")
+        value = self.write_json(
+            "inputs/status-note.json",
+            self.knowledge_input("状态备注", "KnowledgeOwner 拥有运行时。"),
+        )
+        self.run_cli(
+            "knowledge", "create", "--target", str(self.project),
+            "--input", str(value.relative_to(self.project)),
+            "--output", "docs/knowledge/status-note.json",
+        )
+        document = self.project / "docs/knowledge/status-note.md"
+        document.write_text(
+            document.read_text(encoding="utf-8").replace(
+                "> 状态：有效（现行事实）",
+                "> 状态：有效（现行事实；2026-10-22 复核：源码仍支持）",
+            ),
+            encoding="utf-8",
+        )
+        index_path = self.project / "docs/INDEX.md"
+        index_path.write_text(
+            index_path.read_text(encoding="utf-8").replace(
+                "knowledge/status-note.md) — 状态：有效（现行事实）",
+                "knowledge/status-note.md) — 状态：有效（现行事实",
+            ),
+            encoding="utf-8",
+        )
+        checked = self.run_cli("knowledge", "check", "--target", str(self.project))
+        self.assertFalse(
+            any("Markdown 状态" in item for item in checked["warnings"]),
+            checked["warnings"],
+        )
+        self.assertFalse(
+            any("docs/INDEX.md" in item and "不一致" in item for item in checked["warnings"]),
+            checked["warnings"],
+        )
+
     def test_knowledge_conflict_is_visible_and_settle_archives(self) -> None:
         source = self.project / "src/runtime.txt"
         source.parent.mkdir(parents=True)

@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness_test_base import HarnessTestBase
+from managed_assets import seal_asset
 
 
 class PlanGovernanceTest(HarnessTestBase):
@@ -189,6 +190,43 @@ class PlanGovernanceTest(HarnessTestBase):
             "--governance-input", str(governance_input.relative_to(self.project)),
         )
         self.assertTrue(any("failed" in item for item in settled["warnings"]))
+    def test_plan_v3_rejects_only_deprecated_terminal_acceptance(self) -> None:
+        self.create_full_plan(
+            acceptance_required=True,
+            knowledge_impact="unchanged",
+            basename="deprecated-only",
+        )
+        target = self.acceptance_target("contract_check")
+        target["plan_ref"] = "docs/plans/deprecated-only.json"
+        target_input = self.write_json("inputs/deprecated-target.json", target)
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(target_input.relative_to(self.project)),
+            "--output", "docs/acceptance/deprecated-only.json",
+        )
+        # 模拟历史/手工造成的状态：已完成 deprecated 结项但 Plan 反向引用仍在。
+        acceptance_path = self.project / "docs/acceptance/deprecated-only.json"
+        asset = json.loads(acceptance_path.read_text(encoding="utf-8"))
+        asset["status"] = "deprecated"
+        asset["settled_at"] = "2026-10-21T00:00:00+00:00"
+        acceptance_path.write_text(
+            json.dumps(seal_asset(asset), ensure_ascii=False, indent=2) + "\n",
+            encoding="utf-8",
+        )
+        governance_input = self.write_json(
+            "inputs/deprecated-governance.json",
+            {
+                "schema_version": "docs-harness/plan-governance-input/v1",
+                "unchanged_reason": "只验证门禁，不产生 Knowledge 更新。",
+            },
+        )
+        rejected = self.run_cli(
+            "plan", "settle", "--target", str(self.project),
+            "--plan", "docs/plans/deprecated-only.json", "--status", "implemented",
+            "--governance-input", str(governance_input.relative_to(self.project)),
+            expected=2,
+        )
+        self.assertEqual(rejected["code"], "acceptance_required_not_satisfied")
     def test_acceptance_supersede_removes_plan_backref(self) -> None:
         plan_path = self.create_full_plan(
             acceptance_required=False,

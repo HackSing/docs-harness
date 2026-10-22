@@ -15,7 +15,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 import harness  # noqa: E402
 from harness_test_base import HarnessTestBase  # noqa: E402
 
-
 class PlanLifecycleTest(HarnessTestBase):
     def test_plan_check_fails_when_docs_system_is_missing(self) -> None:
         payload = self.run_cli("plan", "check", "--target", str(self.project), expected=1)
@@ -44,6 +43,18 @@ class PlanLifecycleTest(HarnessTestBase):
         failures = payload["failures"]
         self.assertTrue(any("缺少状态横幅" in item for item in failures))
         self.assertTrue(any("引用已归档文档旧路径" in item for item in failures))
+    def test_full_level_requires_flowchart_and_ux_journey_fields(self) -> None:
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project),
+            "--level", "full", "--profile", "general",
+        )
+        fields = {item["id"]: item for item in selection["fields"]}
+        for field_id in ("process_flowchart", "ux_journey"):
+            self.assertIn(field_id, fields)
+            self.assertTrue(fields[field_id]["required"])
+            self.assertTrue(fields[field_id]["guidance"])
+        self.assertIn("mermaid", fields["process_flowchart"]["guidance"].lower())
+
     def test_plan_select_uses_effects_not_task_text(self) -> None:
         none = self.run_cli("plan", "select", "--target", str(self.project))
         self.assertEqual(none["plan_level"], "none")
@@ -559,7 +570,7 @@ class PlanLifecycleTest(HarnessTestBase):
         before = self.snapshot_project()
         for args in (
             ("plan", "settle", "--plan", "docs/plans/kept.json", "--status", "deprecated"),
-            ("acceptance", "record", "--acceptance", "docs/acceptance/missing.json"),
+            ("plan", "check"),
         ):
             rejected = self.run_cli(*args, "--target", str(self.project), "--dry-run", expected=2)
             self.assertEqual(rejected["code"], "dry_run_unsupported")

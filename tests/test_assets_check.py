@@ -15,10 +15,64 @@ from harness_test_base import HarnessTestBase, ROOT
 
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import asset_checks  # noqa: E402
+import harness  # noqa: E402
 from plan_governance import plan_fingerprint
 
 
 class AssetsCheckTest(HarnessTestBase):
+    def test_warning_summary_groups_and_preview(self) -> None:
+        warnings = [
+            "WARN: docs/plans/a.md: 横幅为有效但关键符号已全部在源码命中，代码很可能已交付",
+            "WARN: Structure: CODEMAP 中 src/a.py 的公开接口 `a` 在源码中不存在，索引已失活",
+            "WARN: Structure: CODEMAP 中 src/b.py 的公开接口 `b` 在源码中不存在，索引已失活",
+        ]
+        summary = asset_checks.summarize_warnings(warnings)
+        self.assertEqual(summary["total"], 3)
+        self.assertEqual(summary["unique"], 3)
+        self.assertEqual(summary["duplicates"], 0)
+        self.assertEqual(summary["actionable"], 2)
+        self.assertEqual(summary["advisory"], 1)
+        groups = {item["group"]: item["count"] for item in summary["groups"]}
+        self.assertEqual(groups, {"structure.codemap": 2, "plan.delivery_hint": 1})
+        self.assertEqual(
+            asset_checks.preview_warnings(warnings, limit=1),
+            [warnings[1]],
+            "预览应先展示可行动项",
+        )
+
+    def test_settled_plan_skips_amend_count_warning(self) -> None:
+        log = [{"reason": f"amend {index}"} for index in range(3)]
+        active = {"governance": {"amend_log": log}}
+        settled = {"governance": {"amend_log": log, "governance_settled_at": "2026-10-22T00:00:00+00:00"}}
+        self.assertIsNotNone(asset_checks._plan_amend_warning(active, active["governance"], "docs/plans/x.json"))
+        self.assertIsNone(asset_checks._plan_amend_warning(settled, settled["governance"], "docs/plans/x.json"))
+
+    def test_emit_uses_warning_preview_for_human_output(self) -> None:
+        import contextlib
+        import io
+
+        payload = {
+            "status": "passed",
+            "warnings": [f"WARN: w{i}" for i in range(10)],
+            "warnings_preview": ["WARN: w0", "WARN: w1"],
+            "summary": "summary",
+        }
+        buffer = io.StringIO()
+        with contextlib.redirect_stdout(buffer):
+            harness.emit(payload, False)
+        output = buffer.getvalue()
+        self.assertIn("预览 2 条", output)
+        self.assertIn("- WARN: w0", output)
+        self.assertNotIn("WARN: w9", output)
+
+    def test_assets_check_verbose_flag_is_accepted(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
+        payload = self.run_cli(
+            "assets-check", "--target", str(self.project), "--verbose"
+        )
+        self.assertEqual(payload["status"], "passed")
+
     def test_release_sync_strict_requires_changelog_top_version(self) -> None:
         version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
         (self.project / "scripts").mkdir(parents=True)

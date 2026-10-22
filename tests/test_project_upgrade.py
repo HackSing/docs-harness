@@ -17,7 +17,12 @@ from harness_test_base import HarnessTestBase, ROOT, MANAGED_MODULES, REQUIRES_S
 
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from harness import USAGE_ENABLED_NOTICE, usage_enabled_notices  # noqa: E402
+from harness import (  # noqa: E402
+    HARNESS_PLAN_V230_NOTICE,
+    USAGE_ENABLED_NOTICE,
+    project_upgrade_notices,
+    usage_enabled_notices,
+)
 
 
 class ProjectUpgradeTest(HarnessTestBase):
@@ -534,6 +539,41 @@ class UsageEnabledNoticeTest(HarnessTestBase):
         self.upgrade("--apply")
         self.assertNotIn("notices", self.upgrade())
         self.assertNotIn("notices", self.upgrade("--apply"))
+
+    def test_upgrade_from_pre_230_includes_harness_plan_notice(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
+        config = json.loads(
+            (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
+        )
+        config["version"] = "2.29.0"
+        self.write_json(".docs-harness/config.json", config)
+        preview = self.upgrade()
+        self.assertIn("notices", preview)
+        self.assertIn(HARNESS_PLAN_V230_NOTICE, preview["notices"])
+        apply_payload = self.upgrade("--apply")
+        self.assertIn(HARNESS_PLAN_V230_NOTICE, apply_payload["notices"])
+
+    def test_upgrade_from_230_does_not_repeat_harness_plan_notice(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
+        config = json.loads(
+            (self.project / ".docs-harness" / "config.json").read_text(encoding="utf-8")
+        )
+        config["version"] = "2.30.0"
+        self.write_json(".docs-harness/config.json", config)
+        payload = self.upgrade("--apply")
+        notices = payload.get("notices", [])
+        self.assertTrue(all(HARNESS_PLAN_V230_NOTICE not in item for item in notices))
+
+    def test_project_upgrade_notices_composes_usage_and_plan(self) -> None:
+        v12 = {"version": "2.16.0"}
+        notices = project_upgrade_notices(
+            action="upgrade",
+            from_version="2.16.0",
+            existing=v12,
+            usage_enabled=True,
+        )
+        self.assertEqual(notices[0], HARNESS_PLAN_V230_NOTICE)
+        self.assertEqual(notices[1], USAGE_ENABLED_NOTICE)
 
     def test_usage_enabled_notices_truth_table(self) -> None:
         """三个条件缺一不可，逐个打掉验证。"""

@@ -211,13 +211,17 @@ class CliSurfaceTest(HarnessTestBase):
         # plan settle 接线）与非 create 动作拒收 --dry-run，字节上限随之上调——第 10 次上调。
         # 2.28.0 view 命令（Mermaid → HTML，渲染/落盘/打开在 diagram_view，控制器只增注册面与错误码映射）
         # 与受管正文「呈现形式」出图条款重写（约 1.3 KB），行数与字节上限随之上调——第 11 次上调。
+        # 2.29.0 plan/adr amend（plan_amend 受管模块 + 受管正文 amend 判据），控制器只增注册面，\
+        # 行数与字节上限随之上调——第 12 次上调。
+        # 2.31.0 P0/P1 修复（完整 projection、plan show、acceptance amend、知识排序、
+        # 错误 envelope、action flag 边界）控制器职责增加，行数与字节上限随之上调——第 13 次上调。
         # 两道体量闸的分工：本地由 Structure 增量 WARN 触发结构评估；CI 由本上限硬拦。
         # Structure 增量检查对比 HEAD，提交后增量恒为空，CI 的 assets-check --strict
         # 永远看不到 harness.py 的体量 WARN，所以本上限是 CI 中唯一拦得住 harness.py
         # 无限增长的硬闸，"每次上调都要动测试文件"正是它的守卫方式。
         # 上限的去留由 TODO.md 第 5 条登记的体量债整理任务决定，不在功能任务里处置。
-        self.assertLess(HARNESS.stat().st_size, 225_000)
-        self.assertLess(len(source.splitlines()), 5_050)
+        self.assertLess(HARNESS.stat().st_size, 262_000)
+        self.assertLess(len(source.splitlines()), 5_750)
         for symbol in (
             "def command_run(",
             "def command_context(",
@@ -290,6 +294,66 @@ class CliSurfaceTest(HarnessTestBase):
             self.assertEqual(result.returncode, 0, f"{command} {action}: {result.stderr}")
             for needle in needles:
                 self.assertIn(needle, result.stdout, f"{command} {action} 缺少 {needle}")
+    def test_json_input_accepts_utf8_bom(self) -> None:
+        source = self.project / "src" / "runtime.txt"
+        source.parent.mkdir(parents=True, exist_ok=True)
+        source.write_text("KnowledgeOwner owns the runtime.\n", encoding="utf-8")
+        path = self.project / ".docs-harness" / "inputs" / "bom.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(self.knowledge_input("BOM 知识", "KnowledgeOwner 拥有运行时。"), ensure_ascii=False),
+            encoding="utf-8-sig",
+        )
+        payload = self.run_cli(
+            "knowledge", "create", "--target", str(self.project),
+            "--input", str(path.relative_to(self.project)),
+            "--output", "docs/knowledge/bom.json",
+        )
+        self.assertEqual(payload["status"], "created")
+
+    def test_action_specific_flags_are_rejected(self) -> None:
+        knowledge = self.run_cli(
+            "knowledge", "check", "--target", str(self.project),
+            "--status", "deprecated", expected=2,
+        )
+        self.assertEqual(knowledge["code"], "unsupported_flag")
+        self.assertIn("--status", knowledge["message"])
+        plan = self.run_cli(
+            "plan", "check", "--target", str(self.project),
+            "--level", "full", expected=2,
+        )
+        self.assertEqual(plan["code"], "unsupported_flag")
+        self.assertIn("--level", plan["message"])
+    def test_invalid_json_reports_line_and_column(self) -> None:
+        bad = self.project / ".docs-harness" / "inputs" / "bad.json"
+        bad.parent.mkdir(parents=True, exist_ok=True)
+        bad.write_text('{"a":}', encoding="utf-8")
+        payload = self.run_cli(
+            "knowledge", "create", "--target", str(self.project),
+            "--input", str(bad), "--output", "docs/knowledge/never.json", expected=2,
+        )
+        self.assertEqual(payload["code"], "invalid_json")
+        self.assertEqual(payload["details"]["line"], 1)
+        self.assertIn("第 1 行", payload["message"])
+    def test_plan_create_reports_all_validation_errors(self) -> None:
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project), "--level", "brief",
+        )
+        selection_path = self.write_json("inputs/aggregate-selection.json", selection)
+        content_path = self.write_json(
+            "inputs/aggregate-content.json",
+            {"title": "不完整方案", "unexpected_field": "x"},
+        )
+        payload = self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--selection", str(selection_path.relative_to(self.project)),
+            "--content", str(content_path.relative_to(self.project)),
+            "--output", "docs/plans/aggregate.json", expected=2,
+        )
+        self.assertGreaterEqual(len(payload["errors"]), 2)
+        messages = " ".join(item["message"] for item in payload["errors"])
+        self.assertIn("unexpected_field", messages)
+        self.assertIn("key_symbols", messages)
     def test_docs_check_command_removed(self) -> None:
         result = subprocess.run(
             [sys.executable, str(HARNESS), "docs-check", "--target", str(self.project)],

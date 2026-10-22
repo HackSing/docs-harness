@@ -1,0 +1,28 @@
+$ python -m unittest discover -s tests -p test_knowledge.py
+....s.......
+----------------------------------------------------------------------
+Ran 12 tests in 7.394s
+
+OK (skipped=1)
+EXIT=0
+$ python -m unittest discover -s tests -p test_structure.py
+....ss...................
+----------------------------------------------------------------------
+Ran 25 tests in 15.832s
+
+OK (skipped=2)
+EXIT=0
+$ python -m unittest discover -s tests -p test_assets_check.py
+........
+----------------------------------------------------------------------
+Ran 8 tests in 9.977s
+
+OK
+EXIT=0
+$ python -m unittest discover -s tests -p test_adr.py
+......
+----------------------------------------------------------------------
+Ran 6 tests in 6.743s
+
+OK
+EXIT=0

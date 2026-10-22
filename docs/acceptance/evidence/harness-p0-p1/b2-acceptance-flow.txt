@@ -1,0 +1,21 @@
+$ python -m unittest discover -s tests -p test_acceptance.py
+........................
+----------------------------------------------------------------------
+Ran 24 tests in 8.833s
+
+OK
+EXIT=0
+$ python -m unittest discover -s tests -p test_plan_amend.py
+...
+----------------------------------------------------------------------
+Ran 3 tests in 1.764s
+
+OK
+EXIT=0
+$ python -m unittest discover -s tests -p test_plan_governance.py
+.............
+----------------------------------------------------------------------
+Ran 13 tests in 12.778s
+
+OK
+EXIT=0

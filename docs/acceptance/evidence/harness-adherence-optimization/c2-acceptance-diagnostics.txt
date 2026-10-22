@@ -1,0 +1,18 @@
+$ python -m unittest tests.test_acceptance tests.test_acceptance_diagnostics
+exit=0
+['Ran 24 tests in 9.749s', '', 'OK']
+
+$ acceptance list --target D:/Project/zbuddy-mobile --json
+exit=0 count=49 with_pending=12
+docs/acceptance/ai-tasks-per-item-parallelism.json pending=1/4 ids=c4
+docs/acceptance/chat-attachment-persistence.json pending=1/5 ids=c5
+docs/acceptance/ios-domestic-launch.json pending=2/9 ids=c2,c3
+docs/acceptance/long-audio-chunked-transcription.json pending=3/6 ids=c0,c4,c5
+docs/acceptance/long-recording-stability.json pending=1/5 ids=c5
+docs/acceptance/media-detail-export-download.json pending=2/5 ids=c4,c5
+docs/acceptance/memory-page-ux-rework.json pending=2/4 ids=c3,c4
+docs/acceptance/playback-now-playing.json pending=1/7 ids=c7
+docs/acceptance/q10-hardware-followup.json pending=1/1 ids=c1
+docs/acceptance/ztai-gateway-and-device-gate.json pending=2/5 ids=c4,c5
+docs/acceptance/archive/q10-media-download-channel.json pending=1/4 ids=c4
+docs/acceptance/archive/ztai-recording-transcription-and-live.json pending=3/6 ids=c3,c4,c5

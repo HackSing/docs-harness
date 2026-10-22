@@ -1,0 +1,125 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "Harness 剩余优化验收",
+  "objective": "验证 P0/P1/P2 剩余优化：严格门禁、状态查询、amend/dry-run、性能/知识质量、提示词与平台兼容。",
+  "key_symbols": [
+    "plan_check",
+    "acceptance_show",
+    "knowledge_index",
+    "agent_prompt"
+  ],
+  "plan_ref": "docs/plans/harness-remaining-optimizations.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "r0.strict_gate",
+      "title": "R0 模块拆分与 assets-check --strict 通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T090626-9bff75dcde",
+          "objective_fingerprint": "sha256:0a126024cead24f0f9f10f73d44b6169df9a6a768099afbefd12a53a3f84b396",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "运行 assets-check --strict、project install/upgrade 与 CLI surface 测试，全部通过",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-remaining-optimizations/r0-strict-gate.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T09:06:26+00:00"
+        }
+      ]
+    },
+    {
+      "id": "r1.state_and_amend",
+      "title": "R1 状态查询、amend/dry-run 与 CLI/检查器测试通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T090626-9d613cabc0",
+          "objective_fingerprint": "sha256:0a126024cead24f0f9f10f73d44b6169df9a6a768099afbefd12a53a3f84b396",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "运行 show/list、plan amend、acceptance amend 与 CLI surface 测试，全部通过",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-remaining-optimizations/r1-state-and-amend.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T09:06:26+00:00"
+        }
+      ]
+    },
+    {
+      "id": "r2.scale_and_prompt",
+      "title": "R2 性能、知识检索、提示词与平台测试通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261022T090627-8767b0dcf5",
+          "objective_fingerprint": "sha256:0a126024cead24f0f9f10f73d44b6169df9a6a768099afbefd12a53a3f84b396",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "运行 knowledge/structure/plan selection 测试与 assets-check --strict，全部通过",
+          "evidence_refs": [
+            "docs/acceptance/evidence/harness-remaining-optimizations/r2-scale-and-prompt.txt"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-22T09:06:27+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 5,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:0aa31872e21776ece655ed1db8862f54dc7478d2104bb07046d3a8549ce350d8",
+      "updated_at": "2026-10-22T08:32:41+00:00"
+    },
+    {
+      "revision": 2,
+      "asset_fingerprint": "sha256:d6c1bbb2f78f81f3e314ce29e52de3b450c255b8997ef63a3b536cf97dd8521b",
+      "updated_at": "2026-10-22T09:06:26+00:00"
+    },
+    {
+      "revision": 3,
+      "asset_fingerprint": "sha256:e90a0570f165cb2cde289f341be62052ee7f095a6989a35ed23cd64a77455a0a",
+      "updated_at": "2026-10-22T09:06:26+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:934fc8f31afe15b307f4ef2f2f868823733481c9244193455db8ff7d0e938e14",
+      "updated_at": "2026-10-22T09:06:27+00:00"
+    }
+  ],
+  "created_at": "2026-10-22T08:32:41+00:00",
+  "updated_at": "2026-10-22T09:06:31+00:00",
+  "settled_at": "2026-10-22T09:06:31+00:00",
+  "asset_fingerprint": "sha256:33598b0779b15333dbb77dd0700ffd5d88af014d5150da2570e03313be3bbf9d",
+  "replacement": null
+}

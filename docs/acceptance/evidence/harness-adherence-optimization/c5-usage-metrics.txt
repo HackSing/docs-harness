@@ -1,0 +1,9 @@
+D:/Project/zbuddy-mobile: exit=0
+adherence={"real_failures": 44, "real_failure_rate": 0.154, "check_runs": 185, "warning_runs": 95, "warning_rate": 0.514}
+report_completeness={"reports": 44, "complete": 3, "rate": 0.068, "fields": {"path": 44, "command": 37, "exit": 5, "layer": 26, "uncovered": 35}}
+summary=usage report 30 天窗口：事件 285 条、命令面 19 个、检查类调用 180 次、真实失败率 15.4%、WARN 率 51.4%、收尾报告完整率 6.8%、acceptance 记录 11 条、knowledge 查询 0 次
+
+D:/Project/zbuddy-desktop: exit=0
+adherence={"real_failures": 46, "real_failure_rate": 0.09, "check_runs": 273, "warning_runs": 233, "warning_rate": 0.853}
+report_completeness={"reports": 88, "complete": 2, "rate": 0.023, "fields": {"path": 88, "command": 71, "exit": 9, "layer": 37, "uncovered": 63}}
+summary=usage report 30 天窗口：事件 511 条、命令面 19 个、检查类调用 265 次、真实失败率 9.0%、WARN 率 85.3%、收尾报告完整率 2.3%、acceptance 记录 44 条、knowledge 查询 4 次

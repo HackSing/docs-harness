@@ -7,6 +7,7 @@
 - [架构](architecture.md)
 - [代码能力索引](CODEMAP.md)
 - [测试与验收](testing.md)
+- [维护者协作规则](contributing.md)
 - [当前待办](todo.md)
 - [下游项目](downstream.md)
 
@@ -29,6 +30,9 @@
 - [本地 Usage Log 与 Usage Report 观测能力](plans/usage-observability.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-13 核对）；关键符号：`usage_log`、`append_event`、`build_report`、`USAGE_SCHEMA_VERSION`
 - [2.16.1 收尾四项：下游结构检查排除受管文件、包清单守卫、inputs 目录约定、usage 默认开启提示](plans/harness-2.16.1-followups.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-13 核对）；关键符号：`is_source_package`、`TASK_INPUTS_RELATIVE`、`usage_enabled_notices`
 - [命令摩擦治理：usage 错误码观测、plan WARN 部分交付第三态、手写方案结算路径](plans/command-friction-observability-and-plan-exits.md) — 状态：已实施-仅追溯（代码已是真源，2026-09-15 核对）；关键符号：`PLAN_PARTIAL_DELIVERY_RECHECK_DAYS`、`partial_delivery_checked_recently`、`last_warnings`、`error_codes`
+- [Harness P0/P1 修复：执行投影、选择流程与验收闭环](plans/harness-p0-p1-fixes.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-21 核对）；关键符号：`execution_projection`、`plan_show`、`acceptance_amend`、`symbol_hit`
+- [Harness 剩余优化：严格门禁、状态查询与规模化](plans/harness-remaining-optimizations.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-22 核对）；关键符号：`plan_check`、`acceptance_show`、`document_knowledge_query`、`asset_query`
+- [Docs Harness 遵循率优化：从下游数据到可执行契约](plans/harness-adherence-optimization.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-22 核对）；关键符号：`run_assets_check`、`build_report`、`symbol_hit`、`plan_check_banner`
 <!-- docs-harness:plans-index:end -->
 
 ## 历史边界
@@ -57,6 +61,9 @@
 - [本地 Usage Log 与 Usage Report 观测能力验收](acceptance/usage-observability.md) — 状态：已验收-仅追溯；关键符号：`usage_log`、`append_event`、`USAGE_SCHEMA_VERSION`
 - [2.16.1 收尾四项验收：下游结构检查排除、包清单守卫、inputs 约定、usage 提示](acceptance/harness-2.16.1-followups.md) — 状态：已验收-仅追溯；关键符号：`is_source_package`、`TASK_INPUTS_RELATIVE`、`usage_enabled_notices`
 - [命令摩擦治理验收：usage 错误码与最近一次检查计数、plan WARN 部分交付第三态、手写方案结算](acceptance/command-friction-observability-and-plan-exits.md) — 状态：已验收-仅追溯；关键符号：`PLAN_PARTIAL_DELIVERY_RECHECK_DAYS`、`partial_delivery_checked_recently`、`last_warnings`、`error_codes`
+- [Harness P0/P1 修复验收](acceptance/harness-p0-p1-fixes.md) — 状态：已验收-仅追溯；关键符号：`execution_projection`、`plan_show`、`acceptance_amend`、`symbol_hit`
+- [Harness 剩余优化验收](acceptance/harness-remaining-optimizations.md) — 状态：已验收-仅追溯；关键符号：`plan_check`、`acceptance_show`、`knowledge_index`、`agent_prompt`
+- [Docs Harness 遵循率优化验收](acceptance/harness-adherence-optimization.md) — 状态：已验收-仅追溯；关键符号：`run_assets_check`、`build_report`、`symbol_hit`、`plan_check_banner`
 <!-- docs-harness:acceptance-index:end -->
 
 <!-- docs-harness:adr-index:start -->

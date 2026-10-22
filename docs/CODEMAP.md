@@ -5,19 +5,29 @@
 
 ## 控制器
 
-- `scripts/harness.py` — 职责：CLI 控制器与安装/升级/发布编排，聚合各受管模块为 knowledge/plan/acceptance/adr/project/release/structure/usage/view/assets-check 命令；公开接口：`main`、`build_parser`、`command_assets_check`、`command_structure`、`apply_project_install`、`is_source_package`（源包/下游判定，Structure 排除集的依据）、`git_hook_directory`、`check_githook_health`、`resolve_plan_selection_path`（--selection 的 sha256 指纹解析）、`inspect_plan_create`/`dry_run_plan_create`（--dry-run 整体校验）、`usage_invoke_event`/`record_usage_invoke`（main() 出口的 cmd.invoke 旁路埋点，HarnessError 路径带 error_code）、`command_usage`、`partial_delivery_checked_recently`（plan check 部分交付第三态的时效判定）、`settle_handwritten_plan`（无冻结 JSON 的手写方案结算）、`command_view`（view 的 CLI 投影，把 diagram_view 抛出的异常映射成 view_* 错误码）
+- `scripts/harness.py` — 职责：CLI 控制器与安装/升级/发布编排，聚合各受管模块为 knowledge/plan/acceptance/adr/project/release/structure/usage/view/assets-check 命令；公开接口：`main`、`build_parser`、`command_assets_check`、`command_structure`、`apply_project_install`、`is_source_package`（源包/下游判定，Structure 排除集的依据）、`git_hook_directory`、`check_githook_health`、`raise_aggregated_errors`、`inspect_plan_create`/`dry_run_plan_create`（--dry-run 整体校验）、`usage_invoke_event`/`record_usage_invoke`（main() 出口的 cmd.invoke 旁路埋点，HarnessError 路径带 error_code）、`command_usage`、`partial_delivery_checked_recently`（plan check 部分交付第三态的时效判定）、`settle_handwritten_plan`（无冻结 JSON 的手写方案结算）、`command_view`（view 的 CLI 投影，把 diagram_view 抛出的异常映射成 view_* 错误码）
 
 ## 受管模块（随 project init/upgrade 安装）
 
 - `scripts/managed_assets.py` — 职责：受管资产通用层——AssetSpec 定义、指纹密封、原子写入、受管索引区块渲染；公开接口：`AssetSpec`、`AssetError`、`load_asset`、`seal_asset`、`atomic_write_text`、`atomic_write_json`
 - `scripts/asset_checks.py` — 职责：assets-check 统一编排——六 checker 聚合、跨资产关系校验、FAIL/WARN 汇总；公开接口：`run_assets_check`、`check_cross_asset_relations`、`ASSET_STALE_DAYS`
-- `scripts/plan_governance.py` — 职责：Plan v3 治理合同——冻结指纹、bugfix 校验合同、结算校验与遗留模板指纹；公开接口：`validate_plan`、`collect_bugfix_plan_errors`（收集全部合同错误，validate_bugfix_plan_contract 抛首个）、`legacy_plan_template_fingerprints`、`PLAN_SCHEMA_V3`、`PLAN_GOVERNANCE_INPUT_SCHEMA`
-- `scripts/knowledge_assets.py` — 职责：Knowledge 资产生命周期——输入校验、创建/更新/结项与检查；公开接口：`KNOWLEDGE_SPEC`、`KNOWLEDGE_INPUT_SCHEMA`、`KNOWLEDGE_SETTLE_STATUSES`、`follow_archived_refs`（资产移入 archive/ 后改写 Knowledge source_refs，四类归档 settle 共用）
+- `scripts/plan_governance.py` — 职责：Plan v3 治理合同——冻结指纹、bugfix 校验合同、结算校验、受控 amend 与遗留模板指纹；公开接口：`validate_plan`、`apply_plan_amend`、`collect_bugfix_plan_errors`（收集全部合同错误，validate_bugfix_plan_contract 抛首个）、`legacy_plan_template_fingerprints`、`PLAN_SCHEMA_V3`、`PLAN_GOVERNANCE_INPUT_SCHEMA`
+- `scripts/plan_amend.py` — 职责：`plan amend` 命令实现（活方案 content 替换、审计 log、Markdown/索引同步）；公开接口：`run_plan_amend`、`collect_plan_content_errors`
+- `scripts/knowledge_assets.py` — 职责：Knowledge 资产生命周期——输入校验、创建/更新/结项与检查；公开接口：`KNOWLEDGE_SPEC`、`KNOWLEDGE_INPUT_SCHEMA`、`KNOWLEDGE_SETTLE_STATUSES`、`query`（按 token 覆盖度排序、source_ok、omitted）、`follow_archived_refs`（资产移入 archive/ 后改写 Knowledge source_refs，四类归档 settle 共用）
 - `scripts/acceptance_assets.py` — 职责：Acceptance 资产生命周期——验收目标/记录/结项的输入校验与层级映射；公开接口：`ACCEPTANCE_SPEC`、`ACCEPTANCE_EVIDENCE_LAYERS`、`ACCEPTANCE_SETTLE_INPUT_SCHEMA`、`ACCEPTANCE_SETTLE_STATUSES`（CLI --status 选项的唯一来源）、`ACCEPTANCE_SETTLE_STATUS_NOTES`（--status 的 --help 说明）、`collect_input_errors`/`collect_create_errors`（--dry-run 错误收集器，validate_input 抛首个）
-- `scripts/adr_assets.py` — 职责：ADR 资产生命周期——架构决策创建（定稿不可改）、废弃/被替代结项与检查；公开接口：`ADR_SPEC`、`ADR_INPUT_SCHEMA`、`ADR_SETTLE_STATUSES`
+- `scripts/adr_assets.py` — 职责：ADR 资产生命周期——创建、受控 amend、废弃/被替代结项与检查；公开接口：`ADR_SPEC`、`ADR_INPUT_SCHEMA`、`ADR_SETTLE_STATUSES`、`amend`、`active_constraints`（活跃 ADR 决策投影给 knowledge query）
 - `scripts/script_hygiene.py` — 职责：脚本卫生检查——tracked 脚本混合行尾字节级扫描（assets-check 第五 checker）；公开接口：`check_script_line_endings`、`SCRIPT_GLOBS`
-- `scripts/structure_check.py` — 职责：结构护栏——增量体量预警与 CODEMAP 一致性（assets-check 第六 checker）、存量结构债报告，函数级覆盖 Python（ast）、Go（gofmt 行级匹配）与 TS/JS（经 structure_ts_functions.cjs 借用目标项目 typescript）；公开接口：`check_structure`、`structure_report`、`CODEMAP_SCAFFOLD`、`FILE_RED_LINE`
+- `scripts/structure_check.py` — 职责：结构护栏——增量体量预警与 CODEMAP 一致性（assets-check 第六 checker）、存量结构债报告，函数级覆盖 Python（ast）、Go（gofmt 行级匹配）与 TS/JS（经 structure_ts_functions.cjs 借用目标项目 typescript）；公开接口：`check_structure`、`structure_report`、`CODEMAP_SCAFFOLD`、`FILE_RED_LINE`、`symbol_hit`（定义级符号匹配）
+- `scripts/plan_selection.py` — 职责：Plan 选择构建、合同指纹、缓存与校验；公开接口：`plan_selection_contract`、`plan_selection_contract_fingerprint`、`build_plan_selection`、`resolve_plan_choice`、`validate_selection`、`cache_plan_selection`、`resolve_plan_selection_path`、`plan_content_template`
+- `scripts/plan_check.py` — 职责：Plan 文档卫生常量与纯检查函数（横幅、索引、符号、时效）；公开接口：`plan_check_banner`、`partial_delivery_checked_recently`、`plan_check_markdown_files`、`plan_status_from_banner`、`load_plan_projection`、`plan_projection_warnings`
+- `scripts/acceptance_amend.py` — 职责：pending 且无记录时修订 Acceptance 目标；公开接口：`amend`
+- `scripts/cli_support.py` — 职责：CLI action 参数边界，拒绝与当前 action 无关的 flag；公开接口：`validate_action_flags`
+- `scripts/asset_query.py` — 职责：只读资产查询（show/list）与 Plan 查询；公开接口：`show_asset`、`list_assets`、`knowledge_show`、`acceptance_show`、`acceptance_list`、`adr_show`、`plan_show`、`plan_list`
+- `scripts/acceptance_render.py` — 职责：Acceptance Markdown 投影渲染；公开接口：`render_markdown`
 - `scripts/usage_log.py` — 职责：本地 usage 事件的追加与读取，以及 `usage_log.enabled` 开关求值；旁路观察面，写入失败不改变任何命令的行为与退出码；公开接口：`USAGE_SCHEMA_VERSION`、`USAGE_DIR_RELATIVE`、`USAGE_LOG_DEFAULT_ENABLED`、`is_enabled`、`append_event`、`read_events`
-- `scripts/usage_report.py` — 职责：usage 事件的纯聚合，输出契约沿用 `structure report`（返回 dict 交由 harness 既有 `emit` 呈现，本模块不带渲染器）；公开接口：`USAGE_REPORT_DEFAULT_DAYS`、`build_report`
+- `scripts/usage_report.py` — 职责：usage 事件与收尾报告完整率的聚合，输出契约沿用 `structure report`（返回 dict 交由 harness 既有 `emit` 呈现，本模块不带渲染器）；公开接口：`USAGE_REPORT_DEFAULT_DAYS`、`build_report`
+- `scripts/report_check.py` — 职责：收尾报告五项字段校验，供 `report check` 与 usage 完整率共用；公开接口：`REQUIRED_FIELDS`、`report_fields`、`check_report`
+- `scripts/symbol_check.py` — 职责：符号存活判定（去注释、词边界、带点引用归一与批量分词）；公开接口：`strip_code_comments`、`symbol_hits`、`symbol_hit`
+- `scripts/acceptance_diagnostics.py` — 职责：Acceptance 失败诊断的待处理标准、期望/实际与下一步命令；公开接口：`find_criterion`、`match_record_to_criterion`、`settle_mismatch_error`、`criterion_not_pending_error`
 - `scripts/diagram_view.py` — 职责：`harness view` 的 Mermaid → 独立 HTML 页面，渲染（纯函数）、落盘到 `.docs-harness/views/` 与系统浏览器打开三层分开，错误一律向上传递；公开接口：`render_mermaid_html`、`write_view`、`open_in_browser`、`VIEWS_RELATIVE`（views 目录常量真源，harness 导入并列入 LOCAL_ONLY_DIRS）
 - `scripts/structure_ts_functions.cjs` — 职责：Structure 的 TS/JS 函数体量解析子进程（stdin JSON 源码批 → stdout 函数限定名→行数），在目标项目 node_modules 或 DOCS_HARNESS_TS_MODULE_DIR 目录加载 typescript，harness 自身零依赖；公开接口：`collectSpans`、`functionName`（命令行调用，无模块导出）
