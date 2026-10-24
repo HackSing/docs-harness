@@ -56,7 +56,7 @@
 
 - `routing/hosts/qoder/route_hook.py`：命令 hook，读 stdin、加载注册表、校验 fake/真实画像、写 Shadow 事件、输出 `additionalContext`；`_route_task` 是真实模型调用替换点。
 - `routing/hosts/qoder/fake_profile.json`、`settings.example.json`、`settings.cli.example.json`、`README.md`：fake/CLI backend fixture、Qoder hooks 配置示例与使用说明。
-- `routing/hosts/qoder/route_hook.py` 增加 CLI backend：`_route_task` 支持 `fake|cli`，国内版 CLI 用 `qodercn -p -o json --tools "" --max-turns 1 --no-session-persistence`，记录 tokens/Credits/cost/CLI 版本；默认不传 `--model`，使用 CLI `/model` 当前配置，只有 `DOCS_HARNESS_ROUTER_MODEL` 设置时才覆盖；子进程移除 Qoder Desktop 注入的 SDK 环境变量、国际版 token，并设置隔离的 `QODERCN_CONFIG_DIR`。
+- `routing/hosts/qoder/route_hook.py` 增加 CLI backend：`_route_task` 支持 `fake|cli`，默认用国内原生 `qoderclicn -p -o json --tools "" --max-turns 1 --no-session-persistence`，npm `qodercn` 作 fallback；记录 tokens/Credits/cost/CLI 版本；默认不传 `--model`，使用 CLI `/model` 当前配置，只有 `DOCS_HARNESS_ROUTER_MODEL` 设置时才覆盖；子进程移除 Qoder Desktop 注入的 SDK 环境变量、国际版 token，并设置隔离的 `QODERCN_CONFIG_DIR`。
 - 宿主归一化：`must_clarify=true` 时把模型额外给出的动作触发项收敛为 `clarify_required`，避免“澄清 + 动作”混合画像被核心校验器整份拒绝。
 - `routing/hosts/qoder/route_cache.py`：同会话路由缓存；首条任务调用 CLI，后续消息复用缓存，新任务标记/`/route-reset`/TTL/注册表指纹变化使其失效。
 - `tests/test_qoder_hook.py`：17 项独立 stdin 合同测试（fake 8 + CLI 5 + 缓存 4）。
@@ -81,10 +81,13 @@
 
 ### 未覆盖
 
-- 先装了国际版 `@qoder-ai/qodercli`，登录页是国际站；已改为国内版 `@qodercn-ai/qoderclicn`（`qodercn` 1.1.78，宿主侧 `cn/` 目录）。国际版不再使用，但其 node_modules 与旧 config 目录仍留在宿主侧。
-- 国内账号已登录；真实路由使用 CLI 当前配置模型 `dfmodel`（不传 `--model`），两条真实 prompt 都路由到 `code`，延迟约 4.7s / 5.5s。CLI 对 `dfmodel` 报告 0 tokens / 0 Credits，暂时不能校准 token/成本预算。
+- 先装了国际版 `@qoder-ai/qodercli`，登录页是国际站；已改为国内版。国际版 npm 包（93M）与旧 config（3M）已清理；国内 npm 包保留为 fallback。
+- 国内原生 CLI `qoderclicn` 1.1.78 已通过 `--skip-path` 安装到 `~/.local/bin/qoderclicn`，未改 PATH，并继承 `cn-config` 的 `dfmodel` 登录；npm `qodercn` fallback 仍在 `~/.qoder-cn/docs-harness-router/cn/`。
+- 真实路由使用 CLI 当前配置模型 `dfmodel`（不传 `--model`），真实 prompt 路由到 `code`。原生墙钟 3.10s（模型+运行时 1.97s，启动约 1.1s）；npm 墙钟 4.13s（模型+运行时 1.53s，启动约 2.6s）。`dfmodel` 免费、报告 0 tokens / 0 Credits，按用户决定不处理计量。
+- 临时 Desktop 测试项目已准备：`~/.qoder-cn/docs-harness-router/demo-project`，含项目级 `.qoder/settings.local.json`，等待新 Qoder 会话触发。
 - 同一 session 首条走 CLI，后续消息在 `DOCS_HARNESS_QODER_CLI` 指向不存在路径时仍命中缓存并注入“沿用上次路由”，无错误。
-- 仍未在新 Qoder Desktop 会话触发 `UserPromptSubmit`；当前真实调用是脚本级 hook。
+- 仍未在新 Qoder Desktop 会话触发 `UserPromptSubmit`；临时项目已准备，当前真实调用是脚本级 hook。
+- 原生 CLI 仍有一次约 1.1s 启动和约 2s 模型耗时；同会话后续消息走缓存，不再付这笔开销。
 - 会话缓存的命中率、误复用和 `/route-reset` 体验尚未在多任务、长会话与上下文压缩场景统计。
 - 内核/模块契约拆分未做，当前不会降低 AGENTS.md token。
 - 用户级 hook 安装与 Claude Code adapter 未做。

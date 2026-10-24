@@ -39,25 +39,32 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 
 ## CLI backend
 
-使用 **Qoder 国内版 CLI（`qodercn`）**，不是国际版 `@qoder-ai/qodercli`。
+优先使用 **Qoder 国内版原生 CLI（`qoderclicn`）**，不是国际版 `@qoder-ai/qodercli`；npm 版 `qodercn` 只作 fallback。
 
 安装与认证（宿主侧，不进仓库）：
 
 ```bash
-npm install --prefix ~/.qoder-cn/docs-harness-router/cn @qodercn-ai/qoderclicn
+curl -fsSL https://static.qoder.com.cn/qoder-cli-cn/install.sh | bash -s -- --skip-path
+# 入口：~/.local/bin/qoderclicn
 ~/.qoder-cn/docs-harness-router/qoder-cn-cli
 # 在 CLI 里执行 /login，完成后 /status 看国内账号与额度，再 /quit
+```
+
+npm 兼容安装：
+
+```bash
+npm install --prefix ~/.qoder-cn/docs-harness-router/cn @qodercn-ai/qoderclicn
 ```
 
 `settings.cli.example.json` 会调用 `route_hook.py`，后者执行：
 
 ```bash
-qodercn -p "<task>" --output-format json --max-turns 1 \
+qoderclicn -p "<task>" --output-format json --max-turns 1 \
   --tools "" --permission-mode default --no-session-persistence \
   --cwd <empty> --config-dir <host-config> --system-prompt "<router prompt>"
 ```
 
-默认不传 `--model`，使用你在 CLI `/model` 里选中的模型；只有设置 `DOCS_HARNESS_ROUTER_MODEL` 时才覆盖。
+默认不传 `--model`，使用你在 CLI `/model` 里选中的模型；只有设置 `DOCS_HARNESS_ROUTER_MODEL` 时才覆盖。原生版实测墙钟约 3.1s，其中模型约 2.0s、启动约 1.1s；npm 版墙钟约 4.1s，启动约 2.6s。
 
 CLI JSON 的 `usage`、`duration_ms`、`total_credits`、`total_cost_usd`、`modelUsage` 会写入 Shadow 事件。hook 会移除 Qoder Desktop 注入的 SDK 环境变量和国际版 token，设置隔离的 `QODERCN_CONFIG_DIR`。
 

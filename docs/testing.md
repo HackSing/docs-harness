@@ -297,8 +297,8 @@ python3 -m unittest tests.test_routing_contract tests.test_routing_shadow tests.
 - 覆盖：选中契约注入且不泄露 prompt；默认关闭；无 registry、非法 profile、非法 phase、fake profile 不可读均非阻断；`direct_override` 跳过；澄清画像只记日志不注入；`must_clarify=true` 的额外触发项由宿主收敛为 `clarify_required`。
 - CLI backend：fake CLI 测试锁定 `-p`、`--output-format json`、`--max-turns 1`、`--tools ""`、`--no-session-persistence`、`--cwd`、`--config-dir`、`--system-prompt`、`--settings`；默认不传 `--model`，仅在 `DOCS_HARNESS_ROUTER_MODEL` 设置时覆盖；从 CLI JSON 记录 tokens、Credits、cost、CLI 版本与模型名；国际版 SDK/token 环境变量被移除，`QODERCN_CONFIG_DIR` 指向隔离目录；未登录/无效 profile/缺失 CLI 均非阻断。
 - 会话缓存：首条任务写缓存；后续消息复用缓存、不启动 CLI；新任务标记和 `/route-reset` 强制失效；TTL=0 强制重路由；缓存命中事件记录 `cache_hit`，指标输出 `cache_hit_count/rate`。
-- 真实 CN 调用：国内账号已登录；CLI 使用配置模型 `dfmodel`（不传 `--model`），两条真实 prompt 都路由到 `code`，Shadow 延迟约 4.7s / 5.5s；CLI 对 `dfmodel` 报告 0 Credits / 0 tokens。
-- 真实会话缓存：同一 session 首条走 CLI，后续消息在 CLI 路径不存在时仍命中缓存并注入“沿用上次路由”，无错误。
+- 真实 CN 调用：国内账号已登录；CLI 使用配置模型 `dfmodel`（不传 `--model`），真实 prompt 路由到 `code`，CLI 对 `dfmodel` 报告 0 Credits / 0 tokens。原生版单次墙钟 3.10s（模型+运行时 1.97s，启动约 1.1s）；npm 版 4.13s（模型+运行时 1.53s，启动约 2.6s）。
+- 真实会话缓存：同一 session 首条走原生 CLI，后续消息在 CLI 路径不存在时仍命中缓存并注入“沿用上次路由”，无错误。
 - 独立冒烟：用 sample stdin 运行 hook，输出 JSON 含 `hookEventName=UserPromptSubmit` 与代码契约，Shadow 事件含 `task_hash`/`task_chars` 且不含 prompt。
 - 未覆盖：Qoder Desktop 真实 `UserPromptSubmit` 触发、1–2 周真实 shadow 基线、`dfmodel` 的 token/credit 计量（CLI 返回 0）、内核/模块契约拆分与 token 收益。
 

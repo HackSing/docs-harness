@@ -161,10 +161,10 @@ summary = summarize_shadow(
 
 | 能力 | 证据 | 状态 |
 |---|---|---|
-| 独立、低上下文的强模型调用 | Qoder hooks 支持 `UserPromptSubmit` + `additionalContext`；国内版 `qodercn` 已登录并完成真实路由调用，默认使用 CLI 当前配置模型 `dfmodel` | 已确认 |
+| 独立、低上下文的强模型调用 | Qoder hooks 支持 `UserPromptSubmit` + `additionalContext`；国内原生 `qoderclicn` 已登录并完成真实路由调用，默认使用 CLI 当前配置模型 `dfmodel` | 已确认 |
 | 结构化 JSON 输出 | 四份强模型预测文件均可被 `score.py` 解析和评分，两组 held-out 各两次 50/50；真实 CLI 返回合法 routing profile | 已确认 |
 | model/version 记录 | hook 从 CLI `modelUsage` 取模型名，从 `--version` 取 CLI 版本；真实值 `dfmodel` / `1.1.78` | 已确认 |
-| token、latency 记录 | CLI JSON 含 `usage`、`duration_ms`、`total_cost_usd`、`total_credits`；真实路由延迟约 4.7–5.5s，`dfmodel` 报告 0 tokens / 0 Credits | 字段与延迟已确认；`dfmodel` 用量为 0 |
+| token、latency 记录 | CLI JSON 含 `usage`、`duration_ms`、`total_cost_usd`、`total_credits`；原生版真实路由墙钟 3.10s（模型 1.97s、启动约 1.1s），npm 版 4.13s（模型 1.53s、启动约 2.6s）；`dfmodel` 报告 0 tokens / 0 Credits | 字段与延迟已确认；`dfmodel` 用量为 0 |
 | feature flag 与回滚开关 | `DOCS_HARNESS_ROUTER_ENABLED` + `DOCS_HARNESS_ROUTER_BACKEND`；回滚等价于移除 hook 条目 | 原型已确认；宿主级 flag 未确认 |
 | shadow sink | 真实 hook 已写本地 JSONL 与缓存；同一 session 后续消息命中缓存、不启动 CLI | 已接通；Desktop 端到端未确认 |
 | 20–50 条真实任务基线 | 目前只有手工真实 prompt；尚无 1–2 周真实任务统计 | 未开始 |
@@ -246,10 +246,10 @@ Qoder 官方 hooks 文档确认：`UserPromptSubmit` 在用户提交 prompt 后�
 
 ### CLI backend
 
-CLI backend 用 **Qoder 国内版 CLI（`qodercn`）** 的无头模式调用 Qoder 模型服务，消耗国内账号 Credits：
+CLI backend 优先用 **Qoder 国内版原生 CLI（`qoderclicn`）** 的无头模式调用 Qoder 模型服务；npm 版 `qodercn` 只作 fallback。两者共用 `cn-config` 的登录：
 
 ```bash
-qodercn -p "<task>" \
+qoderclicn -p "<task>" \
   --output-format json \
   --max-turns 1 \
   --tools "" \
@@ -260,18 +260,28 @@ qodercn -p "<task>" \
   --system-prompt "<router prompt>"
 ```
 
-国际版 `@qoder-ai/qodercli` 不使用；默认路径已指向国内版 `qodercn`。默认**不传 `--model`**，使用你在 CLI `/model` 里选中的模型；只有设置 `DOCS_HARNESS_ROUTER_MODEL` 时才覆盖。之前显式传 `auto` 会覆盖你的选择并触发回退，已移除。
+国际版 `@qoder-ai/qodercli` 不使用；默认路径指向国内原生 `qoderclicn`，npm `qodercn` 只作 fallback。默认**不传 `--model`**，使用你在 CLI `/model` 里选中的模型；只有设置 `DOCS_HARNESS_ROUTER_MODEL` 时才覆盖。之前显式传 `auto` 会覆盖你的选择并触发回退，已移除。
 
 hook 会额外传入 `--settings '{"general":{"enableAutoUpdate":false}}'`，并在子进程环境里移除 Qoder Desktop 注入的 `QODER_AGENT_SDK_*`、`QODER_SDK_AUTH_PAYLOAD_FILE`、`QODER_CONFIG_DIR`、`QODERCN_CONFIG_DIR` 和国际版 `QODER_PERSONAL_ACCESS_TOKEN`，再设置隔离的 `QODERCN_CONFIG_DIR`，避免 CLI 被误判为 SDK 入口或误用国际账号。
 
 CLI 的 JSON 结果包含 `result`、`usage.input_tokens`、`usage.output_tokens`、`duration_ms`、`total_cost_usd`、`total_credits` 和 `modelUsage`；hook 把这些写入 Shadow 事件的 `model` 元数据（Credits 字段为 `credits`）。
 
-本机安装与认证（宿主侧，不进仓库）：
+实测同一路由 prompt：npm 版墙钟 4.13s，其中 CLI 自报模型+运行时 1.53s、启动约 2.6s；原生版墙钟 3.10s，其中模型+运行时 1.97s、启动约 1.1s。原生主要降低启动开销，模型本身仍约 1.5–2s。会话缓存让同一会话后续消息不再付这笔开销。
+
+本机安装与认证（宿主侧，不进仓库）。推荐原生安装，`--skip-path` 避免改 PATH，hook 用绝对入口：
+
+```bash
+curl -fsSL https://static.qoder.com.cn/qoder-cli-cn/install.sh | bash -s -- --skip-path
+# 入口：~/.local/bin/qoderclicn
+~/.qoder-cn/docs-harness-router/qoder-cn-cli
+# 在 CLI 里执行 /login，完成后 /status 查看国内账号与额度，再 /quit
+```
+
+npm 兼容安装（fallback）：
 
 ```bash
 npm install --prefix ~/.qoder-cn/docs-harness-router/cn @qodercn-ai/qoderclicn
-~/.qoder-cn/docs-harness-router/qoder-cn-cli
-# 在 CLI 里执行 /login，完成后 /status 查看国内账号与额度，再 /quit
+# 入口：~/.qoder-cn/docs-harness-router/cn/node_modules/.bin/qodercn
 ```
 
 如果交互登录不可用，改用 `QODERCN_PERSONAL_ACCESS_TOKEN`（在 `https://qoder.cn/account/integrations` 生成），不要写进仓库或对话。国内 CLI 文档：`https://docs.qoder.cn/cli/installation`。
@@ -279,7 +289,7 @@ npm install --prefix ~/.qoder-cn/docs-harness-router/cn @qodercn-ai/qoderclicn
 后端环境：
 
 - `DOCS_HARNESS_ROUTER_BACKEND=cli`
-- `DOCS_HARNESS_QODER_CLI`：CLI 可执行文件路径；默认 `~/.qoder-cn/docs-harness-router/cn/node_modules/.bin/qodercn`
+- `DOCS_HARNESS_QODER_CLI`：CLI 可执行文件路径；默认优先 `~/.local/bin/qoderclicn`，缺失时回退 `~/.qoder-cn/docs-harness-router/cn/node_modules/.bin/qodercn`
 - `DOCS_HARNESS_QODER_CONFIG_DIR`：国内 CLI 认证配置目录；默认 `~/.qoder-cn/docs-harness-router/cn-config`
 - `DOCS_HARNESS_QODER_EMPTY_DIR`：无 AGENTS.md 的空工作目录；默认 `~/.qoder-cn/docs-harness-router/empty`
 - `DOCS_HARNESS_ROUTER_MODEL`：可选；不设置时使用 CLI 当前 `/model` 配置，设置时作为 `--model` 覆盖
@@ -325,7 +335,7 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 
 - fake profile 是静态 code_task；启用 fake backend 会把所有提示都按 code_task 注入。只用于带匹配提示的链路测试。
 - 国内 CLI 已登录，`dfmodel` 完成真实路由；CLI 对该模型报告 0 tokens / 0 Credits，暂时无法用它校准 token/成本预算。
-- CLI 是完整 Agent Runtime：首条任务和重路由会多一次启动开销；同会话后续消息走缓存，不再每条启动。真实路由延迟约 4.7–5.5s。
+- CLI 是完整 Agent Runtime：首条任务和重路由会多一次启动开销；同会话后续消息走缓存，不再每条启动。原生版真实路由墙钟约 3.1s（启动约 1.1s、模型约 2s），npm 版约 4.1s（启动约 2.6s）。
 - 缓存可能沿用旧路由：后续消息换了任务但没有“新任务/换个任务”等标记时，主 agent 需要从 registry 读取新契约，或用户发 `/route-reset`。真实同会话缓存已验证“CLI 路径不存在仍复用”。
 - Hook 只能追加 context，不能移除已加载的 AGENTS.md；token 收益仍要等内核/模块契约拆分。
 - Qoder Desktop 的真实 `UserPromptSubmit` 触发尚未验证；当前真实调用是脚本级 hook。
@@ -335,7 +345,7 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 ## 11. 未覆盖与待定
 
 - B2–B5 的真实 shadow、canary、强制放量尚未开始。
-- 国内版 `qodercn` 已登录并能真实调用；`dfmodel` 的 token/credit 计量为 0，Desktop 端到端触发、1–2 周 shadow 和回滚演练未完成。
+- 国内原生 `qoderclicn` 已登录并能真实调用；`dfmodel` 的 token/credit 计量为 0，Desktop 端到端触发、1–2 周 shadow 和回滚演练未完成。
 - 会话缓存已用真实同会话两条消息验证一次，但尚未在多任务、长会话、上下文压缩和 `/route-reset` 场景统计命中率与误复用。
 - 20–50 条真实任务基线尚未建立。
 - 延迟、token、成本、Credits、澄清和返工阈值尚未校准。

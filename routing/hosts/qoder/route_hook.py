@@ -52,7 +52,9 @@ from route_cache import (  # noqa: E402
 )
 
 FAKE_PROFILE_RELATIVE = "routing/hosts/qoder/fake_profile.json"
-DEFAULT_CLI = Path.home() / ".qoder-cn/docs-harness-router/cn/node_modules/.bin/qodercn"
+NATIVE_CLI = Path.home() / ".local/bin/qoderclicn"
+NPM_CLI = Path.home() / ".qoder-cn/docs-harness-router/cn/node_modules/.bin/qodercn"
+DEFAULT_CLI = NATIVE_CLI if NATIVE_CLI.is_file() else NPM_CLI
 DEFAULT_CLI_CONFIG = Path.home() / ".qoder-cn/docs-harness-router/cn-config"
 DEFAULT_CLI_EMPTY = Path.home() / ".qoder-cn/docs-harness-router/empty"
 CLI_TIMEOUT_SECONDS = 60
