@@ -22,7 +22,8 @@ Qoder 在用户提交 prompt 后、主 Agent 处理前触发 `UserPromptSubmit`�
 - `fake_profile.json`：fake backend 的静态 code_task 画像。
 - `settings.example.json`：fake backend 的 Qoder hooks 配置片段。
 - `settings.cli.example.json`：Qoder CLI backend 的配置片段。
-- `user-hook.sh`：用户级 hook 入口，先检查项目是否使用 Docs Harness，再调用 `route_hook.py`。
+- `user-hook.sh`：macOS/Linux 用户级 hook 入口，按 PATH 探测可用的 `python3`/`python` 后调用 `route_hook.py`；项目门禁由 `route_hook.py` 用 hook 输入里的 `cwd` 判断。
+- `user-hook.cmd`：Windows 批处理入口（可选，适合能直接执行批处理的宿主），按 PATH 探测 `python`/`python3`/`py -3` 后调用 `route_hook.py`；Qoder 用户级 `command` 建议直接用 `py.exe -3`。
 
 ## 测试
 
@@ -42,16 +43,23 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 
 优先使用 **Qoder 国内版原生 CLI（`qoderclicn`）**，不是国际版 `@qoder-ai/qodercli`；npm 版 `qodercn` 只作 fallback。
 
-安装与认证（宿主侧，不进仓库）：
+安装与认证（宿主侧，不进仓库）。macOS/Linux：
 
 ```bash
 curl -fsSL https://static.qoder.com.cn/qoder-cli-cn/install.sh | bash -s -- --skip-path
 # 入口：~/.local/bin/qoderclicn
-~/.qoder-cn/docs-harness-router/qoder-cn-cli
-# 在 CLI 里执行 /login，完成后 /status 看国内账号与额度，再 /quit
+qoderclicn --config-dir ~/.qoder-cn/docs-harness-router/cn-config
+# 在 CLI 里执行 /login，完成后 /status 看国内账号与额度，再 /model 选模型，最后 /quit
 ```
 
-npm 兼容安装：
+Windows PowerShell：
+
+```powershell
+irm https://static.qoder.com.cn/qoder-cli-cn/install.ps1 | iex
+# 装完用 Get-Command qoderclicn,qodercn 取实际 exe 路径
+```
+
+Windows 必须使用原生 `qoderclicn.exe`。npm 的 `.cmd` shim 经 `cmd.exe` 转发多行/中文参数时会被截断或按系统代码页破坏，不能作为 Windows 路由后端。npm 兼容安装仅用于 macOS/Linux fallback：
 
 ```bash
 npm install --prefix ~/.qoder-cn/docs-harness-router/cn @qodercn-ai/qoderclicn
@@ -77,10 +85,11 @@ CLI JSON 的 `usage`、`duration_ms`、`total_credits`、`total_cost_usd`、`mod
 
 用户级（当前采用）：
 
-1. 在 `~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 增加一组 command hook，`command` 指向本目录的 `user-hook.sh`。
-2. `env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_PHASE=shadow`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。
-3. `user-hook.sh` 只在项目含 `routing/registry.json` 时继续；旧版 docs-harness（只有 `.docs-harness/config.json`）和其他项目直接退出，不写日志、不启动 CLI、不改上下文。
-4. 修改设置前备份；新建 Qoder 会话才会加载用户级 hook。默认 `shadow` 只新增 Shadow 日志，不向主 Agent 注入上下文。
+1. 在 `~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 增加一组 command hook。macOS/Linux 指向本目录的 `user-hook.sh`；Windows 的 `command` 直接写 `C:/Windows/py.exe -3 <DOCS_HARNESS_ROOT>/routing/hosts/qoder/route_hook.py`（或用 `Get-Command python` 的实际路径）。Qoder 0.4.11 不会可靠执行 `cmd /c user-hook.cmd` 这种嵌套命令。
+2. `env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_PHASE=shadow`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。入口按 PATH 自动探测 Python，不写死解释器路径。
+3. `route_hook.py` 用 hook 输入里的 `cwd`（或宿主提供的 `QODER_PROJECT_DIR`）检查 `routing/registry.json`；旧版 docs-harness（只有 `.docs-harness/config.json`）和其他项目静默退出，不写日志、不启动 CLI、不改上下文。
+4. hook 的 stdin、stdout、stderr 和 CLI 子进程输出统一按 UTF-8 处理，Windows 中文任务不会因系统代码页崩溃或乱码。
+5. 修改设置前备份；新建 Qoder 会话才会加载用户级 hook。默认 `shadow` 只新增 Shadow 日志，不向主 Agent 注入上下文。
 
 项目级（可选）：把 `settings.example.json`（fake）或 `settings.cli.example.json`（真实 Qoder 模型）的 `hooks` 块合并到 `.qoder/settings.local.json`，确认项目有 `routing/registry.json`，然后新建会话。
 

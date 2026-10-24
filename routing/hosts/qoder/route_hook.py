@@ -18,6 +18,7 @@ import datetime as dt
 import hashlib
 import json
 import os
+import shutil
 import subprocess
 import sys
 import time
@@ -55,7 +56,17 @@ from route_cache import (  # noqa: E402
 FAKE_PROFILE_RELATIVE = "routing/hosts/qoder/fake_profile.json"
 NATIVE_CLI = Path.home() / ".local/bin/qoderclicn"
 NPM_CLI = Path.home() / ".qoder-cn/docs-harness-router/cn/node_modules/.bin/qodercn"
-DEFAULT_CLI = NATIVE_CLI if NATIVE_CLI.is_file() else NPM_CLI
+
+
+def _default_cli() -> Path:
+    for name in ("qoderclicn", "qodercn"):
+        found = shutil.which(name)
+        if found:
+            return Path(found)
+    return NATIVE_CLI if NATIVE_CLI.is_file() else NPM_CLI
+
+
+DEFAULT_CLI = _default_cli()
 DEFAULT_CLI_CONFIG = Path.home() / ".qoder-cn/docs-harness-router/cn-config"
 DEFAULT_CLI_EMPTY = Path.home() / ".qoder-cn/docs-harness-router/empty"
 CLI_TIMEOUT_SECONDS = 60
@@ -79,7 +90,15 @@ class HookError(Exception):
         self.field = field
 
 
+def _configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        reconfigure = getattr(stream, "reconfigure", None)
+        if reconfigure is not None:
+            reconfigure(encoding="utf-8", errors="replace")
+
+
 def main() -> int:
+    _configure_stdio()
     payload = _read_payload()
     if payload is None or not _enabled():
         return 0
@@ -260,6 +279,8 @@ def _route_task_cli(
             args,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=CLI_TIMEOUT_SECONDS,
             env=env,
             cwd=str(empty),
@@ -350,6 +371,8 @@ def _cli_version(cli: Path, env: Mapping[str, str]) -> str:
             [str(cli), "--version"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             timeout=5,
             env=dict(env),
             check=False,
@@ -450,7 +473,7 @@ def _emit(context: str) -> None:
 
 
 def _read_payload() -> dict[str, Any] | None:
-    raw = sys.stdin.read()
+    raw = sys.stdin.buffer.read().decode("utf-8", errors="replace")
     if not raw.strip():
         return None
     try:

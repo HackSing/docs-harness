@@ -18,6 +18,7 @@ from harness_test_base import ROOT  # noqa: E402
 
 HOOK = ROOT / "routing" / "hosts" / "qoder" / "route_hook.py"
 USER_HOOK = ROOT / "routing" / "hosts" / "qoder" / "user-hook.sh"
+USER_HOOK_WIN = ROOT / "routing" / "hosts" / "qoder" / "user-hook.cmd"
 REGISTRY = ROOT / "routing" / "registry.json"
 PROMPT = "修改 routing/registry.json 里的契约文案，然后跑聚焦测试"
 
@@ -49,8 +50,8 @@ class QoderHookTest(unittest.TestCase):
         self.fake.write_text(json.dumps(profile, ensure_ascii=False), encoding="utf-8")
 
     def install_fake_cli(self) -> Path:
-        path = self.project / "fake_qoder_cli"
-        path.write_text(
+        script = self.project / "fake_qoder_cli.py"
+        script.write_text(
             """#!/usr/bin/env python3
 import json
 import os
@@ -120,6 +121,18 @@ print(json.dumps({
 """,
             encoding="utf-8",
         )
+        if os.name == "nt":
+            path = self.project / "fake_qoder_cli.cmd"
+            path.write_text(
+                f'@echo off\r\n"{sys.executable}" "{script}" %*\r\n',
+                encoding="utf-8",
+            )
+            return path
+        path = self.project / "fake_qoder_cli"
+        path.write_text(
+            f'#!/bin/sh\nexec "{sys.executable}" "{script}" "$@"\n',
+            encoding="utf-8",
+        )
         path.chmod(0o755)
         return path
 
@@ -159,6 +172,8 @@ print(json.dumps({
             input=json.dumps(payload, ensure_ascii=False),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             env=env,
         )
@@ -256,16 +271,24 @@ print(json.dumps({
                 "DOCS_HARNESS_ROUTER_ENABLED": "1",
                 "DOCS_HARNESS_ROUTER_BACKEND": "fake",
                 "DOCS_HARNESS_ROUTER_FAKE_PROFILE": str(self.fake),
-                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:" + os.environ.get("PATH", ""),
                 "PYTHONDONTWRITEBYTECODE": "1",
             }
         )
+        if os.name != "nt":
+            env["PATH"] = "/usr/bin:/bin:/usr/sbin:/sbin:" + os.environ.get("PATH", "")
+        command = (
+            ["cmd", "/c", str(USER_HOOK_WIN)]
+            if os.name == "nt"
+            else [str(USER_HOOK)]
+        )
         return subprocess.run(
-            [str(USER_HOOK)],
+            command,
             cwd=project,
             input=json.dumps(payload, ensure_ascii=False),
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=False,
             env=env,
         )
@@ -366,6 +389,10 @@ print(json.dumps({
             extra_env["DOCS_HARNESS_ROUTER_MODEL"] = model
         return self.run_hook(prompt=prompt, extra_env=extra_env, phase=phase)
 
+    @unittest.skipIf(
+        os.name == "nt",
+        "cmd.exe wrapper cannot forward the multi-line router prompt; native CLI is verified on Windows",
+    )
     def test_cli_backend_injects_contract_and_records_usage(self) -> None:
         result = self.run_cli_hook(phase="canary")
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -408,6 +435,10 @@ print(json.dumps({
         self.assertIn("--system-prompt", argv)
         self.assertIn("--settings", argv)
 
+    @unittest.skipIf(
+        os.name == "nt",
+        "cmd.exe wrapper cannot forward the multi-line router prompt; native CLI is verified on Windows",
+    )
     def test_cli_backend_model_override_is_passed_only_when_configured(self) -> None:
         result = self.run_cli_hook(model="DeepSeek-V4-Pro")
         self.assertEqual(result.returncode, 0, result.stderr)

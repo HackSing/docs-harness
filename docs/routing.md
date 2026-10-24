@@ -243,6 +243,7 @@ Qoder 官方 hooks 文档确认：`UserPromptSubmit` 在用户提交 prompt 后�
 - `DOCS_HARNESS_ROUTER_PHASE=shadow|canary|enforced`，默认 `shadow`。`shadow` 只写事件、不输出 `additionalContext`；`canary`/`enforced` 注入选中模块契约。
 - shadow 不切换模块，实际加载仍是完整常驻规则，`actual_modules` 记为注册表全部模块；canary/enforced 记为实际注入模块。
 - 没有 `routing/registry.json`、画像非法、phase 非法或后端不可用时，hook 不注入、退出 0，把错误写入 stderr 和 `.docs-harness/routing/hook-errors.jsonl`。
+- hook 的 stdin、stdout、stderr 与 CLI 子进程输出统一按 UTF-8 编解码，不依赖 Windows 系统代码页。
 - `direct_override` 直接跳过；`must_clarify` 只记 Shadow，不注入；无模块时不注入。
 - Shadow 事件不写 prompt 原文，只写 `task_hash`、字符数和结构化画像。
 - 注入内容只来自注册表契约；内核规则仍由 AGENTS.md 提供。
@@ -271,16 +272,25 @@ CLI 的 JSON 结果包含 `result`、`usage.input_tokens`、`usage.output_tokens
 
 实测同一路由 prompt：npm 版墙钟 4.13s，其中 CLI 自报模型+运行时 1.53s、启动约 2.6s；原生版墙钟 3.10s，其中模型+运行时 1.97s、启动约 1.1s。原生主要降低启动开销，模型本身仍约 1.5–2s。会话缓存让同一会话后续消息不再付这笔开销。
 
-本机安装与认证（宿主侧，不进仓库）。推荐原生安装，`--skip-path` 避免改 PATH，hook 用绝对入口：
+本机安装与认证（宿主侧，不进仓库）。推荐原生安装。macOS/Linux 用 `--skip-path` 避免改 PATH，hook 用绝对入口：
 
 ```bash
 curl -fsSL https://static.qoder.com.cn/qoder-cli-cn/install.sh | bash -s -- --skip-path
 # 入口：~/.local/bin/qoderclicn
-~/.qoder-cn/docs-harness-router/qoder-cn-cli
-# 在 CLI 里执行 /login，完成后 /status 查看国内账号与额度，再 /quit
+qoderclicn --config-dir ~/.qoder-cn/docs-harness-router/cn-config
+# 在 CLI 里执行 /login，完成后 /status 查看国内账号与额度，再 /model 选模型，最后 /quit
 ```
 
-npm 兼容安装（fallback）：
+Windows PowerShell：
+
+```powershell
+irm https://static.qoder.com.cn/qoder-cli-cn/install.ps1 | iex
+# 装完用 Get-Command qoderclicn,qodercn 取实际 exe 路径
+```
+
+Windows 必须使用原生 `qoderclicn.exe`。npm 的 `.cmd` shim 经 `cmd.exe` 转发多行/中文参数时会被截断或按系统代码页破坏，不能作为 Windows 路由后端。
+
+npm 兼容安装（仅 macOS/Linux fallback）：
 
 ```bash
 npm install --prefix ~/.qoder-cn/docs-harness-router/cn @qodercn-ai/qoderclicn
@@ -327,11 +337,12 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 
 用户级安装（当前采用）：
 
-1. 在 `~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 增加一组 command hook，`command` 指向本仓 `routing/hosts/qoder/user-hook.sh`，`env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_PHASE=shadow`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。
-2. `user-hook.sh` 只检查 `QODER_PROJECT_DIR` 下是否有 `routing/registry.json`；没有就直接退出，不启动 Python/CLI，也不写日志。只有显式带路由注册表的项目才会被注入，旧版 docs-harness（只有 `.docs-harness/config.json`）和未安装项目都不受影响。需要 opt-in 的项目把 `routing/registry.json` 放进项目即可。
-3. 修改设置前备份原文件；当前备份为 `settings.json.bak-<时间戳>`。用户级 entry 不设置 `statusMessage`，无关项目不会出现状态行。
-4. 新建一个 Qoder 会话（旧会话不会重新加载用户级设置），提交普通任务；检查 Shadow 日志是否新增。
-5. 回滚：删除 `hooks.UserPromptSubmit` 中的 docs-harness 条目，新建会话。
+1. 在 `~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 增加一组 command hook。macOS/Linux 指向本仓 `routing/hosts/qoder/user-hook.sh`；Windows 的 `command` 直接写 `C:/Windows/py.exe -3 <DOCS_HARNESS_ROOT>/routing/hosts/qoder/route_hook.py`（或用 `Get-Command python` 得到的实际解释器路径）。Qoder 0.4.11 的 hook runner 不会可靠执行 `cmd /c user-hook.cmd` 这种嵌套命令；`user-hook.cmd` 只适合能直接执行批处理的宿主。`env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_PHASE=shadow`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。
+2. 入口按 PATH 自动探测可用的 `python3`/`python`，不写死解释器路径。`route_hook.py` 用 hook 输入里的 `cwd`（或宿主提供的 `QODER_PROJECT_DIR`）检查 `routing/registry.json`；没有就静默退出，不写日志、不启动 CLI、不改上下文。只有显式带路由注册表的项目才会被注入，旧版 docs-harness（只有 `.docs-harness/config.json`）和未安装项目都不受影响。需要 opt-in 的项目把 `routing/registry.json` 放进项目即可。
+3. hook 的 stdin、stdout、stderr 与 CLI 子进程输出统一按 UTF-8 编解码，Windows 中文任务不依赖系统代码页。
+4. 修改设置前备份原文件；当前备份为 `settings.json.bak-<时间戳>`。用户级 entry 不设置 `statusMessage`，无关项目不会出现状态行。
+5. 新建一个 Qoder 会话（旧会话不会重新加载用户级设置），提交普通任务；检查 Shadow 日志是否新增。
+6. 回滚：删除 `hooks.UserPromptSubmit` 中的 docs-harness 条目，新建会话。
 
 项目级安装（可选，适合单项目试用）：
 
@@ -342,6 +353,7 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 限制：
 
 - fake profile 是静态 code_task；启用 fake backend 会把所有提示都按 code_task 注入。只用于带匹配提示的链路测试。
+- Windows 必须使用原生 `qoderclicn.exe`；npm 的 `.cmd` 不能可靠转发多行/中文参数。Windows 用户级 `command` 直接写 `py.exe -3 <DOCS_HARNESS_ROOT>/routing/hosts/qoder/route_hook.py`；Qoder 0.4.11 对 `cmd /c user-hook.cmd` 会报告成功但不执行批处理。macOS/Linux 继续用 `user-hook.sh`。
 - 国内 CLI 已登录，`dfmodel` 完成真实路由；CLI 对该模型报告 0 tokens / 0 Credits，暂时无法用它校准 token/成本预算。
 - CLI 是完整 Agent Runtime：首条任务和重路由会多一次启动开销；同会话后续消息走缓存，不再每条启动。原生版真实路由墙钟约 3.1s（启动约 1.1s、模型约 2s），npm 版约 4.1s（启动约 2.6s）。
 - 缓存可能沿用旧路由：后续消息换了任务但没有“新任务/换个任务”等标记时，主 agent 需要从 registry 读取新契约，或用户发 `/route-reset`。真实同会话缓存已验证“CLI 路径不存在仍复用”。
