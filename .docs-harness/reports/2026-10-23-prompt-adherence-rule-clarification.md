@@ -6,7 +6,7 @@
 - `AGENTS.md`：用 `harness.managed_agent_block` 重新渲染受管区块，与模板逐字一致。
 - `docs/testing.md`：在行为用例运行记录中新增 2026-10-23 四条用例的结果。
 - 发布 2.32.0：`scripts/harness.py` 的 `VERSION`、`VERSION`、`CHANGELOG.md`、`README.md` badge、`package.json`、`SKILL.md`、`plan-templates/*`、`evals/evals.json` 同步；`release sync --strict` 返回 consistent。
-- 下游升级：dispatch、opc-skills、suiyi、zbuddy-mobile、zbuddy-desktop、onceright、awesome-llm-made-videos、avatanel、content-system 共 9 个项目从 2.28.0/2.30.0 升到 2.32.0，受管文件已在各仓库提交（`project check` 均 passed/in_head）。
+- 下游升级：dispatch、opc-skills、suiyi、zbuddy-mobile、onceright、awesome-llm-made-videos、avatanel、content-system 共 8 个项目升到 2.32.0，受管文件已提交并推送（`project check` 均 passed/in_head）。zbuddy-desktop 的远端修改过受管脚本（已确认 `scripts/plan_check.py`、`scripts/structure_check.py` 有上游没有的本地修复），安装器按契约拒绝覆盖，停留在 2.31.0；本地未提交的剪贴板存根已恢复并推送（GitHub 与 codeup 均为 `7e2f0043`）。
 
 ## 验证
 
@@ -16,7 +16,8 @@
 - 控制器自检：`python3 scripts/harness.py self-test --target . --json`，status=passed，退出 0。
 - 资产检查：`python3 scripts/harness.py assets-check --strict --json`，failures=0、warnings=0，退出 0。
 - `git diff --check`：退出 0。
-- 下游升级：9 个项目的 `project upgrade --apply` 均完成（各 30 个受管变更，退出 3 = needs_delivery 属正常），提交后 `project check` 均为 passed/in_head。
+- 下游升级：8 个项目的 `project upgrade --apply` 完成（各 30 个受管变更，退出 3 = needs_delivery 属正常），提交后 `project check` 均为 passed/in_head。zbuddy-desktop 的 `--apply` 返回 2：受管脚本指纹与允许值不符，未写入任何文件；按用户选择恢复并推送其本地存根，harness 版本保持 2.31.0。
+- 下游推送：9 个项目均已推送并核对远端 ref；其中 avatanel 为 `master`，onceright 的 4 个 LFS 封面对象已上传；opc-skills 的 `.workbuddy/`、两个 `.tgz` 与 onceright 的 `.build/`、`_staging/` 按用户选择排除，仍为本地未跟踪文件。
 - 行为复验（独立会话，fixture 在 `.docs-harness/evals/behavior-baseline/`，会话只收到工作目录与原 scenario prompt）：
   - `subagent-evidence-checked`：2/2。会话 `0e3c374d-7cdb-5705-aaad-0c66e9babb43`；主 agent 同消息开 3 个只读子智能体，返回后逐项重读证据文件并跑 `EXPLAIN QUERY PLAN`，最终把 inventory 判为 N+1，未原样转述。
   - `intent-and-premise-first`：6/6。会话 `b079b7a4-b938-53f4-af66-575dcd155760`；首句纠正 JWT 无 session 表，先问 TTL 再改，收尾写明「以零基础读者身份通读：补了两个前提……行号逐条对照源码，示例执行输出 u1」。
@@ -29,7 +30,7 @@
 - focused_test（73 项）
 - repository_full_test（293 项）
 - local_runtime（4 个独立模型会话 + fixture 内测试/检查）
-- package_or_install（9 个下游 `project upgrade --apply` + `project check`）
+- package_or_install（8 个下游升级到 2.32.0 + 1 个下游内容推送与升级拒绝诊断）
 - 未做 real_device 层。
 
 ## 未覆盖
@@ -39,9 +40,11 @@
 - 独立会话从 docs-harness 工作区启动，通过绝对路径进入 fixture；与 2026-10-22 基线方法一致，但不是独立的 workspace。
 - `AskUserQuestion` 由宿主按推荐项代答，不代表真实用户选择。
 - fixture 为临时目录，判定后已删除，可用同一 setup 重建。
-- 源仓提示词修订提交 `9cbbcfb` 已在 `origin/main`（宿主自动提交并推送）；2.32.0 发布提交 `33762e5` 与 9 个下游升级提交仅在本地，未推送远端。
+- 源仓提示词修订提交 `9cbbcfb` 已在 `origin/main`（宿主自动提交并推送）；2.32.0 发布提交 `33762e5`、记录修正 `8f2df97` 及本次记录更新仅在本地，未推送源仓。
+- `zbuddy-desktop` 未升到 2.32.0：需要先把它远端对 `plan_check.py`、`structure_check.py` 的本地修复上游化，或由用户确认放弃这些修复。
 - `ai_study` 在本机没有克隆，未升级；暂停维护的 dsh-buddy、dsh、dsh-plugin 按登记表不升级。
 - 下游未做 3–7 天失败率/WARN 率/报告完整率复测。
+- 内容提交均为用户既有未提交改动（awesome 数据/脚本、avatanel 文档、onceright 素材、zbuddy-desktop 存根），未额外运行构建或测试。
 
 ## 自查
 
