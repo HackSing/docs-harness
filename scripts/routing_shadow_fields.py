@@ -56,7 +56,16 @@ PROFILE_FIELDS = frozenset(
 )
 OUTCOME_FIELDS = frozenset({"clarify_asked", "rework", "completed"})
 MODEL_FIELDS = frozenset(
-    {"name", "version", "tokens_in", "tokens_out", "latency_ms", "cost_usd", "cache_hit"}
+    {
+        "name",
+        "version",
+        "tokens_in",
+        "tokens_out",
+        "latency_ms",
+        "cost_usd",
+        "credits",
+        "cache_hit",
+    }
 )
 
 
@@ -322,7 +331,7 @@ def _model(value: Any) -> dict[str, Any] | None:
                 f"model.{field}",
             )
             result[field] = item
-    for field in ("latency_ms", "cost_usd"):
+    for field in ("latency_ms", "cost_usd", "credits"):
         item = value.get(field)
         if item is not None:
             _require(

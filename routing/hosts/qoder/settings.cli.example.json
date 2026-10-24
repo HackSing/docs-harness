@@ -1,0 +1,23 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${QODER_PROJECT_DIR}/routing/hosts/qoder/route_hook.py\"",
+            "timeout": 90,
+            "env": {
+              "DOCS_HARNESS_ROUTER_ENABLED": "1",
+              "DOCS_HARNESS_ROUTER_BACKEND": "cli",
+              "DOCS_HARNESS_QODER_CLI": "~/.qoder-cn/docs-harness-router/cn/node_modules/.bin/qodercn",
+              "DOCS_HARNESS_QODER_CONFIG_DIR": "~/.qoder-cn/docs-harness-router/cn-config",
+              "DOCS_HARNESS_QODER_EMPTY_DIR": "~/.qoder-cn/docs-harness-router/empty"
+            },
+            "statusMessage": "Docs Harness routing (Qoder CLI)"
+          }
+        ]
+      }
+    ]
+  }
+}

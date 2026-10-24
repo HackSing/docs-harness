@@ -292,10 +292,14 @@ python3 -m unittest tests.test_routing_contract tests.test_routing_shadow tests.
 
 - 代码：`routing/hosts/qoder/route_hook.py`；fake fixture `routing/hosts/qoder/fake_profile.json`；配置示例 `routing/hosts/qoder/settings.example.json`。
 - 契约：读 stdin，加载注册表，校验 fake/真实画像，写脱敏 Shadow 事件，输出 `hookSpecificOutput.additionalContext`；默认关闭，失败不阻断用户任务。
-- 命令：`python3 -m unittest tests.test_qoder_hook -v`；8 项通过，退出码 0。
-- L2 全量：`npm test` 运行 420 项，SKIP 2 项，退出码 0。
-- 覆盖：选中契约注入且不泄露 prompt；默认关闭；无 registry、非法 profile、非法 phase、fake profile 不可读均非阻断；`direct_override` 跳过；澄清画像只记日志不注入。
+- 命令：`python3 -m unittest tests.test_qoder_hook -v`；17 项通过，退出码 0。
+- L2 全量：`npm test` 运行 430 项，SKIP 2 项，退出码 0。
+- 覆盖：选中契约注入且不泄露 prompt；默认关闭；无 registry、非法 profile、非法 phase、fake profile 不可读均非阻断；`direct_override` 跳过；澄清画像只记日志不注入；`must_clarify=true` 的额外触发项由宿主收敛为 `clarify_required`。
+- CLI backend：fake CLI 测试锁定 `-p`、`--output-format json`、`--max-turns 1`、`--tools ""`、`--no-session-persistence`、`--cwd`、`--config-dir`、`--system-prompt`、`--settings`；默认不传 `--model`，仅在 `DOCS_HARNESS_ROUTER_MODEL` 设置时覆盖；从 CLI JSON 记录 tokens、Credits、cost、CLI 版本与模型名；国际版 SDK/token 环境变量被移除，`QODERCN_CONFIG_DIR` 指向隔离目录；未登录/无效 profile/缺失 CLI 均非阻断。
+- 会话缓存：首条任务写缓存；后续消息复用缓存、不启动 CLI；新任务标记和 `/route-reset` 强制失效；TTL=0 强制重路由；缓存命中事件记录 `cache_hit`，指标输出 `cache_hit_count/rate`。
+- 真实 CN 调用：国内账号已登录；CLI 使用配置模型 `dfmodel`（不传 `--model`），两条真实 prompt 都路由到 `code`，Shadow 延迟约 4.7s / 5.5s；CLI 对 `dfmodel` 报告 0 Credits / 0 tokens。
+- 真实会话缓存：同一 session 首条走 CLI，后续消息在 CLI 路径不存在时仍命中缓存并注入“沿用上次路由”，无错误。
 - 独立冒烟：用 sample stdin 运行 hook，输出 JSON 含 `hookEventName=UserPromptSubmit` 与代码契约，Shadow 事件含 `task_hash`/`task_chars` 且不含 prompt。
-- 未覆盖：真实 Qoder Desktop 会话触发、真实模型 endpoint、token/cost、内核/模块契约拆分与 token 收益。
+- 未覆盖：Qoder Desktop 真实 `UserPromptSubmit` 触发、1–2 周真实 shadow 基线、`dfmodel` 的 token/credit 计量（CLI 返回 0）、内核/模块契约拆分与 token 收益。
 
 未覆盖：真实 shadow/canary、宿主独立调用与 feature flag、model/version/token/latency 记录、20–50 条真实任务基线、延迟/成本/澄清/返工阈值校准、下游安装。离线强模型证据仍是引导式 curated 集，不能当作生产准确率。

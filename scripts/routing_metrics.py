@@ -180,17 +180,24 @@ def summarize_shadow(
 
 def _aggregate(events: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
     count = len(events)
-    counters, coverage_rates, latencies, tokens_in, tokens_out, cost_total = (
+    counters, coverage_rates, latencies, tokens_in, tokens_out, cost_total, credits_total = (
         _collect_aggregate(events)
     )
     return _aggregate_result(
-        count, counters, coverage_rates, latencies, tokens_in, tokens_out, cost_total
+        count,
+        counters,
+        coverage_rates,
+        latencies,
+        tokens_in,
+        tokens_out,
+        cost_total,
+        credits_total,
     )
 
 
 def _collect_aggregate(
     events: Sequence[Mapping[str, Any]],
-) -> tuple[dict[str, int], list[float], list[float], int, int, float]:
+) -> tuple[dict[str, int], list[float], list[float], int, int, float, float]:
     counters = {
         "coverage_fail_count": 0,
         "critical_miss_count": 0,
@@ -205,18 +212,30 @@ def _collect_aggregate(
         "model_metadata_count": 0,
         "token_metadata_count": 0,
         "cost_metadata_count": 0,
+        "credits_metadata_count": 0,
+        "cache_hit_count": 0,
     }
     coverage_rates: list[float] = []
     latencies: list[float] = []
     tokens_in = 0
     tokens_out = 0
     cost_total = 0.0
+    credits_total = 0.0
     for event in events:
         _count_event(event, counters, coverage_rates, latencies)
         tokens_in += _model_number(event, "tokens_in", integer=True)
         tokens_out += _model_number(event, "tokens_out", integer=True)
         cost_total += _model_number(event, "cost_usd")
-    return counters, coverage_rates, latencies, tokens_in, tokens_out, cost_total
+        credits_total += _model_number(event, "credits")
+    return (
+        counters,
+        coverage_rates,
+        latencies,
+        tokens_in,
+        tokens_out,
+        cost_total,
+        credits_total,
+    )
 
 
 def _aggregate_result(
@@ -227,6 +246,7 @@ def _aggregate_result(
     tokens_in: int,
     tokens_out: int,
     cost_total: float,
+    credits_total: float,
 ) -> dict[str, Any]:
     return {
         "event_count": count,
@@ -267,6 +287,14 @@ def _aggregate_result(
         "cost_per_task": _ratio(
             cost_total, counters["cost_metadata_count"], digits=6
         ),
+        "credits_total": round(credits_total, 4)
+        if counters["credits_metadata_count"]
+        else None,
+        "credits_per_task": _ratio(
+            credits_total, counters["credits_metadata_count"], digits=4
+        ),
+        "cache_hit_count": counters["cache_hit_count"],
+        "cache_hit_rate": _rate(counters["cache_hit_count"], count),
     }
 
 
@@ -310,6 +338,10 @@ def _count_event(
             counters["token_metadata_count"] += 1
         if "cost_usd" in model:
             counters["cost_metadata_count"] += 1
+        if "credits" in model:
+            counters["credits_metadata_count"] += 1
+        if model.get("cache_hit") is True:
+            counters["cache_hit_count"] += 1
 
 
 def _alerts(

@@ -49,6 +49,7 @@ class MetricsTest(unittest.TestCase):
         tokens_out: int = 2,
         cost: float = 0.001,
         model: bool = True,
+        cache_hit: bool = False,
     ) -> dict:
         return rs.build_shadow_event(
             task_id,
@@ -69,6 +70,8 @@ class MetricsTest(unittest.TestCase):
                     "tokens_out": tokens_out,
                     "latency_ms": latency,
                     "cost_usd": cost,
+                    "credits": 1.0,
+                    "cache_hit": cache_hit,
                 }
                 if model
                 else None
@@ -156,6 +159,8 @@ class MetricsTest(unittest.TestCase):
         self.assertEqual(overall["tokens_per_task"], 10.5)
         self.assertEqual(overall["cost_usd_total"], 0.0035)
         self.assertEqual(overall["cost_per_task"], 0.000875)
+        self.assertEqual(overall["credits_total"], 4.0)
+        self.assertEqual(overall["credits_per_task"], 1.0)
 
     def test_groups_by_phase_risk_and_intent(self) -> None:
         summary = rm.summarize_shadow(self.fixture())
@@ -198,6 +203,24 @@ class MetricsTest(unittest.TestCase):
              "cost_per_task", "rework_rate"} <= codes
         )
         self.assertNotIn("quality_verified_rate", codes)
+
+    def test_cache_hit_is_summarized(self) -> None:
+        hit = self.event(
+            "cache",
+            profile(["code_task"], ["code_edit"]),
+            ["code"],
+            needed=["code"],
+            cache_hit=True,
+        )
+        normal = self.event(
+            "normal",
+            profile(["code_task"], ["code_edit"]),
+            ["code"],
+            needed=["code"],
+        )
+        summary = rm.summarize_shadow([hit, normal])
+        self.assertEqual(summary.overall["cache_hit_count"], 1)
+        self.assertEqual(summary.overall["cache_hit_rate"], 0.5)
 
     def test_quality_unverified_events_do_not_fake_rates(self) -> None:
         event = self.event(

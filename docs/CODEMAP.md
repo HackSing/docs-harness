@@ -41,6 +41,7 @@
 - `scripts/routing_shadow.py` — 职责：Shadow 事件构造、本地 JSONL 写入/读取与损坏日志失败；公开接口：`build_shadow_event`、`append_shadow_event`、`read_shadow_events`、`shadow_log_path`、`validate_shadow_event`、`RoutingShadowError`
 - `scripts/routing_metrics.py` — 职责：Shadow 指标聚合（关键漏配、过度路由、澄清、返工、延迟分位、token/cost、分组与告警）与执行前覆盖率核对；公开接口：`summarize_shadow`、`coverage_check`、`ShadowSummary`、`CoverageResult`、`RoutingMetricsError`
 - `routing/hosts/qoder/route_hook.py` — 职责：Qoder `UserPromptSubmit` command hook 原型——读 stdin、加载注册表、校验 fake/真实画像、写脱敏 Shadow 事件并注入选中模块契约；公开接口：`main`（stdin/stdout hook 合同）
+- `routing/hosts/qoder/route_cache.py` — 职责：Qoder hook 的会话级路由缓存（首条任务路由、后续消息复用、新任务标记与 `/route-reset` 失效、TTL 与注册表指纹校验）；公开接口：`read_cache`、`write_cache`、`clear_cache`、`is_new_task`、`is_reset`、`routing_dir`
 
 ## 评测
 

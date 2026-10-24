@@ -47,6 +47,81 @@ class QoderHookTest(unittest.TestCase):
     def write_fake(self, profile: dict) -> None:
         self.fake.write_text(json.dumps(profile, ensure_ascii=False), encoding="utf-8")
 
+    def install_fake_cli(self) -> Path:
+        path = self.project / "fake_qoder_cli"
+        path.write_text(
+            """#!/usr/bin/env python3
+import json
+import os
+import sys
+
+log = os.environ.get("FAKE_CLI_LOG")
+if log:
+    with open(log, "w", encoding="utf-8") as handle:
+        json.dump(
+            {
+                "argv": sys.argv[1:],
+                "cwd": os.getcwd(),
+                "sdk_entrypoint": os.environ.get("QODER_AGENT_SDK_ENTRYPOINT"),
+                "international_token": os.environ.get("QODER_PERSONAL_ACCESS_TOKEN"),
+                "cn_config_dir": os.environ.get("QODERCN_CONFIG_DIR"),
+            },
+            handle,
+            ensure_ascii=False,
+        )
+mode = os.environ.get("FAKE_CLI_MODE", "success")
+if "--version" in sys.argv:
+    print("9.9.9")
+    raise SystemExit(0)
+if mode == "not_logged_in":
+    print(json.dumps({
+        "type": "result",
+        "subtype": "success",
+        "is_error": True,
+        "result": "Not logged in · Please run /login",
+        "usage": {},
+        "modelUsage": {},
+    }))
+    raise SystemExit(0)
+if mode == "invalid_profile":
+    text = "this is not a routing profile"
+elif mode == "docs":
+    text = json.dumps({
+        "intents": ["docs_change"],
+        "triggers": ["docs_edit"],
+        "must_clarify": False,
+        "confidence": 0.9,
+    })
+else:
+    text = json.dumps({
+        "intents": ["code_task"],
+        "triggers": ["code_edit"],
+        "must_clarify": False,
+        "confidence": 0.9,
+    })
+print(json.dumps({
+    "type": "result",
+    "subtype": "success",
+    "is_error": False,
+    "duration_ms": 12,
+    "num_turns": 1,
+    "result": text,
+    "total_cost_usd": 0.001,
+    "total_credits": 3.5,
+    "usage": {
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "cache_read_input_tokens": 0,
+        "cache_creation_input_tokens": 0,
+    },
+    "modelUsage": {"performance": {"inputTokens": 100, "outputTokens": 20, "credits": 3.5}},
+}))
+""",
+            encoding="utf-8",
+        )
+        path.chmod(0o755)
+        return path
+
     def run_hook(
         self,
         prompt: str = PROMPT,
@@ -153,8 +228,8 @@ class QoderHookTest(unittest.TestCase):
     def test_clarify_profile_logs_without_injection(self) -> None:
         self.write_fake(
             {
-                "intents": [],
-                "triggers": ["clarify_required"],
+                "intents": ["code_task"],
+                "triggers": ["code_edit", "clarify_required"],
                 "must_clarify": True,
                 "confidence": 0.4,
             }
@@ -180,6 +255,173 @@ class QoderHookTest(unittest.TestCase):
         self.assertEqual(result.stdout.strip(), "")
         self.assertIn("phase_invalid", result.stderr)
         self.assertEqual(self.shadow_events(), [])
+
+    def run_cli_hook(
+        self,
+        *,
+        mode: str = "success",
+        prompt: str = PROMPT,
+        model: str | None = None,
+    ) -> subprocess.CompletedProcess[str]:
+        cli = self.install_fake_cli()
+        config = self.project / "cli-config"
+        empty = self.project / "cli-empty"
+        log = self.project / "cli-log.json"
+        extra_env = {
+            "DOCS_HARNESS_ROUTER_BACKEND": "cli",
+            "DOCS_HARNESS_QODER_CLI": str(cli),
+            "DOCS_HARNESS_QODER_CLI_VERSION": "9.9.9",
+            "DOCS_HARNESS_QODER_CONFIG_DIR": str(config),
+            "DOCS_HARNESS_QODER_EMPTY_DIR": str(empty),
+            "FAKE_CLI_LOG": str(log),
+            "FAKE_CLI_MODE": mode,
+            "QODER_AGENT_SDK_ENTRYPOINT": "must-be-dropped",
+            "QODER_PERSONAL_ACCESS_TOKEN": "international-token",
+        }
+        if model:
+            extra_env["DOCS_HARNESS_ROUTER_MODEL"] = model
+        return self.run_hook(prompt=prompt, extra_env=extra_env)
+
+    def test_cli_backend_injects_contract_and_records_usage(self) -> None:
+        result = self.run_cli_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        output = json.loads(result.stdout)
+        self.assertIn("代码改动契约", output["hookSpecificOutput"]["additionalContext"])
+        events = self.shadow_events()
+        self.assertEqual(len(events), 1)
+        model = events[0]["model"]
+        self.assertEqual(model["name"], "performance")
+        self.assertEqual(model["version"], "9.9.9")
+        self.assertEqual(model["tokens_in"], 100)
+        self.assertEqual(model["tokens_out"], 20)
+        self.assertEqual(model["cost_usd"], 0.001)
+        self.assertEqual(model["credits"], 3.5)
+        self.assertGreater(model["latency_ms"], 0)
+        log = json.loads((self.project / "cli-log.json").read_text(encoding="utf-8"))
+        argv = log["argv"]
+        self.assertIsNone(log["sdk_entrypoint"])
+        self.assertIsNone(log["international_token"])
+        self.assertEqual(log["cn_config_dir"], str(self.project / "cli-config"))
+        self.assertEqual(
+            Path(log["cwd"]).resolve(), (self.project / "cli-empty").resolve()
+        )
+        self.assertEqual(argv[0], "-p")
+        self.assertEqual(argv[1], PROMPT)
+        self.assertIn("--output-format", argv)
+        self.assertEqual(argv[argv.index("--output-format") + 1], "json")
+        self.assertNotIn("--model", argv)
+        self.assertEqual(argv[argv.index("--max-turns") + 1], "1")
+        self.assertEqual(argv[argv.index("--tools") + 1], "")
+        self.assertIn("--no-session-persistence", argv)
+        self.assertEqual(
+            Path(argv[argv.index("--cwd") + 1]).resolve(),
+            (self.project / "cli-empty").resolve(),
+        )
+        self.assertEqual(
+            Path(argv[argv.index("--config-dir") + 1]).resolve(),
+            (self.project / "cli-config").resolve(),
+        )
+        self.assertIn("--system-prompt", argv)
+        self.assertIn("--settings", argv)
+
+    def test_cli_backend_model_override_is_passed_only_when_configured(self) -> None:
+        result = self.run_cli_hook(model="DeepSeek-V4-Pro")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        log = json.loads((self.project / "cli-log.json").read_text(encoding="utf-8"))
+        argv = log["argv"]
+        self.assertEqual(argv[argv.index("--model") + 1], "DeepSeek-V4-Pro")
+
+    def test_cli_backend_not_logged_in_is_non_blocking(self) -> None:
+        result = self.run_cli_hook(mode="not_logged_in")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "")
+        self.assertIn("qoder_cli_not_logged_in", result.stderr)
+        self.assertEqual(self.shadow_events(), [])
+
+    def test_cli_backend_invalid_profile_is_non_blocking(self) -> None:
+        result = self.run_cli_hook(mode="invalid_profile")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "")
+        self.assertIn("router_profile_not_json", result.stderr)
+        self.assertEqual(self.shadow_events(), [])
+
+    def test_cli_backend_missing_executable_is_non_blocking(self) -> None:
+        result = self.run_hook(
+            extra_env={
+                "DOCS_HARNESS_ROUTER_BACKEND": "cli",
+                "DOCS_HARNESS_QODER_CLI": str(self.project / "missing-qoder"),
+            }
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "")
+        self.assertIn("qoder_cli_missing", result.stderr)
+        self.assertEqual(self.shadow_events(), [])
+
+    def session_caches(self) -> list[Path]:
+        directory = self.project / ".docs-harness" / "routing" / "sessions"
+        return sorted(directory.glob("*.json")) if directory.is_dir() else []
+
+    def test_followup_reuses_session_cache_without_cli(self) -> None:
+        first = self.run_hook()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(len(self.session_caches()), 1)
+        second = self.run_hook(
+            prompt="继续把这个契约文案改短",
+            extra_env={
+                "DOCS_HARNESS_ROUTER_BACKEND": "cli",
+                "DOCS_HARNESS_QODER_CLI": str(self.project / "missing-qoder"),
+            },
+        )
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertNotIn("qoder_cli_missing", second.stderr)
+        self.assertIn("沿用上次路由", json.loads(second.stdout)["hookSpecificOutput"]["additionalContext"])
+        events = self.shadow_events()
+        self.assertEqual(len(events), 2)
+        self.assertTrue(events[-1]["model"]["cache_hit"])
+        self.assertEqual(events[-1]["model"]["name"], "route-cache")
+        self.assertEqual(events[-1]["modules"], ["code"])
+
+    def test_new_task_marker_bypasses_cache(self) -> None:
+        first = self.run_hook()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        second = self.run_cli_hook(prompt="新任务：写一个发布说明", mode="docs")
+        self.assertEqual(second.returncode, 0, second.stderr)
+        context = json.loads(second.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("文档交付契约", context)
+        self.assertNotIn("沿用上次路由", context)
+        events = self.shadow_events()
+        self.assertEqual(events[-1]["modules"], ["docs"])
+        self.assertEqual(events[-1]["model"]["name"], "performance")
+
+    def test_route_reset_clears_cache(self) -> None:
+        first = self.run_hook()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(len(self.session_caches()), 1)
+        reset = self.run_hook(
+            prompt="/route-reset",
+            extra_env={
+                "DOCS_HARNESS_ROUTER_BACKEND": "cli",
+                "DOCS_HARNESS_QODER_CLI": str(self.project / "missing-qoder"),
+            },
+        )
+        self.assertEqual(reset.returncode, 0, reset.stderr)
+        self.assertEqual(reset.stdout.strip(), "")
+        self.assertEqual(self.session_caches(), [])
+
+    def test_cache_ttl_zero_forces_reroute(self) -> None:
+        first = self.run_hook()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        second = self.run_hook(
+            prompt="继续把这个契约文案改短",
+            extra_env={
+                "DOCS_HARNESS_ROUTER_BACKEND": "cli",
+                "DOCS_HARNESS_QODER_CLI": str(self.project / "missing-qoder"),
+                "DOCS_HARNESS_ROUTER_CACHE_TTL_SECONDS": "0",
+            },
+        )
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertIn("qoder_cli_missing", second.stderr)
+        self.assertNotIn("沿用上次路由", second.stdout)
 
 
 if __name__ == "__main__":

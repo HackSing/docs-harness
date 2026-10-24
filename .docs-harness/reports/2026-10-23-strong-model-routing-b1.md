@@ -55,14 +55,18 @@
 ### 改动路径
 
 - `routing/hosts/qoder/route_hook.py`：命令 hook，读 stdin、加载注册表、校验 fake/真实画像、写 Shadow 事件、输出 `additionalContext`；`_route_task` 是真实模型调用替换点。
-- `routing/hosts/qoder/fake_profile.json`、`settings.example.json`、`README.md`：原型 fixture、Qoder hooks 配置示例与使用说明。
-- `tests/test_qoder_hook.py`：8 项独立 stdin 合同测试。
-- `docs/routing.md` §10、`docs/CODEMAP.md`、`docs/testing.md`、`TODO.md`：Qoder hook 审计、边界与测试记录。
+- `routing/hosts/qoder/fake_profile.json`、`settings.example.json`、`settings.cli.example.json`、`README.md`：fake/CLI backend fixture、Qoder hooks 配置示例与使用说明。
+- `routing/hosts/qoder/route_hook.py` 增加 CLI backend：`_route_task` 支持 `fake|cli`，国内版 CLI 用 `qodercn -p -o json --tools "" --max-turns 1 --no-session-persistence`，记录 tokens/Credits/cost/CLI 版本；默认不传 `--model`，使用 CLI `/model` 当前配置，只有 `DOCS_HARNESS_ROUTER_MODEL` 设置时才覆盖；子进程移除 Qoder Desktop 注入的 SDK 环境变量、国际版 token，并设置隔离的 `QODERCN_CONFIG_DIR`。
+- 宿主归一化：`must_clarify=true` 时把模型额外给出的动作触发项收敛为 `clarify_required`，避免“澄清 + 动作”混合画像被核心校验器整份拒绝。
+- `routing/hosts/qoder/route_cache.py`：同会话路由缓存；首条任务调用 CLI，后续消息复用缓存，新任务标记/`/route-reset`/TTL/注册表指纹变化使其失效。
+- `tests/test_qoder_hook.py`：17 项独立 stdin 合同测试（fake 8 + CLI 5 + 缓存 4）。
+- `docs/routing.md` §10、`docs/CODEMAP.md`、`docs/testing.md`、`TODO.md`：Qoder hook/CLI/缓存审计、边界与测试记录。
+- `scripts/routing_shadow_fields.py`、`scripts/routing_metrics.py`：Shadow 模型元数据新增 `credits`，指标新增 `credits_total`/`credits_per_task`。
 
 ### 验证
 
-- `python3 -m unittest tests.test_qoder_hook -v`：8 项通过，退出码 0；验证层级：focused_test。
-- `npm test`：420 项通过，SKIP 2，退出码 0；验证层级：repository_full_test。
+- `python3 -m unittest tests.test_qoder_hook -v`：17 项通过，退出码 0；验证层级：focused_test。
+- `npm test`：430 项通过，SKIP 2，退出码 0；验证层级：repository_full_test。
 - `python3 scripts/harness.py assets-check --strict --json`：违规 0、警告 0，退出码 0；验证层级：contract_check。
 - `python3 scripts/harness.py structure check --target . --json`：warnings 0，退出码 0；验证层级：contract_check。
 - `npm run pack:check`：82 个文件，包含 `routing/hosts/qoder/` 下四个文件；验证层级：package_or_install。
@@ -73,11 +77,15 @@
 - 重复逻辑：hook 复用 `validate_profile`/`build_shadow_event`/`append_shadow_event`，没有复制校验或日志逻辑。
 - 默认关闭：`DOCS_HARNESS_ROUTER_ENABLED` 未设为 `1` 时不读注册表、不注入、不写日志。
 - 失败不阻断：无 registry、非法 profile、非法 phase、fake profile 不可读都退出 0，错误写 stderr 与本地脱敏错误日志。
-- 未改 AGENTS.md、未改下游安装面、未接真实模型。
+- 未改 AGENTS.md、未改下游安装面；已接国内版真实模型。
 
 ### 未覆盖
 
-- Qoder Desktop 真实会话触发尚未验证；需要新会话或配置重载。
-- 真实强模型 endpoint、token/cost 与真实路由质量数据未接。
+- 先装了国际版 `@qoder-ai/qodercli`，登录页是国际站；已改为国内版 `@qodercn-ai/qoderclicn`（`qodercn` 1.1.78，宿主侧 `cn/` 目录）。国际版不再使用，但其 node_modules 与旧 config 目录仍留在宿主侧。
+- 国内账号已登录；真实路由使用 CLI 当前配置模型 `dfmodel`（不传 `--model`），两条真实 prompt 都路由到 `code`，延迟约 4.7s / 5.5s。CLI 对 `dfmodel` 报告 0 tokens / 0 Credits，暂时不能校准 token/成本预算。
+- 同一 session 首条走 CLI，后续消息在 `DOCS_HARNESS_QODER_CLI` 指向不存在路径时仍命中缓存并注入“沿用上次路由”，无错误。
+- 仍未在新 Qoder Desktop 会话触发 `UserPromptSubmit`；当前真实调用是脚本级 hook。
+- 会话缓存的命中率、误复用和 `/route-reset` 体验尚未在多任务、长会话与上下文压缩场景统计。
 - 内核/模块契约拆分未做，当前不会降低 AGENTS.md token。
-- 用户级安装与 Claude Code adapter 未做。
+- 用户级 hook 安装与 Claude Code adapter 未做。
+- 真实路由质量、20–50 条任务基线和阈值校准未做。
