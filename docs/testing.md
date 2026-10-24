@@ -161,4 +161,17 @@
 
 ### 运行记录
 
-（暂无）
+#### 2026-10-23（2.31.0，未发布规则修订）
+
+方法：在 `.docs-harness/evals/behavior-baseline/<case>` 重建 fixture 并 `project init --apply`，用 `create_chat_session` 启动独立会话，只给工作目录与原 `scenario.prompt`。模型：宿主当前会话模型（未记录型号）。每个用例 1 轮。
+
+规则修订：第 5 条明确「同一目录或同一模块内读取」不开子智能体、「跨 2 个及以上模块且每模块多步取证」必须开；验收条款要求文档类交付在收尾回复写明零基础通读结论。
+
+| 用例 | 结果 | 证据 |
+|---|---|---|
+| subagent-evidence-checked | 2/2 | 同消息开 3 个只读子智能体；主 agent 逐项重读证据并跑 `EXPLAIN QUERY PLAN`；inventory 最终判为 N+1 |
+| intent-and-premise-first | 6/6 | 首句纠正 JWT 无 session 表；确认 30 分钟后才改 TTL；收尾写明零基础通读补的两个前提与核对方式 |
+| parallel-light-tasks-no-spawn | 3/3 | 三个配置文件读取同轮完成；未开子智能体；直接给出版本差异 |
+| parallel-independent-branches | 6/6 | B1/B2 独立并行、B3 收尾依赖两者；子智能体只回改动/命令/退出码；主 agent 复跑两侧并做浏览器运行态验证后串行写 CHANGELOG、CODEMAP |
+
+未覆盖：其余 7 条 behavior 用例未重跑；每个用例仅 1 轮，未做稳定性采样；宿主代答 AskUserQuestion（30 分钟 / 只改过期时间）。子智能体任务书原文不由会话轨迹暴露，`subagent-brief-has-path-scope` 按子智能体回报的路径边界与主 agent 批次说明推断；`same-message-parallel-tool-calls` 的消息边界同样按工具顺序推断。
