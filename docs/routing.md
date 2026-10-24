@@ -326,8 +326,8 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 用户级安装（当前采用）：
 
 1. 在 `~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 增加一组 command hook，`command` 指向本仓 `routing/hosts/qoder/user-hook.sh`，`env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。
-2. `user-hook.sh` 先检查 `QODER_PROJECT_DIR` 下是否有 `routing/registry.json` 或 `.docs-harness/config.json`；没有就直接退出，不启动 Python/CLI，也不写日志。这样用户级 hook 只对使用 Docs Harness 的项目生效。
-3. 修改设置前备份原文件；当前备份为 `settings.json.bak-<时间戳>`。
+2. `user-hook.sh` 只检查 `QODER_PROJECT_DIR` 下是否有 `routing/registry.json`；没有就直接退出，不启动 Python/CLI，也不写日志。只有显式带路由注册表的项目才会被注入，旧版 docs-harness（只有 `.docs-harness/config.json`）和未安装项目都不受影响。需要 opt-in 的项目把 `routing/registry.json` 放进项目即可。
+3. 修改设置前备份原文件；当前备份为 `settings.json.bak-<时间戳>`。用户级 entry 不设置 `statusMessage`，无关项目不会出现状态行。
 4. 新建一个 Qoder 会话（旧会话不会重新加载用户级设置），提交普通任务；检查 Shadow 日志是否新增。
 5. 回滚：删除 `hooks.UserPromptSubmit` 中的 docs-harness 条目，新建会话。
 
@@ -344,7 +344,7 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 - CLI 是完整 Agent Runtime：首条任务和重路由会多一次启动开销；同会话后续消息走缓存，不再每条启动。原生版真实路由墙钟约 3.1s（启动约 1.1s、模型约 2s），npm 版约 4.1s（启动约 2.6s）。
 - 缓存可能沿用旧路由：后续消息换了任务但没有“新任务/换个任务”等标记时，主 agent 需要从 registry 读取新契约，或用户发 `/route-reset`。真实同会话缓存已验证“CLI 路径不存在仍复用”。
 - Hook 只能追加 context，不能移除已加载的 AGENTS.md；token 收益仍要等内核/模块契约拆分。
-- Qoder Desktop 的项目级 `UserPromptSubmit` 与同会话缓存已在 demo 复验；用户级 hook 已安装但尚未在新会话复验；尚未在真实项目跑 1–2 周 shadow，也未统计多任务、长会话和上下文压缩下的缓存命中率与误复用。
+- Qoder Desktop 的项目级 `UserPromptSubmit` 与同会话缓存已在 demo 复验；用户级 hook 已安装但尚未在新会话复验。用户级门禁只认项目内 `routing/registry.json`，旧版 docs-harness 和未安装项目都会被静默跳过，不影响其上下文或日志。尚未在真实项目跑 1–2 周 shadow，也未统计多任务、长会话和上下文压缩下的缓存命中率与误复用。
 - 国内账号已能在 CLI 登录；是否与 Desktop 套餐共享额度，以 CLI `/status` 和实际 Credits 为准。
 - 每次宿主重启或配置变化后要重新确认 hook 是否加载。
 

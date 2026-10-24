@@ -476,9 +476,7 @@ def _project_dir(payload: Mapping[str, Any]) -> Path:
 
 
 def _uses_docs_harness(project: Path) -> bool:
-    return (project / "routing" / "registry.json").is_file() or (
-        project / ".docs-harness" / "config.json"
-    ).is_file()
+    return (project / "routing" / "registry.json").is_file()
 
 
 def _registry_for(project: Path) -> Registry:
@@ -488,10 +486,6 @@ def _registry_for(project: Path) -> Registry:
     project_registry = project / "routing" / "registry.json"
     if project_registry.is_file():
         return load_registry(project_registry)
-    installed = (project / ".docs-harness" / "config.json").is_file()
-    source_registry = SOURCE_ROOT / "routing" / "registry.json"
-    if installed and source_registry.is_file():
-        return load_registry(source_registry)
     raise HookError("registry_missing", "routing/registry.json")
 
 

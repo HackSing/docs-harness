@@ -208,15 +208,16 @@ print(json.dumps({
         self.assertEqual(self.shadow_events(), [])
         self.assertFalse((self.project / ".docs-harness" / "routing").exists())
 
-    def test_installed_project_without_registry_uses_source_registry(self) -> None:
+    def test_old_docs_harness_project_without_registry_is_skipped(self) -> None:
         (self.project / "routing" / "registry.json").unlink()
         (self.project / ".docs-harness").mkdir()
         (self.project / ".docs-harness" / "config.json").write_text("{}", encoding="utf-8")
         result = self.run_hook()
         self.assertEqual(result.returncode, 0, result.stderr)
-        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("代码改动契约", context)
-        self.assertEqual(len(self.shadow_events()), 1)
+        self.assertEqual(result.stdout.strip(), "")
+        self.assertEqual(result.stderr.strip(), "")
+        self.assertEqual(self.shadow_events(), [])
+        self.assertFalse((self.project / ".docs-harness" / "routing").exists())
 
     def run_user_hook(
         self, project: Path, prompt: str = PROMPT
@@ -254,14 +255,16 @@ print(json.dumps({
             env=env,
         )
 
-    def test_user_hook_wrapper_skips_project_without_docs_harness(self) -> None:
+    def test_user_hook_wrapper_skips_old_docs_harness_project(self) -> None:
         project = Path(self.temp.name) / "other"
         project.mkdir()
+        (project / ".docs-harness").mkdir()
+        (project / ".docs-harness" / "config.json").write_text("{}", encoding="utf-8")
         result = self.run_user_hook(project)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "")
         self.assertEqual(result.stderr.strip(), "")
-        self.assertFalse((project / ".docs-harness").exists())
+        self.assertFalse((project / ".docs-harness" / "routing").exists())
 
     def test_user_hook_wrapper_delegates_for_docs_harness_project(self) -> None:
         result = self.run_user_hook(self.project)

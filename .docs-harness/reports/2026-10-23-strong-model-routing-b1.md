@@ -60,7 +60,8 @@
 - 宿主归一化：`must_clarify=true` 时把模型额外给出的动作触发项收敛为 `clarify_required`，避免“澄清 + 动作”混合画像被核心校验器整份拒绝。
 - `routing/hosts/qoder/route_cache.py`：同会话路由缓存；首条任务调用 CLI，后续消息复用缓存，新任务标记/`/route-reset`/TTL/注册表指纹变化使其失效。
 - `routing/hosts/qoder/user-hook.sh`：用户级 hook 入口，先用 `QODER_PROJECT_DIR` 检查 `routing/registry.json` 或 `.docs-harness/config.json`，不匹配直接退出；匹配才调用 `route_hook.py`。
-- 用户级安装：`~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 已写入 `user-hook.sh` 条目，设置 `DOCS_HARNESS_ROOT`、CLI/config/empty 和 backend；修改前备份为 `settings.json.bak-20261023224819`。demo 的项目级 hook 已移除。
+- 用户级安装：`~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 已写入 `user-hook.sh` 条目，设置 `DOCS_HARNESS_ROOT`、CLI/config/empty 和 backend；修改前备份为 `settings.json.bak-20261023224819`，去掉 `statusMessage` 时再备份为 `settings.json.bak-20261023225341`。demo 的项目级 hook 已移除。
+- 项目门禁收紧：`user-hook.sh` 只检查 `routing/registry.json`；旧版 docs-harness（只有 `.docs-harness/config.json`）和未安装项目静默退出，不启动 Python/CLI、不写日志、不改上下文。
 - `tests/test_qoder_hook.py`：20 项独立 stdin 合同测试（基础/门禁 8 + CLI 5 + 缓存 4 + 用户级 3）。
 - `docs/routing.md` §10、`docs/CODEMAP.md`、`docs/testing.md`、`TODO.md`：Qoder hook/CLI/缓存审计、边界与测试记录。
 - `scripts/routing_shadow_fields.py`、`scripts/routing_metrics.py`：Shadow 模型元数据新增 `credits`，指标新增 `credits_total`/`credits_per_task`。
@@ -89,7 +90,7 @@
 - Qoder Desktop 端到端已触发：demo 项目 `~/.qoder-cn/docs-harness-router/demo-project` 两次真实 `UserPromptSubmit` 均执行，Shadow 事件 `modules=["code"]`、`model.name="dfmodel"`，延迟 6.09s / 2.87s，无 hook 错误；主任务生成 `hello.py`。两次是不同 session，没有命中会话缓存。
 - 同一 session 首条走 CLI，后续消息在 `DOCS_HARNESS_QODER_CLI` 指向不存在路径时仍命中缓存并注入“沿用上次路由”，无错误。
 - 项目级 Desktop 已完成真实触发与同会话缓存复验（第三条 `route-cache` / `cache_hit=true` / 0.0s，`hello.py` 更新为 `hello docs`）。
-- 用户级 hook 已安装并备份，但尚未在新 Qoder 会话复验；demo 的项目级 hook 已移除。
+- 用户级 hook 已安装并备份，但尚未在新 Qoder 会话复验；demo 的项目级 hook 已移除。用户级门禁只认 `routing/registry.json`，旧项目不受影响。
 - 原生 CLI 仍有一次约 1.1s 启动和约 2s 模型耗时；同会话后续消息走缓存，不再付这笔开销。
 - 会话缓存的命中率、误复用和 `/route-reset` 体验尚未在多任务、长会话与上下文压缩场景统计。
 - 内核/模块契约拆分未做，当前不会降低 AGENTS.md token。

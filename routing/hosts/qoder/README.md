@@ -79,7 +79,7 @@ CLI JSON 的 `usage`、`duration_ms`、`total_credits`、`total_cost_usd`、`mod
 
 1. 在 `~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 增加一组 command hook，`command` 指向本目录的 `user-hook.sh`。
 2. `env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。
-3. `user-hook.sh` 只在项目含 `routing/registry.json` 或 `.docs-harness/config.json` 时继续；其他项目直接退出，不写日志、不启动 CLI。
+3. `user-hook.sh` 只在项目含 `routing/registry.json` 时继续；旧版 docs-harness（只有 `.docs-harness/config.json`）和其他项目直接退出，不写日志、不启动 CLI、不改上下文。
 4. 修改设置前备份；新建 Qoder 会话才会加载用户级 hook。
 
 项目级（可选）：把 `settings.example.json`（fake）或 `settings.cli.example.json`（真实 Qoder 模型）的 `hooks` 块合并到 `.qoder/settings.local.json`，确认项目有 `routing/registry.json`，然后新建会话。

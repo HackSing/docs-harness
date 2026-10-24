@@ -294,7 +294,7 @@ python3 -m unittest tests.test_routing_contract tests.test_routing_shadow tests.
 - 契约：读 stdin，加载注册表，校验 fake/真实画像，写脱敏 Shadow 事件，输出 `hookSpecificOutput.additionalContext`；默认关闭，失败不阻断用户任务。
 - 命令：`python3 -m unittest tests.test_qoder_hook -v`；20 项通过，退出码 0。
 - L2 全量：`npm test` 运行 433 项，SKIP 2 项，退出码 0。
-- 覆盖：选中契约注入且不泄露 prompt；默认关闭；无 registry、非法 profile、非法 phase、fake profile 不可读均非阻断；`direct_override` 跳过；澄清画像只记日志不注入；`must_clarify=true` 的额外触发项由宿主收敛为 `clarify_required`；用户级入口对非 Docs Harness 项目直接跳过，对已安装项目回退到 source registry。
+- 覆盖：选中契约注入且不泄露 prompt；默认关闭；无 registry、非法 profile、非法 phase、fake profile 不可读均非阻断；`direct_override` 跳过；澄清画像只记日志不注入；`must_clarify=true` 的额外触发项由宿主收敛为 `clarify_required`；用户级入口只对含 `routing/registry.json` 的项目生效，旧版 docs-harness 和无关项目静默跳过。
 - CLI backend：fake CLI 测试锁定 `-p`、`--output-format json`、`--max-turns 1`、`--tools ""`、`--no-session-persistence`、`--cwd`、`--config-dir`、`--system-prompt`、`--settings`；默认不传 `--model`，仅在 `DOCS_HARNESS_ROUTER_MODEL` 设置时覆盖；从 CLI JSON 记录 tokens、Credits、cost、CLI 版本与模型名；国际版 SDK/token 环境变量被移除，`QODERCN_CONFIG_DIR` 指向隔离目录；未登录/无效 profile/缺失 CLI 均非阻断。
 - 会话缓存：首条任务写缓存；后续消息复用缓存、不启动 CLI；新任务标记和 `/route-reset` 强制失效；TTL=0 强制重路由；缓存命中事件记录 `cache_hit`，指标输出 `cache_hit_count/rate`。
 - 真实 CN 调用：国内账号已登录；CLI 使用配置模型 `dfmodel`（不传 `--model`），真实 prompt 路由到 `code`，CLI 对 `dfmodel` 报告 0 Credits / 0 tokens。原生版单次墙钟 3.10s（模型+运行时 1.97s，启动约 1.1s）；npm 版 4.13s（模型+运行时 1.53s，启动约 2.6s）。
@@ -302,7 +302,7 @@ python3 -m unittest tests.test_routing_contract tests.test_routing_shadow tests.
 - Qoder Desktop 端到端：demo 项目首条真实 `UserPromptSubmit` 触发，Shadow 事件 `modules=["code"]`、`model.name="dfmodel"`，延迟 6.09s / 2.87s（两次不同 session），主任务生成 `hello.py`，无 hook 错误。
 - Desktop 同会话缓存：在同一 session 发送后续消息，第三条 Shadow 事件为 `model.name="route-cache"`、`cache_hit=true`、延迟 0.0s，没有启动 CLI；`hello.py` 更新为 `print("hello docs")`，无错误。
 - 独立冒烟：用 sample stdin 运行 hook，输出 JSON 含 `hookEventName=UserPromptSubmit` 与代码契约，Shadow 事件含 `task_hash`/`task_chars` 且不含 prompt。
-- 用户级入口：`user-hook.sh` 对无 Docs Harness 标识的项目直接退出、不建日志；对含 `routing/registry.json` 或 `.docs-harness/config.json` 的项目转交 `route_hook.py`。`~/.qoder-cn/settings.json` 已写入该条目并备份。
+- 用户级入口：`user-hook.sh` 只对含 `routing/registry.json` 的项目转交 `route_hook.py`；旧版 docs-harness（仅 `.docs-harness/config.json`）和未安装项目直接退出，不建日志、不启动 CLI。`~/.qoder-cn/settings.json` 已写入该条目并备份；用户级 entry 不设置 `statusMessage`。
 - 未覆盖：用户级 hook 在新 Qoder 会话的触发、1–2 周真实 shadow 基线、多任务/长会话/上下文压缩下的缓存命中率与误复用、`dfmodel` 的 token/credit 计量（CLI 返回 0）、内核/模块契约拆分与 token 收益。
 
 未覆盖：真实 shadow/canary、宿主独立调用与 feature flag、model/version/token/latency 记录、20–50 条真实任务基线、延迟/成本/澄清/返工阈值校准、下游安装。离线强模型证据仍是引导式 curated 集，不能当作生产准确率。
