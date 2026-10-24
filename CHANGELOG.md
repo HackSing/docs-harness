@@ -1,5 +1,13 @@
 # Changelog
 
+## 2.33.0 - 2026-10-23
+
+- **提示词格式规则**：收紧「呈现形式」阶梯的第 1/2/7 行；补「同一回复命中多行取更具体的一行」「有改动的任务即使一句话能说清仍按四块」「附件放结果句后、记录路径末行」；解释类请求改为「图后最多补 3 条、不写步骤清单」。新增 `docs/output-format-ladder.md` 逐字快照与防漂移测试。
+- **意图路由评测**：新增 `evals/intent_routing/`：20 条诊断用例、两组各 50 条 held-out、评分器、rules/Jev 适配器；收尾记录包含 rules-v1、Jev 1.14.0 与强力模型直路由的对照结果。生产路由尚未实现，本版只提供评测资产。
+- **检查器**：`report check` 的命令字段接受 `python3`、`python3.12` 等版本化解释器。
+- **测试**：新增格式阶梯、意图路由数据集/评分器、Jev 适配器合同测试；`npm test`、`assets-check --strict`、`self-test`、`release sync --strict` 通过。
+- 本版不改变 CLI 命令契约、Plan 模板字段或安装流程；下游升级会产生受管 `AGENTS.md`/`CLAUDE.md` 区块 diff。
+
 ## 2.32.1 - 2026-10-23
 
 - **Plan INDEX 条目选择**：`plan_check.canonical_index_entry` 优先匹配行首 Markdown 链接、其次表格行，避免把引用句或后继方案链接当成正式条目；`harness.py` 的索引一致性检查改用它。
