@@ -166,10 +166,10 @@ summary = summarize_shadow(
 | model/version 记录 | hook 从 CLI `modelUsage` 取模型名，从 `--version` 取 CLI 版本；真实值 `dfmodel` / `1.1.78` | 已确认 |
 | token、latency 记录 | CLI JSON 含 `usage`、`duration_ms`、`total_cost_usd`、`total_credits`；原生版真实路由墙钟 3.10s（模型 1.97s、启动约 1.1s），npm 版 4.13s（模型 1.53s、启动约 2.6s）；`dfmodel` 报告 0 tokens / 0 Credits | 字段与延迟已确认；`dfmodel` 用量为 0 |
 | feature flag 与回滚开关 | `DOCS_HARNESS_ROUTER_ENABLED` + `DOCS_HARNESS_ROUTER_BACKEND`；回滚等价于移除 hook 条目 | 原型已确认；宿主级 flag 未确认 |
-| shadow sink | 真实 hook 已写本地 JSONL 与缓存；同一 session 后续消息命中缓存、不启动 CLI | 已接通；Desktop 端到端未确认 |
+| shadow sink | Qoder Desktop 真实 `UserPromptSubmit` 已在 demo 会话触发：两条事件均为 `dfmodel` / `code`，无 hook 错误，主任务生成 `hello.py`；脚本级同会话缓存已验证 | Desktop 端到端已确认；同会话缓存待 Desktop 复验 |
 | 20–50 条真实任务基线 | 目前只有手工真实 prompt；尚无 1–2 周真实任务统计 | 未开始 |
 
-结论：A 在 Qoder 上已从“可行”变成“真实可调用”：国内账号已登录，`dfmodel` 完成真实路由，同会话缓存避免了每条消息启动 CLI。下一步是在新 Qoder 会话安装 `UserPromptSubmit` hook，跑 1–2 周真实任务 shadow，采集关键漏配、返工、延迟与用量。Hook 只能追加 context，不能移除已加载的 AGENTS.md；要拿到 token 收益仍需拆分内核与模块契约。
+结论：A 在 Qoder 上已完成端到端闭环：国内账号已登录，`dfmodel` 完成真实路由，Qoder Desktop 的 `UserPromptSubmit` hook 已在 demo 会话触发并写入 Shadow；同会话缓存先由脚本级真实调用验证。下一步是把 hook 装到实际项目，跑 1–2 周真实任务 shadow，采集关键漏配、返工、延迟与用量。Hook 只能追加 context，不能移除已加载的 AGENTS.md；要拿到 token 收益仍需拆分内核与模块契约。
 
 ## 7. B2 运行手册
 
@@ -338,15 +338,15 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 - CLI 是完整 Agent Runtime：首条任务和重路由会多一次启动开销；同会话后续消息走缓存，不再每条启动。原生版真实路由墙钟约 3.1s（启动约 1.1s、模型约 2s），npm 版约 4.1s（启动约 2.6s）。
 - 缓存可能沿用旧路由：后续消息换了任务但没有“新任务/换个任务”等标记时，主 agent 需要从 registry 读取新契约，或用户发 `/route-reset`。真实同会话缓存已验证“CLI 路径不存在仍复用”。
 - Hook 只能追加 context，不能移除已加载的 AGENTS.md；token 收益仍要等内核/模块契约拆分。
-- Qoder Desktop 的真实 `UserPromptSubmit` 触发尚未验证；当前真实调用是脚本级 hook。
+- Qoder Desktop 的真实 `UserPromptSubmit` 已在 demo 会话触发；两次测试是不同 session，尚未在 Desktop 内复验同会话缓存，也尚未在真实项目跑 1–2 周 shadow。
 - 国内账号已能在 CLI 登录；是否与 Desktop 套餐共享额度，以 CLI `/status` 和实际 Credits 为准。
 - 每次宿主重启或配置变化后要重新确认 hook 是否加载。
 
 ## 11. 未覆盖与待定
 
 - B2–B5 的真实 shadow、canary、强制放量尚未开始。
-- 国内原生 `qoderclicn` 已登录并能真实调用；`dfmodel` 的 token/credit 计量为 0，Desktop 端到端触发、1–2 周 shadow 和回滚演练未完成。
-- 会话缓存已用真实同会话两条消息验证一次，但尚未在多任务、长会话、上下文压缩和 `/route-reset` 场景统计命中率与误复用。
+- 国内原生 `qoderclicn` 已登录并能真实调用；`dfmodel` 的 token/credit 计量为 0；Qoder Desktop 已完成一次端到端触发，1–2 周 shadow 和回滚演练未完成。
+- 会话缓存已用脚本级真实同会话两条消息验证一次；Desktop 内的两次测试是不同 session，尚未在多任务、长会话、上下文压缩和 `/route-reset` 场景统计命中率与误复用。
 - 20–50 条真实任务基线尚未建立。
 - 延迟、token、成本、Credits、澄清和返工阈值尚未校准。
 - 内核/模块契约尚未拆分，当前 hook 只追加契约，不减少 AGENTS.md token。

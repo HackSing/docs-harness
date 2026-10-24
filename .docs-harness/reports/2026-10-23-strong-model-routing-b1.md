@@ -84,9 +84,9 @@
 - 先装了国际版 `@qoder-ai/qodercli`，登录页是国际站；已改为国内版。国际版 npm 包（93M）与旧 config（3M）已清理；国内 npm 包保留为 fallback。
 - 国内原生 CLI `qoderclicn` 1.1.78 已通过 `--skip-path` 安装到 `~/.local/bin/qoderclicn`，未改 PATH，并继承 `cn-config` 的 `dfmodel` 登录；npm `qodercn` fallback 仍在 `~/.qoder-cn/docs-harness-router/cn/`。
 - 真实路由使用 CLI 当前配置模型 `dfmodel`（不传 `--model`），真实 prompt 路由到 `code`。原生墙钟 3.10s（模型+运行时 1.97s，启动约 1.1s）；npm 墙钟 4.13s（模型+运行时 1.53s，启动约 2.6s）。`dfmodel` 免费、报告 0 tokens / 0 Credits，按用户决定不处理计量。
-- 临时 Desktop 测试项目已准备：`~/.qoder-cn/docs-harness-router/demo-project`，含项目级 `.qoder/settings.local.json`，等待新 Qoder 会话触发。
+- Qoder Desktop 端到端已触发：demo 项目 `~/.qoder-cn/docs-harness-router/demo-project` 两次真实 `UserPromptSubmit` 均执行，Shadow 事件 `modules=["code"]`、`model.name="dfmodel"`，延迟 6.09s / 2.87s，无 hook 错误；主任务生成 `hello.py`。两次是不同 session，没有命中会话缓存。
 - 同一 session 首条走 CLI，后续消息在 `DOCS_HARNESS_QODER_CLI` 指向不存在路径时仍命中缓存并注入“沿用上次路由”，无错误。
-- 仍未在新 Qoder Desktop 会话触发 `UserPromptSubmit`；临时项目已准备，当前真实调用是脚本级 hook。
+- Qoder Desktop 已完成两次真实触发，但 Desktop 内的同会话缓存尚未复验（两次测试是不同 session）；脚本级缓存已验证。
 - 原生 CLI 仍有一次约 1.1s 启动和约 2s 模型耗时；同会话后续消息走缓存，不再付这笔开销。
 - 会话缓存的命中率、误复用和 `/route-reset` 体验尚未在多任务、长会话与上下文压缩场景统计。
 - 内核/模块契约拆分未做，当前不会降低 AGENTS.md token。

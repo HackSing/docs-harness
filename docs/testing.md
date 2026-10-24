@@ -299,7 +299,8 @@ python3 -m unittest tests.test_routing_contract tests.test_routing_shadow tests.
 - 会话缓存：首条任务写缓存；后续消息复用缓存、不启动 CLI；新任务标记和 `/route-reset` 强制失效；TTL=0 强制重路由；缓存命中事件记录 `cache_hit`，指标输出 `cache_hit_count/rate`。
 - 真实 CN 调用：国内账号已登录；CLI 使用配置模型 `dfmodel`（不传 `--model`），真实 prompt 路由到 `code`，CLI 对 `dfmodel` 报告 0 Credits / 0 tokens。原生版单次墙钟 3.10s（模型+运行时 1.97s，启动约 1.1s）；npm 版 4.13s（模型+运行时 1.53s，启动约 2.6s）。
 - 真实会话缓存：同一 session 首条走原生 CLI，后续消息在 CLI 路径不存在时仍命中缓存并注入“沿用上次路由”，无错误。
+- Qoder Desktop 端到端：demo 项目两次真实 `UserPromptSubmit` 均触发，Shadow 事件均为 `modules=["code"]`、`model.name="dfmodel"`，延迟 6.09s / 2.87s，无 hook 错误，主任务生成 `hello.py`。两次是不同 session，因此没有命中会话缓存。
 - 独立冒烟：用 sample stdin 运行 hook，输出 JSON 含 `hookEventName=UserPromptSubmit` 与代码契约，Shadow 事件含 `task_hash`/`task_chars` 且不含 prompt。
-- 未覆盖：Qoder Desktop 真实 `UserPromptSubmit` 触发、1–2 周真实 shadow 基线、`dfmodel` 的 token/credit 计量（CLI 返回 0）、内核/模块契约拆分与 token 收益。
+- 未覆盖：Desktop 内同会话缓存的后续消息复验、1–2 周真实 shadow 基线、`dfmodel` 的 token/credit 计量（CLI 返回 0）、内核/模块契约拆分与 token 收益。
 
 未覆盖：真实 shadow/canary、宿主独立调用与 feature flag、model/version/token/latency 记录、20–50 条真实任务基线、延迟/成本/澄清/返工阈值校准、下游安装。离线强模型证据仍是引导式 curated 集，不能当作生产准确率。
