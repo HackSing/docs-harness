@@ -5,6 +5,7 @@
 - [产品与使用说明](../README.md)
 - [产品合同](contracts.md)
 - [架构](architecture.md)
+- [意图路由](routing.md)
 - [测试与验收](testing.md)
 - [输出形式阶梯](output-format-ladder.md)
 - [2.0.0 迁移指南](migrations/v2.0.0.md)

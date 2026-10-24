@@ -18,6 +18,7 @@ Agent Direct Executor
 - Acceptance Lifecycle Manager 先定义验收目标和标准，再逐条记录已发生的真实验收，支持重验、结项与归档；不运行旧合同补证循环。
 - 高风险动作使用 agent 原生授权与沙箱，Harness 不建立 Gate、preflight、Host Adapter 或任务级 usage 采集层。
 - Usage Observer 是旁路观察面：只在 `main()` 单点记录 harness 自身命令的本地调用日志，可关、不外发、不改变任何命令的行为与退出码，`usage report` 只出计数、WARN/失败率与收尾报告完整率（合同见 contracts.md §9）。
+- Intent Router Contract（B1，默认关闭）是仓库侧路由契约层：注册表、纯校验、Shadow 事件与指标。它不进入默认执行路径，不新增 CLI 命令，也不随下游安装；宿主接入与放量见 `docs/routing.md`。
 
 ## 2. 数据流
 
@@ -76,12 +77,24 @@ Plan/Knowledge 引用 + 验收目标与标准 → acceptance create
 
 检查只消费已存在资产和 Plan 明确声明，不读取 Git diff 或提交信息推断是否应创建资产。
 
+### 2.6 意图路由（B1，默认关闭）
+
+```text
+任务文本 → 独立路由调用 → 意图画像/候选模块
+→ validate_profile（标签、闭包、冲突、澄清、低置信）
+→ resolve_modules → coverage_check（必需模块已加载）
+→ 主模型执行 → shadow 事件 → summarize_shadow
+```
+
+模型原始输出不作为执行依据。安全、授权、权限和不可逆确认始终由常驻内核负责。B1 只提供仓库侧注册表、校验、Shadow 日志与指标；宿主侧的 feature flag、独立调用、日志落盘和回滚尚未接通。Shadow 日志默认写 `.docs-harness/routing/`，字段白名单禁止任务原文、证据和路径进入日志。
+
 ## 3. 存储边界
 
 - 方案模板位于 `plan-templates/`；正式方案固定写入 `docs/plans/`，冻结 JSON 与可审查 Markdown 同名共存，`docs/INDEX.md` 受管区块提供发现入口。
 - Knowledge 资产位于 `docs/knowledge/`，Acceptance 目标资产位于 `docs/acceptance/`，均使用同名 JSON/Markdown 和独立 INDEX 区块。
 - 不关联目标的兼容验收记录仍位于 Git 元数据下的 `docs-harness/v2/`，非 Git 项目位于 `.docs-harness/v2/`。
 - 不建立任务级 usage、授权或控制遥测；harness 自身命令面的本地调用日志位于 `.docs-harness/usage/`，按月分文件、经嵌套 `.gitignore` 不入库，可在 config 关闭。
+- 意图路由注册表位于 `routing/registry.json`；Shadow 日志位于 `.docs-harness/routing/`，由写入方创建嵌套 `.gitignore`，只存结构化标签、计数、哈希和模型元数据。B1 不将该目录加入安装面。
 - 一次性输入 JSON（`plan create --content`、`acceptance record --input` 等）位于 `.docs-harness/inputs/`，同样经嵌套 `.gitignore` 不入库；它不在 `LEGACY_RUNTIME_NAMES` 内，`project upgrade` 不清理（1.x 运行态目录 `.docs-harness/task-inputs/` 仍按 legacy 清除）。
 - 历史设计资料位于 `docs/history/`，不进入 npm 对外文档集合和默认知识候选。
 
@@ -120,7 +133,12 @@ Plan/Knowledge 引用 + 验收目标与标准 → acceptance create
 - `scripts/usage_log.py`
 - `scripts/usage_report.py`
 - `scripts/diagram_view.py`
+- `scripts/routing_contract.py`
+- `scripts/routing_shadow.py`
+- `scripts/routing_metrics.py`
 - `scripts/agent_prompt.md`
+- `routing/registry.json`
 - `docs/contracts.md`
+- `docs/routing.md`
 - `SKILL.md`
 - `package.json`

@@ -1,0 +1,38 @@
+> 状态：有效（现行事实）
+<!-- docs-harness:knowledge-document/v1 -->
+
+# 意图路由 B1：注册表、宿主校验、Shadow 与覆盖率
+
+- 修订：1
+- 关键符号：`load_registry`、`validate_profile`、`summarize_shadow`、`coverage_check`
+- 资产指纹：`sha256:d107569a5f7d9f096884406f98dada8258f407561fa7645dec8a9d58a657f135`
+
+## 摘要
+
+B1 路由层默认关闭，未进 CLI 与下游安装面；模型输出经宿主校验后才装配模块。
+
+## 事实
+
+### `routing.registry`
+
+routing/registry.json 是路由单点真源，schema 为 docs-harness/routing-registry/v1，含 7 意图、6 模块、10 触发项、意图映射、模块契约、风险级别和内容指纹；load_registry 在指纹不匹配时拒绝加载。
+
+证据：`routing/registry.json:1`、`scripts/routing_registry.py:1`
+
+### `routing.validation`
+
+路由画像只作候选；validate_profile 拒绝未知标签、answer_only 冲突、越界模块与澄清形状错误，并把低于 min_confidence 的画像降级为澄清；resolve_modules 按意图映射和依赖闭包解析模块。
+
+证据：`scripts/routing_contract.py:1`、`docs/routing.md:1`
+
+### `routing.shadow`
+
+Shadow 事件只写白名单字段、task_hash 和模型元数据，不写任务原文、证据或路径；summarize_shadow 聚合关键漏配、过度路由、澄清、返工、p50/p95 与 token/cost，coverage_check 在必需模块缺失时返回 ok=false。
+
+证据：`scripts/routing_shadow.py:1`、`scripts/routing_shadow_fields.py:1`、`scripts/routing_metrics.py:1`
+
+### `routing.boundary`
+
+B1 路由层默认关闭，未新增 harness CLI 命令，路由模块不在 MANAGED_MODULE_RELATIVE_FILES 或 portable_install_paths 中，源码包可见但下游 init/upgrade 不安装。
+
+证据：`scripts/harness.py:161`、`docs/routing.md:1`

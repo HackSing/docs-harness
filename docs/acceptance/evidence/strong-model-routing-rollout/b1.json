@@ -1,0 +1,133 @@
+{
+  "phase": "B1",
+  "date": "2026-10-23",
+  "plan_ref": "docs/plans/strong-model-routing-rollout.json",
+  "registry": {
+    "path": "routing/registry.json",
+    "version": "1.0.0",
+    "fingerprint": "sha256:c3b984d65a55111bdee379dbb666a52dea3d234fdd94b856ec179825835b912a",
+    "intents": 7,
+    "modules": 6,
+    "triggers": 10
+  },
+  "commands": [
+    {
+      "command": "python3 -m unittest tests.test_routing_contract tests.test_routing_shadow tests.test_routing_metrics tests.test_routing_offline tests.test_routing_surface -v",
+      "exit_code": 0,
+      "tests": 61,
+      "result": "OK",
+      "layer": "focused_test",
+      "breakdown": {
+        "contract": 26,
+        "shadow": 17,
+        "metrics": 10,
+        "offline": 5,
+        "install_surface": 3
+      }
+    },
+    {
+      "command": "npm test",
+      "exit_code": 0,
+      "tests": 412,
+      "skipped": 2,
+      "result": "OK",
+      "layer": "repository_full_test"
+    },
+    {
+      "command": "python3 scripts/harness.py assets-check --strict --json",
+      "exit_code": 0,
+      "failures": 0,
+      "warnings": 0,
+      "layer": "contract_check"
+    },
+    {
+      "command": "python3 scripts/harness.py plan check --target . --json",
+      "exit_code": 0,
+      "live_docs": 20,
+      "failures": 0,
+      "warnings": 0,
+      "layer": "contract_check"
+    },
+    {
+      "command": "python3 scripts/harness.py acceptance check --target . --json",
+      "exit_code": 0,
+      "checked": 15,
+      "failures": 0,
+      "warnings": 0,
+      "layer": "contract_check"
+    },
+    {
+      "command": "python3 scripts/harness.py adr check --target . --json",
+      "exit_code": 0,
+      "checked": 6,
+      "failures": 0,
+      "warnings": 0,
+      "layer": "contract_check"
+    },
+    {
+      "command": "python3 scripts/harness.py release sync --strict --target . --json",
+      "exit_code": 0,
+      "status": "consistent",
+      "version": "2.33.0",
+      "layer": "contract_check"
+    },
+    {
+      "command": "npm run self-test",
+      "exit_code": 0,
+      "status": "passed",
+      "layer": "contract_check"
+    },
+    {
+      "command": "npm run pack:check",
+      "exit_code": 0,
+      "files": 78,
+      "routing_files": [
+        "docs/routing.md",
+        "routing/registry.json",
+        "scripts/routing_registry.py",
+        "scripts/routing_contract.py",
+        "scripts/routing_shadow_fields.py",
+        "scripts/routing_shadow.py",
+        "scripts/routing_metrics.py"
+      ],
+      "layer": "package_or_install"
+    },
+    {
+      "command": "python3 scripts/harness.py project init --target <temp-git-repo> --apply --json",
+      "exit_code": 3,
+      "expected_exit_code": 3,
+      "status": "needs_delivery",
+      "routing_paths": [],
+      "layer": "local_runtime",
+      "note": "needs_delivery 是首次 init 的预期状态；安装目录未出现任何 routing 文件。"
+    }
+  ],
+  "offline": {
+    "datasets": {
+      "diagnostic": 20,
+      "held-out-1": 50,
+      "held-out-2": 50
+    },
+    "gold_profile_case_pass_rate": 1.0,
+    "gold_profile_critical_miss_rate": 0.0,
+    "gold_profile_misroute_rate": 0.0,
+    "local_strong_prediction_files": 4,
+    "local_strong_case_pass_rate": 1.0,
+    "local_strong_critical_miss_rate": 0.0,
+    "note": "四份本地强模型预测为两组 held-out 各两次；CI 缺失本地文件时跳过该子测试。"
+  },
+  "install_surface": {
+    "managed_modules_include_routing": false,
+    "portable_install_paths_include_routing": false,
+    "cli_help_has_routing": false,
+    "package_ships_routing_sources": true,
+    "note": "路由是仓库侧能力：源码包可见，但 project init/upgrade 不安装。"
+  },
+  "uncovered": [
+    "B2–B5 真实 shadow/canary/强制放量未开始",
+    "宿主独立低上下文调用、feature flag、shadow sink、token/latency/model 记录与回滚未在宿主侧确认",
+    "20–50 条真实任务基线未建立",
+    "延迟、token、成本、澄清与返工阈值未校准",
+    "路由未安装到下游项目"
+  ]
+}

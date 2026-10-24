@@ -1,0 +1,242 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "强力模型意图路由落地验收",
+  "objective": "逐条验证路由注册表、纯校验、shadow 日志与指标、离线评分复用、默认关闭边界，以及 B2–B5 的真实放量证据。",
+  "key_symbols": [
+    "load_registry",
+    "validate_profile",
+    "summarize_shadow",
+    "coverage_check"
+  ],
+  "plan_ref": "docs/plans/strong-model-routing-rollout.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "c1-registry",
+      "title": "注册表覆盖 7 意图/6 模块/10 触发项、映射、契约、风险级别与版本指纹，且与三份评测数据集一致",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261024T041547-ea3f7a88c0",
+          "objective_fingerprint": "sha256:762c2137b92db2326b34201ad5d09ae03678df2d924a6743cc677a814b98ce97",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "路由合同测试 25 项与仓库全量 411 项通过；注册表 7 意图/6 模块/10 触发项与三份评测数据集一致；指纹复算一致，手工改写被拒绝。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/strong-model-routing-rollout/b1.json"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-24T04:15:47+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2-validation",
+      "title": "非法标签、重复、未知字段、answer_only 冲突、模块越界、澄清形状与低置信都被确定性拒绝或降级，依赖闭包解析正确",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261024T041556-28a92e5df4",
+          "objective_fingerprint": "sha256:762c2137b92db2326b34201ad5d09ae03678df2d924a6743cc677a814b98ce97",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "合同测试覆盖未知/重复标签、未知字段、answer_only 互斥、模块越界、澄清形状、低置信降级、触发项兼容和依赖闭包。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/strong-model-routing-rollout/b1.json"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-24T04:15:56+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3-shadow-privacy",
+      "title": "Shadow 事件只含白名单字段，不含任务原文/证据/路径，读写往返可还原决策，损坏日志显式失败",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261024T041556-b3808f5eac",
+          "objective_fingerprint": "sha256:762c2137b92db2326b34201ad5d09ae03678df2d924a6743cc677a814b98ce97",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "Shadow 测试 17 项通过：事件字段白名单、任务原文/证据不落盘、读写往返、缺失/损坏日志显式失败、task_id 约束与符号链接拒绝。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/strong-model-routing-rollout/b1.json"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-24T04:15:56+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c4-metrics-coverage",
+      "title": "指标聚合输出关键漏配、过度路由、澄清、返工、p50/p95、token/cost 与分组告警，覆盖率缺失时阻断",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261024T041556-1de943da6c",
+          "objective_fingerprint": "sha256:762c2137b92db2326b34201ad5d09ae03678df2d924a6743cc677a814b98ce97",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "指标测试 10 项通过：关键漏配、过度路由、澄清、返工、完成率、p50/p95、token/cost、分组与阈值告警；覆盖率缺失返回 ok=false。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/strong-model-routing-rollout/b1.json"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-24T04:15:56+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c5-offline-reuse",
+      "title": "复用 score_cases 在诊断集与两组 held-out 上运行，gold profile 经注册表解析出期望模块，强模型本地预测可校验评分",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261024T041556-2354aca553",
+          "objective_fingerprint": "sha256:762c2137b92db2326b34201ad5d09ae03678df2d924a6743cc677a814b98ce97",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "离线测试 5 项通过：120 条 gold 画像解析出期望模块；复用 score_cases 的 registry-gold 预测 case_pass 100%；四份本地强模型预测均 50/50。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/strong-model-routing-rollout/b1.json"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-24T04:15:56+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c6-default-off",
+      "title": "B1 未新增 CLI 命令、未改变执行行为、未进入 MANAGED_MODULE_RELATIVE_FILES 或下游安装面",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261024T041557-e72f3fa33f",
+          "objective_fingerprint": "sha256:762c2137b92db2326b34201ad5d09ae03678df2d924a6743cc677a814b98ce97",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "安装面测试 3 项通过：路由模块不在 MANAGED_MODULE_RELATIVE_FILES 与 portable_install_paths；CLI 帮助无 routing 命令；源码包包含路由文件。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/strong-model-routing-rollout/b1.json"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-24T04:15:57+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c7-shadow-production",
+      "title": "B2 真实任务 1–2 周内 100% 有路由决策日志，关键漏配和返工不高于基线，p95 延迟与 token 成本在预算内",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "pending",
+      "records": []
+    },
+    {
+      "id": "c8-canary-high-risk",
+      "title": "B3/B4 低风险类 canary 可一键回滚，高风险类保留人工复核与覆盖率阻断，交叉场景合同测试通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "pending",
+      "records": []
+    },
+    {
+      "id": "c9-enforced-cleanup",
+      "title": "B5 强制执行、旧 Jev/规则路径评估、Acceptance 逐条记录、Knowledge 更新与 ADR 定稿完成",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "pending",
+      "records": []
+    }
+  ],
+  "status": "pending",
+  "revision": 7,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:5995b6a0290718a6d18addb783d9a78f8969a987b3a5baabe81a42cdd457a105",
+      "updated_at": "2026-10-24T04:04:44+00:00"
+    },
+    {
+      "revision": 2,
+      "asset_fingerprint": "sha256:bd7c6568b58356383f0917ca5d48e63e3ea5d9fe9dd029e5656cf4de16661b24",
+      "updated_at": "2026-10-24T04:15:47+00:00"
+    },
+    {
+      "revision": 3,
+      "asset_fingerprint": "sha256:478e44cef7ea1d39bfac6617a131a4871bbc7c760c504cfa6ab3f0dc71902ed3",
+      "updated_at": "2026-10-24T04:15:56+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:90c5ff1359a4ec58fd90d08f156646a36a0d4e083739e1a7770222e56bffa102",
+      "updated_at": "2026-10-24T04:15:56+00:00"
+    },
+    {
+      "revision": 5,
+      "asset_fingerprint": "sha256:ec0483138ccab9779b5dce0f2b87f646c09325f3f548dcd00868dcf1b846b21c",
+      "updated_at": "2026-10-24T04:15:56+00:00"
+    },
+    {
+      "revision": 6,
+      "asset_fingerprint": "sha256:5031c174c253093a6ceddc4a2dca631bdc3e19db730ad875175968b7d106793c",
+      "updated_at": "2026-10-24T04:15:56+00:00"
+    }
+  ],
+  "created_at": "2026-10-24T04:04:44+00:00",
+  "updated_at": "2026-10-24T04:15:57+00:00",
+  "settled_at": null,
+  "asset_fingerprint": "sha256:480a5b28ca829b983470b3b5bf0b582b67f96c6c9957e9468a1971b66589ab71"
+}

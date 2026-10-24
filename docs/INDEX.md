@@ -5,6 +5,7 @@
 - [文档地图](README.md)
 - [产品合同](contracts.md)
 - [架构](architecture.md)
+- [意图路由](routing.md)
 - [代码能力索引](CODEMAP.md)
 - [测试与验收](testing.md)
 - [输出形式阶梯](output-format-ladder.md)
@@ -34,6 +35,7 @@
 - [Harness P0/P1 修复：执行投影、选择流程与验收闭环](plans/harness-p0-p1-fixes.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-21 核对）；关键符号：`execution_projection`、`plan_show`、`acceptance_amend`、`symbol_hit`
 - [Harness 剩余优化：严格门禁、状态查询与规模化](plans/harness-remaining-optimizations.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-22 核对）；关键符号：`plan_check`、`acceptance_show`、`document_knowledge_query`、`asset_query`
 - [Docs Harness 遵循率优化：从下游数据到可执行契约](plans/harness-adherence-optimization.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-22 核对）；关键符号：`run_assets_check`、`build_report`、`symbol_hit`、`plan_check_banner`
+- [强力模型意图路由落地：Shadow → Canary → 强制执行](plans/strong-model-routing-rollout.md) — 状态：有效（实施中）；关键符号：`score_cases`、`interpret_response`、`command_assets_check`、`run_assets_check`
 <!-- docs-harness:plans-index:end -->
 
 ## 历史边界
@@ -46,6 +48,7 @@
 - [Docs Harness 四资产治理与双机械检查执行机制](knowledge/docs-harness-assets-governance.md) — 状态：有效（现行事实）；关键符号：`run_assets_check`、`check_structure`、`knowledge_impact`、`ADR_SPEC`
 - [Docs Harness 下游安装面：源包判定、Structure 排除与约定目录](knowledge/downstream-install-surface.md) — 状态：有效（现行事实）；关键符号：`is_source_package`、`structure_exempt_paths`、`TASK_INPUTS_RELATIVE`
 - [Docs Harness 本地 usage 观测机制](knowledge/usage-observability.md) — 状态：有效（现行事实）；关键符号：`record_usage_invoke`、`USAGE_SCHEMA_VERSION`、`build_report`、`usage_log_invalid`
+- [意图路由 B1：注册表、宿主校验、Shadow 与覆盖率](knowledge/strong-model-routing-b1.md) — 状态：有效（现行事实）；关键符号：`load_registry`、`validate_profile`、`summarize_shadow`、`coverage_check`
 <!-- docs-harness:knowledge-index:end -->
 
 <!-- docs-harness:acceptance-index:start -->
@@ -65,6 +68,7 @@
 - [Harness P0/P1 修复验收](acceptance/harness-p0-p1-fixes.md) — 状态：已验收-仅追溯；关键符号：`execution_projection`、`plan_show`、`acceptance_amend`、`symbol_hit`
 - [Harness 剩余优化验收](acceptance/harness-remaining-optimizations.md) — 状态：已验收-仅追溯；关键符号：`plan_check`、`acceptance_show`、`knowledge_index`、`agent_prompt`
 - [Docs Harness 遵循率优化验收](acceptance/harness-adherence-optimization.md) — 状态：已验收-仅追溯；关键符号：`run_assets_check`、`build_report`、`symbol_hit`、`plan_check_banner`
+- [强力模型意图路由落地验收](acceptance/strong-model-routing-rollout.md) — 状态：有效（待验收）；关键符号：`load_registry`、`validate_profile`、`summarize_shadow`、`coverage_check`
 <!-- docs-harness:acceptance-index:end -->
 
 <!-- docs-harness:adr-index:start -->
@@ -75,4 +79,5 @@
 - [Structure 增量检查作为 assets-check 第六 checker，CODEMAP 采用纯 Markdown 文档形态](adr/structure-guardrails-as-checker.md) — 状态：有效（现行决策）；关键符号：`check_structure`、`structure_report`、`CODEMAP_SCAFFOLD`
 - [Structure 的 TS/JS 函数级解析借用目标项目的 typescript 编译器，harness 自身保持零依赖](adr/structure-ts-parser-borrowed-from-target.md) — 状态：有效（现行决策）；关键符号：`_ts_parser_command`、`_ts_module_dirs`、`TS_PARSER_UNAVAILABLE_WARNING`
 - [本地 usage 观测只覆盖 harness 命令面、旁路 best-effort、不外发](adr/usage-log-local-command-face-only.md) — 状态：有效（现行决策）；关键符号：`record_usage_invoke`、`USAGE_FLAG_KEYS`、`is_enabled`
+- [意图路由采用强力模型独立调用、宿主校验与 shadow/canary 放量](adr/strong-model-intent-routing.md) — 状态：有效（现行决策）；关键符号：`validate_profile`、`resolve_modules`、`summarize_shadow`、`coverage_check`
 <!-- docs-harness:adr-index:end -->

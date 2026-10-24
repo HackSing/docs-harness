@@ -337,6 +337,7 @@ python3 scripts/harness.py assets-check --target . --strict --json
 
 - [文档导航](docs/README.md)
 - [架构设计](docs/architecture.md)
+- [意图路由](docs/routing.md)
 - [CLI 与资产合同](docs/contracts.md)
 - [测试策略与证据](docs/testing.md)
 - [更新日志](CHANGELOG.md)

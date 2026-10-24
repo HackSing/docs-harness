@@ -1,0 +1,253 @@
+{
+  "schema_version": "docs-harness/routing-registry/v1",
+  "version": "1.0.0",
+  "fingerprint": "sha256:c3b984d65a55111bdee379dbb666a52dea3d234fdd94b856ec179825835b912a",
+  "taxonomy": {
+    "intents": {
+      "answer_only": "只做问答、解释、事实查询、诊断或只读审查；不要求改动、修复、运行构建/测试、创建生命周期资产或发布。",
+      "code_task": "实现、修改、重构或验证代码与配置；包括运行测试和构建，以及执行已定义的方案。",
+      "bug_fix": "用户要求修复缺陷或给出修复方案，而不只是诊断。",
+      "plan_decision": "在实现前产出方案、设计、架构、取舍、迁移或回滚策略；包括需要先做方案的跨模块或高风险改动。",
+      "asset_lifecycle": "创建、修订、记录或结项 Knowledge、Acceptance、ADR 资产。",
+      "release": "升版本、发布、打包、更新 CHANGELOG 或同步下游项目。",
+      "docs_change": "以文档创建或更新为主要交付物；不包括仅作为发布或代码改动一部分的文档。"
+    },
+    "modules": {
+      "code": "代码与配置的实现、修改、重构和验证契约。",
+      "bugfix": "缺陷根因、影响面、修复位置和回归测试契约；依赖 code。",
+      "docs": "文档交付契约。",
+      "plan": "方案、设计、架构、取舍、迁移和回滚决策契约。",
+      "assets": "Knowledge、Acceptance、ADR 生命周期契约。",
+      "release": "版本、发布、打包、CHANGELOG 和下游同步契约。"
+    },
+    "triggers": {
+      "read_only": "任务只读，不改变代码、资产或发布状态。",
+      "code_edit": "需要修改代码或配置。",
+      "code_verify": "需要运行测试、构建或其他验证。",
+      "bug_report": "输入包含需要修复的缺陷。",
+      "plan_required": "实现前需要方案或决策。",
+      "asset_operation": "需要创建、修订或结项生命周期资产。",
+      "release": "需要版本、发布、打包或下游同步。",
+      "docs_edit": "需要创建或更新文档。",
+      "direct_override": "用户明确要求不使用 Harness。",
+      "clarify_required": "目标、交付物或范围不清，执行前需要澄清。"
+    }
+  },
+  "intent_modules": {
+    "answer_only": [],
+    "code_task": [
+      "code"
+    ],
+    "bug_fix": [
+      "code",
+      "bugfix"
+    ],
+    "plan_decision": [
+      "plan"
+    ],
+    "asset_lifecycle": [
+      "assets"
+    ],
+    "release": [
+      "release"
+    ],
+    "docs_change": [
+      "docs"
+    ]
+  },
+  "module_dependencies": {
+    "bugfix": [
+      "code"
+    ]
+  },
+  "module_order": [
+    "plan",
+    "assets",
+    "release",
+    "bugfix",
+    "code",
+    "docs"
+  ],
+  "risk_levels": {
+    "low": [
+      "code",
+      "docs"
+    ],
+    "medium": [
+      "bugfix"
+    ],
+    "high": [
+      "plan",
+      "assets",
+      "release"
+    ]
+  },
+  "kernel_contract": {
+    "title": "常驻内核契约（始终加载）",
+    "rules": [
+      "安全、授权、权限和不可逆操作确认始终生效，路由结果不能覆盖。",
+      "删除、清空、覆盖和数据库迁移执行前必须取得用户明确同意。",
+      "工具调用和输出格式遵守宿主与项目的既有契约。",
+      "没有证据不得声称完成；推测必须标明并给出验证方式。",
+      "用户明确说不使用 Harness 时直接执行。"
+    ]
+  },
+  "contracts": {
+    "code": {
+      "title": "代码改动契约",
+      "scope": "实现、修改、重构或验证代码与配置，包括运行测试和构建。",
+      "rules": [
+        "先定位目标文件、调用方和状态所有者，再修改。",
+        "复用仓库已有实现；同一逻辑第 3 次出现才抽象。",
+        "保持最小修改面，不顺手重构或加固无关模块。",
+        "错误要么正确处理，要么明确向上传递，不静默吞掉。",
+        "新增依赖前说明问题、标准库或现有依赖为何不够，并取得用户确认。"
+      ],
+      "verification": [
+        "运行受影响模块的聚焦测试，记录命令、退出码和未覆盖项。",
+        "行为变化需要运行态验证时，按真实流程走一遍，不只跑类型检查。"
+      ]
+    },
+    "bugfix": {
+      "title": "缺陷修复契约",
+      "scope": "定位并修复缺陷；模块依赖 code。",
+      "rules": [
+        "先定位根因和影响面，再改代码。",
+        "修复落在状态或数据的所有者层，不在消费者处打补丁。",
+        "为根因加回归测试，覆盖同根因的其他表现。",
+        "根因跨模块、修复不可逆或方案代价不同时，先确认再改。"
+      ],
+      "verification": [
+        "复现失败，修复后用同一复现确认通过。",
+        "运行受影响模块的完整测试集。"
+      ]
+    },
+    "docs": {
+      "title": "文档交付契约",
+      "scope": "以文档创建或更新为主要交付物。",
+      "rules": [
+        "以当前源码和真实行为为准，不把推测写成事实。",
+        "沿用仓库已有文档结构和术语。",
+        "示例、命令和路径要能照步骤跑通。",
+        "区分当前事实、历史记录和待实施方案。"
+      ],
+      "verification": [
+        "检查链接、命令与代码引用。",
+        "按零基础读者通读一遍，补齐用到但没有给出的前提。"
+      ]
+    },
+    "plan": {
+      "title": "方案与决策契约",
+      "scope": "产出方案、设计、架构、取舍、迁移或回滚策略，或实现前的决策。",
+      "rules": [
+        "先写验收条件和可执行的验证方式，再写方案。",
+        "列出候选、取舍、代价和明确推荐。",
+        "高风险、跨模块或不可逆步骤写入风险和回滚。",
+        "方案冻结后按合同执行；目标或验收变化走受控修订或替代。"
+      ],
+      "verification": [
+        "沿执行路径推演，找第一个卡住的步骤及其代价。",
+        "换一条独立路径重算，确认收敛到同一结论。"
+      ]
+    },
+    "assets": {
+      "title": "资产生命周期契约",
+      "scope": "创建、修订、记录或结项 Knowledge、Acceptance、ADR。",
+      "rules": [
+        "只写有当前源码或项目文档证据支持的事实。",
+        "冻结资产不手改；修正走 amend，失效走 settle。",
+        "验收记录必须引用随仓库提交的真实证据。",
+        "资产之间保持交叉引用一致。"
+      ],
+      "verification": [
+        "运行对应资产 check。",
+        "运行 assets-check 并处理本领域 WARN。"
+      ]
+    },
+    "release": {
+      "title": "版本发布契约",
+      "scope": "版本号、发布、打包、CHANGELOG 与下游同步。",
+      "rules": [
+        "VERSION 是版本真源；同步所有版本源后再发布。",
+        "发布前运行仓库级全量测试和打包检查。",
+        "不可逆的发布、推送和下游覆盖先取得用户明确同意。",
+        "下游升级冲突不得覆盖，通用修复先上游化。"
+      ],
+      "verification": [
+        "运行 release sync --strict。",
+        "运行 npm pack --dry-run 并做 fresh install 演练。"
+      ]
+    }
+  },
+  "coexistence": [
+    {
+      "modules": [
+        "plan",
+        "code"
+      ],
+      "rule": "先冻结方案与验收，再开始代码；方案未定前不得以代码推进代替决策。"
+    },
+    {
+      "modules": [
+        "release",
+        "code"
+      ],
+      "rule": "发布约束优先：版本冻结、全量测试和打包顺序由 release 契约决定。"
+    },
+    {
+      "modules": [
+        "plan",
+        "assets"
+      ],
+      "rule": "方案声明的验收与知识资产先结算，再结算方案。"
+    },
+    {
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "rule": "bugfix 依赖 code；根因修复和回归测试共用同一代码修改面。"
+    }
+  ],
+  "clarify": {
+    "min_confidence": 0.5,
+    "low_confidence_behavior": "clarify",
+    "max_questions": 1,
+    "question_scope": [
+      "目标",
+      "交付物",
+      "范围"
+    ],
+    "direct_override_phrases": [
+      "不使用 harness",
+      "不用 harness",
+      "不走 harness",
+      "跳过 harness",
+      "不要 harness",
+      "do not use harness",
+      "without harness",
+      "skip harness"
+    ],
+    "direct_override_behavior": "direct"
+  },
+  "budgets": {
+    "calibration": "pending_shadow",
+    "latency_p95_ms": null,
+    "tokens_per_task": null,
+    "cost_usd_per_task": null
+  },
+  "thresholds": {
+    "calibration": "pending_shadow",
+    "critical_miss_rate_max": 0.0,
+    "over_routing_rate_max": null,
+    "clarify_rate_max": null,
+    "rework_rate_max": null,
+    "min_quality_verified_rate": null
+  },
+  "source_refs": [
+    "AGENTS.md",
+    "evals/intent_routing/cases.json",
+    "evals/intent_routing/README.md",
+    "docs/plans/strong-model-routing-rollout.json"
+  ]
+}

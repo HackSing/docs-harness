@@ -261,3 +261,31 @@ python3 -m unittest tests.test_intent_routing_eval -v
 - 结果：两次均 50/50；意图、模块、关键漏配、错配、澄清判断 100.0%；触发项召回 98.31%、精确 100.0%。唯一未命中 `h2-code-upgrade-node` 的 `code_verify`，疑似 gold 偏严。
 - 按要求本组没有跑 rules/Jev 对照。
 - 边界：引导式路由、同模型家族/作者偏差、50 条诊断集、没有成本和延迟计量；第二组已消费，不再调题。
+
+## 13. 意图路由 B1：注册表、Shadow 与覆盖率（2026-10-23）
+
+B1 只落地仓库侧路由契约，默认关闭，不新增 CLI 命令，也不进入下游安装面。方案见 `docs/plans/strong-model-routing-rollout.md`，运维边界见 `docs/routing.md`。
+
+- 注册表：`routing/registry.json`，7 意图/6 模块/10 触发项、意图→模块映射、模块契约、风险级别、clarify/direct_override 规则、版本与内容指纹。
+- 纯校验：`scripts/routing_contract.py`，覆盖标签合法性、重复、未知字段、`answer_only` 互斥、候选模块闭包、澄清形状、低置信降级、触发项兼容与直接执行短语。
+- Shadow：`scripts/routing_shadow.py`，事件字段白名单、任务原文/证据/路径不落盘、`task_id` 约束、损坏/缺失日志显式失败。
+- 指标：`scripts/routing_metrics.py`，关键漏配、过度路由、澄清、返工、完成率、p50/p95、token/cost、按阶段/风险/意图分组与阈值告警；`coverage_check` 在必需模块缺失时返回 `ok=false`。
+- 离线复用：`tests/test_routing_offline.py` 直接复用 `evals/intent_routing/score.py` 的 `score_cases`，不复制评分逻辑。
+- 安装面边界：`tests/test_routing_surface.py` 断言路由模块不在 `MANAGED_MODULE_RELATIVE_FILES`、不在 `portable_install_paths`、CLI 帮助没有 routing 命令，且源码包包含路由文件。
+
+运行：
+
+```bash
+python3 -m unittest tests.test_routing_contract tests.test_routing_shadow tests.test_routing_metrics tests.test_routing_offline tests.test_routing_surface -v
+```
+
+2026-10-23 本轮结果：
+
+- L2 聚焦：61 项通过（合同 26、Shadow 17、指标 10、离线 5、安装面 3），退出码 0。
+- L2 仓库全量：`npm test` 运行 412 项，SKIP 2 项，退出码 0。
+- L3 安装边界：临时 git 仓库 `project init --apply` 返回 `needs_delivery`（退出码 3，首次 init 预期），安装目录没有 routing 文件。
+- 离线：20 条诊断集、两组各 50 条 held-out 的 gold 画像全部通过注册表校验并解析出期望模块；`registry-gold` 预测经 `score_cases` 的 `case_pass_rate`、`critical_miss_rate`、`misroute_rate` 均为 100%/0%/0%。
+- 本地强模型预测：四份已归档预测（两组各两次）可解析、可校验、可评分，均为 50/50；CI 无这些本地文件时跳过该子测试。
+- `coverage_check`、阈值告警、脱敏字段白名单与损坏日志路径均有合同测试。
+
+未覆盖：真实 shadow/canary、宿主独立调用与 feature flag、model/version/token/latency 记录、20–50 条真实任务基线、延迟/成本/澄清/返工阈值校准、下游安装。离线强模型证据仍是引导式 curated 集，不能当作生产准确率。

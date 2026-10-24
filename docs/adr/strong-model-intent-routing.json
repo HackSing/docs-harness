@@ -1,0 +1,21 @@
+{
+  "schema_version": "docs-harness/adr-asset/v1",
+  "title": "意图路由采用强力模型独立调用、宿主校验与 shadow/canary 放量",
+  "key_symbols": [
+    "validate_profile",
+    "resolve_modules",
+    "summarize_shadow",
+    "coverage_check"
+  ],
+  "context": "2.33.0 的意图路由评测显示：纯关键词规则在 20 条诊断集错配 55%，在 held-out 50 条错配 46%；Jev 1.14.0 在诊断集错配 5%，但 held-out 错配 24%、关键漏配 14%，诊断集结果没有泛化。强力模型直路由在两组各 50 条 held-out、四次独立运行中意图和模块一致，但这批用例是引导式、同模型家族编写的 curated 集；生产宿主的独立低上下文调用、token、延迟、成本、真实返工和缓存行为都还没有数据。当前受管入口把全部规则常驻在上下文中，简单任务承担约 6k token 的无关规则。方案 docs/plans/strong-model-routing-rollout.json 已冻结，需要裁决路由层与执行层、仓库与宿主的边界，以及默认关闭和分阶段放量的方式。",
+  "decision": "采用强力模型作为执行前的独立结构化路由调用。仓库侧以 routing/registry.json 为单点真源，定义 7 意图、6 模块、10 触发项、意图到模块映射、模块一页契约、模块依赖与优先级、风险级别、clarify 与 direct_override 规则、版本和内容指纹。模型只输出意图画像与候选模块，不直接决定执行；宿主必须先用 validate_profile 做标签合法性、依赖闭包、answer_only 互斥、plan/code 共存、澄清形状和低置信降级校验，再用 resolve_modules 按注册表解析模块，执行前用 coverage_check 核对必需模块是否已加载，缺失则阻断或修复。B1 只落地仓库侧注册表、纯校验、shadow 事件、指标和覆盖率检查，默认关闭，不新增 CLI 命令，不改变执行行为，也不把路由器安装到下游项目；B2 只记录 shadow，B3 对 answer/docs/code 开 canary，B4 对 plan/assets/release 保留人工复核和覆盖率阻断，B5 才强制执行并评估移除 Jev/旧规则。安全、授权、权限和不可逆操作确认始终由常驻内核和宿主原生授权负责，路由结果不能覆盖。",
+  "consequences": "代价是每个任务多一次路由调用、宿主需要接入校验/日志/开关，并承担模型版本变化带来的重校准；收益是把规则加载从全量常驻改为按意图装配，降低无关指令稀释，并用可审计日志替代仅凭印象的规则争议。shadow 日志只存结构化标签、计数、哈希和模型元数据，不存任务原文、证据文本、路径或资产名；日志写入失败和损坏都是显式失败，不静默放行。预算和阈值在真实 shadow 数据上校准；未校准前只对覆盖率失败和关键漏配告警，不宣称生产准确率。模型原始输出不可信，必须经宿主校验；注册表和契约可以版本化回退，回滚方式是关闭宿主 feature flag，保留日志，不做数据迁移。B1 不改变 CLI 契约、Plan 模板字段和下游安装面，下游项目继续使用 2.33.0 的提示词规则；若宿主无法提供独立低上下文调用，B0 停止并重新定义验收指标。",
+  "supersedes": [],
+  "status": "active",
+  "revision": 1,
+  "revision_history": [],
+  "last_amend_reason": null,
+  "created_at": "2026-10-24T04:04:33+00:00",
+  "updated_at": "2026-10-24T04:04:33+00:00",
+  "asset_fingerprint": "sha256:c63d84f9d530804d579db61179f7247eabda4bb072a602aaef6d272a188ff282"
+}

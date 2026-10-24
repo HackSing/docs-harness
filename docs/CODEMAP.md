@@ -33,6 +33,14 @@
 - `scripts/diagram_view.py` — 职责：`harness view` 的 Mermaid → 独立 HTML 页面，渲染（纯函数）、落盘到 `.docs-harness/views/` 与系统浏览器打开三层分开，错误一律向上传递；公开接口：`render_mermaid_html`、`write_view`、`open_in_browser`、`VIEWS_RELATIVE`（views 目录常量真源，harness 导入并列入 LOCAL_ONLY_DIRS）
 - `scripts/structure_ts_functions.cjs` — 职责：Structure 的 TS/JS 函数体量解析子进程（stdin JSON 源码批 → stdout 函数限定名→行数），在目标项目 node_modules 或 DOCS_HARNESS_TS_MODULE_DIR 目录加载 typescript，harness 自身零依赖；公开接口：`collectSpans`、`functionName`（命令行调用，无模块导出）
 
+## 意图路由（仓库侧，默认关闭）
+
+- `scripts/routing_registry.py` — 职责：路由注册表加载、规范化指纹与数据合同校验（taxonomy、映射、契约、风险级别、政策、预算阈值）；公开接口：`load_registry`、`registry_fingerprint`、`Registry`、`RoutingContractError`
+- `scripts/routing_contract.py` — 职责：路由画像 schema、标签/冲突/澄清/低置信校验、意图到模块的依赖闭包解析；公开接口：`load_registry`、`validate_profile`、`resolve_modules`、`profile_schema`、`direct_override_requested`、`registry_fingerprint`、`Registry`、`ValidationResult`、`RoutingContractError`
+- `scripts/routing_shadow_fields.py` — 职责：Shadow 事件字段白名单、结构校验、时间/哈希/任务标识规范化；公开接口：`validate_shadow_event`、`RoutingShadowError`、`SHADOW_SCHEMA`、`PHASES`、`RISK_LEVELS`
+- `scripts/routing_shadow.py` — 职责：Shadow 事件构造、本地 JSONL 写入/读取与损坏日志失败；公开接口：`build_shadow_event`、`append_shadow_event`、`read_shadow_events`、`shadow_log_path`、`validate_shadow_event`、`RoutingShadowError`
+- `scripts/routing_metrics.py` — 职责：Shadow 指标聚合（关键漏配、过度路由、澄清、返工、延迟分位、token/cost、分组与告警）与执行前覆盖率核对；公开接口：`summarize_shadow`、`coverage_check`、`ShadowSummary`、`CoverageResult`、`RoutingMetricsError`
+
 ## 评测
 
 - `evals/intent_routing/score.py` — 职责：意图路由基线数据集校验与预测评分（内置规则基线或外部 predictions），输出意图/模块/触发项的召回、精确率与错配率；公开接口：`load_dataset`、`validate_dataset`、`predict_rules`、`predictions_from_rules`、`score_cases`、`main`
