@@ -27,6 +27,8 @@
 
 ## 已完成
 
+- [x] zbuddy-mobile 与 zbuddy-desktop 路由试点接入：各新增 `routing/registry.json` + `README.md`；`load_registry` 指纹一致；fake backend 门禁冒烟与移除 registry 的回滚测试均退出 0、无输出；两个下游 `assets-check --fast` 0 违规 0 警告；已提交并推送（mobile `67e9eb9`、desktop `1c359540`）。方案：`docs/plans/zbuddy-routing-pilot.json`（aiware，2026-10-23）
+
 - [x] 格式阶梯 behavior `format-ladder-diagram-trigger`：前两轮 3/4（图后文字重复图中步骤），把规则收紧为「图后最多 3 条、不写步骤清单」后第三轮 4/4（aiware，2026-10-23）
 
 - [x] plan check 符号命中 WARN 缺「部分交付但仍有效」第三态：zbuddy-desktop 实测 13 条 plan WARN 中 8 条属于代码已部分交付、文档自述有未完项、plan 合法保持「有效」的情形，WARN 只有 settle/deprecated 两个出口，长期悬挂会淹没真告警；候选方向：plan 侧显式「部分交付已核对」标记并在 check 中豁免；2.18.0 已落地：横幅写「有效-部分交付（YYYY-MM-DD 核对）」后 30 天内不报符号全命中 WARN，过期、非法或未来日期照常报，WARN 文案给出三个出口（kimi，2026-09-14）

@@ -35,6 +35,7 @@
 - [Harness P0/P1 修复：执行投影、选择流程与验收闭环](plans/harness-p0-p1-fixes.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-21 核对）；关键符号：`execution_projection`、`plan_show`、`acceptance_amend`、`symbol_hit`
 - [Harness 剩余优化：严格门禁、状态查询与规模化](plans/harness-remaining-optimizations.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-22 核对）；关键符号：`plan_check`、`acceptance_show`、`document_knowledge_query`、`asset_query`
 - [Docs Harness 遵循率优化：从下游数据到可执行契约](plans/harness-adherence-optimization.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-22 核对）；关键符号：`run_assets_check`、`build_report`、`symbol_hit`、`plan_check_banner`
+- [zbuddy 下游路由试点接入（mobile + desktop）](plans/zbuddy-routing-pilot.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-23 核对）；关键符号：`load_registry`、`_uses_docs_harness`、`shadow_log_path`
 - [强力模型意图路由落地：Shadow → Canary → 强制执行](plans/strong-model-routing-rollout.md) — 状态：有效（实施中）；关键符号：`score_cases`、`interpret_response`、`command_assets_check`、`run_assets_check`
 <!-- docs-harness:plans-index:end -->
 

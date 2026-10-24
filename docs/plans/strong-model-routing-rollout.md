@@ -1,9 +1,10 @@
 > 状态：有效（实施中）
+> 最近修订：2026-10-24 — 下游 zbuddy 试点接入完成并已 settle
 <!-- docs-harness:plan-document/v1 -->
 
 # 强力模型意图路由落地：Shadow → Canary → 强制执行
 
-- 冻结合同：`sha256:c72a71a21bf8d73883b138477d7cb4bd031b8b6cebc2906d11a6e526f480a4fd`
+- 冻结合同：`sha256:fb0f338649c48a9efe180a40abee3a96145f310bf8ee08d33e5a0ccf90c8867f`
 - 关键符号：`score_cases`、`interpret_response`、`command_assets_check`、`run_assets_check`
 
 ## 背景
@@ -36,12 +37,14 @@ B0 就绪审计（不改行为）：确认宿主能否独立调用强力模型�
 {
   "completed_steps": [
     "100 条 curated 评测（20 诊断 + 两组各 50 held-out）",
-    "2.33.0 发布与 10 个下游升级"
+    "2.33.0 发布与 10 个下游升级",
+    "B0 宿主能力审计：Qoder UserPromptSubmit、国内原生 CLI 独立调用、结构化 JSON、model/version/latency 记录",
+    "B1 路由契约、校验、Shadow 日志、指标与覆盖率，61 项路由测试",
+    "B2 shadow 仅记录模式与首批 3 条真实事件",
+    "下游 zbuddy 试点接入（独立方案 zbuddy-routing-pilot，已 settle）"
   ],
   "remaining_steps": [
-    "B0 宿主能力审计与基线",
-    "B1 路由契约/校验/日志",
-    "B2 Shadow",
+    "B2 真实任务采样（20–50 条）、needed_modules/返工标注与阈值校准",
     "B3 Canary 低风险类",
     "B4 高风险类",
     "B5 强制执行与旧路径清理"
@@ -113,7 +116,7 @@ updated
 
 ## 当前约束
 
-强力模型直路由只有离线、引导式、同模型家族的 100 条 curated 证据；生产宿主是否支持独立低上下文调用尚未确认；没有真实任务的成本、延迟、返工和缓存数据；Jev 的 held-out 24% 错配/14% 关键漏配说明单一模型或单层阈值不可靠；现有 AGENTS.md 约 6k token，简单任务承担无关规则；下游已升级到 2.33.0，但路由器尚未安装。
+强力模型直路由目前只有离线、引导式、同模型家族的 100 条 curated 证据；Qoder 宿主已确认独立低上下文调用、结构化输出和 model/version/latency 记录，dfmodel 报告 0 tokens/0 Credits；shadow 已记录 3 条真实事件，但还没有 20–50 条基线、needed_modules/返工标注、延迟/成本/澄清/返工阈值校准；内核/模块契约未拆分，token 收益未实现；下游 zbuddy 试点由独立方案管理，主方案不安装路由器。
 
 ## 候选方案
 

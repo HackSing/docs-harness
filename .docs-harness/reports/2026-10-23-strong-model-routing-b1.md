@@ -127,3 +127,28 @@
 - 真实任务量仍只有 3 条，远低于 20–50 条基线；关键漏配、过度路由、返工、p95 和阈值校准没有数据。
 - `needed_modules`、返工和完成状态尚无采集通道，指标会全部落在 `quality_unverified`。
 - 用户级 hook 在其他 opt-in 项目、多任务/长会话/上下文压缩下的行为未统计。
+
+## 下游 zbuddy 路由试点（2026-10-23 追加）
+
+### 方案与改动
+
+- `docs/plans/zbuddy-routing-pilot.json/.md`：独立 brief 方案，冻结后执行并结算为 implemented；主方案不改“不向下游安装路由器”的边界，试点作为独立计划管理。
+- `docs/plans/strong-model-routing-rollout.json/.md`：两次 `plan amend` 同步 B0/B1 完成、B2 开始和下游试点；最终指纹 `sha256:fb0f338649c48a9efe180a40abee3a96145f310bf8ee08d33e5a0ccf90c8867f`（amend_count=2）。
+- `zbuddy-mobile/routing/registry.json`、`routing/README.md`：opt-in 快照，注册表 `1.0.0`。
+- `zbuddy-desktop/routing/registry.json`、`routing/README.md`：同一快照。
+- 未改两个下游的 `AGENTS.md`、`scripts/`、`.docs-harness/config.json` 或 docs-harness 受管文件；未安装路由脚本。
+
+### 验证
+
+- `load_registry`：两个下游快照均通过，`version=1.0.0`、`fingerprint=sha256:c3b984d65a55111bdee379dbb666a52dea3d234fdd94b856ec179825835b912a`，与本仓一致；验证层级：contract_check。
+- fake backend 门禁冒烟：在两个项目运行 `user-hook.sh`，均退出 0、stdout/stderr 为空；Shadow 事件 `phase=shadow`、`modules=["code"]`、`actual_modules` 为全部 6 个模块、`model.name=fake-router`；合成日志随后删除；验证层级：local_runtime。
+- 回滚冒烟：临时把 `routing/registry.json` 改名后运行 `user-hook.sh`，两个项目均退出 0、stdout/stderr 为空、不创建 `.docs-harness/routing`；恢复后文件大小 9056 字节；验证层级：local_runtime。
+- `python3 scripts/harness.py assets-check --fast --json`（zbuddy-mobile）：违规 0、警告 0，退出码 0；验证层级：contract_check。
+- `python3 scripts/harness.py assets-check --fast --json`（zbuddy-desktop）：违规 0、警告 0，退出码 0；验证层级：contract_check。
+- 两个下游已按用户明确确认提交并推送：zbuddy-mobile `67e9eb9`、zbuddy-desktop `1c359540`。该提交动作覆盖试点方案中“不提交下游仓库”的执行约束，方案本身保持 settled 记录；提交只含 `routing/registry.json` 与 `routing/README.md`，未改下游受管文件。
+
+### 未覆盖
+
+- 下游 Desktop 新会话的真实 `UserPromptSubmit` 触发、真实代码任务和 shadow 数据量均未产生。
+- 两个下游依赖本机用户级 hook 与 `DOCS_HARNESS_ROOT`，不是可移植安装；换机后注册表快照不会被自动使用。
+- 注册表漂移只能手工重新复制；没有下游版本检测或跨项目日志聚合。

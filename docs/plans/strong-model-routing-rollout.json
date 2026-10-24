@@ -25,12 +25,14 @@
     "progress": {
       "completed_steps": [
         "100 条 curated 评测（20 诊断 + 两组各 50 held-out）",
-        "2.33.0 发布与 10 个下游升级"
+        "2.33.0 发布与 10 个下游升级",
+        "B0 宿主能力审计：Qoder UserPromptSubmit、国内原生 CLI 独立调用、结构化 JSON、model/version/latency 记录",
+        "B1 路由契约、校验、Shadow 日志、指标与覆盖率，61 项路由测试",
+        "B2 shadow 仅记录模式与首批 3 条真实事件",
+        "下游 zbuddy 试点接入（独立方案 zbuddy-routing-pilot，已 settle）"
       ],
       "remaining_steps": [
-        "B0 宿主能力审计与基线",
-        "B1 路由契约/校验/日志",
-        "B2 Shadow",
+        "B2 真实任务采样（20–50 条）、needed_modules/返工标注与阈值校准",
         "B3 Canary 低风险类",
         "B4 高风险类",
         "B5 强制执行与旧路径清理"
@@ -44,7 +46,7 @@
     "knowledge_impact": "updated",
     "constraints": "宿主必须能发起独立、低上下文的模型调用，并能记录 model/version、tokens、latency；否则 B0 停止并改方案。路由器只接收 taxonomy、一页契约和任务文本，不接收完整 AGENTS.md/目录；内核的安全、授权、权限和不可逆确认始终常驻。B1/B2 不得改变执行行为，feature flag 默认关闭。日志必须脱敏、只本地/受管存储，不写用户敏感内容；路由输出必须经过宿主校验，不能直接信任 JSON。不得在已消费的 held-out/诊断集上调阈值；新阈值只在 fresh set 或真实 shadow 数据上校准。不新增第三方依赖；不改变 CLI 契约；不高风险动作不做自动化放行。",
     "risks_and_rollback": "主要风险与处置：① 关键契约漏配（静默失败）→ 覆盖率核对、关键子集、关键漏配接近 0 才放量，异常立即回滚；② 误澄清/过度澄清→clarify 联合门、shadow 基线、canary 体验观察；③ 过度路由→模块精确率/禁止模块、宿主冲突消解；④ 宿主无独立调用→B0 停止，改同轮两段式并重定指标；⑤ 模型锚定/自偏好→独立调用、候选只作信号、证据化复核、抽检 accept 决策；⑥ 缓存/前缀失效→契约追加到尾部，不改系统前缀，记录 cache 命中；⑦ 成本/延迟→p95 和 token 预算，shadow/canary 超预算回滚；⑧ 中文/领域偏差→双语/真实样本复测、置信度和人工复核；⑨ 提示注入/不可信内容→注册表受控、输出校验、日志审计；⑩ 日志隐私→脱敏、保留期、访问控制；⑪ 注册表/契约漂移→版本指纹、drift 测试、覆盖率；⑫ 模块交叉冲突→优先级和交叉点合同测试；⑬ canary 任务分布漂移→分层抽样和周期性复测。回滚：关闭 feature flag，恢复当前 kernel/规则行为；保留 shadow 日志和已装配契约；无数据迁移、无下游回滚；高风险任务人工复核。",
-    "current_constraints": "强力模型直路由只有离线、引导式、同模型家族的 100 条 curated 证据；生产宿主是否支持独立低上下文调用尚未确认；没有真实任务的成本、延迟、返工和缓存数据；Jev 的 held-out 24% 错配/14% 关键漏配说明单一模型或单层阈值不可靠；现有 AGENTS.md 约 6k token，简单任务承担无关规则；下游已升级到 2.33.0，但路由器尚未安装。",
+    "current_constraints": "强力模型直路由目前只有离线、引导式、同模型家族的 100 条 curated 证据；Qoder 宿主已确认独立低上下文调用、结构化输出和 model/version/latency 记录，dfmodel 报告 0 tokens/0 Credits；shadow 已记录 3 条真实事件，但还没有 20–50 条基线、needed_modules/返工标注、延迟/成本/澄清/返工阈值校准；内核/模块契约未拆分，token 收益未实现；下游 zbuddy 试点由独立方案管理，主方案不安装路由器。",
     "alternatives": "A. 继续纯规则/关键词路由：实现便宜，但诊断集 55%、held-out 46% 错配，否决。B. Jev 单独路由：成本低，但 held-out 24% 错配、14% 关键漏配，否决作为默认。C. 强力模型直路由 + 宿主校验 + shadow/canary：准确率和可解释性最好，成本/延迟和宿主依赖是代价，推荐。D. Jev 预过滤 + 强力模型中间带复核：保留 Jev 成本优势，但多一层错误来源和复杂度，只有在成本/延迟成为硬约束时再评估。",
     "tradeoffs": "准确性 vs 成本/延迟：强力模型每次多一次调用，但能显著降低错配和返工；用 shadow 量成本，用 canary 验证收益。模型能力 vs 宿主依赖：强模型直路由依赖宿主提供独立调用；若只能同轮内联，路由与执行混在一起，可审计性下降。分阶段放量 vs 速度：shadow 1–2 周会慢，但这是唯一能拿到真实返工数据的办法。引导式契约 vs 泛化：taxonomy/一页契约降低难度，也带来作者/同源偏差；必须用 fresh held-out 和真实日志校验。覆盖率核对 vs 延迟：多一步检查增加延迟，但能防止静默漏配。",
     "decision": "采用 C：强力模型作为执行前的独立结构化路由调用，宿主负责校验、依赖闭包、冲突消解和覆盖率核对；默认关闭，按 B1 契约/校验/日志 → B2 shadow → B3 低风险 canary → B4 高风险 + 人工复核 → B5 强制执行放量。内核安全/授权/输出契约常驻；路由器只选择任务契约；覆盖率缺失可阻断；任何阶段异常可一键回滚。",
@@ -63,8 +65,22 @@
     "updated_knowledge_refs": [],
     "unchanged_reason": null,
     "governance_settled_at": null,
-    "amend_log": []
+    "amend_log": [
+      {
+        "amended_at": "2026-10-24T06:14:37+00:00",
+        "reason": "同步 B0/B1 完成、B2 开始与下游试点拆分",
+        "fingerprint_before": "sha256:c72a71a21bf8d73883b138477d7cb4bd031b8b6cebc2906d11a6e526f480a4fd",
+        "fingerprint_after": "sha256:df8a6fd1f30a689e1a386ebea0400f016d71787eb2d58d74609bc120c7d2c0fe"
+      },
+      {
+        "amended_at": "2026-10-24T06:15:50+00:00",
+        "reason": "下游 zbuddy 试点接入完成并已 settle",
+        "fingerprint_before": "sha256:f3a44325799ca787391a113dd499e3c440e77b2eb456ac0aef3c9474be30fdec",
+        "fingerprint_after": "sha256:b4b639c5ad64860fe1ad21eb3365093c84de04848e69402cb90687b4b6e5093b"
+      }
+    ]
   },
   "frozen_at": "2026-10-24T03:57:34+00:00",
-  "plan_fingerprint": "sha256:c72a71a21bf8d73883b138477d7cb4bd031b8b6cebc2906d11a6e526f480a4fd"
+  "plan_fingerprint": "sha256:fb0f338649c48a9efe180a40abee3a96145f310bf8ee08d33e5a0ccf90c8867f",
+  "last_amended_at": "2026-10-24T06:15:50+00:00"
 }

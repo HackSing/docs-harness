@@ -306,4 +306,15 @@ python3 -m unittest tests.test_routing_contract tests.test_routing_shadow tests.
 - 用户级触发：本仓会话已真实写入 3 条 Shadow 事件（`answer_only`、两条澄清/低置信，`dfmodel`，3.2–6.2s），shadow 不注入。
 - 未覆盖：其他 opt-in 项目/新会话的用户级触发、1–2 周真实 shadow 基线、多任务/长会话/上下文压缩下的缓存命中率与误复用、`dfmodel` 的 token/credit 计量（CLI 返回 0）、内核/模块契约拆分与 token 收益。
 
+### 下游 zbuddy 路由试点（2026-10-23）
+
+- 接入面：`zbuddy-mobile` 与 `zbuddy-desktop` 各新增 `routing/registry.json` + `routing/README.md`；未改下游受管文件、未安装路由脚本。
+- 指纹：两份快照均为 `1.0.0` / `sha256:c3b984d65a55111bdee379dbb666a52dea3d234fdd94b856ec179825835b912a`，`load_registry` 均通过且与本仓一致。
+- 门禁冒烟：fake backend 下 `user-hook.sh` 在两个项目均退出 0、stdout/stderr 为空；Shadow 事件 `phase=shadow`、`modules=["code"]`、`actual_modules` 为全部 6 个模块；合成日志已删除。
+- 回滚：临时移除 `registry.json` 后两个项目均退出 0、无输出、不建日志目录；恢复后文件大小与指纹一致。
+- 下游资产检查：两个项目 `assets-check --fast` 均违规 0、警告 0；工作区只新增未提交的 `routing/`。
+- 方案：`docs/plans/zbuddy-routing-pilot.json`。
+- 下游提交：zbuddy-mobile `67e9eb9`、zbuddy-desktop `1c359540`，均推送到远端。
+- 未覆盖：下游 Desktop 新会话真实触发、真实任务采样、注册表漂移检测与跨项目日志聚合。
+
 未覆盖：B2 真实 shadow 数据、B3–B5 canary/强制放量、20–50 条真实任务基线、延迟/成本/澄清/返工阈值校准、内核拆分、下游安装。离线强模型证据仍是引导式 curated 集，不能当作生产准确率。

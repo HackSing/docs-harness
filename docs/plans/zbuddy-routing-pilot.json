@@ -1,0 +1,25 @@
+{
+  "schema_version": "docs-harness/plan/v3",
+  "plan_level": "brief",
+  "plan_profile": "general",
+  "secondary_profiles": [],
+  "template_versions": [
+    "level/brief@2.33.0"
+  ],
+  "selection_fingerprint": "sha256:6629f6f201263ff4ee1280b00c786b5840071eb93dcaa2779271460d61073acc",
+  "content": {
+    "title": "zbuddy 下游路由试点接入（mobile + desktop）",
+    "key_symbols": [
+      "load_registry",
+      "_uses_docs_harness",
+      "shadow_log_path"
+    ],
+    "objective": "在 zbuddy-mobile 和 zbuddy-desktop 中以最小侵入方式 opt-in Docs Harness 路由注册表，让用户级 Qoder hook 在 shadow 阶段只记录路由决策、不改变执行，并保留一键回滚。",
+    "scope": "只向下游复制 routing/registry.json 快照与一页 README；不安装路由脚本、不改变下游 docs-harness 受管文件、不注入契约、不提交下游仓库。依赖本机用户级 Qoder hook 与本仓 route_hook.py。",
+    "steps": "1. 校验源注册表版本/指纹；2. 在两个下游项目创建 routing/registry.json 与 README；3. 用 load_registry 校验两份快照；4. 在各自项目用 fake backend 跑一次 user-hook.sh，确认项目门禁命中且写出 shadow 事件，随后删除合成日志；5. 记录回滚方式：删除 routing/registry.json 后 hook 静默跳过。",
+    "acceptance": "两个项目均有 routing/registry.json 且 load_registry 通过；user-hook.sh 在各自项目命中门禁并写出 shadow 事件；shadow 阶段无 additionalContext；删除 registry 后 hook 静默跳过；下游 docs-harness 受管文件无改动，工作区只新增 routing/ 目录。"
+  },
+  "acceptance_refs": [],
+  "frozen_at": "2026-10-24T06:14:32+00:00",
+  "plan_fingerprint": "sha256:289521e078492e3a5a7fbdf07203962f8995f0699096525900e430ccf4a682e1"
+}

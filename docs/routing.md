@@ -350,7 +350,36 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 - 国内账号已能在 CLI 登录；是否与 Desktop 套餐共享额度，以 CLI `/status` 和实际 Credits 为准。
 - 每次宿主重启或配置变化后要重新确认 hook 是否加载。
 
-## 11. 未覆盖与待定
+## 11. 下游试点接入
+
+试点方案：`docs/plans/zbuddy-routing-pilot.json`。主方案仍明确不向下游安装路由器；本试点是独立的最小 opt-in，不改变下游安装面。
+
+当前接入：
+
+- `zbuddy-mobile`：`/Users/aiware/projects/zbuddy-mobile/routing/registry.json` + `README.md`。
+- `zbuddy-desktop`：`/Users/aiware/projects/zbuddy-desktop/routing/registry.json` + `README.md`。
+
+做法与边界：
+
+- 只复制注册表快照和一页 README；不复制 `routing/hosts/`、不安装路由脚本、不改下游 `AGENTS.md`、`scripts/` 或 `.docs-harness/config.json`。
+- 用户级 Qoder hook 的项目门禁只认项目内 `routing/registry.json`；两个项目因此 opt-in。
+- 默认 `shadow`：只写 `.docs-harness/routing/shadow-YYYY-MM.jsonl`，不注入 `additionalContext`，不改变执行。
+- 依赖本机用户级 hook 与本仓 `DOCS_HARNESS_ROOT`；这是单机试点，不是可移植安装。换机或在没有该 hook 的环境里，项目只剩一个未使用的注册表快照。
+- 注册表版本或指纹变化时，从本仓重新复制整个 `registry.json`，不要手改；指纹不匹配会被 `load_registry` 拒绝。
+- 回滚：删除 `routing/registry.json`；hook 在下一次触发时静默跳过，不启动 Python/CLI、不建日志。已有日志可保留。
+
+验证（2026-10-23）：
+
+- 两份快照均为 `version=1.0.0`、`fingerprint=sha256:c3b984d65a55111bdee379dbb666a52dea3d234fdd94b856ec179825835b912a`，与本仓一致。
+- fake backend 下 `user-hook.sh` 在各自项目返回 0，stdout/stderr 为空；Shadow 事件为 `phase=shadow`、`modules=["code"]`、`actual_modules` 为全部 6 个模块。合成事件随后删除。
+- 临时移除 `registry.json` 后，两个项目均返回 0、无输出、不建 `.docs-harness/routing`；恢复后指纹一致。
+- 两个下游 `assets-check --fast` 均为违规 0、警告 0；工作区只新增未提交的 `routing/` 目录。
+
+下游 `routing/` 已分别提交并推送：zbuddy-mobile `67e9eb9`、zbuddy-desktop `1c359540`。提交动作由用户明确确认，覆盖试点方案中“不提交下游仓库”的执行约束；方案本身仍保持 settled 记录。
+
+未覆盖：下游 Desktop 新会话的真实触发、真实任务采样、注册表漂移自动检测和跨项目日志聚合。
+
+## 12. 未覆盖与待定
 
 - B2 shadow 的仅记录模式已启用（22 项 hook 测试）；真实任务采集、阈值校准与 B3–B5 尚未开始。
 - 国内原生 `qoderclicn` 已登录并能真实调用；`dfmodel` 的 token/credit 计量为 0；项目级 Desktop 已完成端到端触发与同会话缓存复验，用户级 hook 已在本仓会话触发并记录 3 条事件，1–2 周 shadow 和回滚演练未完成。
