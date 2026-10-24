@@ -22,6 +22,7 @@ Qoder 在用户提交 prompt 后、主 Agent 处理前触发 `UserPromptSubmit`�
 - `fake_profile.json`：fake backend 的静态 code_task 画像。
 - `settings.example.json`：fake backend 的 Qoder hooks 配置片段。
 - `settings.cli.example.json`：Qoder CLI backend 的配置片段。
+- `user-hook.sh`：用户级 hook 入口，先检查项目是否使用 Docs Harness，再调用 `route_hook.py`。
 
 ## 测试
 
@@ -74,16 +75,21 @@ CLI JSON 的 `usage`、`duration_ms`、`total_credits`、`total_cost_usd`、`mod
 
 ## 安装
 
-项目级测试：把 `settings.example.json`（fake）或 `settings.cli.example.json`（真实 Qoder 模型）的 `hooks` 块合并到 `.qoder/settings.local.json`，确认项目有 `routing/registry.json`，然后新建 Qoder 会话提交一个 code_task 提示。`.qoder/settings.local.json` 不入库。
+用户级（当前采用）：
 
-用户级测试：复制 `route_hook.py` 到 `~/.qoder-cn/hooks/`，在 hook 的 `env` 设置 `DOCS_HARNESS_ROOT` 指向本仓，并把 `command` 指向复制后的脚本。
+1. 在 `~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 增加一组 command hook，`command` 指向本目录的 `user-hook.sh`。
+2. `env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。
+3. `user-hook.sh` 只在项目含 `routing/registry.json` 或 `.docs-harness/config.json` 时继续；其他项目直接退出，不写日志、不启动 CLI。
+4. 修改设置前备份；新建 Qoder 会话才会加载用户级 hook。
 
-回滚：删除 hook 条目或对应 settings 文件。
+项目级（可选）：把 `settings.example.json`（fake）或 `settings.cli.example.json`（真实 Qoder 模型）的 `hooks` 块合并到 `.qoder/settings.local.json`，确认项目有 `routing/registry.json`，然后新建会话。
+
+回滚：删除 `hooks.UserPromptSubmit` 中的 docs-harness 条目，新建会话。
 
 ## 限制
 
 - fake backend 的 profile 是静态的；启用它会把所有提示按 code_task 注入。只用于匹配提示的链路测试。
-- 国内 CLI 已接入但尚未登录；真实模型、Credits、延迟和路由质量数据要等一次真实 `/login` 后测量。
-- CLI 是完整 Agent Runtime：首条任务和重路由会多一次启动；同会话后续消息走缓存，不再每条启动。
+- 国内原生 `qoderclicn` 已登录，`dfmodel` 完成真实路由；CLI 对该模型报告 0 tokens / 0 Credits。
+- CLI 是完整 Agent Runtime：首条任务和重路由会多一次启动；同会话后续消息走缓存，不再每条启动。原生墙钟约 3.1s，npm 约 4.1s。
 - Hook 只能追加 context，不能移除已加载的 AGENTS.md；token 收益仍需内核/模块契约拆分。
-- Qoder Desktop 真实会话触发尚未验证；Qoder CN 账号能否在 CLI 登录以 `/status` 为准。
+- 项目级 Desktop 已端到端验证；用户级 hook 已安装但需新会话复验；1–2 周真实 shadow 未开始。

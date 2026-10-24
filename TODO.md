@@ -13,7 +13,7 @@
 
 - [ ] behavior evals 两轮基线已完成（11 条/52 检查点，两轮均 49/52；见 `docs/acceptance/evidence/harness-adherence-optimization/c6-behavior-baseline.md`），但仍无自动运行器；subagent-evidence 的 2 项两轮都未触发子智能体，需决定它与“轻量任务不开子智能体”的边界；intent 的零基础读者核对仍未单独说明（aiware，2026-10-22）
 
-- [ ] 强力模型直路由 B1 已落地：`routing/registry.json`、纯校验、Shadow 事件/指标/覆盖率与 61 项测试；默认关闭，未新增 CLI 命令，未进入下游安装面（见 `docs/routing.md`）。Qoder hook + 国内账号 + 会话缓存已落地（17 项测试）；原生 `qoderclicn` 1.1.78 已装（`~/.local/bin/qoderclicn`，`--skip-path`），`dfmodel` 免费、0 tokens/0 Credits；Qoder Desktop 的 `UserPromptSubmit` 已在 demo 项目两次真实触发（不同 session，均 modules=code，延迟 6.09s/2.87s，生成 hello.py）。下一步：在 demo 同一 session 发后续消息复验 Desktop 缓存，再把 hook 装到实际项目跑 1–2 周 shadow；随后拆分内核/模块契约以取得 token 收益（aiware，2026-10-23）
+- [ ] 强力模型直路由 B1 已落地：`routing/registry.json`、纯校验、Shadow 事件/指标/覆盖率与 61 项测试；默认关闭，未新增 CLI 命令，未进入下游安装面（见 `docs/routing.md`）。Qoder hook + 国内账号 + 会话缓存已落地（20 项测试）；原生 `qoderclicn` 1.1.78 已装（`~/.local/bin/qoderclicn`，`--skip-path`），`dfmodel` 免费、0 tokens/0 Credits；项目级 Desktop 已触发并复验同会话缓存（route-cache, cache_hit=true, 0.0s）。用户级 hook 已写入 `~/.qoder-cn/settings.json`（有备份），`user-hook.sh` 带项目门禁，仅对含 Docs Harness 标识的项目生效。下一步：在 demo 或实际项目新开 Qoder 会话复验用户级触发，然后跑 1–2 周真实 shadow；随后拆分内核/模块契约以取得 token 收益（aiware，2026-10-23）
 
 - [ ] 用加重后的 `subagent-evidence-checked` fixture（每模块 3–5 个查询文件、schema 与慢查询日志）重跑该用例；两轮基线的轻量 fixture 未触发子智能体，不能据此判定该规则失败（aiware，2026-10-22）
 

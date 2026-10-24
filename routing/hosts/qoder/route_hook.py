@@ -91,6 +91,8 @@ def main() -> int:
     project: Path | None = None
     try:
         project = _project_dir(payload)
+        if not _uses_docs_harness(project) and not os.environ.get("DOCS_HARNESS_REGISTRY"):
+            return 0
         registry = _registry_for(project)
         if direct_override_requested(prompt, registry):
             return 0
@@ -471,6 +473,12 @@ def _project_dir(payload: Mapping[str, Any]) -> Path:
     if not path.is_dir():
         raise HookError("project_dir_invalid", "QODER_PROJECT_DIR")
     return path.resolve()
+
+
+def _uses_docs_harness(project: Path) -> bool:
+    return (project / "routing" / "registry.json").is_file() or (
+        project / ".docs-harness" / "config.json"
+    ).is_file()
 
 
 def _registry_for(project: Path) -> Registry:

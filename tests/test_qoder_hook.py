@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from harness_test_base import ROOT  # noqa: E402
 
 HOOK = ROOT / "routing" / "hosts" / "qoder" / "route_hook.py"
+USER_HOOK = ROOT / "routing" / "hosts" / "qoder" / "user-hook.sh"
 REGISTRY = ROOT / "routing" / "registry.json"
 PROMPT = "修改 routing/registry.json 里的契约文案，然后跑聚焦测试"
 
@@ -198,13 +199,76 @@ print(json.dumps({
         self.assertEqual(result.stdout.strip(), "")
         self.assertEqual(self.shadow_events(), [])
 
-    def test_missing_registry_is_non_blocking(self) -> None:
+    def test_project_without_docs_harness_is_skipped(self) -> None:
         (self.project / "routing" / "registry.json").unlink()
         result = self.run_hook()
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stdout.strip(), "")
-        self.assertIn("registry_missing", result.stderr)
+        self.assertEqual(result.stderr.strip(), "")
         self.assertEqual(self.shadow_events(), [])
+        self.assertFalse((self.project / ".docs-harness" / "routing").exists())
+
+    def test_installed_project_without_registry_uses_source_registry(self) -> None:
+        (self.project / "routing" / "registry.json").unlink()
+        (self.project / ".docs-harness").mkdir()
+        (self.project / ".docs-harness" / "config.json").write_text("{}", encoding="utf-8")
+        result = self.run_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("代码改动契约", context)
+        self.assertEqual(len(self.shadow_events()), 1)
+
+    def run_user_hook(
+        self, project: Path, prompt: str = PROMPT
+    ) -> subprocess.CompletedProcess[str]:
+        payload = {
+            "hook_event_name": "UserPromptSubmit",
+            "session_id": "session-user-hook",
+            "cwd": str(project),
+            "prompt": prompt,
+        }
+        env = {
+            key: value
+            for key, value in os.environ.items()
+            if not key.startswith("DOCS_HARNESS_ROUTER_")
+            and key not in {"QODER_PROJECT_DIR", "DOCS_HARNESS_REGISTRY", "DOCS_HARNESS_ROOT"}
+        }
+        env.update(
+            {
+                "QODER_PROJECT_DIR": str(project),
+                "DOCS_HARNESS_ROOT": str(ROOT),
+                "DOCS_HARNESS_ROUTER_ENABLED": "1",
+                "DOCS_HARNESS_ROUTER_BACKEND": "fake",
+                "DOCS_HARNESS_ROUTER_FAKE_PROFILE": str(self.fake),
+                "PATH": "/usr/bin:/bin:/usr/sbin:/sbin:" + os.environ.get("PATH", ""),
+                "PYTHONDONTWRITEBYTECODE": "1",
+            }
+        )
+        return subprocess.run(
+            [str(USER_HOOK)],
+            cwd=project,
+            input=json.dumps(payload, ensure_ascii=False),
+            capture_output=True,
+            text=True,
+            check=False,
+            env=env,
+        )
+
+    def test_user_hook_wrapper_skips_project_without_docs_harness(self) -> None:
+        project = Path(self.temp.name) / "other"
+        project.mkdir()
+        result = self.run_user_hook(project)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "")
+        self.assertEqual(result.stderr.strip(), "")
+        self.assertFalse((project / ".docs-harness").exists())
+
+    def test_user_hook_wrapper_delegates_for_docs_harness_project(self) -> None:
+        result = self.run_user_hook(self.project)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("代码改动契约", context)
+        self.assertEqual(len(self.shadow_events()), 1)
 
     def test_invalid_profile_is_non_blocking_and_redacted(self) -> None:
         self.write_fake({"intents": ["nope"], "triggers": [], "must_clarify": False, "confidence": 0.9})

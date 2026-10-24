@@ -166,10 +166,10 @@ summary = summarize_shadow(
 | model/version 记录 | hook 从 CLI `modelUsage` 取模型名，从 `--version` 取 CLI 版本；真实值 `dfmodel` / `1.1.78` | 已确认 |
 | token、latency 记录 | CLI JSON 含 `usage`、`duration_ms`、`total_cost_usd`、`total_credits`；原生版真实路由墙钟 3.10s（模型 1.97s、启动约 1.1s），npm 版 4.13s（模型 1.53s、启动约 2.6s）；`dfmodel` 报告 0 tokens / 0 Credits | 字段与延迟已确认；`dfmodel` 用量为 0 |
 | feature flag 与回滚开关 | `DOCS_HARNESS_ROUTER_ENABLED` + `DOCS_HARNESS_ROUTER_BACKEND`；回滚等价于移除 hook 条目 | 原型已确认；宿主级 flag 未确认 |
-| shadow sink | Qoder Desktop 真实 `UserPromptSubmit` 已在 demo 会话触发：两条事件均为 `dfmodel` / `code`，无 hook 错误，主任务生成 `hello.py`；脚本级同会话缓存已验证 | Desktop 端到端已确认；同会话缓存待 Desktop 复验 |
+| shadow sink | Qoder Desktop 真实 `UserPromptSubmit` 已在 demo 会话触发：首条 `dfmodel`/`code`，同会话后续消息命中 `route-cache`、`cache_hit=true`、延迟 0.0s；主任务生成并更新 `hello.py`，无 hook 错误。用户级 hook 已写入 `~/.qoder-cn/settings.json`，带项目门禁 | 项目级端到端已确认；用户级待新会话复验 |
 | 20–50 条真实任务基线 | 目前只有手工真实 prompt；尚无 1–2 周真实任务统计 | 未开始 |
 
-结论：A 在 Qoder 上已完成端到端闭环：国内账号已登录，`dfmodel` 完成真实路由，Qoder Desktop 的 `UserPromptSubmit` hook 已在 demo 会话触发并写入 Shadow；同会话缓存先由脚本级真实调用验证。下一步是把 hook 装到实际项目，跑 1–2 周真实任务 shadow，采集关键漏配、返工、延迟与用量。Hook 只能追加 context，不能移除已加载的 AGENTS.md；要拿到 token 收益仍需拆分内核与模块契约。
+结论：A 在 Qoder 上已完成端到端闭环：国内账号已登录，`dfmodel` 完成真实路由，Qoder Desktop 的 `UserPromptSubmit` hook 已触发并写入 Shadow；同一会话后续消息命中 `route-cache`，不再启动 CLI。用户级 hook 已安装，带项目门禁，只对含 Docs Harness 标识的项目生效。下一步是在新会话复验用户级 hook，再跑 1–2 周真实任务 shadow，采集关键漏配、返工、延迟与用量。Hook 只能追加 context，不能移除已加载的 AGENTS.md；要拿到 token 收益仍需拆分内核与模块契约。
 
 ## 7. B2 运行手册
 
@@ -234,6 +234,7 @@ Qoder 官方 hooks 文档确认：`UserPromptSubmit` 在用户提交 prompt 后�
 - `routing/hosts/qoder/fake_profile.json`：fake backend 的静态 code_task 画像。
 - `routing/hosts/qoder/settings.example.json`：fake backend 的 Qoder hooks 配置示例。
 - `routing/hosts/qoder/settings.cli.example.json`：Qoder CLI backend 的配置示例。
+- `routing/hosts/qoder/user-hook.sh`：用户级 hook 入口，先检查项目是否使用 Docs Harness，再调用 `route_hook.py`。
 
 行为：
 
@@ -322,14 +323,19 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
   python3 routing/hosts/qoder/route_hook.py
 ```
 
-安装测试（项目级，推荐先用临时项目）：
+用户级安装（当前采用）：
+
+1. 在 `~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 增加一组 command hook，`command` 指向本仓 `routing/hosts/qoder/user-hook.sh`，`env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。
+2. `user-hook.sh` 先检查 `QODER_PROJECT_DIR` 下是否有 `routing/registry.json` 或 `.docs-harness/config.json`；没有就直接退出，不启动 Python/CLI，也不写日志。这样用户级 hook 只对使用 Docs Harness 的项目生效。
+3. 修改设置前备份原文件；当前备份为 `settings.json.bak-<时间戳>`。
+4. 新建一个 Qoder 会话（旧会话不会重新加载用户级设置），提交普通任务；检查 Shadow 日志是否新增。
+5. 回滚：删除 `hooks.UserPromptSubmit` 中的 docs-harness 条目，新建会话。
+
+项目级安装（可选，适合单项目试用）：
 
 1. 在项目 `.qoder/settings.local.json` 合并 `settings.example.json`（fake）或 `settings.cli.example.json`（真实 CLI）的 `hooks` 块；该文件不入库。
 2. 确认项目有 `routing/registry.json`，或设置 `DOCS_HARNESS_REGISTRY`。
 3. 新建一个 Qoder 会话，提交一个与 fake profile 匹配的 code_task 提示；检查 `additionalContext` 是否出现、Shadow 日志是否新增。
-4. 回滚：删除该 hook 条目或 settings 文件。
-
-用户级安装时，把 `route_hook.py` 复制到 `~/.qoder-cn/hooks/`，在 hook 的 `env` 里设置 `DOCS_HARNESS_ROOT` 指向本仓，并把 `command` 指向复制后的脚本。不要在没有 `DOCS_HARNESS_ROOT` 的情况下复制脚本。
 
 限制：
 
@@ -338,15 +344,15 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 - CLI 是完整 Agent Runtime：首条任务和重路由会多一次启动开销；同会话后续消息走缓存，不再每条启动。原生版真实路由墙钟约 3.1s（启动约 1.1s、模型约 2s），npm 版约 4.1s（启动约 2.6s）。
 - 缓存可能沿用旧路由：后续消息换了任务但没有“新任务/换个任务”等标记时，主 agent 需要从 registry 读取新契约，或用户发 `/route-reset`。真实同会话缓存已验证“CLI 路径不存在仍复用”。
 - Hook 只能追加 context，不能移除已加载的 AGENTS.md；token 收益仍要等内核/模块契约拆分。
-- Qoder Desktop 的真实 `UserPromptSubmit` 已在 demo 会话触发；两次测试是不同 session，尚未在 Desktop 内复验同会话缓存，也尚未在真实项目跑 1–2 周 shadow。
+- Qoder Desktop 的项目级 `UserPromptSubmit` 与同会话缓存已在 demo 复验；用户级 hook 已安装但尚未在新会话复验；尚未在真实项目跑 1–2 周 shadow，也未统计多任务、长会话和上下文压缩下的缓存命中率与误复用。
 - 国内账号已能在 CLI 登录；是否与 Desktop 套餐共享额度，以 CLI `/status` 和实际 Credits 为准。
 - 每次宿主重启或配置变化后要重新确认 hook 是否加载。
 
 ## 11. 未覆盖与待定
 
 - B2–B5 的真实 shadow、canary、强制放量尚未开始。
-- 国内原生 `qoderclicn` 已登录并能真实调用；`dfmodel` 的 token/credit 计量为 0；Qoder Desktop 已完成一次端到端触发，1–2 周 shadow 和回滚演练未完成。
-- 会话缓存已用脚本级真实同会话两条消息验证一次；Desktop 内的两次测试是不同 session，尚未在多任务、长会话、上下文压缩和 `/route-reset` 场景统计命中率与误复用。
+- 国内原生 `qoderclicn` 已登录并能真实调用；`dfmodel` 的 token/credit 计量为 0；项目级 Desktop 已完成端到端触发与同会话缓存复验，用户级 hook 待新会话复验，1–2 周 shadow 和回滚演练未完成。
+- 会话缓存已在 demo 和脚本级各验证一次；尚未在多任务、长会话、上下文压缩和 `/route-reset` 场景统计命中率与误复用。
 - 20–50 条真实任务基线尚未建立。
 - 延迟、token、成本、Credits、澄清和返工阈值尚未校准。
 - 内核/模块契约尚未拆分，当前 hook 只追加契约，不减少 AGENTS.md token。
