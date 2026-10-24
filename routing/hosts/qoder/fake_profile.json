@@ -1,0 +1,13 @@
+{
+  "intents": [
+    "code_task"
+  ],
+  "triggers": [
+    "code_edit"
+  ],
+  "must_clarify": false,
+  "confidence": 0.95,
+  "evidence": [
+    "prototype fixture: code task"
+  ]
+}

@@ -159,15 +159,15 @@ summary = summarize_shadow(
 
 | 能力 | 证据 | 状态 |
 |---|---|---|
-| 独立、低上下文的强模型调用 | 2.33.0 评测用两个独立会话，只给用例 `id/setup/prompt` 和 taxonomy/schema，不读 gold；会话 `3f09b870-18c0-525b-ac56-ef5421f5ccea`、`13db605f-3b6c-502b-a3fc-0d7f2eefa0bf` | 模型会话层已确认；宿主程序化 API 未确认 |
+| 独立、低上下文的强模型调用 | Qoder hooks 支持 `UserPromptSubmit`，在主 Agent 处理前触发；`command` handler 可执行独立模型调用。2.33.0 评测另用两个独立会话确认过模型层能力 | Qoder hook 路径已确认；真实模型 endpoint 未接 |
 | 结构化 JSON 输出 | 四份强模型预测文件均可被 `score.py` 解析和评分，两组 held-out 各两次 50/50 | 已确认 |
-| model/version 记录 | 预测文件只写“宿主当前强力模型（型号未记录）” | 未确认 |
-| token、latency 记录 | 预测文件没有 token 或延迟字段 | 未确认 |
-| feature flag 与回滚开关 | 宿主侧能力，本仓库没有对应实现 | 未确认 |
-| shadow sink | 仓库侧 `routing_shadow` 已实现；宿主是否接入未确认 | 部分确认 |
+| model/version 记录 | 原型记录 `fake-router/prototype`；真实路由模型名称与版本待接 | 原型已记录；生产未确认 |
+| token、latency 记录 | 原型记录 hook 内路由调用 latency；token/cost 待真实模型返回 | latency 部分确认；token/cost 未确认 |
+| feature flag 与回滚开关 | 原型用 `DOCS_HARNESS_ROUTER_ENABLED` 开关；回滚等价于移除 hook 条目 | 原型已确认；宿主级 flag 未确认 |
+| shadow sink | 仓库侧 `routing_shadow` + Qoder hook 原型写本地 JSONL；Desktop 真实会话未触发 | 原型已接通；端到端未确认 |
 | 20–50 条真实任务基线 | 现有 usage 只记录 harness 命令面，不含任务级路由结果 | 未开始 |
 
-结论：B1 不依赖宿主，可以继续。B2 必须等宿主补齐独立调用、model/version、token/latency、feature flag、shadow sink、回滚和真实任务基线。若宿主只能同轮内联调用，B0 停止，改为同轮两段式路由并重新定义验收指标。
+结论：A 在 Qoder 上可行，入口是 `UserPromptSubmit` + `additionalContext`；原型已通过独立 stdin 测试，下一步接真实模型并在新 Qoder 会话做端到端触发。Hook 只能追加 context，不能移除已加载的 AGENTS.md；要拿到 token 收益仍需拆分内核与模块契约。
 
 ## 7. B2 运行手册
 
@@ -220,7 +220,58 @@ python3 scripts/harness.py release sync --strict --json
 npm run pack:check
 ```
 
-## 10. 未覆盖与待定
+## 10. Qoder hook 原型（A 路径）
+
+状态：原型，默认关闭，未安装到任何项目。它验证 A 的宿主注入链路，不改变下游安装面。
+
+Qoder 官方 hooks 文档确认：`UserPromptSubmit` 在用户提交 prompt 后、主 Agent 处理前触发；`command` handler 可从 stdin 读取事件 JSON，并向 stdout 输出 `hookSpecificOutput.additionalContext`。原型使用这个入口。
+
+文件：
+
+- `routing/hosts/qoder/route_hook.py`：命令 hook。读取 stdin，加载注册表，调用 `_route_task`（当前读 fake profile），校验画像，写 Shadow 事件，输出选中的模块契约。
+- `routing/hosts/qoder/fake_profile.json`：原型用的静态 code_task 画像。
+- `routing/hosts/qoder/settings.example.json`：Qoder hooks 配置示例。
+
+行为：
+
+- `DOCS_HARNESS_ROUTER_ENABLED=1` 时启用；默认关闭。
+- 没有 `routing/registry.json`、画像非法、phase 非法或 fake profile 不可读时，hook 不注入、退出 0，把错误写入 stderr 和 `.docs-harness/routing/hook-errors.jsonl`。
+- `direct_override` 直接跳过；`must_clarify` 只记 Shadow，不注入；无模块时不注入。
+- Shadow 事件不写 prompt 原文，只写 `task_hash`、字符数和结构化画像。
+- 注入内容只来自注册表契约；内核规则仍由 AGENTS.md 提供。
+
+独立测试：
+
+```bash
+python3 -m unittest tests.test_qoder_hook -v
+```
+
+手工冒烟：
+
+```bash
+echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'","prompt":"修改 routing/registry.json 并跑测试"}' | \
+  QODER_PROJECT_DIR="$PWD" DOCS_HARNESS_ROUTER_ENABLED=1 \
+  python3 routing/hosts/qoder/route_hook.py
+```
+
+安装测试（项目级，推荐先用临时项目）：
+
+1. 在项目 `.qoder/settings.local.json` 合并 `settings.example.json` 的 `hooks` 块；该文件不入库。
+2. 确认项目有 `routing/registry.json`，或设置 `DOCS_HARNESS_REGISTRY`。
+3. 新建一个 Qoder 会话，提交一个与 fake profile 匹配的 code_task 提示；检查 `additionalContext` 是否出现、Shadow 日志是否新增。
+4. 回滚：删除该 hook 条目或 settings 文件。
+
+用户级安装时，把 `route_hook.py` 复制到 `~/.qoder-cn/hooks/`，在 hook 的 `env` 里设置 `DOCS_HARNESS_ROOT` 指向本仓，并把 `command` 指向复制后的脚本。不要在没有 `DOCS_HARNESS_ROOT` 的情况下复制脚本。
+
+限制：
+
+- fake profile 是静态 code_task；在真实模型接入前，启用它会把所有提示都按 code_task 注入。只用于带匹配提示的链路测试。
+- 没有真实模型调用、token/cost 记录和真实路由质量数据。
+- Hook 只能追加 context，不能移除已加载的 AGENTS.md；token 收益仍要等内核/模块契约拆分。
+- Qoder Desktop 的真实会话触发尚未验证；先用独立 stdin 和临时项目确认。
+- 每次宿主重启或配置变化后要重新确认 hook 是否加载。
+
+## 11. 未覆盖与待定
 
 - B2–B5 的真实 shadow、canary、强制放量尚未开始。
 - 宿主独立调用、model/version、token/latency、feature flag、shadow sink 和回滚开关尚未在宿主侧确认。

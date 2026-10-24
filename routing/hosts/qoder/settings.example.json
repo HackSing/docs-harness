@@ -1,0 +1,20 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${QODER_PROJECT_DIR}/routing/hosts/qoder/route_hook.py\"",
+            "timeout": 30,
+            "env": {
+              "DOCS_HARNESS_ROUTER_ENABLED": "1",
+              "DOCS_HARNESS_ROUTER_PHASE": "shadow"
+            },
+            "statusMessage": "Docs Harness routing (prototype)"
+          }
+        ]
+      }
+    ]
+  }
+}

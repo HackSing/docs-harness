@@ -288,4 +288,14 @@ python3 -m unittest tests.test_routing_contract tests.test_routing_shadow tests.
 - 本地强模型预测：四份已归档预测（两组各两次）可解析、可校验、可评分，均为 50/50；CI 无这些本地文件时跳过该子测试。
 - `coverage_check`、阈值告警、脱敏字段白名单与损坏日志路径均有合同测试。
 
+### Qoder `UserPromptSubmit` hook 原型（2026-10-23）
+
+- 代码：`routing/hosts/qoder/route_hook.py`；fake fixture `routing/hosts/qoder/fake_profile.json`；配置示例 `routing/hosts/qoder/settings.example.json`。
+- 契约：读 stdin，加载注册表，校验 fake/真实画像，写脱敏 Shadow 事件，输出 `hookSpecificOutput.additionalContext`；默认关闭，失败不阻断用户任务。
+- 命令：`python3 -m unittest tests.test_qoder_hook -v`；8 项通过，退出码 0。
+- L2 全量：`npm test` 运行 420 项，SKIP 2 项，退出码 0。
+- 覆盖：选中契约注入且不泄露 prompt；默认关闭；无 registry、非法 profile、非法 phase、fake profile 不可读均非阻断；`direct_override` 跳过；澄清画像只记日志不注入。
+- 独立冒烟：用 sample stdin 运行 hook，输出 JSON 含 `hookEventName=UserPromptSubmit` 与代码契约，Shadow 事件含 `task_hash`/`task_chars` 且不含 prompt。
+- 未覆盖：真实 Qoder Desktop 会话触发、真实模型 endpoint、token/cost、内核/模块契约拆分与 token 收益。
+
 未覆盖：真实 shadow/canary、宿主独立调用与 feature flag、model/version/token/latency 记录、20–50 条真实任务基线、延迟/成本/澄清/返工阈值校准、下游安装。离线强模型证据仍是引导式 curated 集，不能当作生产准确率。

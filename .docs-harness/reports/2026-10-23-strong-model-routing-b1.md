@@ -48,4 +48,36 @@
 - 20–50 条真实任务基线、真实返工数据和延迟/成本/澄清/返工阈值未取得；预算与阈值仍为 `pending_shadow`。
 - 路由未安装到下游项目；下游仍使用 2.33.0 提示词规则。
 - 离线强模型证据是引导式、同模型家族的 curated 集，不代表生产准确率。
-- 本次未提交、未推送。
+- B1 已提交 `10526ac` 并推送；Qoder hook 原型未提交。
+
+## Qoder UserPromptSubmit hook 原型（A 路径，2026-10-23 追加）
+
+### 改动路径
+
+- `routing/hosts/qoder/route_hook.py`：命令 hook，读 stdin、加载注册表、校验 fake/真实画像、写 Shadow 事件、输出 `additionalContext`；`_route_task` 是真实模型调用替换点。
+- `routing/hosts/qoder/fake_profile.json`、`settings.example.json`、`README.md`：原型 fixture、Qoder hooks 配置示例与使用说明。
+- `tests/test_qoder_hook.py`：8 项独立 stdin 合同测试。
+- `docs/routing.md` §10、`docs/CODEMAP.md`、`docs/testing.md`、`TODO.md`：Qoder hook 审计、边界与测试记录。
+
+### 验证
+
+- `python3 -m unittest tests.test_qoder_hook -v`：8 项通过，退出码 0；验证层级：focused_test。
+- `npm test`：420 项通过，SKIP 2，退出码 0；验证层级：repository_full_test。
+- `python3 scripts/harness.py assets-check --strict --json`：违规 0、警告 0，退出码 0；验证层级：contract_check。
+- `python3 scripts/harness.py structure check --target . --json`：warnings 0，退出码 0；验证层级：contract_check。
+- `npm run pack:check`：82 个文件，包含 `routing/hosts/qoder/` 下四个文件；验证层级：package_or_install。
+- 独立冒烟：sample stdin 输出 `hookEventName=UserPromptSubmit` 与代码契约；Shadow 事件含 `task_hash`/`task_chars`，不含 prompt；验证层级：focused_test。
+
+### 自查
+
+- 重复逻辑：hook 复用 `validate_profile`/`build_shadow_event`/`append_shadow_event`，没有复制校验或日志逻辑。
+- 默认关闭：`DOCS_HARNESS_ROUTER_ENABLED` 未设为 `1` 时不读注册表、不注入、不写日志。
+- 失败不阻断：无 registry、非法 profile、非法 phase、fake profile 不可读都退出 0，错误写 stderr 与本地脱敏错误日志。
+- 未改 AGENTS.md、未改下游安装面、未接真实模型。
+
+### 未覆盖
+
+- Qoder Desktop 真实会话触发尚未验证；需要新会话或配置重载。
+- 真实强模型 endpoint、token/cost 与真实路由质量数据未接。
+- 内核/模块契约拆分未做，当前不会降低 AGENTS.md token。
+- 用户级安装与 Claude Code adapter 未做。
