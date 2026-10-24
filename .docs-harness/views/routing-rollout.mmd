@@ -1,0 +1,17 @@
+flowchart TD
+    A["现状：100 条 curated 用例<br/>强力模型路由 4 次一致"] --> B["B1 路由契约 + 宿主校验 + 日志<br/>不改执行行为"]
+    B --> C["B2 Shadow 模式<br/>路由照跑，执行不变<br/>1–2 周真实任务"]
+    C --> D{"关键漏配接近 0?<br/>成本/延迟可接受?<br/>澄清率不失控?"}
+    D -- "否" --> C2["修契约、输入或阈值<br/>仍不切换执行"]
+    C2 --> C
+    D -- "是" --> E["B3 Canary：低风险类先切<br/>answer / docs / code<br/>覆盖率核对 + 回滚开关"]
+    E --> F{"Canary 达标?<br/>返工不高于当前"}
+    F -- "否" --> R["回滚到当前行为<br/>保留 shadow 日志"]
+    F -- "是" --> G["B4 扩展到高风险类<br/>plan / assets / release<br/>先人工复核关键任务"]
+    G --> H["B5 移除旧规则/Jev 路径<br/>只保留强模型路由 + 宿主校验"]
+    classDef safe fill:#e6f4ea,stroke:#137333,color:#000
+    classDef gate fill:#fff4e5,stroke:#e8710a,color:#000
+    classDef stop fill:#fce8e6,stroke:#c5221f,color:#000
+    class B,C,C2,E,G,H safe
+    class D,F gate
+    class R stop

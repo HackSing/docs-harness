@@ -1,0 +1,18 @@
+flowchart TD
+    U["用户请求 + 任务元数据"] --> J["Jev 1.14<br/>primary Choice + 7 意图 Noul<br/>输出概率、confidence、clarify"]
+    J --> G{"置信度 / 冲突判断<br/>宿主代码执行"}
+    G -- "高置信且无冲突" --> A["宿主装配<br/>意图 → 模块集合<br/>依赖闭包 + 冲突消解"]
+    G -- "中间带 / 冲突 / 高风险" --> V["主力模型独立复核<br/>只看候选模块 + 一页契约<br/>输出 accept / amend / clarify"]
+    G -- "低置信或目标缺失" --> Q["向用户提一个澄清问题"]
+    V -- "accept / amend" --> A
+    V -- "clarify" --> Q
+    A --> E["主力模型执行任务"]
+    E --> C{"收尾核对<br/>必需契约是否命中"}
+    C -- "否" --> V
+    C -- "是" --> L["记录意图画像、模块集、结果与返工事件"]
+    classDef jev fill:#fff4e5,stroke:#e8710a,color:#000
+    classDef strong fill:#e8f0fe,stroke:#1a73e8,color:#000
+    classDef host fill:#e6f4ea,stroke:#137333,color:#000
+    class J jev
+    class V,Q strong
+    class A,C,L host

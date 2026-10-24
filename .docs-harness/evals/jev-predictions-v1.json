@@ -1,0 +1,1453 @@
+{
+  "schema_version": "docs-harness/intent-routing-predictions/v1",
+  "predictor": "jev",
+  "model": "jev-1.14.0",
+  "thresholds": {
+    "primary_confidence_min": 0.5,
+    "secondary_confidence_min": 0.5,
+    "clarify_min": 0.7,
+    "aux_min": 0.7
+  },
+  "usage": {
+    "input_tokens": 26185,
+    "output_tokens": 4488
+  },
+  "case_count": 20,
+  "predictions": [
+    {
+      "id": "readonly-pytest-discovery",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "primary=answer_only (1.00)",
+        "secondary=none (0.82)",
+        "clarify=0.05",
+        "direct_override=0.02",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "answer_only",
+            "confidence": 1.0,
+            "probabilities": {
+              "answer_only": 1.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.82,
+            "probabilities": {
+              "answer_only": 0.16,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.84
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.05
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.02
+          }
+        },
+        "usage": {
+          "input_tokens": 1300,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "readonly-version-consistency",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.87,
+      "evidence": [
+        "primary=answer_only (0.87)",
+        "secondary=none (0.91)",
+        "clarify=0.08",
+        "direct_override=0.02",
+        "code_verify=0.55"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "answer_only",
+            "confidence": 0.87,
+            "probabilities": {
+              "answer_only": 0.89,
+              "code_task": 0.06,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.05,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.91,
+            "probabilities": {
+              "answer_only": 0.08,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.92
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.08
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.55
+          }
+        },
+        "usage": {
+          "input_tokens": 1316,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "readonly-slow-query-diagnosis",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.7,
+      "evidence": [
+        "primary=bug_fix (0.70)",
+        "secondary=none (0.92)",
+        "clarify=0.14",
+        "direct_override=0.02",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "bug_fix",
+            "confidence": 0.7,
+            "probabilities": {
+              "answer_only": 0.24,
+              "code_task": 0.01,
+              "bug_fix": 0.74,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.01
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.92,
+            "probabilities": {
+              "answer_only": 0.03,
+              "code_task": 0.0,
+              "bug_fix": 0.04,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.93
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.14
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.02
+          }
+        },
+        "usage": {
+          "input_tokens": 1308,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "code-rename-slugify",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.99,
+      "evidence": [
+        "primary=code_task (0.99)",
+        "secondary=none (0.83)",
+        "clarify=0.05",
+        "direct_override=0.02",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "code_task",
+            "confidence": 0.99,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.99,
+              "bug_fix": 0.01,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.83,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.15,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.85
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.05
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.01
+          }
+        },
+        "usage": {
+          "input_tokens": 1320,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "code-refactor-rounding",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "primary=code_task (1.00)",
+        "secondary=none (0.93)",
+        "clarify=0.17",
+        "direct_override=0.02",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "code_task",
+            "confidence": 1.0,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 1.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.93,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.06,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.94
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.17
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.01
+          }
+        },
+        "usage": {
+          "input_tokens": 1319,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "bugfix-cart-total",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "primary=bug_fix (1.00)",
+        "secondary=none (0.69)",
+        "clarify=0.09",
+        "direct_override=0.02",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "bug_fix",
+            "confidence": 1.0,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 1.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.69,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.01,
+              "bug_fix": 0.26,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.73
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.09
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.02
+          }
+        },
+        "usage": {
+          "input_tokens": 1314,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "bugfix-misleading-retry",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.94,
+      "evidence": [
+        "primary=bug_fix (0.94)",
+        "secondary=none (0.81)",
+        "clarify=0.43",
+        "direct_override=0.02",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "bug_fix",
+            "confidence": 0.94,
+            "probabilities": {
+              "answer_only": 0.01,
+              "code_task": 0.03,
+              "bug_fix": 0.95,
+              "plan_decision": 0.01,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.81,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.01,
+              "bug_fix": 0.16,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.83
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.43
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.02
+          }
+        },
+        "usage": {
+          "input_tokens": 1314,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "plan-architecture-sync",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "primary=plan_decision (1.00)",
+        "secondary=none (0.66)",
+        "clarify=0.49",
+        "direct_override=0.02",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "plan_decision",
+            "confidence": 1.0,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 1.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.66,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.3,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.7
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.49
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.01
+          }
+        },
+        "usage": {
+          "input_tokens": 1331,
+          "output_tokens": 226
+        }
+      }
+    },
+    {
+      "id": "plan-cross-repo-auth",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "primary=plan_decision (1.00)",
+        "secondary=none (0.66)",
+        "clarify=0.38",
+        "direct_override=0.02",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "plan_decision",
+            "confidence": 1.0,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 1.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.66,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.3,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.7
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.38
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.01
+          }
+        },
+        "usage": {
+          "input_tokens": 1313,
+          "output_tokens": 226
+        }
+      }
+    },
+    {
+      "id": "implement-existing-plan",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "primary=code_task (1.00)",
+        "secondary=none (0.84)",
+        "clarify=0.07",
+        "direct_override=0.02",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "code_task",
+            "confidence": 1.0,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 1.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.84,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.14,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.86
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.07
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.02
+          }
+        },
+        "usage": {
+          "input_tokens": 1313,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "assets-create-acceptance",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "primary=asset_lifecycle (1.00)",
+        "secondary=none (0.57)",
+        "clarify=0.30",
+        "direct_override=0.02",
+        "code_verify=0.09"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "asset_lifecycle",
+            "confidence": 1.0,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 1.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.57,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.38,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.62
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.3
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.09
+          }
+        },
+        "usage": {
+          "input_tokens": 1302,
+          "output_tokens": 227
+        }
+      }
+    },
+    {
+      "id": "assets-settle-knowledge",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.99,
+      "evidence": [
+        "primary=asset_lifecycle (0.99)",
+        "secondary=none (0.87)",
+        "clarify=0.58",
+        "direct_override=0.02",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "asset_lifecycle",
+            "confidence": 0.99,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.99,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.01
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.87,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.11,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.89
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.58
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.01
+          }
+        },
+        "usage": {
+          "input_tokens": 1299,
+          "output_tokens": 227
+        }
+      }
+    },
+    {
+      "id": "release-version-bump",
+      "intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "triggers": [
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "primary=release (1.00)",
+        "secondary=release (0.54)",
+        "clarify=0.17",
+        "direct_override=0.02",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "release",
+            "confidence": 1.0,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 1.0,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "release",
+            "confidence": 0.54,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.01,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.02,
+              "release": 0.6,
+              "docs_change": 0.06,
+              "none": 0.31
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.17
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.02
+          }
+        },
+        "usage": {
+          "input_tokens": 1310,
+          "output_tokens": 223
+        }
+      }
+    },
+    {
+      "id": "release-after-bugfix",
+      "intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "triggers": [
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "evidence": [
+        "primary=release (0.97)",
+        "secondary=release (0.95)",
+        "clarify=0.39",
+        "direct_override=0.02",
+        "code_verify=0.07"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "release",
+            "confidence": 0.97,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.01,
+              "bug_fix": 0.02,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.97,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "release",
+            "confidence": 0.95,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.01,
+              "bug_fix": 0.01,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.96,
+              "docs_change": 0.0,
+              "none": 0.02
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.39
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.07
+          }
+        },
+        "usage": {
+          "input_tokens": 1308,
+          "output_tokens": 223
+        }
+      }
+    },
+    {
+      "id": "release-preflight-tests",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "code_verify"
+      ],
+      "must_clarify": false,
+      "confidence": 0.99,
+      "evidence": [
+        "primary=code_task (0.99)",
+        "secondary=none (0.93)",
+        "clarify=0.33",
+        "direct_override=0.03",
+        "code_verify=0.98"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "code_task",
+            "confidence": 0.99,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.99,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.01,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.93,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.06,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.9400000000000001
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.33
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.03
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.98
+          }
+        },
+        "usage": {
+          "input_tokens": 1303,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "docs-readme-install",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "primary=docs_change (1.00)",
+        "secondary=none (0.95)",
+        "clarify=0.29",
+        "direct_override=0.02",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "docs_change",
+            "confidence": 1.0,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 1.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.95,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.04,
+              "none": 0.96
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.29
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.02
+          }
+        },
+        "usage": {
+          "input_tokens": 1293,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "docs-customer-guide",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.13,
+      "evidence": [
+        "primary=docs_change (0.97)",
+        "secondary=none (0.89)",
+        "clarify=0.87",
+        "direct_override=0.02",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "docs_change",
+            "confidence": 0.97,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.01,
+              "release": 0.0,
+              "docs_change": 0.97,
+              "unclear": 0.02
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.89,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.1,
+              "none": 0.9
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.87
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.01
+          }
+        },
+        "usage": {
+          "input_tokens": 1300,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "direct-override-refactor",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "direct_override"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "primary=code_task (1.00)",
+        "secondary=none (0.97)",
+        "clarify=0.20",
+        "direct_override=0.99",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "code_task",
+            "confidence": 1.0,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 1.0,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.97,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.03,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.97
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.2
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.99
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.01
+          }
+        },
+        "usage": {
+          "input_tokens": 1326,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "ambiguous-change-scope",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.04,
+      "evidence": [
+        "primary=code_task (0.43)",
+        "secondary=none (0.67)",
+        "clarify=0.96",
+        "direct_override=0.02",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "code_task",
+            "confidence": 0.43,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.5,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.5
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.67,
+            "probabilities": {
+              "answer_only": 0.0,
+              "code_task": 0.29,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.71
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.96
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.01
+          }
+        },
+        "usage": {
+          "input_tokens": 1294,
+          "output_tokens": 224
+        }
+      }
+    },
+    {
+      "id": "ambiguous-review-login",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.89,
+      "evidence": [
+        "primary=answer_only (0.89)",
+        "secondary=none (0.84)",
+        "clarify=0.50",
+        "direct_override=0.02",
+        "code_verify=0.10"
+      ],
+      "raw": {
+        "model": "jev-1.14.0",
+        "answers": {
+          "primary_intent": {
+            "type": "choice",
+            "choice": "answer_only",
+            "confidence": 0.89,
+            "probabilities": {
+              "answer_only": 0.9,
+              "code_task": 0.09,
+              "bug_fix": 0.01,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "unclear": 0.0
+            }
+          },
+          "secondary_intent": {
+            "type": "choice",
+            "choice": "none",
+            "confidence": 0.84,
+            "probabilities": {
+              "answer_only": 0.13,
+              "code_task": 0.01,
+              "bug_fix": 0.0,
+              "plan_decision": 0.0,
+              "asset_lifecycle": 0.0,
+              "release": 0.0,
+              "docs_change": 0.0,
+              "none": 0.86
+            }
+          },
+          "clarify_required": {
+            "type": "noul",
+            "noul": 0.5
+          },
+          "direct_override": {
+            "type": "noul",
+            "noul": 0.02
+          },
+          "code_verify": {
+            "type": "noul",
+            "noul": 0.1
+          }
+        },
+        "usage": {
+          "input_tokens": 1302,
+          "output_tokens": 224
+        }
+      }
+    }
+  ]
+}

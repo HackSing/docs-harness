@@ -1,0 +1,335 @@
+{
+  "task": "Classify each case as an intent router. Use only the case text. Do not read any other files or use tools. Output one prediction per case.",
+  "taxonomy": {
+    "intents": {
+      "answer_only": "A question, explanation, fact lookup, diagnosis, or read-only review; no request to change or fix anything, run builds/tests, create lifecycle assets, or release.",
+      "code_task": "Implement, modify, refactor, or verify code or configuration; includes running tests/builds and executing an already-defined plan.",
+      "bug_fix": "The user asks to fix a defect or produce a fix approach, not only diagnose it.",
+      "plan_decision": "Produce a plan, design, architecture, tradeoff, migration or rollback strategy, or a decision before implementation; includes cross-module or high-risk changes that need a plan first.",
+      "asset_lifecycle": "Create, update, record, or settle Knowledge, Acceptance, or ADR assets.",
+      "release": "Bump the version, publish, package, update CHANGELOG, or sync downstream projects.",
+      "docs_change": "Create or update documentation as the main deliverable; not documentation that is only part of a release or code change."
+    },
+    "modules": [
+      "code",
+      "bugfix",
+      "docs",
+      "plan",
+      "assets",
+      "release"
+    ],
+    "triggers": [
+      "read_only",
+      "code_edit",
+      "code_verify",
+      "bug_report",
+      "plan_required",
+      "asset_operation",
+      "release",
+      "docs_edit",
+      "direct_override",
+      "clarify_required"
+    ],
+    "module_mapping": {
+      "answer_only": [],
+      "code_task": [
+        "code"
+      ],
+      "bug_fix": [
+        "code",
+        "bugfix"
+      ],
+      "plan_decision": [
+        "plan"
+      ],
+      "asset_lifecycle": [
+        "assets"
+      ],
+      "release": [
+        "release"
+      ],
+      "docs_change": [
+        "docs"
+      ]
+    }
+  },
+  "policy": [
+    "Only include modules the task actually needs. Mere mentions of a topic do not add a module.",
+    "If the target, deliverable, or scope is too vague to start, set must_clarify=true, modules=[], triggers=[\"clarify_required\"], and keep the most likely tentative intents (or []).",
+    "If the user explicitly says not to use Harness, add direct_override.",
+    "For code_task, add code_edit for code/config changes and code_verify when the action is running tests/builds.",
+    "Multi-intent tasks include every required intent and the union of their modules.",
+    "Do not add plan/assets/release/docs just because those words appear; require an actual corresponding request."
+  ],
+  "output_schema": {
+    "predictions": [
+      {
+        "id": "case id",
+        "intents": [
+          "one or more intent labels"
+        ],
+        "modules": [
+          "required module labels"
+        ],
+        "triggers": [
+          "trigger labels"
+        ],
+        "must_clarify": false,
+        "confidence": 0.0,
+        "reason": "short reason"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "heldout-answer-stacktrace",
+      "setup": "下游 Python 服务日志里出现 AttributeError: 'NoneType' object has no attribute 'id'，用户只要求解释。",
+      "prompt": "这个 AttributeError 堆栈是什么意思？只解释原因，不要改代码。"
+    },
+    {
+      "id": "heldout-answer-pr-risk",
+      "setup": "一个 PR 改了支付回调的签名校验，用户要求只读审查。",
+      "prompt": "帮我看一下这个 PR 的风险，只做只读审查，不要改文件。"
+    },
+    {
+      "id": "heldout-answer-config-usage",
+      "setup": "项目里有配置项 FEATURE_FLAG_X，用户只问引用范围。",
+      "prompt": "FEATURE_FLAG_X 在项目里还有哪些地方在用？只查引用，不要动代码。"
+    },
+    {
+      "id": "heldout-answer-command-help",
+      "setup": "用户在使用 docs-harness CLI。",
+      "prompt": "`harness.py project upgrade` 的 --apply 和不加 --apply 有什么区别？"
+    },
+    {
+      "id": "heldout-answer-dependency-license",
+      "setup": "项目依赖 libfoo 和 libbar，用户只问许可证。",
+      "prompt": "对比 libfoo 和 libbar 的许可证，告诉我能不能商用。"
+    },
+    {
+      "id": "heldout-answer-slow-endpoint",
+      "setup": "支付接口 P95 从 180ms 升到 420ms，用户只要求从日志看原因。",
+      "prompt": "支付接口最近 P95 变高了，帮我从日志里看下可能原因，先别改。"
+    },
+    {
+      "id": "heldout-answer-plan-gaps",
+      "setup": "docs/plans/search.json 是已冻结方案，用户只要求检查缺口。",
+      "prompt": "看下 docs/plans/search.json，指出还缺哪些验收项，不要改文件。"
+    },
+    {
+      "id": "heldout-answer-test-coverage",
+      "setup": "utils.py 有多个分支，用户只问测试覆盖。",
+      "prompt": "看看 utils.py 的测试覆盖了哪些分支，没覆盖的列出来。"
+    },
+    {
+      "id": "heldout-answer-failing-test-explain",
+      "setup": "CI 中一个测试失败，用户只要求解释原因。",
+      "prompt": "这个测试为什么失败？解释原因就行，不要修。"
+    },
+    {
+      "id": "heldout-answer-release-notes-diff",
+      "setup": "两个版本的 release notes 已存在，用户只要求对比。",
+      "prompt": "对比 1.2 和 1.3 的 release notes，列出行为差异。"
+    },
+    {
+      "id": "heldout-code-add-flag",
+      "setup": "CLI export 命令目前只支持 JSON。",
+      "prompt": "给 CLI 的 export 命令加一个 --format 参数，支持 csv 和 json，默认 csv。"
+    },
+    {
+      "id": "heldout-code-rename-config",
+      "setup": "配置项 retry_count 在多处使用。",
+      "prompt": "这次不用 Harness，直接把配置项 retry_count 改名为 max_retries，并更新所有引用。"
+    },
+    {
+      "id": "heldout-ambiguous-permissions",
+      "setup": "用户没有说明权限改哪个模块、改成什么。",
+      "prompt": "把权限那块改一下，顺便清理一下。"
+    },
+    {
+      "id": "heldout-code-refactor-dup",
+      "setup": "services/report.py 和 services/export.py 有重复的日期格式化逻辑。",
+      "prompt": "把 services/report.py 和 services/export.py 里重复的日期格式化逻辑抽到 common/dates.py。"
+    },
+    {
+      "id": "heldout-code-add-test",
+      "setup": "common/dates.py 的 parse_date 缺少边界测试。",
+      "prompt": "给 common/dates.py 的 parse_date 补边界测试，包括空字符串和时区。"
+    },
+    {
+      "id": "heldout-code-upgrade-dep",
+      "setup": "项目依赖 requests 2.31.x，用户要求升级并跑测试。",
+      "prompt": "把 requests 升到 2.32.3，更新锁文件并跑相关测试。"
+    },
+    {
+      "id": "heldout-ambiguous-optimize-api",
+      "setup": "用户没有说明哪个接口、优化目标或验收标准。",
+      "prompt": "这个接口不太好，优化一下。"
+    },
+    {
+      "id": "heldout-code-pagination",
+      "setup": "/users 接口一次返回全部用户。",
+      "prompt": "给 /users 接口加 limit/offset 分页，默认 20 条，兼容现有调用。"
+    },
+    {
+      "id": "heldout-code-run-tests",
+      "setup": "后端完整测试可在本地运行，用户只要求跑回归。",
+      "prompt": "跑一遍后端完整测试，确认这次依赖升级没有回归，只报结果。"
+    },
+    {
+      "id": "heldout-bug-offbyone",
+      "setup": "分页第 2 页重复返回第 1 页最后一条。",
+      "prompt": "分页第 2 页重复返回第 1 页最后一条，定位并修掉。"
+    },
+    {
+      "id": "heldout-bug-race",
+      "setup": "任务队列偶尔重复执行同一个 job。",
+      "prompt": "任务队列偶尔重复执行同一个 job，先定位竞态再修复。"
+    },
+    {
+      "id": "heldout-bug-null-parser",
+      "setup": "CSV 导入遇到空行崩溃。",
+      "prompt": "CSV 导入遇到空行会崩，修一下并补回归测试。"
+    },
+    {
+      "id": "heldout-bug-fresh-install",
+      "setup": "新机器上 project init 后第一个 migration 失败。",
+      "prompt": "新机器上 project init 后第一个 migration 失败，帮我定位根因并修复。"
+    },
+    {
+      "id": "heldout-bug-timezone-test",
+      "setup": "一个测试在非 UTC 时区偶发失败。",
+      "prompt": "CI 里有个测试在 UTC 以外时区会偶发失败，定位并修掉。"
+    },
+    {
+      "id": "heldout-bug-token-refresh",
+      "setup": "access token 过期后刷新失败，用户被登出。",
+      "prompt": "access token 过期后刷新失败，用户被登出，修一下刷新逻辑。"
+    },
+    {
+      "id": "heldout-plan-db-migration",
+      "setup": "用户表要拆成 users 和 user_profiles，用户要求先出方案。",
+      "prompt": "把用户表拆成 users 和 user_profiles，给我迁移方案和回滚策略，先别改代码。"
+    },
+    {
+      "id": "heldout-plan-service-split",
+      "setup": "订单服务膨胀，考虑拆成订单和支付两个服务。",
+      "prompt": "订单服务越来越大，评估拆成订单和支付两个服务，给出实施计划和取舍。"
+    },
+    {
+      "id": "heldout-plan-queue-choice",
+      "setup": "团队在 SQS 和 Kafka 之间选型。",
+      "prompt": "在 SQS 和 Kafka 之间选一个，给出对比、推荐和迁移路径。"
+    },
+    {
+      "id": "heldout-plan-rollout",
+      "setup": "新计费开关需要灰度发布和回滚方案。",
+      "prompt": "给新的计费开关设计灰度发布和回滚方案，不要直接改代码。"
+    },
+    {
+      "id": "heldout-ambiguous-plan",
+      "setup": "用户没有说明是哪个计划、推进到哪一步。",
+      "prompt": "把那个计划继续推进。"
+    },
+    {
+      "id": "heldout-plan-security-remediation",
+      "setup": "安全审计报了 8 个问题，用户要求排修复优先级和批次。",
+      "prompt": "安全审计报了 8 个问题，排一个修复优先级和批次计划。"
+    },
+    {
+      "id": "heldout-asset-acceptance-create",
+      "setup": "搜索排序改造已完成实现，尚未建验收目标。",
+      "prompt": "给搜索排序改造建验收目标，标准包括相关性、延迟和回滚。"
+    },
+    {
+      "id": "heldout-ambiguous-acceptance",
+      "setup": "用户没有说明是哪次验收、要整理什么。",
+      "prompt": "把验收整理一下。"
+    },
+    {
+      "id": "heldout-asset-knowledge-create",
+      "setup": "项目事实：订单服务使用 PostgreSQL 15，源码在 services/orders/db.py。",
+      "prompt": "把‘订单服务使用 PostgreSQL 15’沉淀成 Knowledge，附源码引用。"
+    },
+    {
+      "id": "heldout-asset-adr-create",
+      "setup": "团队已决定选择 Kafka 做事件总线，需要登记决策。",
+      "prompt": "把‘选择 Kafka 做事件总线’登记成 ADR，包含备选和取舍。"
+    },
+    {
+      "id": "heldout-release-patch",
+      "setup": "当前 2.4.0，准备发 2.4.1 补丁。",
+      "prompt": "发一个 2.4.1 补丁版本，更新 CHANGELOG 和版本文件。"
+    },
+    {
+      "id": "heldout-release-package",
+      "setup": "需要打 npm 包并检查产物，不发布到 registry。",
+      "prompt": "打 npm 包并检查产物里包含受管脚本，不要发布到 registry。"
+    },
+    {
+      "id": "heldout-release-downstream",
+      "setup": "下游 zbuddy-mobile 还停在旧版本。",
+      "prompt": "把下游 zbuddy-mobile 升级到最新版本，跑 project check 和 assets-check。"
+    },
+    {
+      "id": "heldout-ambiguous-release",
+      "setup": "用户没有说明版本号、发布渠道或目标。",
+      "prompt": "把版本升一下，顺便发出去。"
+    },
+    {
+      "id": "heldout-docs-readme-quickstart",
+      "setup": "README 的 quickstart 过期。",
+      "prompt": "重写 README 的 quickstart，让新用户 5 分钟能跑起来。"
+    },
+    {
+      "id": "heldout-docs-api-reference",
+      "setup": "/orders 接口没有 API 文档。",
+      "prompt": "给 /orders 接口补 API 文档，包含请求、响应和错误码。"
+    },
+    {
+      "id": "heldout-docs-migration-guide",
+      "setup": "2.x 到 3.x 有破坏性变更，需要迁移指南。",
+      "prompt": "写一份 2.x 到 3.x 的迁移指南，列出破坏性变更和步骤。"
+    },
+    {
+      "id": "heldout-docs-architecture",
+      "setup": "架构文档里的数据流图还没反映新的缓存层。",
+      "prompt": "更新架构文档里的数据流图，反映新的缓存层。"
+    },
+    {
+      "id": "heldout-ambiguous-docs",
+      "setup": "用户没有说明要更新哪份文档、更新什么。",
+      "prompt": "把文档更新一下。"
+    },
+    {
+      "id": "heldout-multi-bugfix-release",
+      "setup": "支付回调签名校验有 bug，修复后要发 patch。",
+      "prompt": "修掉支付回调的签名校验 bug，然后发一个 patch 版本。"
+    },
+    {
+      "id": "heldout-multi-code-release",
+      "setup": "导出接口要加 format 参数，完成后发 minor。",
+      "prompt": "给导出接口加 format 参数，完成后发 minor 版本并更新 CHANGELOG。"
+    },
+    {
+      "id": "heldout-multi-plan-assets",
+      "setup": "用户表迁移需要先出方案，并建验收目标；方案确认后再执行。",
+      "prompt": "先给用户表迁移出方案，并建一个验收目标；方案确认后再执行。"
+    },
+    {
+      "id": "heldout-multi-code-assets",
+      "setup": "缓存层要实现，并建验收标准和证据记录。",
+      "prompt": "实现缓存层，并为它建验收标准和证据记录。"
+    },
+    {
+      "id": "heldout-multi-bugfix-docs",
+      "setup": "登录页文案 bug，需要修复并写一条故障排查说明。",
+      "prompt": "修一下登录页的文案 bug，再写一条故障排查说明。"
+    },
+    {
+      "id": "heldout-multi-plan-code",
+      "setup": "鉴权重构需要先出方案，方案确认后直接实施。",
+      "prompt": "先做鉴权重构方案，方案确认后直接实施。"
+    }
+  ]
+}

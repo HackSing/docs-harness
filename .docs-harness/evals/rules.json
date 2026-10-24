@@ -1,0 +1,398 @@
+{
+  "schema_version": "docs-harness/intent-routing-predictions/v1",
+  "predictor": "rules-v1",
+  "predictions": [
+    {
+      "id": "readonly-pytest-discovery",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_verify"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "code_task:测试"
+      ]
+    },
+    {
+      "id": "readonly-version-consistency",
+      "intents": [
+        "docs_change",
+        "release"
+      ],
+      "modules": [
+        "docs",
+        "release"
+      ],
+      "triggers": [
+        "docs_edit",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.6,
+      "evidence": [
+        "release:版本",
+        "docs_change:readme"
+      ]
+    },
+    {
+      "id": "readonly-slow-query-diagnosis",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "bug_fix:慢"
+      ]
+    },
+    {
+      "id": "code-rename-slugify",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "code_verify"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "code_task:改",
+        "code_task:测试"
+      ]
+    },
+    {
+      "id": "code-refactor-rounding",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "code_task:抽成"
+      ]
+    },
+    {
+      "id": "bugfix-cart-total",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "bug_fix:根因",
+        "bug_fix:修复"
+      ]
+    },
+    {
+      "id": "bugfix-misleading-retry",
+      "intents": [
+        "bug_fix",
+        "plan_decision"
+      ],
+      "modules": [
+        "bugfix",
+        "code",
+        "plan"
+      ],
+      "triggers": [
+        "bug_report",
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.6,
+      "evidence": [
+        "plan_decision:方案",
+        "bug_fix:修复"
+      ]
+    },
+    {
+      "id": "plan-architecture-sync",
+      "intents": [
+        "code_task",
+        "plan_decision"
+      ],
+      "modules": [
+        "code",
+        "plan"
+      ],
+      "triggers": [
+        "code_edit",
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.6,
+      "evidence": [
+        "plan_decision:方案",
+        "plan_decision:取舍",
+        "plan_decision:回滚",
+        "plan_decision:迁移",
+        "code_task:改"
+      ]
+    },
+    {
+      "id": "plan-cross-repo-auth",
+      "intents": [
+        "code_task",
+        "plan_decision"
+      ],
+      "modules": [
+        "code",
+        "plan"
+      ],
+      "triggers": [
+        "code_edit",
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.6,
+      "evidence": [
+        "plan_decision:计划",
+        "code_task:实施"
+      ]
+    },
+    {
+      "id": "implement-existing-plan",
+      "intents": [
+        "code_task",
+        "plan_decision"
+      ],
+      "modules": [
+        "code",
+        "plan"
+      ],
+      "triggers": [
+        "code_edit",
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.6,
+      "evidence": [
+        "plan_decision:plan",
+        "code_task:实施"
+      ]
+    },
+    {
+      "id": "assets-create-acceptance",
+      "intents": [
+        "asset_lifecycle",
+        "code_task"
+      ],
+      "modules": [
+        "assets",
+        "code"
+      ],
+      "triggers": [
+        "asset_operation",
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.6,
+      "evidence": [
+        "asset_lifecycle:验收",
+        "code_task:改"
+      ]
+    },
+    {
+      "id": "assets-settle-knowledge",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "asset_lifecycle:knowledge",
+        "asset_lifecycle:结项"
+      ]
+    },
+    {
+      "id": "release-version-bump",
+      "intents": [
+        "docs_change",
+        "release"
+      ],
+      "modules": [
+        "docs",
+        "release"
+      ],
+      "triggers": [
+        "docs_edit",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.6,
+      "evidence": [
+        "release:版本",
+        "release:changelog",
+        "docs_change:文档"
+      ]
+    },
+    {
+      "id": "release-after-bugfix",
+      "intents": [
+        "bug_fix",
+        "release"
+      ],
+      "modules": [
+        "bugfix",
+        "code",
+        "release"
+      ],
+      "triggers": [
+        "bug_report",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.6,
+      "evidence": [
+        "release:发版",
+        "release:下游",
+        "bug_fix:bug"
+      ]
+    },
+    {
+      "id": "release-preflight-tests",
+      "intents": [
+        "code_task",
+        "release"
+      ],
+      "modules": [
+        "code",
+        "release"
+      ],
+      "triggers": [
+        "code_verify",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.6,
+      "evidence": [
+        "release:发版",
+        "code_task:测试",
+        "code_task:跑一遍"
+      ]
+    },
+    {
+      "id": "docs-readme-install",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "docs_change:readme",
+        "docs_change:安装步骤"
+      ]
+    },
+    {
+      "id": "docs-customer-guide",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "docs_change:文档"
+      ]
+    },
+    {
+      "id": "direct-override-refactor",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "direct_override"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "code_task:合并"
+      ]
+    },
+    {
+      "id": "ambiguous-change-scope",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.2,
+      "evidence": [
+        "code_task:改",
+        "clarify:vague_or_missing_intent"
+      ]
+    },
+    {
+      "id": "ambiguous-review-login",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 1.0,
+      "evidence": [
+        "bug_fix:问题"
+      ]
+    }
+  ]
+}

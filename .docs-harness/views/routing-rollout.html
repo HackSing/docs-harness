@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>routing-rollout</title>
+<style>
+  body { margin: 0; padding: 24px 16px; background: #fff; color: #1f2328;
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  h1 { margin: 0 0 16px; font-size: 18px; font-weight: 600; text-align: center; }
+  pre.mermaid { margin: 0; text-align: center; font-family: inherit; background: transparent; }
+</style>
+</head>
+<body>
+<h1>routing-rollout</h1>
+<pre class="mermaid">
+flowchart TD
+    A[&quot;现状：100 条 curated 用例&lt;br/&gt;强力模型路由 4 次一致&quot;] --&gt; B[&quot;B1 路由契约 + 宿主校验 + 日志&lt;br/&gt;不改执行行为&quot;]
+    B --&gt; C[&quot;B2 Shadow 模式&lt;br/&gt;路由照跑，执行不变&lt;br/&gt;1–2 周真实任务&quot;]
+    C --&gt; D{&quot;关键漏配接近 0?&lt;br/&gt;成本/延迟可接受?&lt;br/&gt;澄清率不失控?&quot;}
+    D -- &quot;否&quot; --&gt; C2[&quot;修契约、输入或阈值&lt;br/&gt;仍不切换执行&quot;]
+    C2 --&gt; C
+    D -- &quot;是&quot; --&gt; E[&quot;B3 Canary：低风险类先切&lt;br/&gt;answer / docs / code&lt;br/&gt;覆盖率核对 + 回滚开关&quot;]
+    E --&gt; F{&quot;Canary 达标?&lt;br/&gt;返工不高于当前&quot;}
+    F -- &quot;否&quot; --&gt; R[&quot;回滚到当前行为&lt;br/&gt;保留 shadow 日志&quot;]
+    F -- &quot;是&quot; --&gt; G[&quot;B4 扩展到高风险类&lt;br/&gt;plan / assets / release&lt;br/&gt;先人工复核关键任务&quot;]
+    G --&gt; H[&quot;B5 移除旧规则/Jev 路径&lt;br/&gt;只保留强模型路由 + 宿主校验&quot;]
+    classDef safe fill:#e6f4ea,stroke:#137333,color:#000
+    classDef gate fill:#fff4e5,stroke:#e8710a,color:#000
+    classDef stop fill:#fce8e6,stroke:#c5221f,color:#000
+    class B,C,C2,E,G,H safe
+    class D,F gate
+    class R stop
+
+</pre>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true });</script>
+</body>
+</html>

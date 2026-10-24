@@ -10,7 +10,9 @@
 - `docs/CODEMAP.md`：登记评分器模块与公开接口。
 - `TODO.md`：登记下一步模型/jev 对照事项。
 - `.docs-harness/tasks/intent-routing-baseline.md`：本任务进度清单（本地，不入库）。
-- `.docs-harness/evals/rules.json`、`.docs-harness/evals/rules-score.json`：规则基线预测与完整评分（本地证据，不入库）。
+- `.docs-harness/evals/`：规则/Jev/强模型的预测、评分与原始输出（随功能分支归档）。
+- `.docs-harness/views/`：意图级联与放量路径的 Mermaid/HTML（随功能分支归档）。
+- `.docs-harness/inputs/jev.env`：API key 仅本地，保持 gitignore，不入库。
 
 ## 验证
 

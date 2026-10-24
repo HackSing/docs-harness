@@ -1,0 +1,1086 @@
+{
+  "predictor": "rules-v1",
+  "model": null,
+  "missing_prediction_ids": [],
+  "summary": {
+    "case_count": 20,
+    "case_pass_rate": 0.45,
+    "intent_exact_rate": 0.45,
+    "module_exact_rate": 0.45,
+    "module_recall": 1.0,
+    "module_precision": 0.5758,
+    "intent_recall": 0.8095,
+    "intent_precision": 0.5862,
+    "trigger_recall": 0.8182,
+    "trigger_precision": 0.5806,
+    "critical_miss_rate": 0.0,
+    "misroute_rate": 0.55,
+    "clarify_accuracy": 1.0,
+    "must_clarify_recall": 1.0,
+    "false_clarify_rate": 0.0
+  },
+  "by_difficulty": {
+    "ambiguous": {
+      "case_count": 1,
+      "case_pass_rate": 1.0,
+      "intent_exact_rate": 1.0,
+      "module_exact_rate": 1.0,
+      "module_recall": null,
+      "module_precision": null,
+      "intent_recall": 1.0,
+      "intent_precision": 1.0,
+      "trigger_recall": 1.0,
+      "trigger_precision": 1.0,
+      "critical_miss_rate": 0.0,
+      "misroute_rate": 0.0,
+      "clarify_accuracy": 1.0,
+      "must_clarify_recall": 1.0,
+      "false_clarify_rate": null
+    },
+    "explicit": {
+      "case_count": 9,
+      "case_pass_rate": 0.7778,
+      "intent_exact_rate": 0.7778,
+      "module_exact_rate": 0.7778,
+      "module_recall": 1.0,
+      "module_precision": 0.8182,
+      "intent_recall": 0.8889,
+      "intent_precision": 0.8,
+      "trigger_recall": 0.9,
+      "trigger_precision": 0.75,
+      "critical_miss_rate": 0.0,
+      "misroute_rate": 0.2222,
+      "clarify_accuracy": 1.0,
+      "must_clarify_recall": null,
+      "false_clarify_rate": 0.0
+    },
+    "multi_intent": {
+      "case_count": 1,
+      "case_pass_rate": 1.0,
+      "intent_exact_rate": 1.0,
+      "module_exact_rate": 1.0,
+      "module_recall": 1.0,
+      "module_precision": 1.0,
+      "intent_recall": 1.0,
+      "intent_precision": 1.0,
+      "trigger_recall": 1.0,
+      "trigger_precision": 1.0,
+      "critical_miss_rate": 0.0,
+      "misroute_rate": 0.0,
+      "clarify_accuracy": 1.0,
+      "must_clarify_recall": null,
+      "false_clarify_rate": 0.0
+    },
+    "trap": {
+      "case_count": 9,
+      "case_pass_rate": 0.0,
+      "intent_exact_rate": 0.0,
+      "module_exact_rate": 0.0,
+      "module_recall": 1.0,
+      "module_precision": 0.3684,
+      "intent_recall": 0.6667,
+      "intent_precision": 0.375,
+      "trigger_recall": 0.6667,
+      "trigger_precision": 0.375,
+      "critical_miss_rate": 0.0,
+      "misroute_rate": 1.0,
+      "clarify_accuracy": 1.0,
+      "must_clarify_recall": null,
+      "false_clarify_rate": 0.0
+    }
+  },
+  "details": [
+    {
+      "id": "readonly-pytest-discovery",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [
+        "code"
+      ],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [
+        "code"
+      ],
+      "forbidden_hits": [
+        "code"
+      ],
+      "triggers": [
+        "code_verify"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [
+        "read_only"
+      ],
+      "extra_triggers": [
+        "code_verify"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 1,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "readonly-version-consistency",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "docs_change",
+        "release"
+      ],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [
+        "docs",
+        "release"
+      ],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [
+        "docs",
+        "release"
+      ],
+      "forbidden_hits": [
+        "docs",
+        "release"
+      ],
+      "triggers": [
+        "docs_edit",
+        "release"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [
+        "read_only"
+      ],
+      "extra_triggers": [
+        "docs_edit",
+        "release"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 2,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 0
+    },
+    {
+      "id": "readonly-slow-query-diagnosis",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix"
+      ],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [
+        "bugfix",
+        "code"
+      ],
+      "forbidden_hits": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [
+        "read_only"
+      ],
+      "extra_triggers": [
+        "bug_report"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 2,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "code-rename-slugify",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "required_modules": [
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "code_edit",
+        "code_verify"
+      ],
+      "expected_triggers": [
+        "code_edit"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "code_verify"
+      ],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "code-refactor-rounding",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "required_modules": [
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "code_edit"
+      ],
+      "expected_triggers": [
+        "code_edit"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "bugfix-cart-total",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix"
+      ],
+      "expected_intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "required_modules": [
+        "bugfix",
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "bug_report"
+      ],
+      "expected_triggers": [
+        "bug_report"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 2,
+      "predicted_count": 2,
+      "module_hits": 2,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "bugfix-misleading-retry",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code",
+        "plan"
+      ],
+      "required_modules": [
+        "bugfix",
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "plan"
+      ],
+      "forbidden_hits": [
+        "plan"
+      ],
+      "triggers": [
+        "bug_report",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "bug_report"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "plan_required"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 2,
+      "predicted_count": 3,
+      "module_hits": 2,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "plan-architecture-sync",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "code_task",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "code",
+        "plan"
+      ],
+      "required_modules": [
+        "plan"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "code"
+      ],
+      "forbidden_hits": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "plan_required"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "code_edit"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 2,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "plan-cross-repo-auth",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "code_task",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "code",
+        "plan"
+      ],
+      "required_modules": [
+        "plan"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "code"
+      ],
+      "forbidden_hits": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "plan_required"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "code_edit"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 2,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "implement-existing-plan",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "code_task",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code",
+        "plan"
+      ],
+      "required_modules": [
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "plan"
+      ],
+      "forbidden_hits": [
+        "plan"
+      ],
+      "triggers": [
+        "code_edit",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "code_edit"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "plan_required"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 2,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "assets-create-acceptance",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "asset_lifecycle",
+        "code_task"
+      ],
+      "expected_intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets",
+        "code"
+      ],
+      "required_modules": [
+        "assets"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "code"
+      ],
+      "forbidden_hits": [
+        "code"
+      ],
+      "triggers": [
+        "asset_operation",
+        "code_edit"
+      ],
+      "expected_triggers": [
+        "asset_operation"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "code_edit"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 2,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "assets-settle-knowledge",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "expected_intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "required_modules": [
+        "assets"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "asset_operation"
+      ],
+      "expected_triggers": [
+        "asset_operation"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "release-version-bump",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "docs_change",
+        "release"
+      ],
+      "expected_intents": [
+        "release"
+      ],
+      "modules": [
+        "docs",
+        "release"
+      ],
+      "required_modules": [
+        "release"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "docs"
+      ],
+      "forbidden_hits": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit",
+        "release"
+      ],
+      "expected_triggers": [
+        "release"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "docs_edit"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 2,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "release-after-bugfix",
+      "difficulty": "multi_intent",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix",
+        "release"
+      ],
+      "expected_intents": [
+        "bug_fix",
+        "release"
+      ],
+      "modules": [
+        "bugfix",
+        "code",
+        "release"
+      ],
+      "required_modules": [
+        "bugfix",
+        "code",
+        "release"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "bug_report",
+        "release"
+      ],
+      "expected_triggers": [
+        "bug_report",
+        "release"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 3,
+      "predicted_count": 3,
+      "module_hits": 3,
+      "intent_expected_count": 2,
+      "intent_predicted_count": 2,
+      "intent_hits": 2,
+      "trigger_expected_count": 2,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 2
+    },
+    {
+      "id": "release-preflight-tests",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "code_task",
+        "release"
+      ],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code",
+        "release"
+      ],
+      "required_modules": [
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "release"
+      ],
+      "forbidden_hits": [
+        "release"
+      ],
+      "triggers": [
+        "code_verify",
+        "release"
+      ],
+      "expected_triggers": [
+        "code_verify"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "release"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 2,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "docs-readme-install",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "docs_change"
+      ],
+      "expected_intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "required_modules": [
+        "docs"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "docs_edit"
+      ],
+      "expected_triggers": [
+        "docs_edit"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "docs-customer-guide",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "docs_change"
+      ],
+      "expected_intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "required_modules": [
+        "docs"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "docs_edit"
+      ],
+      "expected_triggers": [
+        "docs_edit"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "direct-override-refactor",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "required_modules": [
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "code_edit",
+        "direct_override"
+      ],
+      "expected_triggers": [
+        "code_edit",
+        "direct_override"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 2,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 2
+    },
+    {
+      "id": "ambiguous-change-scope",
+      "difficulty": "ambiguous",
+      "must_clarify": true,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "expected_triggers": [
+        "clarify_required"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 0,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "ambiguous-review-login",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix"
+      ],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [
+        "bugfix",
+        "code"
+      ],
+      "forbidden_hits": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [
+        "read_only"
+      ],
+      "extra_triggers": [
+        "bug_report"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 2,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    }
+  ]
+}

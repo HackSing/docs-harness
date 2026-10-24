@@ -1,0 +1,40 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>intent-cascade</title>
+<style>
+  body { margin: 0; padding: 24px 16px; background: #fff; color: #1f2328;
+         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+  h1 { margin: 0 0 16px; font-size: 18px; font-weight: 600; text-align: center; }
+  pre.mermaid { margin: 0; text-align: center; font-family: inherit; background: transparent; }
+</style>
+</head>
+<body>
+<h1>intent-cascade</h1>
+<pre class="mermaid">
+flowchart TD
+    U[&quot;用户请求 + 任务元数据&quot;] --&gt; J[&quot;Jev 1.14&lt;br/&gt;primary Choice + 7 意图 Noul&lt;br/&gt;输出概率、confidence、clarify&quot;]
+    J --&gt; G{&quot;置信度 / 冲突判断&lt;br/&gt;宿主代码执行&quot;}
+    G -- &quot;高置信且无冲突&quot; --&gt; A[&quot;宿主装配&lt;br/&gt;意图 → 模块集合&lt;br/&gt;依赖闭包 + 冲突消解&quot;]
+    G -- &quot;中间带 / 冲突 / 高风险&quot; --&gt; V[&quot;主力模型独立复核&lt;br/&gt;只看候选模块 + 一页契约&lt;br/&gt;输出 accept / amend / clarify&quot;]
+    G -- &quot;低置信或目标缺失&quot; --&gt; Q[&quot;向用户提一个澄清问题&quot;]
+    V -- &quot;accept / amend&quot; --&gt; A
+    V -- &quot;clarify&quot; --&gt; Q
+    A --&gt; E[&quot;主力模型执行任务&quot;]
+    E --&gt; C{&quot;收尾核对&lt;br/&gt;必需契约是否命中&quot;}
+    C -- &quot;否&quot; --&gt; V
+    C -- &quot;是&quot; --&gt; L[&quot;记录意图画像、模块集、结果与返工事件&quot;]
+    classDef jev fill:#fff4e5,stroke:#e8710a,color:#000
+    classDef strong fill:#e8f0fe,stroke:#1a73e8,color:#000
+    classDef host fill:#e6f4ea,stroke:#137333,color:#000
+    class J jev
+    class V,Q strong
+    class A,C,L host
+
+</pre>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({ startOnLoad: true });</script>
+</body>
+</html>

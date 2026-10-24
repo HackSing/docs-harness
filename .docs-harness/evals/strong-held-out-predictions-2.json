@@ -1,0 +1,753 @@
+{
+  "schema_version": "docs-harness/intent-routing-predictions/v1",
+  "predictor": "strong-model-run2",
+  "model": "宿主当前强力模型（型号未记录）",
+  "predictions": [
+    {
+      "id": "heldout-answer-stacktrace",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "只解释异常堆栈原因，明确不改代码。"
+    },
+    {
+      "id": "heldout-answer-pr-risk",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "只读审查 PR 风险，明确不改文件。"
+    },
+    {
+      "id": "heldout-answer-config-usage",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "只查配置引用范围，不动代码。"
+    },
+    {
+      "id": "heldout-answer-command-help",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "询问 CLI 参数区别，属事实解释。"
+    },
+    {
+      "id": "heldout-answer-dependency-license",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "只比较许可证并回答能否商用。"
+    },
+    {
+      "id": "heldout-answer-slow-endpoint",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.96,
+      "reason": "只从日志诊断延迟原因，明确先不改。"
+    },
+    {
+      "id": "heldout-answer-plan-gaps",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "只读检查已冻结方案的验收缺口，不修改方案。"
+    },
+    {
+      "id": "heldout-answer-test-coverage",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "只读分析测试覆盖了哪些分支。"
+    },
+    {
+      "id": "heldout-answer-failing-test-explain",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "只解释测试失败原因，明确不要修。"
+    },
+    {
+      "id": "heldout-answer-release-notes-diff",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "只对比已有 release notes，不执行发布。"
+    },
+    {
+      "id": "heldout-code-add-flag",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "为 CLI export 增加参数，属代码实现。"
+    },
+    {
+      "id": "heldout-code-rename-config",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "direct_override"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "改名配置并更新引用；用户明确不用 Harness。"
+    },
+    {
+      "id": "heldout-ambiguous-permissions",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.86,
+      "reason": "未说明权限所属模块、具体改法和清理范围，无法开工。"
+    },
+    {
+      "id": "heldout-code-refactor-dup",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "抽取重复逻辑到公共模块，属代码重构。"
+    },
+    {
+      "id": "heldout-code-add-test",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "补边界测试代码，属测试代码改动。"
+    },
+    {
+      "id": "heldout-code-upgrade-dep",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "code_verify"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "升级依赖并更新锁文件，同时要求跑相关测试。"
+    },
+    {
+      "id": "heldout-ambiguous-optimize-api",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.88,
+      "reason": "未说明哪个接口、优化目标和验收标准。"
+    },
+    {
+      "id": "heldout-code-pagination",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "为 /users 接口增加分页参数，属代码实现。"
+    },
+    {
+      "id": "heldout-code-run-tests",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_verify"
+      ],
+      "must_clarify": false,
+      "confidence": 0.96,
+      "reason": "只要求运行后端完整测试并报结果。"
+    },
+    {
+      "id": "heldout-bug-offbyone",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code",
+        "bugfix"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "分页重复返回记录，要求定位并修复缺陷。"
+    },
+    {
+      "id": "heldout-bug-race",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code",
+        "bugfix"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.96,
+      "reason": "定位竞态并修复任务重复执行。"
+    },
+    {
+      "id": "heldout-bug-null-parser",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code",
+        "bugfix"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.96,
+      "reason": "修复 CSV 空行崩溃并补回归测试。"
+    },
+    {
+      "id": "heldout-bug-fresh-install",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code",
+        "bugfix"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "定位首个 migration 失败根因并修复。"
+    },
+    {
+      "id": "heldout-bug-timezone-test",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code",
+        "bugfix"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "定位非 UTC 时区偶发失败并修复。"
+    },
+    {
+      "id": "heldout-bug-token-refresh",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code",
+        "bugfix"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "刷新失败导致登出，要求修刷新逻辑。"
+    },
+    {
+      "id": "heldout-plan-db-migration",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "要求迁移方案和回滚策略，明确先不改代码。"
+    },
+    {
+      "id": "heldout-plan-service-split",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "评估服务拆分并给出实施计划与取舍。"
+    },
+    {
+      "id": "heldout-plan-queue-choice",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.94,
+      "reason": "技术选型对比、推荐和迁移路径属实施前决策。"
+    },
+    {
+      "id": "heldout-plan-rollout",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.96,
+      "reason": "设计灰度发布与回滚方案，明确不改代码。"
+    },
+    {
+      "id": "heldout-ambiguous-plan",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.84,
+      "reason": "未说明是哪个计划、推进到哪一步。"
+    },
+    {
+      "id": "heldout-plan-security-remediation",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "要求排修复优先级和批次计划。"
+    },
+    {
+      "id": "heldout-asset-acceptance-create",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "创建验收目标与标准，属验收资产操作。"
+    },
+    {
+      "id": "heldout-ambiguous-acceptance",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.86,
+      "reason": "未说明哪次验收、要整理什么内容。"
+    },
+    {
+      "id": "heldout-asset-knowledge-create",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "将订单服务数据库事实沉淀为 Knowledge。"
+    },
+    {
+      "id": "heldout-asset-adr-create",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "把 Kafka 选型登记为 ADR。"
+    },
+    {
+      "id": "heldout-release-patch",
+      "intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "triggers": [
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "发 2.4.1 补丁并更新 CHANGELOG 与版本文件。"
+    },
+    {
+      "id": "heldout-release-package",
+      "intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "triggers": [
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.94,
+      "reason": "打包并检查产物，明确不发布到 registry。"
+    },
+    {
+      "id": "heldout-release-downstream",
+      "intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "triggers": [
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.96,
+      "reason": "升级下游项目到最新版本并跑检查，属下游同步。"
+    },
+    {
+      "id": "heldout-ambiguous-release",
+      "intents": [
+        "release"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.9,
+      "reason": "未说明版本号、发布渠道或目标。"
+    },
+    {
+      "id": "heldout-docs-readme-quickstart",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "重写 README quickstart，文档是主要交付物。"
+    },
+    {
+      "id": "heldout-docs-api-reference",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "为 /orders 接口补 API 文档。"
+    },
+    {
+      "id": "heldout-docs-migration-guide",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.96,
+      "reason": "编写 2.x 到 3.x 迁移指南。"
+    },
+    {
+      "id": "heldout-docs-architecture",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "更新架构文档中的数据流图。"
+    },
+    {
+      "id": "heldout-ambiguous-docs",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.88,
+      "reason": "未说明要更新哪份文档和更新内容。"
+    },
+    {
+      "id": "heldout-multi-bugfix-release",
+      "intents": [
+        "bug_fix",
+        "release"
+      ],
+      "modules": [
+        "code",
+        "bugfix",
+        "release"
+      ],
+      "triggers": [
+        "bug_report",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "先修支付回调签名校验缺陷，再发 patch 版本。"
+    },
+    {
+      "id": "heldout-multi-code-release",
+      "intents": [
+        "code_task",
+        "release"
+      ],
+      "modules": [
+        "code",
+        "release"
+      ],
+      "triggers": [
+        "code_edit",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.96,
+      "reason": "实现导出 format 参数后发 minor 并更新 CHANGELOG。"
+    },
+    {
+      "id": "heldout-multi-plan-assets",
+      "intents": [
+        "plan_decision",
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "plan",
+        "assets"
+      ],
+      "triggers": [
+        "plan_required",
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "先出用户表迁移方案并建验收目标，执行待确认后。"
+    },
+    {
+      "id": "heldout-multi-code-assets",
+      "intents": [
+        "code_task",
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "code",
+        "assets"
+      ],
+      "triggers": [
+        "code_edit",
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "实现缓存层并建立验收标准与证据记录。"
+    },
+    {
+      "id": "heldout-multi-bugfix-docs",
+      "intents": [
+        "bug_fix",
+        "docs_change"
+      ],
+      "modules": [
+        "code",
+        "bugfix",
+        "docs"
+      ],
+      "triggers": [
+        "bug_report",
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.94,
+      "reason": "修复登录页文案缺陷，并另写故障排查说明。"
+    },
+    {
+      "id": "heldout-multi-plan-code",
+      "intents": [
+        "plan_decision",
+        "code_task"
+      ],
+      "modules": [
+        "plan",
+        "code"
+      ],
+      "triggers": [
+        "plan_required",
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.94,
+      "reason": "先做鉴权重构方案，确认后直接实施。"
+    }
+  ]
+}

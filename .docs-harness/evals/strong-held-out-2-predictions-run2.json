@@ -1,0 +1,757 @@
+{
+  "schema_version": "docs-harness/intent-routing-predictions/v1",
+  "predictor": "strong-model-run2",
+  "model": "宿主当前强力模型（型号未记录）",
+  "predictions": [
+    {
+      "id": "h2-answer-incident-timeline",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "从日志还原时间线，只读分析，不修改任何东西。"
+    },
+    {
+      "id": "h2-answer-schema-diff",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "只对比 schema 并列出不兼容变更，属于只读分析。"
+    },
+    {
+      "id": "h2-answer-dependency-graph",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "画依赖关系且明确只分析不修改代码。"
+    },
+    {
+      "id": "h2-answer-permission-model",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "解释现有 RBAC 角色继承规则，仅需阅读回答。"
+    },
+    {
+      "id": "h2-answer-cost-breakdown",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "拆解云账单并指出增长项，属于只读数据分析。"
+    },
+    {
+      "id": "h2-answer-queue-lag",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "查看消费端积压原因且明确先别改。"
+    },
+    {
+      "id": "h2-answer-revert-advice",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "只要求回滚判断和理由，明确不要执行。"
+    },
+    {
+      "id": "h2-answer-api-deprecation",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "查询 v1 API 调用方，仅做只读排查。"
+    },
+    {
+      "id": "h2-answer-test-flakiness",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "查询 flaky 测试历史失败次数并列出记录。"
+    },
+    {
+      "id": "h2-code-add-healthcheck",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "为 /health 增加数据库连通性检查并返回 503，是明确的代码修改。"
+    },
+    {
+      "id": "h2-code-migrate-env-config",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "direct_override"
+      ],
+      "must_clarify": false,
+      "confidence": 0.96,
+      "reason": "集中环境变量读取到 config.py，且明确要求不用 Harness。"
+    },
+    {
+      "id": "h2-ambiguous-cache-layer",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.9,
+      "reason": "未说明缓存层位置、优化目标和一致性要求，无法确定改动范围。"
+    },
+    {
+      "id": "h2-code-idempotency-key",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "给支付接口增加 Idempotency-Key 支持，是明确的实现任务。"
+    },
+    {
+      "id": "h2-code-soft-delete",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.96,
+      "reason": "给 orders 表加软删除字段并更新查询过滤逻辑。"
+    },
+    {
+      "id": "h2-code-upgrade-node",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "升级 Node 版本并同步更新 CI 配置和 lockfile。"
+    },
+    {
+      "id": "h2-ambiguous-refactor",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.93,
+      "reason": "未说明哪个模块、重构目标与验收方式。"
+    },
+    {
+      "id": "h2-code-observability",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "给订单服务加结构化日志和 trace id 透传，属于代码实现。"
+    },
+    {
+      "id": "h2-code-load-test",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_verify"
+      ],
+      "must_clarify": false,
+      "confidence": 0.91,
+      "reason": "压测脚本已存在，只要求运行一次并报告延迟和错误率。"
+    },
+    {
+      "id": "h2-bug-webhook-duplicate",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code",
+        "bugfix"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "webhook 重复处理异常，要求定位并修复。"
+    },
+    {
+      "id": "h2-bug-timezone-cron",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code",
+        "bugfix"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "夏令时切换导致定时任务多跑，要求定位并修复。"
+    },
+    {
+      "id": "h2-bug-cache-stale",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code",
+        "bugfix"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "资料更新后搜索仍返回旧数据，要求修复缓存失效逻辑。"
+    },
+    {
+      "id": "h2-bug-db-deadlock",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code",
+        "bugfix"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "批量更新偶发数据库死锁，要求定位根因并修复。"
+    },
+    {
+      "id": "h2-bug-test-env-leak",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code",
+        "bugfix"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "测试污染后续测试数据库，要求定位并修掉该缺陷。"
+    },
+    {
+      "id": "h2-bug-mobile-crash",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code",
+        "bugfix"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "iOS 启动偶发崩溃，已有崩溃日志，要求定位并修复。"
+    },
+    {
+      "id": "h2-plan-multi-tenant",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "要求多租户隔离方案、迁移与回滚，且明确先别改代码。"
+    },
+    {
+      "id": "h2-plan-search-engine",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "检索方案选型对比并给出迁移路径，属于方案决策。"
+    },
+    {
+      "id": "h2-plan-zero-downtime-migration",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "要求设计零停机订单表迁移方案，尚未进入实施。"
+    },
+    {
+      "id": "h2-plan-mobile-release",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.94,
+      "reason": "规划分阶段发布和回滚策略，只是制定方案而非执行发布。"
+    },
+    {
+      "id": "h2-ambiguous-roadmap",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.92,
+      "reason": "未说明季度目标、范围与交付物，无法形成路线图。"
+    },
+    {
+      "id": "h2-plan-authz-redesign",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "重构前先要迁移方案和风险清单，明确处于方案阶段。"
+    },
+    {
+      "id": "h2-asset-acceptance-mobile",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "要求为移动端 3.0 建立验收目标和证据层级。"
+    },
+    {
+      "id": "h2-asset-knowledge-api",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "要求将 OAuth2 要求沉淀为 Knowledge 并附文档引用。"
+    },
+    {
+      "id": "h2-ambiguous-asset",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.92,
+      "reason": "未说明要整理哪类资产和归档标准。"
+    },
+    {
+      "id": "h2-asset-adr-cache",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "要求登记 Redis 会话缓存决策为 ADR 并包含备选方案。"
+    },
+    {
+      "id": "h2-release-hotfix",
+      "intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "triggers": [
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "发布 3.1.2 热修复并更新 CHANGELOG 和版本号。"
+    },
+    {
+      "id": "h2-release-app-store",
+      "intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "triggers": [
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "上传 iOS 构建到 TestFlight 并更新发布说明。"
+    },
+    {
+      "id": "h2-release-rollback",
+      "intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "triggers": [
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.93,
+      "reason": "生产环境回滚到上一版本并记录回滚原因，属于发布运维操作。"
+    },
+    {
+      "id": "h2-ambiguous-release-channel",
+      "intents": [
+        "release"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.93,
+      "reason": "未指定版本号、发布渠道和目标环境。"
+    },
+    {
+      "id": "h2-docs-onboarding",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "撰写新工程师 onboarding 文档是主要交付物。"
+    },
+    {
+      "id": "h2-docs-api-errors",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "补全订单 API 错误码文档是主要交付物。"
+    },
+    {
+      "id": "h2-docs-runbook",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.98,
+      "reason": "编写支付服务 on-call 故障排查 runbook。"
+    },
+    {
+      "id": "h2-docs-migration-guide",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.97,
+      "reason": "撰写面向客户的单租户到多租户迁移指南。"
+    },
+    {
+      "id": "h2-ambiguous-docs-scope",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.93,
+      "reason": "未说明补哪份文档、补到什么程度。"
+    },
+    {
+      "id": "h2-multi-bugfix-release",
+      "intents": [
+        "bug_fix",
+        "release"
+      ],
+      "modules": [
+        "code",
+        "bugfix",
+        "release"
+      ],
+      "triggers": [
+        "bug_report",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.96,
+      "reason": "先修 webhook 重复处理缺陷，再发一个热修复版本。"
+    },
+    {
+      "id": "h2-multi-code-assets",
+      "intents": [
+        "code_task",
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "code",
+        "assets"
+      ],
+      "triggers": [
+        "code_edit",
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.94,
+      "reason": "为导出功能增加 CSV 支持，并创建对应验收标准。"
+    },
+    {
+      "id": "h2-multi-plan-code",
+      "intents": [
+        "plan_decision",
+        "code_task"
+      ],
+      "modules": [
+        "plan",
+        "code"
+      ],
+      "triggers": [
+        "plan_required",
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.86,
+      "reason": "先出多租户方案，确认后实施第一阶段，方案与实施都在请求内。"
+    },
+    {
+      "id": "h2-multi-bugfix-docs",
+      "intents": [
+        "bug_fix",
+        "docs_change"
+      ],
+      "modules": [
+        "code",
+        "bugfix",
+        "docs"
+      ],
+      "triggers": [
+        "bug_report",
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "修复移动端崩溃，并补一条故障排查文档。"
+    },
+    {
+      "id": "h2-multi-code-release",
+      "intents": [
+        "code_task",
+        "release"
+      ],
+      "modules": [
+        "code",
+        "release"
+      ],
+      "triggers": [
+        "code_edit",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "给搜索接口加缓存，完成后发布 minor 版本。"
+    },
+    {
+      "id": "h2-multi-plan-assets",
+      "intents": [
+        "plan_decision",
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "plan",
+        "assets"
+      ],
+      "triggers": [
+        "plan_required",
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "设计零停机迁移方案并建立验收目标，明确暂不执行。"
+    },
+    {
+      "id": "h2-multi-release-docs",
+      "intents": [
+        "release",
+        "docs_change"
+      ],
+      "modules": [
+        "release",
+        "docs"
+      ],
+      "triggers": [
+        "release",
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.95,
+      "reason": "发布 3.2.0，并同步更新面向客户的升级指南。"
+    }
+  ]
+}

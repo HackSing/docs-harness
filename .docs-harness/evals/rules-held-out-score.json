@@ -1,0 +1,2516 @@
+{
+  "predictor": "rules-v1",
+  "model": null,
+  "missing_prediction_ids": [],
+  "summary": {
+    "case_count": 50,
+    "case_pass_rate": 0.42,
+    "intent_exact_rate": 0.5,
+    "module_exact_rate": 0.54,
+    "module_recall": 0.8333,
+    "module_precision": 0.625,
+    "intent_recall": 0.7143,
+    "intent_precision": 0.6452,
+    "trigger_recall": 0.6379,
+    "trigger_precision": 0.5362,
+    "critical_miss_rate": 0.14,
+    "misroute_rate": 0.46,
+    "clarify_accuracy": 0.78,
+    "must_clarify_recall": 0.3333,
+    "false_clarify_rate": 0.1591
+  },
+  "by_difficulty": {
+    "ambiguous": {
+      "case_count": 6,
+      "case_pass_rate": 0.1667,
+      "intent_exact_rate": 0.8333,
+      "module_exact_rate": 0.3333,
+      "module_recall": null,
+      "module_precision": 0.0,
+      "intent_recall": 0.8333,
+      "intent_precision": 1.0,
+      "trigger_recall": 0.3333,
+      "trigger_precision": 0.3333,
+      "critical_miss_rate": 0.0,
+      "misroute_rate": 0.6667,
+      "clarify_accuracy": 0.3333,
+      "must_clarify_recall": 0.3333,
+      "false_clarify_rate": null
+    },
+    "explicit": {
+      "case_count": 29,
+      "case_pass_rate": 0.5172,
+      "intent_exact_rate": 0.5172,
+      "module_exact_rate": 0.6207,
+      "module_recall": 0.8214,
+      "module_precision": 0.697,
+      "intent_recall": 0.7241,
+      "intent_precision": 0.6364,
+      "trigger_recall": 0.7,
+      "trigger_precision": 0.5526,
+      "critical_miss_rate": 0.1379,
+      "misroute_rate": 0.3793,
+      "clarify_accuracy": 0.7931,
+      "must_clarify_recall": null,
+      "false_clarify_rate": 0.2069
+    },
+    "multi_intent": {
+      "case_count": 6,
+      "case_pass_rate": 0.6667,
+      "intent_exact_rate": 0.6667,
+      "module_exact_rate": 0.6667,
+      "module_recall": 0.8571,
+      "module_precision": 1.0,
+      "intent_recall": 0.8333,
+      "intent_precision": 1.0,
+      "trigger_recall": 0.8333,
+      "trigger_precision": 1.0,
+      "critical_miss_rate": 0.3333,
+      "misroute_rate": 0.3333,
+      "clarify_accuracy": 1.0,
+      "must_clarify_recall": null,
+      "false_clarify_rate": 0.0
+    },
+    "trap": {
+      "case_count": 9,
+      "case_pass_rate": 0.1111,
+      "intent_exact_rate": 0.1111,
+      "module_exact_rate": 0.3333,
+      "module_recall": 0.8333,
+      "module_precision": 0.3333,
+      "intent_recall": 0.4444,
+      "intent_precision": 0.2857,
+      "trigger_recall": 0.4,
+      "trigger_precision": 0.2667,
+      "critical_miss_rate": 0.1111,
+      "misroute_rate": 0.6667,
+      "clarify_accuracy": 0.8889,
+      "must_clarify_recall": null,
+      "false_clarify_rate": 0.1111
+    }
+  },
+  "details": [
+    {
+      "id": "heldout-answer-stacktrace",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [
+        "read_only"
+      ],
+      "extra_triggers": [
+        "clarify_required"
+      ],
+      "intent_exact": false,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": false,
+      "clarify_correct": false,
+      "required_count": 0,
+      "predicted_count": 0,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-answer-pr-risk",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [
+        "read_only"
+      ],
+      "extra_triggers": [
+        "clarify_required"
+      ],
+      "intent_exact": false,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": false,
+      "clarify_correct": false,
+      "required_count": 0,
+      "predicted_count": 0,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-answer-config-usage",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "answer_only"
+      ],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "read_only"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 0,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-answer-command-help",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "answer_only"
+      ],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "read_only"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 0,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-answer-dependency-license",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [
+        "read_only"
+      ],
+      "extra_triggers": [
+        "clarify_required"
+      ],
+      "intent_exact": false,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": false,
+      "clarify_correct": false,
+      "required_count": 0,
+      "predicted_count": 0,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 0,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-answer-slow-endpoint",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [
+        "code"
+      ],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [
+        "code"
+      ],
+      "forbidden_hits": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [
+        "read_only"
+      ],
+      "extra_triggers": [
+        "code_edit"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 1,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-answer-plan-gaps",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "asset_lifecycle",
+        "code_task",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [
+        "assets",
+        "code",
+        "plan"
+      ],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [
+        "assets",
+        "code",
+        "plan"
+      ],
+      "forbidden_hits": [
+        "assets",
+        "code",
+        "plan"
+      ],
+      "triggers": [
+        "asset_operation",
+        "code_edit",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [
+        "read_only"
+      ],
+      "extra_triggers": [
+        "asset_operation",
+        "code_edit",
+        "plan_required"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 3,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 3,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 3,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-answer-test-coverage",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [
+        "code"
+      ],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [
+        "code"
+      ],
+      "forbidden_hits": [
+        "code"
+      ],
+      "triggers": [
+        "code_verify"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [
+        "read_only"
+      ],
+      "extra_triggers": [
+        "code_verify"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 1,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-answer-failing-test-explain",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix",
+        "code_task"
+      ],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [
+        "bugfix",
+        "code"
+      ],
+      "forbidden_hits": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report",
+        "code_verify"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [
+        "read_only"
+      ],
+      "extra_triggers": [
+        "bug_report",
+        "code_verify"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 2,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-answer-release-notes-diff",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [],
+      "expected_intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "expected_triggers": [
+        "read_only"
+      ],
+      "missing_triggers": [
+        "read_only"
+      ],
+      "extra_triggers": [
+        "clarify_required"
+      ],
+      "intent_exact": false,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": false,
+      "clarify_correct": false,
+      "required_count": 0,
+      "predicted_count": 0,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 0,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-code-add-flag",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "required_modules": [
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "code_edit"
+      ],
+      "expected_triggers": [
+        "code_edit"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-code-rename-config",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "required_modules": [
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "code_edit",
+        "direct_override"
+      ],
+      "expected_triggers": [
+        "code_edit",
+        "direct_override"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 2,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 2
+    },
+    {
+      "id": "heldout-ambiguous-permissions",
+      "difficulty": "ambiguous",
+      "must_clarify": true,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "expected_triggers": [
+        "clarify_required"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 0,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-code-refactor-dup",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "required_modules": [
+        "code"
+      ],
+      "missing_modules": [
+        "code"
+      ],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "expected_triggers": [
+        "code_edit"
+      ],
+      "missing_triggers": [
+        "code_edit"
+      ],
+      "extra_triggers": [
+        "clarify_required"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": true,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": false,
+      "required_count": 1,
+      "predicted_count": 0,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 0,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-code-add-test",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "required_modules": [
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "code_verify"
+      ],
+      "expected_triggers": [
+        "code_edit"
+      ],
+      "missing_triggers": [
+        "code_edit"
+      ],
+      "extra_triggers": [
+        "code_verify"
+      ],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-code-upgrade-dep",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "required_modules": [
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "code_verify"
+      ],
+      "expected_triggers": [
+        "code_edit",
+        "code_verify"
+      ],
+      "missing_triggers": [
+        "code_edit"
+      ],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 2,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-ambiguous-optimize-api",
+      "difficulty": "ambiguous",
+      "must_clarify": true,
+      "intents": [],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "expected_triggers": [
+        "clarify_required"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": false,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 0,
+      "predicted_count": 0,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 0,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-code-pagination",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "required_modules": [
+        "code"
+      ],
+      "missing_modules": [
+        "code"
+      ],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "expected_triggers": [
+        "code_edit"
+      ],
+      "missing_triggers": [
+        "code_edit"
+      ],
+      "extra_triggers": [
+        "clarify_required"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": true,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": false,
+      "required_count": 1,
+      "predicted_count": 0,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 0,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-code-run-tests",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "required_modules": [
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "code_verify"
+      ],
+      "expected_triggers": [
+        "code_verify"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-bug-offbyone",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [],
+      "expected_intents": [
+        "bug_fix"
+      ],
+      "modules": [],
+      "required_modules": [
+        "bugfix",
+        "code"
+      ],
+      "missing_modules": [
+        "bugfix",
+        "code"
+      ],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "expected_triggers": [
+        "bug_report"
+      ],
+      "missing_triggers": [
+        "bug_report"
+      ],
+      "extra_triggers": [
+        "clarify_required"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": true,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": false,
+      "required_count": 2,
+      "predicted_count": 0,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 0,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-bug-race",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix"
+      ],
+      "expected_intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "required_modules": [
+        "bugfix",
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "bug_report"
+      ],
+      "expected_triggers": [
+        "bug_report"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 2,
+      "predicted_count": 2,
+      "module_hits": 2,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-bug-null-parser",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task"
+      ],
+      "expected_intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "code"
+      ],
+      "required_modules": [
+        "bugfix",
+        "code"
+      ],
+      "missing_modules": [
+        "bugfix"
+      ],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "code_verify"
+      ],
+      "expected_triggers": [
+        "bug_report"
+      ],
+      "missing_triggers": [
+        "bug_report"
+      ],
+      "extra_triggers": [
+        "code_verify"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": true,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 2,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-bug-fresh-install",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix"
+      ],
+      "expected_intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "required_modules": [
+        "bugfix",
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "bug_report"
+      ],
+      "expected_triggers": [
+        "bug_report"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 2,
+      "predicted_count": 2,
+      "module_hits": 2,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-bug-timezone-test",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix",
+        "code_task"
+      ],
+      "expected_intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "required_modules": [
+        "bugfix",
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "bug_report",
+        "code_verify"
+      ],
+      "expected_triggers": [
+        "bug_report"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "code_verify"
+      ],
+      "intent_exact": false,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 2,
+      "predicted_count": 2,
+      "module_hits": 2,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-bug-token-refresh",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix"
+      ],
+      "expected_intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "required_modules": [
+        "bugfix",
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "bug_report"
+      ],
+      "expected_triggers": [
+        "bug_report"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 2,
+      "predicted_count": 2,
+      "module_hits": 2,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-plan-db-migration",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "code",
+        "plan"
+      ],
+      "required_modules": [
+        "plan"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "code"
+      ],
+      "forbidden_hits": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "plan_required"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "code_edit"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 2,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-plan-service-split",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "code",
+        "plan"
+      ],
+      "required_modules": [
+        "plan"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "code"
+      ],
+      "forbidden_hits": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "plan_required"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "code_edit"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 2,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-plan-queue-choice",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "required_modules": [
+        "plan"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "plan_required"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-plan-rollout",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "code_task",
+        "plan_decision",
+        "release"
+      ],
+      "expected_intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "code",
+        "plan",
+        "release"
+      ],
+      "required_modules": [
+        "plan"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "code",
+        "release"
+      ],
+      "forbidden_hits": [
+        "code",
+        "release"
+      ],
+      "triggers": [
+        "code_edit",
+        "plan_required",
+        "release"
+      ],
+      "expected_triggers": [
+        "plan_required"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "code_edit",
+        "release"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 3,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 3,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 3,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-ambiguous-plan",
+      "difficulty": "ambiguous",
+      "must_clarify": true,
+      "intents": [
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [
+        "plan"
+      ],
+      "forbidden_hits": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "clarify_required"
+      ],
+      "missing_triggers": [
+        "clarify_required"
+      ],
+      "extra_triggers": [
+        "plan_required"
+      ],
+      "intent_exact": true,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": false,
+      "required_count": 0,
+      "predicted_count": 1,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-plan-security-remediation",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "bugfix",
+        "code",
+        "plan"
+      ],
+      "required_modules": [
+        "plan"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "bugfix",
+        "code"
+      ],
+      "forbidden_hits": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "plan_required"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "bug_report"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 3,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-asset-acceptance-create",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "asset_lifecycle",
+        "code_task",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets",
+        "code",
+        "plan"
+      ],
+      "required_modules": [
+        "assets"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "code",
+        "plan"
+      ],
+      "forbidden_hits": [
+        "code",
+        "plan"
+      ],
+      "triggers": [
+        "asset_operation",
+        "code_edit",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "asset_operation"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "code_edit",
+        "plan_required"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 3,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 3,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 3,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-ambiguous-acceptance",
+      "difficulty": "ambiguous",
+      "must_clarify": true,
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "expected_intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [
+        "assets"
+      ],
+      "forbidden_hits": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "expected_triggers": [
+        "clarify_required"
+      ],
+      "missing_triggers": [
+        "clarify_required"
+      ],
+      "extra_triggers": [
+        "asset_operation"
+      ],
+      "intent_exact": true,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": false,
+      "required_count": 0,
+      "predicted_count": 1,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-asset-knowledge-create",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "expected_intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "required_modules": [
+        "assets"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "asset_operation"
+      ],
+      "expected_triggers": [
+        "asset_operation"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-asset-adr-create",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "asset_lifecycle",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets",
+        "plan"
+      ],
+      "required_modules": [
+        "assets"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "plan"
+      ],
+      "forbidden_hits": [
+        "plan"
+      ],
+      "triggers": [
+        "asset_operation",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "asset_operation"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "plan_required"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 2,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-release-patch",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "release"
+      ],
+      "expected_intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "required_modules": [
+        "release"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "release"
+      ],
+      "expected_triggers": [
+        "release"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-release-package",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "release"
+      ],
+      "expected_intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "required_modules": [
+        "release"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "release"
+      ],
+      "expected_triggers": [
+        "release"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-release-downstream",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "release"
+      ],
+      "expected_intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "required_modules": [
+        "release"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "release"
+      ],
+      "expected_triggers": [
+        "release"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-ambiguous-release",
+      "difficulty": "ambiguous",
+      "must_clarify": true,
+      "intents": [
+        "release"
+      ],
+      "expected_intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [
+        "release"
+      ],
+      "forbidden_hits": [
+        "release"
+      ],
+      "triggers": [
+        "release"
+      ],
+      "expected_triggers": [
+        "clarify_required"
+      ],
+      "missing_triggers": [
+        "clarify_required"
+      ],
+      "extra_triggers": [
+        "release"
+      ],
+      "intent_exact": true,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": false,
+      "required_count": 0,
+      "predicted_count": 1,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-docs-readme-quickstart",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "docs_change"
+      ],
+      "expected_intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "required_modules": [
+        "docs"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "docs_edit"
+      ],
+      "expected_triggers": [
+        "docs_edit"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-docs-api-reference",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix",
+        "docs_change"
+      ],
+      "expected_intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "bugfix",
+        "code",
+        "docs"
+      ],
+      "required_modules": [
+        "docs"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "bugfix",
+        "code"
+      ],
+      "forbidden_hits": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report",
+        "docs_edit"
+      ],
+      "expected_triggers": [
+        "docs_edit"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "bug_report"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 3,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-docs-migration-guide",
+      "difficulty": "trap",
+      "must_clarify": false,
+      "intents": [
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "required_modules": [
+        "docs"
+      ],
+      "missing_modules": [
+        "docs"
+      ],
+      "extra_modules": [
+        "plan"
+      ],
+      "forbidden_hits": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "docs_edit"
+      ],
+      "missing_triggers": [
+        "docs_edit"
+      ],
+      "extra_triggers": [
+        "plan_required"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": true,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 1,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 0,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-docs-architecture",
+      "difficulty": "explicit",
+      "must_clarify": false,
+      "intents": [
+        "docs_change",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs",
+        "plan"
+      ],
+      "required_modules": [
+        "docs"
+      ],
+      "missing_modules": [],
+      "extra_modules": [
+        "plan"
+      ],
+      "forbidden_hits": [
+        "plan"
+      ],
+      "triggers": [
+        "docs_edit",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "docs_edit"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [
+        "plan_required"
+      ],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 1,
+      "predicted_count": 2,
+      "module_hits": 1,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 2,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-ambiguous-docs",
+      "difficulty": "ambiguous",
+      "must_clarify": true,
+      "intents": [
+        "docs_change"
+      ],
+      "expected_intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "required_modules": [],
+      "missing_modules": [],
+      "extra_modules": [
+        "docs"
+      ],
+      "forbidden_hits": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "expected_triggers": [
+        "clarify_required"
+      ],
+      "missing_triggers": [
+        "clarify_required"
+      ],
+      "extra_triggers": [
+        "docs_edit"
+      ],
+      "intent_exact": true,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": false,
+      "required_count": 0,
+      "predicted_count": 1,
+      "module_hits": 0,
+      "intent_expected_count": 1,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 1,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 0
+    },
+    {
+      "id": "heldout-multi-bugfix-release",
+      "difficulty": "multi_intent",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix",
+        "release"
+      ],
+      "expected_intents": [
+        "bug_fix",
+        "release"
+      ],
+      "modules": [
+        "bugfix",
+        "code",
+        "release"
+      ],
+      "required_modules": [
+        "bugfix",
+        "code",
+        "release"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "bug_report",
+        "release"
+      ],
+      "expected_triggers": [
+        "bug_report",
+        "release"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 3,
+      "predicted_count": 3,
+      "module_hits": 3,
+      "intent_expected_count": 2,
+      "intent_predicted_count": 2,
+      "intent_hits": 2,
+      "trigger_expected_count": 2,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 2
+    },
+    {
+      "id": "heldout-multi-code-release",
+      "difficulty": "multi_intent",
+      "must_clarify": false,
+      "intents": [
+        "release"
+      ],
+      "expected_intents": [
+        "code_task",
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "required_modules": [
+        "code",
+        "release"
+      ],
+      "missing_modules": [
+        "code"
+      ],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "release"
+      ],
+      "expected_triggers": [
+        "code_edit",
+        "release"
+      ],
+      "missing_triggers": [
+        "code_edit"
+      ],
+      "extra_triggers": [],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": true,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 2,
+      "predicted_count": 1,
+      "module_hits": 1,
+      "intent_expected_count": 2,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 2,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-multi-plan-assets",
+      "difficulty": "multi_intent",
+      "must_clarify": false,
+      "intents": [
+        "asset_lifecycle",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "asset_lifecycle",
+        "plan_decision"
+      ],
+      "modules": [
+        "assets",
+        "plan"
+      ],
+      "required_modules": [
+        "assets",
+        "plan"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "asset_operation",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "asset_operation",
+        "plan_required"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 2,
+      "predicted_count": 2,
+      "module_hits": 2,
+      "intent_expected_count": 2,
+      "intent_predicted_count": 2,
+      "intent_hits": 2,
+      "trigger_expected_count": 2,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 2
+    },
+    {
+      "id": "heldout-multi-code-assets",
+      "difficulty": "multi_intent",
+      "must_clarify": false,
+      "intents": [
+        "asset_lifecycle",
+        "code_task"
+      ],
+      "expected_intents": [
+        "asset_lifecycle",
+        "code_task"
+      ],
+      "modules": [
+        "assets",
+        "code"
+      ],
+      "required_modules": [
+        "assets",
+        "code"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "asset_operation",
+        "code_edit"
+      ],
+      "expected_triggers": [
+        "asset_operation",
+        "code_edit"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 2,
+      "predicted_count": 2,
+      "module_hits": 2,
+      "intent_expected_count": 2,
+      "intent_predicted_count": 2,
+      "intent_hits": 2,
+      "trigger_expected_count": 2,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 2
+    },
+    {
+      "id": "heldout-multi-bugfix-docs",
+      "difficulty": "multi_intent",
+      "must_clarify": false,
+      "intents": [
+        "bug_fix"
+      ],
+      "expected_intents": [
+        "bug_fix",
+        "docs_change"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "required_modules": [
+        "bugfix",
+        "code",
+        "docs"
+      ],
+      "missing_modules": [
+        "docs"
+      ],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "bug_report"
+      ],
+      "expected_triggers": [
+        "bug_report",
+        "docs_edit"
+      ],
+      "missing_triggers": [
+        "docs_edit"
+      ],
+      "extra_triggers": [],
+      "intent_exact": false,
+      "module_exact": false,
+      "prediction_missing": false,
+      "critical_miss": true,
+      "misroute": true,
+      "case_pass": false,
+      "clarify_correct": true,
+      "required_count": 3,
+      "predicted_count": 2,
+      "module_hits": 2,
+      "intent_expected_count": 2,
+      "intent_predicted_count": 1,
+      "intent_hits": 1,
+      "trigger_expected_count": 2,
+      "trigger_predicted_count": 1,
+      "trigger_hits": 1
+    },
+    {
+      "id": "heldout-multi-plan-code",
+      "difficulty": "multi_intent",
+      "must_clarify": false,
+      "intents": [
+        "code_task",
+        "plan_decision"
+      ],
+      "expected_intents": [
+        "code_task",
+        "plan_decision"
+      ],
+      "modules": [
+        "code",
+        "plan"
+      ],
+      "required_modules": [
+        "code",
+        "plan"
+      ],
+      "missing_modules": [],
+      "extra_modules": [],
+      "forbidden_hits": [],
+      "triggers": [
+        "code_edit",
+        "plan_required"
+      ],
+      "expected_triggers": [
+        "code_edit",
+        "plan_required"
+      ],
+      "missing_triggers": [],
+      "extra_triggers": [],
+      "intent_exact": true,
+      "module_exact": true,
+      "prediction_missing": false,
+      "critical_miss": false,
+      "misroute": false,
+      "case_pass": true,
+      "clarify_correct": true,
+      "required_count": 2,
+      "predicted_count": 2,
+      "module_hits": 2,
+      "intent_expected_count": 2,
+      "intent_predicted_count": 2,
+      "intent_hits": 2,
+      "trigger_expected_count": 2,
+      "trigger_predicted_count": 2,
+      "trigger_hits": 2
+    }
+  ]
+}

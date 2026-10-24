@@ -1,0 +1,335 @@
+{
+  "task": "Classify each case as an intent router. Use only the case text. Do not read any other files or use tools. Output one prediction per case.",
+  "taxonomy": {
+    "intents": {
+      "answer_only": "A question, explanation, fact lookup, diagnosis, or read-only review; no request to change or fix anything, run builds/tests, create lifecycle assets, or release.",
+      "code_task": "Implement, modify, refactor, or verify code or configuration; includes running tests/builds and executing an already-defined plan.",
+      "bug_fix": "The user asks to fix a defect or produce a fix approach, not only diagnose it.",
+      "plan_decision": "Produce a plan, design, architecture, tradeoff, migration or rollback strategy, or a decision before implementation; includes cross-module or high-risk changes that need a plan first.",
+      "asset_lifecycle": "Create, update, record, or settle Knowledge, Acceptance, or ADR assets.",
+      "release": "Bump the version, publish, package, update CHANGELOG, or sync downstream projects.",
+      "docs_change": "Create or update documentation as the main deliverable; not documentation that is only part of a release or code change."
+    },
+    "modules": [
+      "code",
+      "bugfix",
+      "docs",
+      "plan",
+      "assets",
+      "release"
+    ],
+    "triggers": [
+      "read_only",
+      "code_edit",
+      "code_verify",
+      "bug_report",
+      "plan_required",
+      "asset_operation",
+      "release",
+      "docs_edit",
+      "direct_override",
+      "clarify_required"
+    ],
+    "module_mapping": {
+      "answer_only": [],
+      "code_task": [
+        "code"
+      ],
+      "bug_fix": [
+        "code",
+        "bugfix"
+      ],
+      "plan_decision": [
+        "plan"
+      ],
+      "asset_lifecycle": [
+        "assets"
+      ],
+      "release": [
+        "release"
+      ],
+      "docs_change": [
+        "docs"
+      ]
+    }
+  },
+  "policy": [
+    "Only include modules the task actually needs. Mere mentions of a topic do not add a module.",
+    "If the target, deliverable, or scope is too vague to start, set must_clarify=true, modules=[], triggers=[\"clarify_required\"], and keep the most likely tentative intents (or []).",
+    "If the user explicitly says not to use Harness, add direct_override.",
+    "For code_task, add code_edit for code/config changes and code_verify when the action is running tests/builds.",
+    "Multi-intent tasks include every required intent and the union of their modules.",
+    "Do not add plan/assets/release/docs just because those words appear; require an actual corresponding request."
+  ],
+  "output_schema": {
+    "predictions": [
+      {
+        "id": "case id",
+        "intents": [
+          "one or more intent labels"
+        ],
+        "modules": [
+          "required module labels"
+        ],
+        "triggers": [
+          "trigger labels"
+        ],
+        "must_clarify": false,
+        "confidence": 0.0,
+        "reason": "short reason"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "id": "h2-answer-incident-timeline",
+      "setup": "两个日志文件覆盖同一故障窗口，用户只要求还原时间线。",
+      "prompt": "从这两个日志文件里还原事故发生的时间线，只做只读分析。"
+    },
+    {
+      "id": "h2-answer-schema-diff",
+      "setup": "v1 和 v2 的数据库 schema dump 已导出，用户只要求对比。",
+      "prompt": "对比 v1 和 v2 的数据库 schema，列出不兼容变更。"
+    },
+    {
+      "id": "h2-answer-dependency-graph",
+      "setup": "services/ 下多个模块互相引用，用户只要求分析依赖。",
+      "prompt": "画出 services/ 下的模块依赖关系，只分析不修改代码。"
+    },
+    {
+      "id": "h2-answer-permission-model",
+      "setup": "项目使用 RBAC，用户只问角色继承规则。",
+      "prompt": "解释当前 RBAC 模型的角色继承规则。"
+    },
+    {
+      "id": "h2-answer-cost-breakdown",
+      "setup": "云账单和资源标签已导出，用户只要求拆账。",
+      "prompt": "拆一下上个月云账单的构成，告诉我哪项涨得最快。"
+    },
+    {
+      "id": "h2-answer-queue-lag",
+      "setup": "消息队列积压，用户只要求从消费端指标看原因。",
+      "prompt": "消息队列最近积压，帮我看看消费端哪里慢，先别改。"
+    },
+    {
+      "id": "h2-answer-revert-advice",
+      "setup": "一个提交可能引入回归，用户只要求判断是否回滚。",
+      "prompt": "这个提交要不要回滚？只给判断和理由，不要执行。"
+    },
+    {
+      "id": "h2-answer-api-deprecation",
+      "setup": "v1 API 准备弃用，用户只要求查调用方。",
+      "prompt": "v1 API 的弃用会影响哪些客户端？只查调用方。"
+    },
+    {
+      "id": "h2-answer-test-flakiness",
+      "setup": "CI 历史记录可查，用户只问 flaky 测试的失败次数。",
+      "prompt": "这个 flaky 测试历史上失败过几次？列一下记录。"
+    },
+    {
+      "id": "h2-code-add-healthcheck",
+      "setup": "/health 目前只返回固定 200。",
+      "prompt": "给 /health 加一个依赖数据库连通性的检查，返回 503 表示不健康。"
+    },
+    {
+      "id": "h2-code-migrate-env-config",
+      "setup": "环境变量读取散落在多个模块。",
+      "prompt": "这次不用 Harness，把散落在代码里的环境变量读取集中到 config.py，保持行为不变。"
+    },
+    {
+      "id": "h2-ambiguous-cache-layer",
+      "setup": "用户没有说明缓存层位置、优化目标和一致性要求。",
+      "prompt": "缓存那块再优化一下，顺便处理一下一致性问题。"
+    },
+    {
+      "id": "h2-code-idempotency-key",
+      "setup": "支付接口目前没有幂等键。",
+      "prompt": "给支付接口加 Idempotency-Key 支持，重复请求返回同一结果。"
+    },
+    {
+      "id": "h2-code-soft-delete",
+      "setup": "orders 表目前物理删除。",
+      "prompt": "给 orders 表加软删除字段，并更新查询过滤逻辑。"
+    },
+    {
+      "id": "h2-code-upgrade-node",
+      "setup": "项目当前 Node 20，CI 使用旧镜像。",
+      "prompt": "把 Node 从 20 升到 22，更新 CI 和 lockfile。"
+    },
+    {
+      "id": "h2-ambiguous-refactor",
+      "setup": "用户没有说明哪个模块、重构目标和验收方式。",
+      "prompt": "这个模块太乱了，重构一下，保持行为不变。"
+    },
+    {
+      "id": "h2-code-observability",
+      "setup": "订单服务缺少结构化日志和 trace 透传。",
+      "prompt": "给订单服务加结构化日志和 trace id 透传。"
+    },
+    {
+      "id": "h2-code-load-test",
+      "setup": "压测脚本已存在，用户只要求跑一次并报告。",
+      "prompt": "跑一次 200 QPS 的压测，给我延迟和错误率报告。"
+    },
+    {
+      "id": "h2-bug-webhook-duplicate",
+      "setup": "支付 webhook 偶尔重复处理同一事件。",
+      "prompt": "支付 webhook 偶尔重复处理，定位并修复。"
+    },
+    {
+      "id": "h2-bug-timezone-cron",
+      "setup": "定时任务在夏令时切换日多跑一次。",
+      "prompt": "定时任务在夏令时切换那天多跑了一次，定位并修复。"
+    },
+    {
+      "id": "h2-bug-cache-stale",
+      "setup": "用户更新资料后搜索结果仍是旧数据。",
+      "prompt": "用户更新资料后搜索结果还是旧的，定位并修复缓存失效逻辑。"
+    },
+    {
+      "id": "h2-bug-db-deadlock",
+      "setup": "批量更新时偶发数据库死锁。",
+      "prompt": "批量更新时偶发数据库死锁，定位根因并修复。"
+    },
+    {
+      "id": "h2-bug-test-env-leak",
+      "setup": "一个测试会污染后续测试的数据库。",
+      "prompt": "CI 里有个测试会污染后续测试的数据库，定位并修掉。"
+    },
+    {
+      "id": "h2-bug-mobile-crash",
+      "setup": "iOS 启动时偶发崩溃，已有崩溃日志。",
+      "prompt": "iOS 启动时偶发崩溃，定位并修复。"
+    },
+    {
+      "id": "h2-plan-multi-tenant",
+      "setup": "产品要从单租户改为多租户，用户要求先出方案。",
+      "prompt": "评估把单租户改成多租户，给出隔离方案、迁移和回滚，先别改代码。"
+    },
+    {
+      "id": "h2-plan-search-engine",
+      "setup": "团队在 Postgres 全文检索和 Elasticsearch 之间选型。",
+      "prompt": "在 Postgres 全文检索和 Elasticsearch 之间选型，给出对比和迁移路径。"
+    },
+    {
+      "id": "h2-plan-zero-downtime-migration",
+      "setup": "订单表迁移不能停机。",
+      "prompt": "设计一次零停机的订单表迁移方案。"
+    },
+    {
+      "id": "h2-plan-mobile-release",
+      "setup": "移动端 3.0 需要分阶段发布。",
+      "prompt": "规划移动端 3.0 的分阶段发布和回滚策略。"
+    },
+    {
+      "id": "h2-ambiguous-roadmap",
+      "setup": "用户没有说明季度目标、范围或交付物。",
+      "prompt": "把下季度的技术路线图整理一下，先给个方向。"
+    },
+    {
+      "id": "h2-plan-authz-redesign",
+      "setup": "权限模型需要重构，用户要求先看迁移方案。",
+      "prompt": "重构权限模型之前，先给我一个迁移方案和风险清单。"
+    },
+    {
+      "id": "h2-asset-acceptance-mobile",
+      "setup": "移动端 3.0 已完成实现，尚未建验收目标。",
+      "prompt": "给移动端 3.0 建立验收目标和证据层级。"
+    },
+    {
+      "id": "h2-asset-knowledge-api",
+      "setup": "v2 API 要求 OAuth2，API 文档已有说明。",
+      "prompt": "把‘v2 API 需要 OAuth2’沉淀成 Knowledge，附 API 文档引用。"
+    },
+    {
+      "id": "h2-ambiguous-asset",
+      "setup": "用户没有说明要整理哪类资产、归档标准是什么。",
+      "prompt": "把资产整理一下，看看哪些该归档。"
+    },
+    {
+      "id": "h2-asset-adr-cache",
+      "setup": "团队已决定选择 Redis 做会话缓存。",
+      "prompt": "把‘选择 Redis 做会话缓存’登记成 ADR，包含备选方案。"
+    },
+    {
+      "id": "h2-release-hotfix",
+      "setup": "当前 3.1.1，准备发 3.1.2 热修复。",
+      "prompt": "发一个 3.1.2 热修复版本，更新 CHANGELOG 和版本号。"
+    },
+    {
+      "id": "h2-release-app-store",
+      "setup": "iOS 3.0 构建已准备好，需要上传 TestFlight。",
+      "prompt": "把 iOS 3.0 构建上传到 TestFlight，更新发布说明。"
+    },
+    {
+      "id": "h2-release-rollback",
+      "setup": "生产环境新版本出现异常，需要回滚。",
+      "prompt": "把生产环境回滚到上一个版本，并记录回滚原因。"
+    },
+    {
+      "id": "h2-ambiguous-release-channel",
+      "setup": "用户没有说明版本号、发布渠道和目标环境。",
+      "prompt": "把这个版本发出去，渠道你看着办。"
+    },
+    {
+      "id": "h2-docs-onboarding",
+      "setup": "新工程师 onboarding 文档缺失。",
+      "prompt": "写一份新工程师 onboarding 文档，包含本地启动和调试步骤。"
+    },
+    {
+      "id": "h2-docs-api-errors",
+      "setup": "订单 API 的错误码没有文档。",
+      "prompt": "补全订单 API 的错误码文档，说明每种错误的处理方式。"
+    },
+    {
+      "id": "h2-docs-runbook",
+      "setup": "支付服务缺少 on-call runbook。",
+      "prompt": "写一份支付服务故障排查 runbook，给 on-call 用。"
+    },
+    {
+      "id": "h2-docs-migration-guide",
+      "setup": "单租户到多租户的变更需要客户迁移指南。",
+      "prompt": "写一份从单租户迁移到多租户的迁移指南，给客户看。"
+    },
+    {
+      "id": "h2-ambiguous-docs-scope",
+      "setup": "用户没有说明要补哪份文档、补到什么程度。",
+      "prompt": "把开发文档补一下，缺什么你看着办。"
+    },
+    {
+      "id": "h2-multi-bugfix-release",
+      "setup": "webhook 重复处理需要修复，之后发热修复版本。",
+      "prompt": "修掉 webhook 重复处理的 bug，然后发一个热修复版本。"
+    },
+    {
+      "id": "h2-multi-code-assets",
+      "setup": "导出功能要加 CSV，并需要验收标准。",
+      "prompt": "给导出功能加 CSV 支持，并为它建验收标准。"
+    },
+    {
+      "id": "h2-multi-plan-code",
+      "setup": "多租户改造需要先出方案，方案确认后做第一阶段。",
+      "prompt": "先给多租户改造出方案，方案确认后实施第一阶段。"
+    },
+    {
+      "id": "h2-multi-bugfix-docs",
+      "setup": "移动端崩溃需要修复，并补一条排查文档。",
+      "prompt": "修复移动端崩溃，并补一条故障排查文档。"
+    },
+    {
+      "id": "h2-multi-code-release",
+      "setup": "搜索接口要加缓存，完成后发 minor。",
+      "prompt": "给搜索接口加缓存，完成后发 minor 版本。"
+    },
+    {
+      "id": "h2-multi-plan-assets",
+      "setup": "零停机迁移需要方案和验收目标，暂不执行。",
+      "prompt": "设计零停机迁移方案，并建验收目标；先不要执行。"
+    },
+    {
+      "id": "h2-multi-release-docs",
+      "setup": "3.2.0 发布需要同时更新客户升级指南。",
+      "prompt": "发 3.2.0，并更新面向客户的升级指南。"
+    }
+  ]
+}
