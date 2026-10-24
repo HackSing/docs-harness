@@ -166,7 +166,7 @@ summary = summarize_shadow(
 | model/version 记录 | hook 从 CLI `modelUsage` 取模型名，从 `--version` 取 CLI 版本；真实值 `dfmodel` / `1.1.78` | 已确认 |
 | token、latency 记录 | CLI JSON 含 `usage`、`duration_ms`、`total_cost_usd`、`total_credits`；原生版真实路由墙钟 3.10s（模型 1.97s、启动约 1.1s），npm 版 4.13s（模型 1.53s、启动约 2.6s）；`dfmodel` 报告 0 tokens / 0 Credits | 字段与延迟已确认；`dfmodel` 用量为 0 |
 | feature flag 与回滚开关 | `DOCS_HARNESS_ROUTER_ENABLED` + `DOCS_HARNESS_ROUTER_BACKEND`；回滚等价于移除 hook 条目 | 原型已确认；宿主级 flag 未确认 |
-| shadow sink | Qoder Desktop 真实 `UserPromptSubmit` 已在 demo 会话触发：首条 `dfmodel`/`code`，同会话后续消息命中 `route-cache`、`cache_hit=true`、延迟 0.0s；主任务生成并更新 `hello.py`，无 hook 错误。用户级 hook 已写入 `~/.qoder-cn/settings.json`，带项目门禁 | 项目级端到端已确认；用户级待新会话复验 |
+| shadow sink | Qoder Desktop 真实 `UserPromptSubmit` 已在 demo 会话触发：首条 `dfmodel`/`code`，同会话后续消息命中 `route-cache`、`cache_hit=true`、延迟 0.0s；主任务生成并更新 `hello.py`，无 hook 错误。用户级 hook 已写入 `~/.qoder-cn/settings.json`，并在本仓会话真实写入 3 条 Shadow 事件 | 项目级与用户级均已确认 |
 | 20–50 条真实任务基线 | 目前只有手工真实 prompt；尚无 1–2 周真实任务统计 | 未开始 |
 
 结论：A 在 Qoder 上已完成端到端闭环：国内账号已登录，`dfmodel` 完成真实路由，Qoder Desktop 的 `UserPromptSubmit` hook 已触发并写入 Shadow；同一会话后续消息命中 `route-cache`，不再启动 CLI。用户级 hook 已安装，带项目门禁，只对含 Docs Harness 标识的项目生效。下一步是在新会话复验用户级 hook，再跑 1–2 周真实任务 shadow，采集关键漏配、返工、延迟与用量。Hook 只能追加 context，不能移除已加载的 AGENTS.md；要拿到 token 收益仍需拆分内核与模块契约。
@@ -224,7 +224,7 @@ npm run pack:check
 
 ## 10. Qoder hook 原型（A 路径）
 
-状态：原型，默认关闭，未安装到任何项目。它验证 A 的宿主注入链路，不改变下游安装面。
+状态：用户级已安装，默认 `shadow` 只记录；`canary`/`enforced` 才注入契约。它验证 A 的宿主注入链路，不改变下游安装面。
 
 Qoder 官方 hooks 文档确认：`UserPromptSubmit` 在用户提交 prompt 后、主 Agent 处理前触发；`command` handler 可从 stdin 读取事件 JSON，并向 stdout 输出 `hookSpecificOutput.additionalContext`。原型使用这个入口。
 
@@ -240,6 +240,8 @@ Qoder 官方 hooks 文档确认：`UserPromptSubmit` 在用户提交 prompt 后�
 
 - `DOCS_HARNESS_ROUTER_ENABLED=1` 时启用；默认关闭。
 - `DOCS_HARNESS_ROUTER_BACKEND=fake|cli`；默认 `fake`，`cli` 调用 Qoder CLI 无头模式。
+- `DOCS_HARNESS_ROUTER_PHASE=shadow|canary|enforced`，默认 `shadow`。`shadow` 只写事件、不输出 `additionalContext`；`canary`/`enforced` 注入选中模块契约。
+- shadow 不切换模块，实际加载仍是完整常驻规则，`actual_modules` 记为注册表全部模块；canary/enforced 记为实际注入模块。
 - 没有 `routing/registry.json`、画像非法、phase 非法或后端不可用时，hook 不注入、退出 0，把错误写入 stderr 和 `.docs-harness/routing/hook-errors.jsonl`。
 - `direct_override` 直接跳过；`must_clarify` 只记 Shadow，不注入；无模块时不注入。
 - Shadow 事件不写 prompt 原文，只写 `task_hash`、字符数和结构化画像。
@@ -301,8 +303,8 @@ npm install --prefix ~/.qoder-cn/docs-harness-router/cn @qodercn-ai/qoderclicn
 
 `UserPromptSubmit` 在每条用户消息提交时都会触发。如果每条都启动 CLI，同一会话的后续消息会重复付费。hook 现在按 `session_id` 缓存上一次成功路由：
 
-- 首条任务：正常路由，写 `.docs-harness/routing/sessions/<hash>.json`，注入完整契约。
-- 后续消息：命中缓存，不启动 CLI；注入一段短提醒“沿用上次路由”。
+- 首条任务：正常路由，写 `.docs-harness/routing/sessions/<hash>.json`；shadow 只记录，canary/enforced 注入完整契约。
+- 后续消息：命中缓存，不启动 CLI；shadow 只记录，canary/enforced 注入一段短提醒“沿用上次路由”。
 - 新任务标记（“新任务/换个任务/new task”等）或 `/route-reset`：强制重路由或清缓存。
 - 缓存 TTL 默认 2 小时；注册表指纹变化自动失效。
 - 澄清、低置信或空模块不写缓存，下一条消息重新路由。
@@ -325,7 +327,7 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 
 用户级安装（当前采用）：
 
-1. 在 `~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 增加一组 command hook，`command` 指向本仓 `routing/hosts/qoder/user-hook.sh`，`env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。
+1. 在 `~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 增加一组 command hook，`command` 指向本仓 `routing/hosts/qoder/user-hook.sh`，`env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_PHASE=shadow`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。
 2. `user-hook.sh` 只检查 `QODER_PROJECT_DIR` 下是否有 `routing/registry.json`；没有就直接退出，不启动 Python/CLI，也不写日志。只有显式带路由注册表的项目才会被注入，旧版 docs-harness（只有 `.docs-harness/config.json`）和未安装项目都不受影响。需要 opt-in 的项目把 `routing/registry.json` 放进项目即可。
 3. 修改设置前备份原文件；当前备份为 `settings.json.bak-<时间戳>`。用户级 entry 不设置 `statusMessage`，无关项目不会出现状态行。
 4. 新建一个 Qoder 会话（旧会话不会重新加载用户级设置），提交普通任务；检查 Shadow 日志是否新增。
@@ -343,15 +345,15 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 - 国内 CLI 已登录，`dfmodel` 完成真实路由；CLI 对该模型报告 0 tokens / 0 Credits，暂时无法用它校准 token/成本预算。
 - CLI 是完整 Agent Runtime：首条任务和重路由会多一次启动开销；同会话后续消息走缓存，不再每条启动。原生版真实路由墙钟约 3.1s（启动约 1.1s、模型约 2s），npm 版约 4.1s（启动约 2.6s）。
 - 缓存可能沿用旧路由：后续消息换了任务但没有“新任务/换个任务”等标记时，主 agent 需要从 registry 读取新契约，或用户发 `/route-reset`。真实同会话缓存已验证“CLI 路径不存在仍复用”。
-- Hook 只能追加 context，不能移除已加载的 AGENTS.md；token 收益仍要等内核/模块契约拆分。
-- Qoder Desktop 的项目级 `UserPromptSubmit` 与同会话缓存已在 demo 复验；用户级 hook 已安装但尚未在新会话复验。用户级门禁只认项目内 `routing/registry.json`，旧版 docs-harness 和未安装项目都会被静默跳过，不影响其上下文或日志。尚未在真实项目跑 1–2 周 shadow，也未统计多任务、长会话和上下文压缩下的缓存命中率与误复用。
+- `shadow` 阶段不改变上下文；Hook 只能追加 context，不能移除已加载的 AGENTS.md，token 收益仍要等 canary/enforced 与内核/模块契约拆分。
+- Qoder Desktop 的项目级 `UserPromptSubmit` 与同会话缓存已在 demo 复验；用户级 hook 已在本仓会话真实触发。用户级门禁只认项目内 `routing/registry.json`，旧版 docs-harness 和未安装项目都会被静默跳过，不影响其上下文或日志。真实 shadow 才刚开始（3 条事件），尚未覆盖 1–2 周、多任务、长会话和上下文压缩下的缓存命中率与误复用。
 - 国内账号已能在 CLI 登录；是否与 Desktop 套餐共享额度，以 CLI `/status` 和实际 Credits 为准。
 - 每次宿主重启或配置变化后要重新确认 hook 是否加载。
 
 ## 11. 未覆盖与待定
 
-- B2–B5 的真实 shadow、canary、强制放量尚未开始。
-- 国内原生 `qoderclicn` 已登录并能真实调用；`dfmodel` 的 token/credit 计量为 0；项目级 Desktop 已完成端到端触发与同会话缓存复验，用户级 hook 待新会话复验，1–2 周 shadow 和回滚演练未完成。
+- B2 shadow 的仅记录模式已启用（22 项 hook 测试）；真实任务采集、阈值校准与 B3–B5 尚未开始。
+- 国内原生 `qoderclicn` 已登录并能真实调用；`dfmodel` 的 token/credit 计量为 0；项目级 Desktop 已完成端到端触发与同会话缓存复验，用户级 hook 已在本仓会话触发并记录 3 条事件，1–2 周 shadow 和回滚演练未完成。
 - 会话缓存已在 demo 和脚本级各验证一次；尚未在多任务、长会话、上下文压缩和 `/route-reset` 场景统计命中率与误复用。
 - 20–50 条真实任务基线尚未建立。
 - 延迟、token、成本、Credits、澄清和返工阈值尚未校准。

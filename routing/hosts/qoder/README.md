@@ -1,6 +1,6 @@
 # Qoder UserPromptSubmit hook 原型
 
-状态：原型，默认关闭，未安装到任何项目。详细契约、安装与限制见 `docs/routing.md` §10。
+状态：用户级已安装，默认 `shadow` 只记录；`canary`/`enforced` 才注入契约。详细契约、安装与限制见 `docs/routing.md` §10。
 
 ## 做什么
 
@@ -11,7 +11,7 @@ Qoder 在用户提交 prompt 后、主 Agent 处理前触发 `UserPromptSubmit`�
 3. 通过 `_route_task` 取得路由画像：`fake` backend 读 `fake_profile.json`，`cli` backend 调用 Qoder CLI 无头模式；
 4. 用 `validate_profile` 校验；
 5. 写 `.docs-harness/routing/shadow-YYYY-MM.jsonl`；
-6. 向 stdout 输出 `hookSpecificOutput.additionalContext`，只包含选中的模块契约。
+6. `shadow` 到此结束，不输出上下文；`canary`/`enforced` 向 stdout 输出 `hookSpecificOutput.additionalContext`，只包含选中的模块契约。
 
 失败不阻断用户任务：写入 stderr 和 `.docs-harness/routing/hook-errors.jsonl` 后退出 0。
 
@@ -78,9 +78,9 @@ CLI JSON 的 `usage`、`duration_ms`、`total_credits`、`total_cost_usd`、`mod
 用户级（当前采用）：
 
 1. 在 `~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 增加一组 command hook，`command` 指向本目录的 `user-hook.sh`。
-2. `env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。
+2. `env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_PHASE=shadow`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。
 3. `user-hook.sh` 只在项目含 `routing/registry.json` 时继续；旧版 docs-harness（只有 `.docs-harness/config.json`）和其他项目直接退出，不写日志、不启动 CLI、不改上下文。
-4. 修改设置前备份；新建 Qoder 会话才会加载用户级 hook。
+4. 修改设置前备份；新建 Qoder 会话才会加载用户级 hook。默认 `shadow` 只新增 Shadow 日志，不向主 Agent 注入上下文。
 
 项目级（可选）：把 `settings.example.json`（fake）或 `settings.cli.example.json`（真实 Qoder 模型）的 `hooks` 块合并到 `.qoder/settings.local.json`，确认项目有 `routing/registry.json`，然后新建会话。
 
@@ -88,8 +88,9 @@ CLI JSON 的 `usage`、`duration_ms`、`total_credits`、`total_cost_usd`、`mod
 
 ## 限制
 
-- fake backend 的 profile 是静态的；启用它会把所有提示按 code_task 注入。只用于匹配提示的链路测试。
+- fake backend 的 profile 是静态的；`canary`/`enforced` 下会把所有提示按 code_task 注入。只用于匹配提示的链路测试。
+- `shadow` 不注入、不改变执行；要观察注入链路时显式设置 `DOCS_HARNESS_ROUTER_PHASE=canary`。
 - 国内原生 `qoderclicn` 已登录，`dfmodel` 完成真实路由；CLI 对该模型报告 0 tokens / 0 Credits。
 - CLI 是完整 Agent Runtime：首条任务和重路由会多一次启动；同会话后续消息走缓存，不再每条启动。原生墙钟约 3.1s，npm 约 4.1s。
 - Hook 只能追加 context，不能移除已加载的 AGENTS.md；token 收益仍需内核/模块契约拆分。
-- 项目级 Desktop 已端到端验证；用户级 hook 已安装但需新会话复验；1–2 周真实 shadow 未开始。
+- 项目级 Desktop 已端到端验证；用户级 hook 已在本仓会话真实写入 3 条 Shadow 事件；1–2 周真实 shadow 才刚开始。

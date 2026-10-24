@@ -2,8 +2,9 @@
 """Qoder UserPromptSubmit hook prototype.
 
 Reads the hook input JSON from stdin, obtains a routing profile (fake fixture in
-this prototype), validates it against the Docs Harness registry, writes a
-privacy-safe shadow event, and injects the selected module contracts through
+this prototype), validates it against the Docs Harness registry, and writes a
+privacy-safe shadow event. The `shadow` phase only logs; `canary` and
+`enforced` also inject the selected module contracts through
 `hookSpecificOutput.additionalContext`.
 
 The hook is default-off. It never blocks the user prompt: failures are written
@@ -96,9 +97,10 @@ def main() -> int:
         registry = _registry_for(project)
         if direct_override_requested(prompt, registry):
             return 0
-        if _handle_cache(project, session_id, prompt, registry):
+        phase = _phase()
+        if _handle_cache(project, session_id, prompt, registry, phase):
             return 0
-        _run_full_route(project, session_id, prompt, registry)
+        _run_full_route(project, session_id, prompt, registry, phase)
         return 0
     except (HookError, RoutingContractError, RoutingShadowError, OSError, UnicodeDecodeError) as exc:
         _report_error(
@@ -111,7 +113,7 @@ def main() -> int:
 
 
 def _handle_cache(
-    project: Path, session_id: str, prompt: str, registry: Registry
+    project: Path, session_id: str, prompt: str, registry: Registry, phase: str
 ) -> bool:
     if is_reset(prompt):
         clear_cache(project, session_id)
@@ -129,9 +131,9 @@ def _handle_cache(
     event = build_shadow_event(
         _task_id(session_id, prompt),
         cached["profile"],
-        list(result.modules),
+        _actual_modules(phase, result.modules, registry),
         {"clarify_asked": False, "rework": [], "completed": None},
-        phase=os.environ.get("DOCS_HARNESS_ROUTER_PHASE", "shadow"),
+        phase=phase,
         registry=registry,
         model={
             "name": "route-cache",
@@ -142,12 +144,13 @@ def _handle_cache(
         task_text=prompt,
     )
     append_shadow_event(event, shadow_log_path(project))
-    _emit(_render_cached_context(result.modules, registry))
+    if _should_inject(phase):
+        _emit(_render_cached_context(result.modules, registry))
     return True
 
 
 def _run_full_route(
-    project: Path, session_id: str, prompt: str, registry: Registry
+    project: Path, session_id: str, prompt: str, registry: Registry, phase: str
 ) -> None:
     started = time.monotonic()
     profile, model = _route_task(prompt, registry)
@@ -157,14 +160,10 @@ def _run_full_route(
     if not result.ok:
         _report_error(project, "profile_invalid", result.errors[0].code, session_id)
         return
-    phase = os.environ.get("DOCS_HARNESS_ROUTER_PHASE", "shadow")
-    if phase not in PHASES:
-        _report_error(project, "phase_invalid", "DOCS_HARNESS_ROUTER_PHASE", session_id)
-        return
     event = build_shadow_event(
         _task_id(session_id, prompt),
         profile,
-        list(result.modules),
+        _actual_modules(phase, result.modules, registry),
         {"clarify_asked": False, "rework": [], "completed": None},
         phase=phase,
         registry=registry,
@@ -175,7 +174,8 @@ def _run_full_route(
     if result.effective_clarify or not result.modules:
         return
     write_cache(project, session_id, result, registry)
-    _emit(_render_context(result.modules, registry))
+    if _should_inject(phase):
+        _emit(_render_context(result.modules, registry))
 
 
 def _normalize_router_profile(profile: Mapping[str, Any]) -> Mapping[str, Any]:
@@ -463,6 +463,24 @@ def _read_payload() -> dict[str, Any] | None:
 
 def _enabled() -> bool:
     return os.environ.get("DOCS_HARNESS_ROUTER_ENABLED") == "1"
+
+
+def _phase() -> str:
+    phase = os.environ.get("DOCS_HARNESS_ROUTER_PHASE", "shadow")
+    if phase not in PHASES:
+        raise HookError("phase_invalid", "DOCS_HARNESS_ROUTER_PHASE")
+    return phase
+
+
+def _should_inject(phase: str) -> bool:
+    return phase != "shadow"
+
+
+def _actual_modules(phase: str, modules: list[str], registry: Registry) -> list[str]:
+    # Shadow runs the full legacy rule set, so every registry module is loaded.
+    if phase == "shadow":
+        return list(registry.module_order)
+    return list(modules)
 
 
 def _project_dir(payload: Mapping[str, Any]) -> Path:

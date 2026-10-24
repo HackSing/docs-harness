@@ -130,6 +130,7 @@ print(json.dumps({
         enabled: bool = True,
         fake: Path | None = None,
         extra_env: dict[str, str] | None = None,
+        phase: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         payload = {
             "hook_event_name": "UserPromptSubmit",
@@ -148,6 +149,8 @@ print(json.dumps({
         env["PYTHONDONTWRITEBYTECODE"] = "1"
         if enabled:
             env["DOCS_HARNESS_ROUTER_ENABLED"] = "1"
+        if phase:
+            env["DOCS_HARNESS_ROUTER_PHASE"] = phase
         if extra_env:
             env.update(extra_env)
         return subprocess.run(
@@ -171,8 +174,27 @@ print(json.dumps({
             if line.strip()
         ]
 
-    def test_enabled_hook_injects_selected_contract_and_logs_shadow(self) -> None:
+    def test_shadow_phase_logs_decision_without_injecting(self) -> None:
         result = self.run_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "")
+        events = self.shadow_events()
+        self.assertEqual(len(events), 1)
+        event = events[0]
+        self.assertEqual(event["modules"], ["code"])
+        self.assertEqual(
+            event["actual_modules"],
+            sorted(json.loads(REGISTRY.read_text(encoding="utf-8"))["module_order"]),
+        )
+        self.assertEqual(event["profile"]["intents"], ["code_task"])
+        self.assertEqual(event["model"]["name"], "fake-router")
+        self.assertEqual(event["phase"], "shadow")
+        self.assertEqual(event["task_hash"], "sha256:" + hashlib.sha256(PROMPT.encode("utf-8")).hexdigest())
+        self.assertEqual(event["task_chars"], len(PROMPT))
+        self.assertNotIn(PROMPT, json.dumps(event, ensure_ascii=False))
+
+    def test_canary_phase_injects_selected_contract(self) -> None:
+        result = self.run_hook(phase="canary")
         self.assertEqual(result.returncode, 0, result.stderr)
         output = json.loads(result.stdout)
         context = output["hookSpecificOutput"]["additionalContext"]
@@ -182,16 +204,9 @@ print(json.dumps({
         self.assertNotIn("文档交付契约", context)
         self.assertNotIn("版本发布契约", context)
         self.assertNotIn(PROMPT, context)
-        events = self.shadow_events()
-        self.assertEqual(len(events), 1)
-        event = events[0]
-        self.assertEqual(event["modules"], ["code"])
-        self.assertEqual(event["profile"]["intents"], ["code_task"])
-        self.assertEqual(event["model"]["name"], "fake-router")
-        self.assertEqual(event["phase"], "shadow")
-        self.assertEqual(event["task_hash"], "sha256:" + hashlib.sha256(PROMPT.encode("utf-8")).hexdigest())
-        self.assertEqual(event["task_chars"], len(PROMPT))
-        self.assertNotIn(PROMPT, json.dumps(event, ensure_ascii=False))
+        event = self.shadow_events()[0]
+        self.assertEqual(event["phase"], "canary")
+        self.assertEqual(event["actual_modules"], ["code"])
 
     def test_hook_is_off_by_default(self) -> None:
         result = self.run_hook(enabled=False)
@@ -269,9 +284,10 @@ print(json.dumps({
     def test_user_hook_wrapper_delegates_for_docs_harness_project(self) -> None:
         result = self.run_user_hook(self.project)
         self.assertEqual(result.returncode, 0, result.stderr)
-        context = json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
-        self.assertIn("代码改动契约", context)
-        self.assertEqual(len(self.shadow_events()), 1)
+        self.assertEqual(result.stdout.strip(), "")
+        events = self.shadow_events()
+        self.assertEqual(len(events), 1)
+        self.assertEqual(events[0]["phase"], "shadow")
 
     def test_invalid_profile_is_non_blocking_and_redacted(self) -> None:
         self.write_fake({"intents": ["nope"], "triggers": [], "must_clarify": False, "confidence": 0.9})
@@ -329,6 +345,7 @@ print(json.dumps({
         mode: str = "success",
         prompt: str = PROMPT,
         model: str | None = None,
+        phase: str | None = None,
     ) -> subprocess.CompletedProcess[str]:
         cli = self.install_fake_cli()
         config = self.project / "cli-config"
@@ -347,10 +364,10 @@ print(json.dumps({
         }
         if model:
             extra_env["DOCS_HARNESS_ROUTER_MODEL"] = model
-        return self.run_hook(prompt=prompt, extra_env=extra_env)
+        return self.run_hook(prompt=prompt, extra_env=extra_env, phase=phase)
 
     def test_cli_backend_injects_contract_and_records_usage(self) -> None:
-        result = self.run_cli_hook()
+        result = self.run_cli_hook(phase="canary")
         self.assertEqual(result.returncode, 0, result.stderr)
         output = json.loads(result.stdout)
         self.assertIn("代码改动契约", output["hookSpecificOutput"]["additionalContext"])
@@ -429,11 +446,12 @@ print(json.dumps({
         return sorted(directory.glob("*.json")) if directory.is_dir() else []
 
     def test_followup_reuses_session_cache_without_cli(self) -> None:
-        first = self.run_hook()
+        first = self.run_hook(phase="canary")
         self.assertEqual(first.returncode, 0, first.stderr)
         self.assertEqual(len(self.session_caches()), 1)
         second = self.run_hook(
             prompt="继续把这个契约文案改短",
+            phase="canary",
             extra_env={
                 "DOCS_HARNESS_ROUTER_BACKEND": "cli",
                 "DOCS_HARNESS_QODER_CLI": str(self.project / "missing-qoder"),
@@ -448,10 +466,22 @@ print(json.dumps({
         self.assertEqual(events[-1]["model"]["name"], "route-cache")
         self.assertEqual(events[-1]["modules"], ["code"])
 
+    def test_shadow_followup_logs_cache_without_injecting(self) -> None:
+        first = self.run_hook()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        second = self.run_hook(prompt="继续把这个契约文案改短")
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertEqual(second.stdout.strip(), "")
+        events = self.shadow_events()
+        self.assertEqual(len(events), 2)
+        self.assertTrue(events[-1]["model"]["cache_hit"])
+        self.assertEqual(events[-1]["model"]["name"], "route-cache")
+        self.assertEqual(events[-1]["actual_modules"], events[0]["actual_modules"])
+
     def test_new_task_marker_bypasses_cache(self) -> None:
         first = self.run_hook()
         self.assertEqual(first.returncode, 0, first.stderr)
-        second = self.run_cli_hook(prompt="新任务：写一个发布说明", mode="docs")
+        second = self.run_cli_hook(prompt="新任务：写一个发布说明", mode="docs", phase="canary")
         self.assertEqual(second.returncode, 0, second.stderr)
         context = json.loads(second.stdout)["hookSpecificOutput"]["additionalContext"]
         self.assertIn("文档交付契约", context)
@@ -476,10 +506,11 @@ print(json.dumps({
         self.assertEqual(self.session_caches(), [])
 
     def test_cache_ttl_zero_forces_reroute(self) -> None:
-        first = self.run_hook()
+        first = self.run_hook(phase="canary")
         self.assertEqual(first.returncode, 0, first.stderr)
         second = self.run_hook(
             prompt="继续把这个契约文案改短",
+            phase="canary",
             extra_env={
                 "DOCS_HARNESS_ROUTER_BACKEND": "cli",
                 "DOCS_HARNESS_QODER_CLI": str(self.project / "missing-qoder"),

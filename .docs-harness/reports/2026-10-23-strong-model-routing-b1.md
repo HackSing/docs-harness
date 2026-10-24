@@ -90,9 +90,40 @@
 - Qoder Desktop 端到端已触发：demo 项目 `~/.qoder-cn/docs-harness-router/demo-project` 两次真实 `UserPromptSubmit` 均执行，Shadow 事件 `modules=["code"]`、`model.name="dfmodel"`，延迟 6.09s / 2.87s，无 hook 错误；主任务生成 `hello.py`。两次是不同 session，没有命中会话缓存。
 - 同一 session 首条走 CLI，后续消息在 `DOCS_HARNESS_QODER_CLI` 指向不存在路径时仍命中缓存并注入“沿用上次路由”，无错误。
 - 项目级 Desktop 已完成真实触发与同会话缓存复验（第三条 `route-cache` / `cache_hit=true` / 0.0s，`hello.py` 更新为 `hello docs`）。
-- 用户级 hook 已安装并备份，但尚未在新 Qoder 会话复验；demo 的项目级 hook 已移除。用户级门禁只认 `routing/registry.json`，旧项目不受影响。
+- 用户级 hook 已安装并备份；本仓当前会话已真实触发（见下方 B2 记录）；demo 的项目级 hook 已移除。用户级门禁只认 `routing/registry.json`，旧项目不受影响。
 - 原生 CLI 仍有一次约 1.1s 启动和约 2s 模型耗时；同会话后续消息走缓存，不再付这笔开销。
 - 会话缓存的命中率、误复用和 `/route-reset` 体验尚未在多任务、长会话与上下文压缩场景统计。
 - 内核/模块契约拆分未做，当前不会降低 AGENTS.md token。
-- 用户级 hook 安装与 Claude Code adapter 未做。
+- Claude Code adapter 未做。
 - 真实路由质量、20–50 条任务基线和阈值校准未做。
+
+## B2 shadow 仅记录模式与首批真实事件（2026-10-23 追加）
+
+### 改动路径
+
+- `routing/hosts/qoder/route_hook.py`：新增 `DOCS_HARNESS_ROUTER_PHASE=shadow|canary|enforced`（默认 `shadow`）。`shadow` 只写 Shadow 事件，不输出 `additionalContext`；`canary`/`enforced` 才注入。shadow 的 `actual_modules` 记为注册表全部模块，因为当前仍加载完整常驻规则、没有切换模块；canary/enforced 记为实际注入模块。
+- `tests/test_qoder_hook.py`：新增 shadow 不注入、canary 注入、shadow 缓存命中不注入的合同测试；缓存/CLI/用户级用例改为显式 `canary` 才断言注入。22 项通过。
+- `docs/routing.md`、`docs/testing.md`、`routing/hosts/qoder/README.md`、`TODO.md`：阶段语义、缓存阶段行为、测试计数与下一步同步。
+- `~/.qoder-cn/settings.json`：用户级 hook 的 `env` 显式加入 `DOCS_HARNESS_ROUTER_PHASE=shadow`；修改前备份为 `settings.json.bak-20261023230312`。JSON 读回 validated，phase=shadow、enabled=1、backend=cli。
+
+### 验证
+
+- `python3 -m unittest tests.test_qoder_hook -v`：22 项通过，退出码 0；验证层级：focused_test。
+- `npm test`：435 项通过，SKIP 2，退出码 0；验证层级：repository_full_test。
+- `python3 scripts/harness.py assets-check --strict --json`：违规 0、警告 0，退出码 0；验证层级：contract_check。
+
+### 首批真实事件
+
+本仓 `.docs-harness/routing/shadow-2026-10.jsonl` 已记录 3 条用户级 hook 真实事件：
+
+1. `05:52:41Z`：`answer_only`/`read_only`，无模块，`dfmodel`，6164.2ms。
+2. `05:57:15Z`：澄清画像，`confidence=0.62`，无模块，`dfmodel`，3564.4ms。
+3. `05:59:42Z`：`code_task` + 澄清，`confidence=0.42`，无模块，`actual_modules` 为全部 6 个模块（新 shadow 语义），`dfmodel`，3214.9ms。
+
+观察：第一条内容型问题被稳定识别为 `answer_only`；两条流程/元指令被判为澄清或低置信。后两条不注入，符合 shadow 不改变执行。元指令是否应新增意图标签，需继续采样，不能凭 2 条改 taxonomy。三条都未命中缓存，因为答案型和澄清画像不写缓存；新任务仍要付 3–6 秒 CLI 开销。
+
+### 未覆盖
+
+- 真实任务量仍只有 3 条，远低于 20–50 条基线；关键漏配、过度路由、返工、p95 和阈值校准没有数据。
+- `needed_modules`、返工和完成状态尚无采集通道，指标会全部落在 `quality_unverified`。
+- 用户级 hook 在其他 opt-in 项目、多任务/长会话/上下文压缩下的行为未统计。
