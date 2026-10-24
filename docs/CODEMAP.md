@@ -10,7 +10,7 @@
 ## 受管模块（随 project init/upgrade 安装）
 
 - `scripts/managed_assets.py` — 职责：受管资产通用层——AssetSpec 定义、指纹密封、原子写入、受管索引区块渲染；公开接口：`AssetSpec`、`AssetError`、`load_asset`、`seal_asset`、`atomic_write_text`、`atomic_write_json`
-- `scripts/asset_checks.py` — 职责：assets-check 统一编排——六 checker 聚合、跨资产关系校验、FAIL/WARN 汇总；公开接口：`run_assets_check`、`check_cross_asset_relations`、`ASSET_STALE_DAYS`
+- `scripts/asset_checks.py` — 职责：assets-check 统一编排——六 checker 聚合、跨资产关系校验、FAIL/WARN 汇总；公开接口：`run_assets_check`、`check_cross_asset_relations`、`plan_amend_recently`、`ASSET_STALE_DAYS`
 - `scripts/plan_governance.py` — 职责：Plan v3 治理合同——冻结指纹、bugfix 校验合同、结算校验、受控 amend 与遗留模板指纹；公开接口：`validate_plan`、`apply_plan_amend`、`collect_bugfix_plan_errors`（收集全部合同错误，validate_bugfix_plan_contract 抛首个）、`legacy_plan_template_fingerprints`、`PLAN_SCHEMA_V3`、`PLAN_GOVERNANCE_INPUT_SCHEMA`
 - `scripts/plan_amend.py` — 职责：`plan amend` 命令实现（活方案 content 替换、审计 log、Markdown/索引同步）；公开接口：`run_plan_amend`、`collect_plan_content_errors`
 - `scripts/knowledge_assets.py` — 职责：Knowledge 资产生命周期——输入校验、创建/更新/结项与检查；公开接口：`KNOWLEDGE_SPEC`、`KNOWLEDGE_INPUT_SCHEMA`、`KNOWLEDGE_SETTLE_STATUSES`、`query`（按 token 覆盖度排序、source_ok、omitted）、`follow_archived_refs`（资产移入 archive/ 后改写 Knowledge source_refs，四类归档 settle 共用）
@@ -18,8 +18,9 @@
 - `scripts/adr_assets.py` — 职责：ADR 资产生命周期——创建、受控 amend、废弃/被替代结项与检查；公开接口：`ADR_SPEC`、`ADR_INPUT_SCHEMA`、`ADR_SETTLE_STATUSES`、`amend`、`active_constraints`（活跃 ADR 决策投影给 knowledge query）
 - `scripts/script_hygiene.py` — 职责：脚本卫生检查——tracked 脚本混合行尾字节级扫描（assets-check 第五 checker）；公开接口：`check_script_line_endings`、`SCRIPT_GLOBS`
 - `scripts/structure_check.py` — 职责：结构护栏——增量体量预警与 CODEMAP 一致性（assets-check 第六 checker）、存量结构债报告，函数级覆盖 Python（ast）、Go（gofmt 行级匹配）与 TS/JS（经 structure_ts_functions.cjs 借用目标项目 typescript）；公开接口：`check_structure`、`structure_report`、`CODEMAP_SCAFFOLD`、`FILE_RED_LINE`、`symbol_hit`（定义级符号匹配）
+- `scripts/codemap_check.py` — 职责：CODEMAP 文本解析——当前索引行、公开接口字段符号与历史变更行区分；公开接口：`parse_codemap`、`codemap_interface_symbols`、`parse_codemap_index_entries`
 - `scripts/plan_selection.py` — 职责：Plan 选择构建、合同指纹、缓存与校验；公开接口：`plan_selection_contract`、`plan_selection_contract_fingerprint`、`build_plan_selection`、`resolve_plan_choice`、`validate_selection`、`cache_plan_selection`、`resolve_plan_selection_path`、`plan_content_template`
-- `scripts/plan_check.py` — 职责：Plan 文档卫生常量与纯检查函数（横幅、索引、符号、时效）；公开接口：`plan_check_banner`、`partial_delivery_checked_recently`、`plan_check_markdown_files`、`plan_status_from_banner`、`load_plan_projection`、`plan_projection_warnings`
+- `scripts/plan_check.py` — 职责：Plan 文档卫生常量与纯检查函数（横幅、索引、符号、时效）；公开接口：`plan_check_banner`、`canonical_index_entry`、`partial_delivery_checked_recently`、`plan_check_markdown_files`、`plan_status_from_banner`、`load_plan_projection`、`plan_projection_warnings`
 - `scripts/acceptance_amend.py` — 职责：pending 且无记录时修订 Acceptance 目标；公开接口：`amend`
 - `scripts/cli_support.py` — 职责：CLI action 参数边界，拒绝与当前 action 无关的 flag；公开接口：`validate_action_flags`
 - `scripts/asset_query.py` — 职责：只读资产查询（show/list）与 Plan 查询；公开接口：`show_asset`、`list_assets`、`knowledge_show`、`acceptance_show`、`acceptance_list`、`adr_show`、`plan_show`、`plan_list`
