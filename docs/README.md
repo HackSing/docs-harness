@@ -6,6 +6,7 @@
 - [产品合同](contracts.md)
 - [架构](architecture.md)
 - [测试与验收](testing.md)
+- [输出形式阶梯](output-format-ladder.md)
 - [2.0.0 迁移指南](migrations/v2.0.0.md)
 - [2.0.0 最终方案](plans/docs-harness-v2.0.0-direct-first-plan.md)
 - [完整方案管理生命周期实施方案](plans/docs-harness-plan-lifecycle-management-plan.md)

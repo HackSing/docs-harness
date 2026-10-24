@@ -13,6 +13,8 @@
 
 - [ ] behavior evals 两轮基线已完成（11 条/52 检查点，两轮均 49/52；见 `docs/acceptance/evidence/harness-adherence-optimization/c6-behavior-baseline.md`），但仍无自动运行器；subagent-evidence 的 2 项两轮都未触发子智能体，需决定它与“轻量任务不开子智能体”的边界；intent 的零基础读者核对仍未单独说明（aiware，2026-10-22）
 
+- [ ] 强力模型直路由已在两组 held-out 各 50 条上复跑：第一组两次 50/50；第二组两次 50/50（仅 1 个 `code_verify` 触发项未命中，疑似 gold 偏严）。下一步：做成执行前独立结构化路由调用，保留宿主映射/校验/覆盖率核对，用真实会话测成本、延迟和漏配后再决定是否完全移除 Jev（见 `evals/intent_routing/README.md`）（aiware，2026-10-23）
+
 - [ ] 用加重后的 `subagent-evidence-checked` fixture（每模块 3–5 个查询文件、schema 与慢查询日志）重跑该用例；两轮基线的轻量 fixture 未触发子智能体，不能据此判定该规则失败（aiware，2026-10-22）
 
 - [ ] zbuddy-mobile 已升级 2.31.0（提交 7c57951），需在 2026-10-23 至 2026-10-29 观察真实调用：对比 assets-check WARN 率、acceptance settle/record 失败率与收尾报告完整率；desktop 尚未升级（aiware，2026-10-22）
@@ -24,6 +26,8 @@
 - [ ] CODEMAP 是否为隐式耦合加可选字段：CODEMAP 只列模块与公开接口、不含调用关系；显式调用方由符号检索实时确认（2.19.x 根因优先已写明「调用方用符号检索确认、不凭 CODEMAP 推断」），手写调用图易过期故不加；缺口是 grep 查不到的耦合（字符串/反射注册、提示词与代码映射、配置键被代码读取）。按「抽象同样要证据」，先从下游会话记录找因隐式耦合漏改的真实案例，有证据再定字段形状（aiware，2026-09-23）
 
 ## 已完成
+
+- [x] 格式阶梯 behavior `format-ladder-diagram-trigger`：前两轮 3/4（图后文字重复图中步骤），把规则收紧为「图后最多 3 条、不写步骤清单」后第三轮 4/4（aiware，2026-10-23）
 
 - [x] plan check 符号命中 WARN 缺「部分交付但仍有效」第三态：zbuddy-desktop 实测 13 条 plan WARN 中 8 条属于代码已部分交付、文档自述有未完项、plan 合法保持「有效」的情形，WARN 只有 settle/deprecated 两个出口，长期悬挂会淹没真告警；候选方向：plan 侧显式「部分交付已核对」标记并在 check 中豁免；2.18.0 已落地：横幅写「有效-部分交付（YYYY-MM-DD 核对）」后 30 天内不报符号全命中 WARN，过期、非法或未来日期照常报，WARN 文案给出三个出口（kimi，2026-09-14）
 - [x] 存量手写 plan 无官方补登路径：zbuddy-desktop 10 个直接落盘的 plan .md 无伴随 .json，`plan settle` 以 `invalid_plan_ref` 拒绝、`plan create` 遇同名 .md 报 `plan_document_conflict`；本次靠手工构造 .json + 补横幅标记完成补登，评估是否提供 `plan register` 类正式命令；2.18.0 已落地：不新增 register 命令，plan settle 直接接受无伴随 JSON 的手写方案，只改横幅与归档、不做治理终验，受管区块外的 INDEX 条目以 warnings 提示手工同步（kimi，2026-09-14）

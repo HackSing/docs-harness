@@ -1,0 +1,266 @@
+{
+  "schema_version": "docs-harness/intent-routing-eval/v1",
+  "dataset_version": "1",
+  "labels": {
+    "intents": [
+      "answer_only",
+      "code_task",
+      "bug_fix",
+      "plan_decision",
+      "asset_lifecycle",
+      "release",
+      "docs_change"
+    ],
+    "modules": [
+      "code",
+      "bugfix",
+      "docs",
+      "plan",
+      "assets",
+      "release"
+    ],
+    "triggers": [
+      "read_only",
+      "code_edit",
+      "code_verify",
+      "bug_report",
+      "plan_required",
+      "asset_operation",
+      "release",
+      "docs_edit",
+      "direct_override",
+      "clarify_required"
+    ]
+  },
+  "intent_modules": {
+    "answer_only": [],
+    "code_task": ["code"],
+    "bug_fix": ["code", "bugfix"],
+    "plan_decision": ["plan"],
+    "asset_lifecycle": ["assets"],
+    "release": ["release"],
+    "docs_change": ["docs"]
+  },
+  "cases": [
+    {
+      "id": "readonly-pytest-discovery",
+      "difficulty": "explicit",
+      "setup": "下游 Python 项目，使用 pytest；工作区干净。",
+      "prompt": "pytest 默认会从哪些目录发现测试？一句话说清楚就行。",
+      "expected_intents": ["answer_only"],
+      "expected_triggers": ["read_only"],
+      "forbidden_modules": ["code", "bugfix", "docs", "plan", "assets", "release"],
+      "must_clarify": false,
+      "notes": "纯事实问答，不读取项目也不运行测试。"
+    },
+    {
+      "id": "readonly-version-consistency",
+      "difficulty": "trap",
+      "setup": "下游项目根目录有 README.md、package.json、pyproject.toml，各自写有版本号。",
+      "prompt": "看一下 README、package.json、pyproject.toml 里的版本号是否一致，只给结论。",
+      "expected_intents": ["answer_only"],
+      "expected_triggers": ["read_only"],
+      "forbidden_modules": ["code", "bugfix", "docs", "plan", "assets", "release"],
+      "must_clarify": false,
+      "notes": "只读核对；出现 README 与“版本”不代表要改文档或发布。"
+    },
+    {
+      "id": "readonly-slow-query-diagnosis",
+      "difficulty": "trap",
+      "setup": "下游项目 orders/ 模块有查询代码和慢查询日志；用户只要求定位原因。",
+      "prompt": "orders 模块最近查询很慢，帮我看看原因。",
+      "expected_intents": ["answer_only"],
+      "expected_triggers": ["read_only"],
+      "forbidden_modules": ["code", "bugfix", "docs", "plan", "assets", "release"],
+      "must_clarify": false,
+      "notes": "“慢”与“看看”只要求诊断，不要求修复。"
+    },
+    {
+      "id": "code-rename-slugify",
+      "difficulty": "explicit",
+      "setup": "下游 Python 项目，src/utils.py 有 slugify，tests/test_utils.py 覆盖它；工作区干净。",
+      "prompt": "把 src/utils.py 里 slugify 的分隔符从下划线改成连字符，测试跟着改。",
+      "expected_intents": ["code_task"],
+      "expected_triggers": ["code_edit"],
+      "forbidden_modules": ["bugfix", "docs", "plan", "assets", "release"],
+      "must_clarify": false,
+      "notes": "明确的小范围代码改动。"
+    },
+    {
+      "id": "code-refactor-rounding",
+      "difficulty": "explicit",
+      "setup": "下游项目 services/order.py、services/payment.py、api/checkout.py 各有一段相同的金额取整逻辑。",
+      "prompt": "把 services/order.py 里重复的金额取整逻辑抽成一个函数，行为不变。",
+      "expected_intents": ["code_task"],
+      "expected_triggers": ["code_edit"],
+      "forbidden_modules": ["bugfix", "docs", "plan", "assets", "release"],
+      "must_clarify": false,
+      "notes": "单模块重构，不需要 Plan 或 bugfix 契约。"
+    },
+    {
+      "id": "bugfix-cart-total",
+      "difficulty": "explicit",
+      "setup": "购物车 CartStore 持有 items 与 total，remove 后未重算 total；view.py 与 summary.py 读取 total。",
+      "prompt": "购物车删商品后总价不变，先定位根因再修复。",
+      "expected_intents": ["bug_fix"],
+      "expected_triggers": ["bug_report"],
+      "forbidden_modules": ["docs", "plan", "assets", "release"],
+      "must_clarify": false,
+      "notes": "明确要求根因与修复，加载 code + bugfix。"
+    },
+    {
+      "id": "bugfix-misleading-retry",
+      "difficulty": "trap",
+      "setup": "登录接口偶发 500；issue 建议加重试，但根因未确认。",
+      "prompt": "登录偶尔 500，issue 里说加个重试就行，先给我修复方案。",
+      "expected_intents": ["bug_fix"],
+      "expected_triggers": ["bug_report"],
+      "forbidden_modules": ["plan", "docs", "assets", "release"],
+      "must_clarify": false,
+      "notes": "“方案”指修复方案，不是 Harness Plan；根因未确认时不应直接加重试。"
+    },
+    {
+      "id": "plan-architecture-sync",
+      "difficulty": "trap",
+      "setup": "项目准备把数据同步从轮询改为事件驱动；用户要求先出方案，不改代码。",
+      "prompt": "我们准备把同步改成事件驱动，给我一个完整方案，说明取舍、迁移和回滚，先不要改代码。",
+      "expected_intents": ["plan_decision"],
+      "expected_triggers": ["plan_required"],
+      "forbidden_modules": ["code", "bugfix", "docs", "assets", "release"],
+      "must_clarify": false,
+      "notes": "明确要方案且明确不改代码；“改”字出现在否定句里，不能据此加载 code。"
+    },
+    {
+      "id": "plan-cross-repo-auth",
+      "difficulty": "trap",
+      "setup": "前端、后端、移动三个仓库有重复鉴权逻辑，改动跨模块。",
+      "prompt": "把 frontend、backend、mobile 三个仓库共用的鉴权逻辑统一，给出实施计划。",
+      "expected_intents": ["plan_decision"],
+      "expected_triggers": ["plan_required"],
+      "forbidden_modules": ["code", "bugfix", "docs", "assets", "release"],
+      "must_clarify": false,
+      "notes": "跨模块改动先出计划；“实施”不等于现在就要改代码。"
+    },
+    {
+      "id": "implement-existing-plan",
+      "difficulty": "trap",
+      "setup": "docs/plans/auth-refactor.json 是已冻结的 Full Plan，剩 B2、B3 两个批次。",
+      "prompt": "按 docs/plans/auth-refactor.json 把剩下的 B2、B3 批次实施完。",
+      "expected_intents": ["code_task"],
+      "expected_triggers": ["code_edit"],
+      "forbidden_modules": ["plan", "bugfix", "docs", "assets", "release"],
+      "must_clarify": false,
+      "notes": "Plan 已存在，只需执行；路径里的 plan 不应触发 Plan 工作流模块。"
+    },
+    {
+      "id": "assets-create-acceptance",
+      "difficulty": "explicit",
+      "setup": "登录改造已完成实现，尚未建验收资产。",
+      "prompt": "给这次登录改造建一个验收目标，列出验收标准和证据层级。",
+      "expected_intents": ["asset_lifecycle"],
+      "expected_triggers": ["asset_operation"],
+      "forbidden_modules": ["code", "bugfix", "docs", "plan", "release"],
+      "must_clarify": false,
+      "notes": "只建 Acceptance 资产，不重新实现功能。"
+    },
+    {
+      "id": "assets-settle-knowledge",
+      "difficulty": "explicit",
+      "setup": "docs/knowledge 下有一条已失效事实，需要结项。",
+      "prompt": "把这条已经失效的项目事实从 Knowledge 里结项掉。",
+      "expected_intents": ["asset_lifecycle"],
+      "expected_triggers": ["asset_operation"],
+      "forbidden_modules": ["code", "bugfix", "docs", "plan", "release"],
+      "must_clarify": false,
+      "notes": "Knowledge 生命周期操作。"
+    },
+    {
+      "id": "release-version-bump",
+      "difficulty": "trap",
+      "setup": "版本 2.32.1 准备发布 2.33.0，CHANGELOG 需要更新。",
+      "prompt": "发 2.33.0，更新 CHANGELOG 和版本文档。",
+      "expected_intents": ["release"],
+      "expected_triggers": ["release"],
+      "forbidden_modules": ["code", "bugfix", "docs", "plan", "assets"],
+      "must_clarify": false,
+      "notes": "发布与版本更新；“文档”是版本文档的一部分，不单独加载 docs 模块。"
+    },
+    {
+      "id": "release-after-bugfix",
+      "difficulty": "multi_intent",
+      "setup": "支付回调 bug 已定位，修复后需要发版并同步两个下游项目。",
+      "prompt": "修完这个支付回调 bug 后发版，并同步下游项目。",
+      "expected_intents": ["bug_fix", "release"],
+      "expected_triggers": ["bug_report", "release"],
+      "forbidden_modules": ["docs", "plan", "assets"],
+      "must_clarify": false,
+      "notes": "多意图：修复 + 发布；模块取并集。"
+    },
+    {
+      "id": "release-preflight-tests",
+      "difficulty": "trap",
+      "setup": "项目准备发版，用户只要求跑回归测试，不要求改版本或下游。",
+      "prompt": "发版前跑一遍全量测试，确认没有回归。",
+      "expected_intents": ["code_task"],
+      "expected_triggers": ["code_verify"],
+      "forbidden_modules": ["release", "plan", "assets", "docs", "bugfix"],
+      "must_clarify": false,
+      "notes": "“发版前”只是时间背景；本轮动作是验证，不加载 release。"
+    },
+    {
+      "id": "docs-readme-install",
+      "difficulty": "explicit",
+      "setup": "README 的安装步骤过期，需要更新文档。",
+      "prompt": "更新 README 的安装步骤，让新用户照着能装好。",
+      "expected_intents": ["docs_change"],
+      "expected_triggers": ["docs_edit"],
+      "forbidden_modules": ["code", "bugfix", "plan", "assets", "release"],
+      "must_clarify": false,
+      "notes": "纯文档改动，按接收方用法验证。"
+    },
+    {
+      "id": "docs-customer-guide",
+      "difficulty": "explicit",
+      "setup": "报表导出功能已完成，需要给客户一份操作文档。",
+      "prompt": "给报表导出功能写一份用户操作文档，能直接交给客户。",
+      "expected_intents": ["docs_change"],
+      "expected_triggers": ["docs_edit"],
+      "forbidden_modules": ["code", "bugfix", "plan", "assets", "release"],
+      "must_clarify": false,
+      "notes": "文档交付物；功能已在 setup 中命名，目标明确。"
+    },
+    {
+      "id": "direct-override-refactor",
+      "difficulty": "explicit",
+      "setup": "下游项目三个文件有重复取整逻辑；用户明确不使用 Harness。",
+      "prompt": "这次不使用 Harness，直接把 services/order.py、services/payment.py、api/checkout.py 里重复的取整逻辑合并成一个公共函数。",
+      "expected_intents": ["code_task"],
+      "expected_triggers": ["code_edit", "direct_override"],
+      "forbidden_modules": ["plan", "bugfix", "docs", "assets", "release"],
+      "must_clarify": false,
+      "notes": "直接执行不等于丢掉代码契约；不加载 Harness 生命周期模块。"
+    },
+    {
+      "id": "ambiguous-change-scope",
+      "difficulty": "ambiguous",
+      "setup": "用户只说改登录，未说明交付物、范围和验收。",
+      "prompt": "把登录那块改一下，顺便优化一下。",
+      "expected_intents": ["code_task"],
+      "expected_triggers": ["clarify_required"],
+      "forbidden_modules": ["code", "bugfix", "docs", "plan", "assets", "release"],
+      "must_clarify": true,
+      "notes": "交付物与范围不明，先澄清；澄清前不装配任何任务模块。"
+    },
+    {
+      "id": "ambiguous-review-login",
+      "difficulty": "trap",
+      "setup": "登录流程代码可读；用户只要求看看有没有问题，没有要求修改。",
+      "prompt": "帮我看看这个登录流程有没有问题。",
+      "expected_intents": ["answer_only"],
+      "expected_triggers": ["read_only"],
+      "forbidden_modules": ["code", "bugfix", "docs", "plan", "assets", "release"],
+      "must_clarify": false,
+      "notes": "只读审查；“问题”不等于要求修复。"
+    }
+  ]
+}

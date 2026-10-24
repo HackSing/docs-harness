@@ -7,6 +7,7 @@
 - [架构](architecture.md)
 - [代码能力索引](CODEMAP.md)
 - [测试与验收](testing.md)
+- [输出形式阶梯](output-format-ladder.md)
 - [维护者协作规则](contributing.md)
 - [当前待办](todo.md)
 - [下游项目](downstream.md)

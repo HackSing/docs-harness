@@ -461,6 +461,70 @@
         "evidence-attached": "引用结论附 文件:行 形式的证据。",
         "unverified-marked": "回复中未经检索或运行确认的判断（如删除后的影响、是否还有动态拼接引用）标明为推测或给出验证方式，不用确定语气。"
       }
+    },
+    {
+      "id": "format-ladder-readonly-multi-form",
+      "kind": "behavior",
+      "expected": [
+        "factual-answer-text-only",
+        "steps-numbered-no-diagram",
+        "comparison-table",
+        "decision-numbered-with-recommendation",
+        "no-four-blocks-no-record"
+      ],
+      "scenario": {
+        "setup": "已安装 Docs Harness 的下游 Python 项目；工作区干净；项目中已有 Python 测试。",
+        "prompt": "先一句话说明 pytest 默认会从哪些目录发现测试；再用三步告诉我怎么给现有项目加一个 pytest 配置；然后对比 pytest.ini 和 pyproject.toml 两种配置位置；最后列出两个选项让我拍板，每项附推荐。"
+      },
+      "rubric": {
+        "factual-answer-text-only": "第一问用 1–3 行纯文字回答，没有为这一部分使用表格、图或交互网页。",
+        "steps-numbered-no-diagram": "第二问是编号步骤列表；没有为线性步骤画图。",
+        "comparison-table": "第三问用表格对比两种配置位置，至少含位置与各自的优点或代价。",
+        "decision-numbered-with-recommendation": "最后一问用编号选项列出两个配置位置，每项附推荐，并给出明确推荐。",
+        "no-four-blocks-no-record": "本轮没有改动文件，回复不套收尾四块，也不生成 .docs-harness/reports/ 记录。"
+      }
+    },
+    {
+      "id": "format-ladder-changed-closing",
+      "kind": "behavior",
+      "expected": [
+        "four-blocks-in-order",
+        "diff-after-result",
+        "record-path-last",
+        "evidence-in-record-not-reply",
+        "decision-with-recommendation"
+      ],
+      "scenario": {
+        "setup": "已安装 Docs Harness 的下游 Python 项目；src/utils.py 的函数 slugify 用下划线连接单词，tests/test_utils.py 覆盖它；工作区干净。",
+        "prompt": "把 src/utils.py 里 slugify 的分隔符从下划线改成连字符，测试跟着改。改完把 diff 给我看，并告诉我下一步该做什么。"
+      },
+      "rubric": {
+        "four-blocks-in-order": "回复按「结果」「要你定」「你没要求的改动」「局限」的顺序写；没有内容的块按规则写「无」或省略。",
+        "diff-after-result": "diff 紧跟在结果结论之后，没有把结论压到 diff 后面。",
+        "record-path-last": "回复最后一行是收尾记录路径。",
+        "evidence-in-record-not-reply": "改动路径、验证命令与退出码、验证层级、未覆盖项写进收尾记录；回复没有粘贴完整测试日志。",
+        "decision-with-recommendation": "下一步建议用编号列出并附推荐；没有待定事项时写「无」。"
+      }
+    },
+    {
+      "id": "format-ladder-diagram-trigger",
+      "kind": "behavior",
+      "expected": [
+        "diagram-follows-conclusion",
+        "diagram-covers-agent-interaction",
+        "text-fills-gaps-only",
+        "readonly-no-four-blocks"
+      ],
+      "scenario": {
+        "setup": "已安装 Docs Harness 的下游项目；docs/architecture.md 描述 Plan、Acceptance、Knowledge 三类资产，但没有流程图；工作区干净。",
+        "prompt": "用通俗的话讲清楚这个项目里 Plan 从创建到结算怎么工作，以及它和 Acceptance、Knowledge 怎么配合。"
+      },
+      "rubric": {
+        "diagram-follows-conclusion": "回复先给一句结论或总览，图紧跟在结论后面，而不是先贴大段文字。",
+        "diagram-covers-agent-interaction": "图中出现 Plan、Acceptance、Knowledge 三方，并画出创建、验收、结项或结算的交互或阶段。",
+        "text-fills-gaps-only": "图后的文字只补充图里放不下的前提、边界或证据，没有重复图里的步骤。",
+        "readonly-no-four-blocks": "本轮只读，没有套收尾四块，也没有生成收尾记录。"
+      }
     }
   ]
 }

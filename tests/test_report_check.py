@@ -60,6 +60,19 @@ class ReportCheckTest(HarnessTestBase):
                 )
                 self.assertEqual(payload["status"], "passed", payload)
 
+    def test_command_field_accepts_versioned_python(self) -> None:
+        for command in ("python3 -m unittest", "python3.12 -m unittest"):
+            with self.subTest(command=command):
+                relative = self.write_report(
+                    f"## 改动路径\n`src/a.py`\n## 验证\n`{command}`；退出码 0\n"
+                    "验证层级：focused_test\n## 未覆盖\n无\n",
+                    f"2026-10-23-{command.split()[0]}.md",
+                )
+                payload = self.run_cli(
+                    "report", "check", "--target", str(self.project), "--path", relative
+                )
+                self.assertEqual(payload["status"], "passed", payload)
+
     def test_missing_report_is_a_structured_error(self) -> None:
         payload = self.run_cli(
             "report", "check", "--target", str(self.project),

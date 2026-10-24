@@ -32,3 +32,8 @@
 - `scripts/acceptance_diagnostics.py` — 职责：Acceptance 失败诊断的待处理标准、期望/实际与下一步命令；公开接口：`find_criterion`、`match_record_to_criterion`、`settle_mismatch_error`、`criterion_not_pending_error`
 - `scripts/diagram_view.py` — 职责：`harness view` 的 Mermaid → 独立 HTML 页面，渲染（纯函数）、落盘到 `.docs-harness/views/` 与系统浏览器打开三层分开，错误一律向上传递；公开接口：`render_mermaid_html`、`write_view`、`open_in_browser`、`VIEWS_RELATIVE`（views 目录常量真源，harness 导入并列入 LOCAL_ONLY_DIRS）
 - `scripts/structure_ts_functions.cjs` — 职责：Structure 的 TS/JS 函数体量解析子进程（stdin JSON 源码批 → stdout 函数限定名→行数），在目标项目 node_modules 或 DOCS_HARNESS_TS_MODULE_DIR 目录加载 typescript，harness 自身零依赖；公开接口：`collectSpans`、`functionName`（命令行调用，无模块导出）
+
+## 评测
+
+- `evals/intent_routing/score.py` — 职责：意图路由基线数据集校验与预测评分（内置规则基线或外部 predictions），输出意图/模块/触发项的召回、精确率与错配率；公开接口：`load_dataset`、`validate_dataset`、`predict_rules`、`predictions_from_rules`、`score_cases`、`main`
+- `evals/intent_routing/jev_predict.py` — 职责：用 TypeSafe Jev 的 primary Choice + 7 个意图 Noul + 3 个辅助 Noul 生成意图画像，按阈值映射模块与触发项，并写出 `score.py` 可读的 predictions；公开接口：`build_payload`、`interpret_response`、`call_systemone`、`main`

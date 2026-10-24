@@ -148,16 +148,16 @@
 `evals/evals.json`（`schema_version: docs-harness/evals/v3`）是用例登记表，每条用例的 `kind` 二选一：
 
 - `cli`：可由命令确定性验证的行为（Plan 等级/Profile 选择、Knowledge、Acceptance、安装、迁移、旧 CLI 缺席）。`covered_by` 列出真正断言该行为的 unittest 完整 id，随 `npm test` 运行；`tests/test_evals.py` 机械守护登记表本身（schema、kind、id 唯一、`covered_by` 每项可被 `unittest` 解析为真实测试、behavior 的 `rubric` 键集合与 `expected` 一致）。测试改名或删除时必须同步 `covered_by`，否则 `test_evals` 失败。
-- `behavior`：考察模型是否遵守受管入口规则（直接执行、并行、长任务不停、子智能体证据核对、根因自检、按意图交付、结论证据等级、原生授权、用户验收交接）。`scenario.setup` 描述初始环境，`scenario.prompt` 是给模型的用户输入原文，`rubric` 对 `expected` 中每个标签给一条可观察的判定标准。暂无自动运行器。2.31.0 起 `direct-default-no-state` 的 `zero-harness-invocation` 改为 `zero-lifecycle-invocation`：允许 `report check` 做收尾字段校验，仍禁止 plan/knowledge/acceptance/verify/assets-check 等生命周期或门禁命令。
+- `behavior`：考察模型是否遵守受管入口规则（直接执行、并行、长任务不停、子智能体证据核对、根因自检、按意图交付、结论证据等级、原生授权、用户验收交接、格式阶梯选型）。`scenario.setup` 描述初始环境，`scenario.prompt` 是给模型的用户输入原文，`rubric` 对 `expected` 中每个标签给一条可观察的判定标准。暂无自动运行器。2.31.0 起 `direct-default-no-state` 的 `zero-harness-invocation` 改为 `zero-lifecycle-invocation`：允许 `report check` 做收尾字段校验，仍禁止 plan/knowledge/acceptance/verify/assets-check 等生命周期或门禁命令。
 
 何时运行：受管入口规则（仓库根 `CLAUDE.md`/`AGENTS.md` 的受管区块）有变更的版本，在发版前运行受影响规则对应的 behavior 用例；规则未变的版本不运行。
 
 怎么运行：
 
-1. 建临时下游项目：新建目录并 `git init`，从当前源码运行 `python3 <源仓>/scripts/harness.py project init --target <临时目录> --apply`（2.22.0 起不带 `--apply` 只预览），再按用例 `scenario.setup` 补齐文件与状态。
-2. 在该目录启动一个新的模型会话，原样输入 `scenario.prompt`，不追加提示（2026-10-22 首轮基线在会话前只补充了工作目录路径，其余原文不变）。
+1. 建临时下游项目：新建目录并 `git init`，从当前源码运行 `python3 <源仓>/scripts/harness.py project init --target <临时目录> --apply`（2.22.0 起不带 `--apply` 只预览），再按用例 `scenario.setup` 补齐文件与状态。首次 `init --apply` 会返回 `needs_delivery` 并以非零码退出；按 `required_commit_paths` 提交，确认 `git status` 干净后再启动会话。
+2. 在该目录启动一个新的模型会话，在 prompt 开头只补工作目录与工作区边界（只在该目录读写），其余输入 `scenario.prompt` 原文（2026-10-22 首轮基线在会话前只补充了工作目录路径）。
 3. 会话结束后逐条对照 `rubric`，只看输出文本、工具调用与文件改动判定通过/不通过，不凭模型自述。
-4. 把结果追加到本节下方的运行记录：版本、日期、模型、用例 id、每个标签的通过情况、不通过标签的一句证据。
+4. 把结果追加到本节下方的运行记录：版本、日期、模型、用例 id、每个标签的通过情况、不通过标签的一句证据。结束后检查源仓 `git status` 与 `.docs-harness/views/`，清理越界产物。
 
 ### 运行记录
 
@@ -175,3 +175,89 @@
 | parallel-independent-branches | 6/6 | B1/B2 独立并行、B3 收尾依赖两者；子智能体只回改动/命令/退出码；主 agent 复跑两侧并做浏览器运行态验证后串行写 CHANGELOG、CODEMAP |
 
 未覆盖：其余 7 条 behavior 用例未重跑；每个用例仅 1 轮，未做稳定性采样；宿主代答 AskUserQuestion（30 分钟 / 只改过期时间）。子智能体任务书原文不由会话轨迹暴露，`subagent-brief-has-path-scope` 按子智能体回报的路径边界与主 agent 批次说明推断；`same-message-parallel-tool-calls` 的消息边界同样按工具顺序推断。
+
+#### 2026-10-23（2.32.1 后的未发布格式阶梯规则）
+
+方法：在 `.docs-harness/evals/behavior-baseline/<case>` 重建 fixture 并 `project init --apply`，用 `create_chat_session` 启动独立会话，只给工作目录与 `scenario.prompt`。模型：宿主当前会话模型（未记录型号）。每个用例 1 轮。
+
+规则修订：阶梯第 1/2/7 行收窄触发条件；补「命中多行取更具体的一行」「有改动的任务即使一句话能说清仍按四块」「附件放在结果句之后、记录路径末行」；只读多结论补兜底行。
+
+| 用例 | 结果 | 证据 |
+|---|---|---|
+| format-ladder-changed-closing | 5/5 | 四块顺序正确；diff 紧跟结果；记录路径末行；证据进记录；下一步编号附推荐 |
+| format-ladder-readonly-multi-form | 5/5 | 二轮：首问 2 行纯文字；三步编号无图；对比用表格；末问两个编号选项各附推荐；未改文件、无四块、无记录 |
+| format-ladder-diagram-trigger | 4/4 | 第三轮：结论后给图，图后仅 3 条补充，无步骤清单；覆盖 Plan/Acceptance/Knowledge 与结算顺序 |
+
+未覆盖：每个用例仅 1 轮，未做稳定性采样；diagram 用例因规则修订复跑 3 轮，计数按最终轮。`format-ladder-readonly-multi-form` 首轮用旧问法「告诉我该选哪个」，模型给直接推荐而非编号选项，判 4/5；改成「列出两个选项让我拍板」后复跑得 5/5，首轮不计入。`format-ladder-diagram-trigger` 前两轮均为 3/4（图后文字重复图中步骤），把规则收紧为「图后最多 3 条、不写步骤清单」后第三轮 4/4；前两轮不计入。
+
+## 12. 意图路由基线（evals/intent_routing）
+
+`evals/intent_routing/` 是工具调用前的意图路由评测，和 `evals/evals.json` 分开：后者只支持 cli/behavior，前者需要“意图 + 模块 + 触发项”的结构化 gold，硬塞会破坏现有 schema。
+
+- 用例：`evals/intent_routing/cases.json`，20 条，覆盖只读、代码改动、bugfix、Plan、资产、发布、文档、多意图和歧义输入。
+- 评分器：`evals/intent_routing/score.py`；内置 `rules-v1` 关键词基线，也支持 `--predictions` 读取模型或 jev 的结构化预测。
+- 说明：`evals/intent_routing/README.md`。
+- 契约测试：`tests/test_intent_routing_eval.py`，守护用例标签、模块映射、澄清规则、指标计算和 CLI 可运行。
+
+运行：
+
+```bash
+python3 evals/intent_routing/score.py --json
+python3 -m unittest tests.test_intent_routing_eval -v
+```
+
+### 2026-10-23 首轮基线（rules-v1，20 条）
+
+| 指标 | 值 |
+|---|---|
+| 意图完全匹配 | 45.0% |
+| 模块完全匹配 | 45.0% |
+| 模块召回 | 100.0% |
+| 模块精确 | 57.6% |
+| 关键漏配率 | 0.0% |
+| 错配率 | 55.0% |
+| 澄清判断正确率 | 100.0% |
+| 触发项召回 | 81.8% |
+| 触发项精确 | 58.1% |
+
+结论：规则基线的主要问题是关键词过度命中，而不是漏掉必需模块；只读问答里出现“测试/版本/慢/问题”、方案里出现“改代码”、发布里出现“文档”，都会多装模块。这正好量化了无关指令稀释的来源。模型或 jev 的独立会话对照尚未运行；按第 11 节的独立会话方法跑完后，把结果追加到本节。
+
+未覆盖：20 条只用于方向判断，不是统计显著样本；规则基线是人为简化的对照组，不代表所有规则实现的上限；未覆盖执行中重路由、模块冲突和最终任务成功率。
+
+### 2026-10-23 Jev 1.14.0 对照（20 条）
+
+- 调用：`evals/intent_routing/jev_predict.py` → `POST https://api.typesafe.ai/v1/systemone`，模型 `jev-1.14.0`（请求 `jev-latest`）。
+- 请求：1 个 primary Choice + 7 个意图 Noul + clarify/direct_override/code_verify 三个 Noul；模块和触发项由代码按阈值映射。
+- Key：仅从 `TYPESAFE_API_KEY` 读取，本地文件为 `.docs-harness/inputs/jev.env`（已 gitignore），未进入仓库。
+- 结果（v1 → v2）：意图完全匹配 90.0% → 90.0%；模块完全匹配 85.0% → 95.0%；关键漏配 10.0% → 5.0%；错配 15.0% → 5.0%；澄清判断 95.0% → 100.0%。
+- v2 用量：31,489 输入 token / 5,428 输出 token；连续两次运行标签、指标和 token 用量完全一致。
+- 唯一关键漏配：`release-after-bugfix`，`bug_fix` Noul 0.76 < 次要意图阈值 0.8，漏掉 code+bugfix。
+- v2 是在 v1 错误上修订问题措辞与 fixture 后得到的同集结果，不是无偏泛化估计；下一步需要在 held-out 用例上校准多意图阈值。
+- 未覆盖：真实宿主会话、执行中重路由、模块冲突和最终任务成功率。
+
+### 2026-10-23 held-out 50 条验证
+
+- 数据集：`evals/intent_routing/held_out_cases.json`，50 条新用例（29 explicit / 9 trap / 6 ambiguous / 6 multi-intent），ID 与诊断集不相交，taxonomy 与主数据集一致。
+- rules-v1：错配 46.0%、关键漏配 14.0%、模块完全匹配 54.0%、模块召回/精确 83.3%/62.5%、澄清 78.0%。
+- Jev 1.14.0：错配 24.0%、关键漏配 14.0%、模块完全匹配 76.0%、模块召回/精确 72.9%/85.4%、澄清 88.0%；用量 78,316 输入 / 13,569 输出。
+- 失败模式：6 条误澄清（primary 置信度 0.81–0.99，clarify Noul 0.70–0.78），5 条过度包含，3 条多意图漏配；另有 5 条意图标签不完全匹配但模块集正确。
+- 结论：诊断集 5% 未泛化；Jev 单独不足以生产。held-out-1 已消费，下一步用 held-out-2 验证 clarify 联合门 + 主力模型中间带复核。
+- 未覆盖：held-out-2、真实宿主会话、执行中重路由、模块冲突和最终任务成功率。
+
+### 2026-10-23 强力模型直路由（held-out 50 条）
+
+- 方法：去掉 gold、difficulty、forbidden、notes，仅保留 `id/setup/prompt`；附 taxonomy、module mapping、policy、output schema；两个独立会话各跑一次，模型只读附件、写 JSON，没有读取 gold。
+- 会话：`3f09b870-18c0-525b-ac56-ef5421f5ccea`、`13db605f-3b6c-502b-a3fc-0d7f2eefa0bf`。
+- 结果：两次均 50/50；意图、模块、触发项完全匹配 100.0%，关键漏配 0.0%，错配 0.0%，澄清判断 100.0%。
+- 对比：rules-v1 错配 46.0%、关键漏配 14.0%；Jev 1.14.0 错配 24.0%、关键漏配 14.0%。
+- 边界：引导式路由、同一模型家族/作者偏差、50 条诊断集、没有成本和延迟计量；100% 不代表生产准确率。
+- 下一步：执行前独立结构化路由调用 + 宿主侧映射/校验/覆盖率核对 + 真实会话验证。
+
+### 2026-10-23 第二组 held-out（强力模型，50 条）
+
+- 数据集：`evals/intent_routing/held_out_cases_2.json`，27 explicit / 10 trap / 6 ambiguous / 7 multi-intent；ID 与诊断集和第一组不相交。
+- 方法：去掉 gold、difficulty、forbidden、notes，仅保留 `id/setup/prompt`；两个独立会话各跑一次，模型只读附件、写 JSON。
+- 会话：`ed3e0fdc-6fb3-5716-aa52-e7604a87674f`、`b7645e13-f828-510d-a5dc-6e7b79ac27ce`。
+- 结果：两次均 50/50；意图、模块、关键漏配、错配、澄清判断 100.0%；触发项召回 98.31%、精确 100.0%。唯一未命中 `h2-code-upgrade-node` 的 `code_verify`，疑似 gold 偏严。
+- 按要求本组没有跑 rules/Jev 对照。
+- 边界：引导式路由、同模型家族/作者偏差、50 条诊断集、没有成本和延迟计量；第二组已消费，不再调题。
