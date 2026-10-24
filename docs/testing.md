@@ -161,7 +161,7 @@
 
 ### 运行记录
 
-#### 2026-10-23（2.31.0，未发布规则修订）
+#### 2026-10-23（2.32.0）
 
 方法：在 `.docs-harness/evals/behavior-baseline/<case>` 重建 fixture 并 `project init --apply`，用 `create_chat_session` 启动独立会话，只给工作目录与原 `scenario.prompt`。模型：宿主当前会话模型（未记录型号）。每个用例 1 轮。
 
