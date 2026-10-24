@@ -20,18 +20,19 @@
 - 结构检查：`structure check --target .`，passed，0 WARN，退出 0；`structure_check.py` 606→549 行。
 - 发布检查：`self-test` 退出 0；`assets-check --strict` failures=0、warnings=0，退出 0；`release sync --strict` status=consistent，退出 0；`git diff --check` 退出 0。
 - 下游升级：zbuddy-desktop 2.31.0→2.32.1；`project upgrade --apply` 写入 11 个受管文件（新增 `scripts/codemap_check.py`），提交 `3a874269`；`project check` passed/in_head；`assets-check --strict` failures=0、warnings=0，退出 0；本地三个检查器测试 5+12+10 项通过（适配测试提交 `ad5e102f`）。
-- zbuddy-desktop 已推送 GitHub 与 codeup，两边均为 `ad5e102f`。
+- 其余 8 个下游从 2.32.0 升到 2.32.1，各写入 15 个受管文件，提交后 `project check` 均 passed/in_head，并已推送：dispatch `e0de512`、opc-skills `4a05ee0`、suiyi `098c3e9`、zbuddy-mobile `dcca377`、onceright `4d57055`、awesome-llm-made-videos `26d5dba`、avatanel `5600d52`（master）、content-system `481e092`。
+- zbuddy-desktop 已推送 GitHub 与 codeup，两边均为 `ad5e102f`；其余 8 个远端 ref 与本地 HEAD 一致。
 
 ## 验证层级
 
 - focused_test（27 项新增 / 176 项聚焦）
 - repository_full_test（320 项）
-- package_or_install（zbuddy-desktop 2.31.0→2.32.1 升级与严格检查）
+- package_or_install（9 个下游升级到 2.32.1；zbuddy-desktop 另做严格检查）
 - 未做 local_runtime 与 real_device 层。
 
 ## 未覆盖
 
-- 其余 8 个下游仍停留在 2.32.0，未升级到 2.32.1。
+- 9 个下游均已升级到 2.32.1；除 zbuddy-desktop 外只做了 `project check`，未分别跑 `assets-check --strict`。
 - zbuddy-desktop 仍有既有的 `TODO.md` 格式 yellow 提示（2 条），本次未处理。
 - 未做下游 3–7 天失败率/WARN 率/报告完整率复测。
 - 30 天 amend 宽限是策略变化，未做长期方案逃逸观察。
