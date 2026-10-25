@@ -1,10 +1,11 @@
 # Changelog
 
-## Unreleased
+## 2.34.0 - 2026-10-25
 
+- **Qoder 路由 hook 与 shadow 试点**：落地 `UserPromptSubmit` hook 的注册表校验、Shadow 事件、canary/enforced 注入门、会话缓存与原生国内版 CLI；新增后台任务通知过滤、非法画像脱敏诊断和 plan 缓存任务切换信号；zbuddy-mobile、zbuddy-desktop 与 onceright 完成注册表试点。路由仍为 shadow，只记录、不注入；B2 的 0 漏配门槛未达，本版不宣称强制路由完成。
 - **运行态验证质量门**：新增 `runtime check` 与 `docs-harness/runtime-verification/v1` 证据包，校验真实流程、状态/数据矩阵、UI 多视口视觉/交互/文案/可访问性观察、对抗性探测和缺陷修复复验；拒绝空泛/照抄观察、缺失证据、状态漏项、单视口 UI、无探测和未闭环修复。复杂/UI 证据提交到 `docs/runtime-verification/`，普通小改动留在 `.docs-harness/runtime/`。
 - **受管入口与模板**：AGENTS.md/CLAUDE.md 受管区块、frontend_ui Plan guidance、SKILL、contracts、testing、CODEMAP、README 与 npm 安装清单同步；`project init/upgrade` 新增 `.docs-harness/runtime/.gitignore`。
-- **测试**：新增 `tests/test_runtime_check.py`（22 项合同测试）与安装副本 `runtime check` 用例；提交后 `assets-check --strict` 通过（0 失败 0 警告）。
+- **测试**：新增 `tests/test_runtime_check.py`（22 项合同测试）与安装副本 `runtime check` 用例；仓库全量 472 项通过（skipped=12），`assets-check --strict` 0 失败 0 警告，`npm pack --dry-run` 97 个文件。
 
 ## 2.33.0 - 2026-10-23
 
