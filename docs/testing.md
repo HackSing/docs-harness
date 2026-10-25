@@ -4,7 +4,7 @@
 
 普通项目任务不运行旧 Harness Verify。agent 按修改面选择成本最低、但能够直接覆盖用户目标的真实流程：纯函数用聚焦输入输出或单元测试，API 启动最小服务并调用，Web/桌面界面运行真实交互，构建与安装检查真实产物；功能、视觉与交互体验由 agent 在模拟器/本地联调中自行走查（可用 mock 数据），发现不友好直接重新优化并复验，仅真实硬件、系统权限等本地确实无法运行的层准备环境后交给用户。
 
-每次结论同时标注 L1–L5 与具体 `evidence_layer`。L2 的 `focused_test` 与 `repository_full_test` 分开，L4 的 `package_or_install`、L5 的 `real_device` 也不能由源码测试代替；真实设备客观行为不等于用户主观确认。
+每次结论同时标注 L1–L5 与具体 `evidence_layer`。L2 的 `focused_test` 与 `repository_full_test` 分开，L4 的 `package_or_install`、L5 的 `real_device` 也不能由源码测试代替；真实设备客观行为不等于用户主观确认。产生运行态行为的任务还必须建立运行态证据包并通过 `runtime check`，见第 14 节。
 
 ## 2. Docs Harness 自身验证入口
 
@@ -21,6 +21,7 @@
 | 变更类型 | 本轮最小验证 | 何时升级为完整回归 |
 |---|---|---|
 | 行为代码、依赖、公共测试夹具 | 受影响目标测试；按影响补自检、编译或打包 | 行为稳定后，同一行为快照最多执行一次 |
+| 运行态行为（页面/接口/应用/命令/安装流程） | 聚焦测试 + 真实本地流程 + `runtime check` 证据包 | 影响公共运行时契约或跨模块时按全量规则 |
 | 仅测试代码 | 受影响测试 | 修改公共 runner、共享夹具或跨模块断言时 |
 | 仅版本、README、CHANGELOG 或发布元数据 | 版本一致性、自检和打包 | 除非同时改变行为、依赖或公共夹具，否则不执行 |
 | 下游安装或升级 | preview、apply、diff、project check 和受管文件摘要 | 不重复执行上游源码完整回归 |
@@ -148,7 +149,7 @@
 `evals/evals.json`（`schema_version: docs-harness/evals/v3`）是用例登记表，每条用例的 `kind` 二选一：
 
 - `cli`：可由命令确定性验证的行为（Plan 等级/Profile 选择、Knowledge、Acceptance、安装、迁移、旧 CLI 缺席）。`covered_by` 列出真正断言该行为的 unittest 完整 id，随 `npm test` 运行；`tests/test_evals.py` 机械守护登记表本身（schema、kind、id 唯一、`covered_by` 每项可被 `unittest` 解析为真实测试、behavior 的 `rubric` 键集合与 `expected` 一致）。测试改名或删除时必须同步 `covered_by`，否则 `test_evals` 失败。
-- `behavior`：考察模型是否遵守受管入口规则（直接执行、并行、长任务不停、子智能体证据核对、根因自检、按意图交付、结论证据等级、原生授权、用户验收交接、格式阶梯选型）。`scenario.setup` 描述初始环境，`scenario.prompt` 是给模型的用户输入原文，`rubric` 对 `expected` 中每个标签给一条可观察的判定标准。暂无自动运行器。2.31.0 起 `direct-default-no-state` 的 `zero-harness-invocation` 改为 `zero-lifecycle-invocation`：允许 `report check` 做收尾字段校验，仍禁止 plan/knowledge/acceptance/verify/assets-check 等生命周期或门禁命令。
+- `behavior`：考察模型是否遵守受管入口规则（直接执行、并行、长任务不停、子智能体证据核对、根因自检、按意图交付、结论证据等级、原生授权、用户验收交接、运行态证据质量、格式阶梯选型）。`scenario.setup` 描述初始环境，`scenario.prompt` 是给模型的用户输入原文，`rubric` 对 `expected` 中每个标签给一条可观察的判定标准。暂无自动运行器。2.31.0 起 `direct-default-no-state` 的 `zero-harness-invocation` 改为 `zero-lifecycle-invocation`：允许 `report check` 做收尾字段校验，仍禁止 plan/knowledge/acceptance/verify/assets-check 等生命周期或门禁命令。新增 `runtime-verification-quality` 用例，要求运行态任务创建证据包、覆盖状态/数据/视觉/文案并完成缺陷复验；尚未跑真实会话。
 
 何时运行：受管入口规则（仓库根 `CLAUDE.md`/`AGENTS.md` 的受管区块）有变更的版本，在发版前运行受影响规则对应的 behavior 用例；规则未变的版本不运行。
 
@@ -292,9 +293,11 @@ python3 -m unittest tests.test_routing_contract tests.test_routing_shadow tests.
 
 - 代码：`routing/hosts/qoder/route_hook.py`；fake fixture `routing/hosts/qoder/fake_profile.json`；配置示例 `routing/hosts/qoder/settings.example.json`。
 - 契约：读 stdin，加载注册表，校验 fake/真实画像，写脱敏 Shadow 事件；`shadow` 只记录，`canary`/`enforced` 才输出 `hookSpecificOutput.additionalContext`。默认关闭，失败不阻断用户任务。
-- 命令：`python3 -m unittest tests.test_qoder_hook -v`；22 项通过，退出码 0。
+- 命令：`python3 -m unittest tests.test_qoder_hook tests.test_routing_signals -v`；36 项，Windows 本机通过 34 项、SKIP 2 项，退出码 0。
 - L2 全量：`npm test` 运行 435 项，SKIP 2 项，退出码 0。
 - 覆盖：shadow 只记事件、不注入且 `actual_modules` 为注册表全部模块；canary 注入选中契约且不泄露 prompt；默认关闭；无 registry、非法 profile、非法 phase、fake profile 不可读均非阻断；`direct_override` 跳过；澄清画像只记日志不注入；`must_clarify=true` 的额外触发项由宿主收敛为 `clarify_required`；用户级入口只对含 `routing/registry.json` 的项目生效，旧版 docs-harness 和无关项目静默跳过。
+- 系统消息与非法画像（2026-10-24）：以 `<task-notification>` 开头的后台任务通知在路由前跳过，不启动 CLI、不写 Shadow/缓存/日志；画像校验失败时 `hook-errors.jsonl` 记录 `phase` 与脱敏画像（注册表内 intents/triggers/modules、`must_clarify`、`confidence`、evidence 条数），未知标签只记 `<unknown>`，证据文本不落盘。
+- 召回实验（2026-10-25）：plan 缓存遇到执行动作、只读问题或报错信号时让路，code 缓存遇到报错消息仍复用；router system prompt 增加“明确执行动作不要轻易判澄清”。9 条历史 prompt 单次真实 CLI 回放结果见 `.docs-harness/reports/2026-10-25-routing-recall-shadow-experiment.md`；phase 仍 shadow，不注入。
 - CLI backend：fake CLI 测试锁定 `-p`、`--output-format json`、`--max-turns 1`、`--tools ""`、`--no-session-persistence`、`--cwd`、`--config-dir`、`--system-prompt`、`--settings`；默认不传 `--model`，仅在 `DOCS_HARNESS_ROUTER_MODEL` 设置时覆盖；从 CLI JSON 记录 tokens、Credits、cost、CLI 版本与模型名；国际版 SDK/token 环境变量被移除，`QODERCN_CONFIG_DIR` 指向隔离目录；未登录/无效 profile/缺失 CLI 均非阻断。
 - 会话缓存：首条任务写缓存；后续消息复用缓存、不启动 CLI；新任务标记和 `/route-reset` 强制失效；TTL=0 强制重路由；缓存命中事件记录 `cache_hit`，指标输出 `cache_hit_count/rate`。
 - 真实 CN 调用：国内账号已登录；CLI 使用配置模型 `dfmodel`（不传 `--model`），真实 prompt 路由到 `code`，CLI 对 `dfmodel` 报告 0 Credits / 0 tokens。原生版单次墙钟 3.10s（模型+运行时 1.97s，启动约 1.1s）；npm 版 4.13s（模型+运行时 1.53s，启动约 2.6s）。
@@ -318,3 +321,19 @@ python3 -m unittest tests.test_routing_contract tests.test_routing_shadow tests.
 - 未覆盖：下游 Desktop 新会话真实触发、真实任务采样、注册表漂移检测与跨项目日志聚合。
 
 未覆盖：B2 真实 shadow 数据、B3–B5 canary/强制放量、20–50 条真实任务基线、延迟/成本/澄清/返工阈值校准、内核拆分、下游安装。离线强模型证据仍是引导式 curated 集，不能当作生产准确率。
+
+## 14. 运行态验证质量门（2026-10-25）
+
+产生运行态行为的任务，除聚焦测试外还要建立证据包并通过硬校验：
+
+```bash
+python3 scripts/harness.py runtime check --target . \
+  --packet docs/runtime-verification/<task>/packet.json --json
+```
+
+- 复杂或 UI 交付：`docs/runtime-verification/<task>/packet.json`，`risk=complex`，随仓库提交；普通小改动：`.docs-harness/runtime/<task>/packet.json`，`risk=simple`，本地留存。
+- 通过包必须包含真实环境与启动命令、用户流程、状态矩阵（成功/空/错误/加载或禁用等）、数据场景（真实/空/非法/边界，UI 另加长或特殊）、至少一次对抗性探测、缺陷“首次失败 → 修复 → 复验通过”的迭代；UI 还要至少两个视口的截图与视觉/交互/文案/可访问性观察。
+- 检查器拒绝：空泛或照抄的 observation、缺失/过小证据、必需状态缺失、UI 单视口或重复截图、无对抗探测、缺陷未闭环、mock 未声明限制、未知字段、路径或 `task` 不符合约定。
+- 证据文件放证据包同目录 `evidence/`；提交路径中的证据不得被 git 忽略。检查器不启动应用、不截图，不能证明截图与实际页面一致，也不替代真实用户验收。
+- 合同测试：`python3 -m unittest tests.test_runtime_check -v`；聚焦用例覆盖通过包和 18 类拒绝场景。
+- 未覆盖：不自动判断审美、像素差异和截图真实性；下游项目首次升级只验证模块安装与命令可用，不重跑全部历史任务。

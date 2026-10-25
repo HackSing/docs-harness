@@ -5,7 +5,7 @@
 
 ## 控制器
 
-- `scripts/harness.py` — 职责：CLI 控制器与安装/升级/发布编排，聚合各受管模块为 knowledge/plan/acceptance/adr/project/release/structure/usage/view/assets-check 命令；公开接口：`main`、`build_parser`、`command_assets_check`、`command_structure`、`apply_project_install`、`is_source_package`（源包/下游判定，Structure 排除集的依据）、`git_hook_directory`、`check_githook_health`、`raise_aggregated_errors`、`inspect_plan_create`/`dry_run_plan_create`（--dry-run 整体校验）、`usage_invoke_event`/`record_usage_invoke`（main() 出口的 cmd.invoke 旁路埋点，HarnessError 路径带 error_code）、`command_usage`、`partial_delivery_checked_recently`（plan check 部分交付第三态的时效判定）、`settle_handwritten_plan`（无冻结 JSON 的手写方案结算）、`command_view`（view 的 CLI 投影，把 diagram_view 抛出的异常映射成 view_* 错误码）
+- `scripts/harness.py` — 职责：CLI 控制器与安装/升级/发布编排，聚合各受管模块为 knowledge/plan/acceptance/adr/project/release/structure/usage/view/runtime/assets-check 命令；公开接口：`main`、`build_parser`、`command_assets_check`、`command_structure`、`command_runtime`、`apply_project_install`、`is_source_package`（源包/下游判定，Structure 排除集的依据）、`git_hook_directory`、`check_githook_health`、`raise_aggregated_errors`、`inspect_plan_create`/`dry_run_plan_create`（--dry-run 整体校验）、`usage_invoke_event`/`record_usage_invoke`（main() 出口的 cmd.invoke 旁路埋点，HarnessError 路径带 error_code）、`command_usage`、`partial_delivery_checked_recently`（plan check 部分交付第三态的时效判定）、`settle_handwritten_plan`（无冻结 JSON 的手写方案结算）、`command_view`（view 的 CLI 投影，把 diagram_view 抛出的异常映射成 view_* 错误码）
 
 ## 受管模块（随 project init/upgrade 安装）
 
@@ -28,6 +28,8 @@
 - `scripts/usage_log.py` — 职责：本地 usage 事件的追加与读取，以及 `usage_log.enabled` 开关求值；旁路观察面，写入失败不改变任何命令的行为与退出码；公开接口：`USAGE_SCHEMA_VERSION`、`USAGE_DIR_RELATIVE`、`USAGE_LOG_DEFAULT_ENABLED`、`is_enabled`、`append_event`、`read_events`
 - `scripts/usage_report.py` — 职责：usage 事件与收尾报告完整率的聚合，输出契约沿用 `structure report`（返回 dict 交由 harness 既有 `emit` 呈现，本模块不带渲染器）；公开接口：`USAGE_REPORT_DEFAULT_DAYS`、`build_report`
 - `scripts/report_check.py` — 职责：收尾报告五项字段校验，供 `report check` 与 usage 完整率共用；公开接口：`REQUIRED_FIELDS`、`report_fields`、`check_report`
+- `scripts/runtime_check.py` — 职责：运行态验证证据包编排与文件证据校验——路径/风险规则、证据存在与 git 忽略判定、状态/数据矩阵、UI 视口与视觉/交互/文案/可访问性观察、对抗探测、缺陷修复复验闭环；公开接口：`RUNTIME_VERIFICATION_RELATIVE`、`RUNTIME_VERIFICATION_COMMITTED`、`check_packet`
+- `scripts/runtime_packet.py` — 职责：运行态证据包 schema 原语——字段白名单、状态/数据覆盖矩阵、空泛文本与 expected/observed 照抄检查；公开接口：`RUNTIME_PACKET_SCHEMA`、`RUNTIME_PACKET_EXAMPLE`、`SURFACES`、`REQUIRED_STATES`、`REQUIRED_DATA`、`PacketContext`
 - `scripts/symbol_check.py` — 职责：符号存活判定（去注释、词边界、带点引用归一与批量分词）；公开接口：`strip_code_comments`、`symbol_hits`、`symbol_hit`
 - `scripts/acceptance_diagnostics.py` — 职责：Acceptance 失败诊断的待处理标准、期望/实际与下一步命令；公开接口：`find_criterion`、`match_record_to_criterion`、`settle_mismatch_error`、`criterion_not_pending_error`
 - `scripts/diagram_view.py` — 职责：`harness view` 的 Mermaid → 独立 HTML 页面，渲染（纯函数）、落盘到 `.docs-harness/views/` 与系统浏览器打开三层分开，错误一律向上传递；公开接口：`render_mermaid_html`、`write_view`、`open_in_browser`、`VIEWS_RELATIVE`（views 目录常量真源，harness 导入并列入 LOCAL_ONLY_DIRS）
@@ -40,8 +42,10 @@
 - `scripts/routing_shadow_fields.py` — 职责：Shadow 事件字段白名单、结构校验、时间/哈希/任务标识规范化；公开接口：`validate_shadow_event`、`RoutingShadowError`、`SHADOW_SCHEMA`、`PHASES`、`RISK_LEVELS`
 - `scripts/routing_shadow.py` — 职责：Shadow 事件构造、本地 JSONL 写入/读取与损坏日志失败；公开接口：`build_shadow_event`、`append_shadow_event`、`read_shadow_events`、`shadow_log_path`、`validate_shadow_event`、`RoutingShadowError`
 - `scripts/routing_metrics.py` — 职责：Shadow 指标聚合（关键漏配、过度路由、澄清、返工、延迟分位、token/cost、分组与告警）与执行前覆盖率核对；公开接口：`summarize_shadow`、`coverage_check`、`ShadowSummary`、`CoverageResult`、`RoutingMetricsError`
-- `routing/hosts/qoder/route_hook.py` — 职责：Qoder `UserPromptSubmit` command hook 原型——读 stdin、加载注册表、校验 fake/真实画像、写脱敏 Shadow 事件并注入选中模块契约；公开接口：`main`（stdin/stdout hook 合同）
+- `routing/hosts/qoder/route_hook.py` — 职责：Qoder `UserPromptSubmit` command hook 原型——读 stdin、加载注册表、校验 fake/真实画像、写脱敏 Shadow 事件、记录非法画像脱敏诊断并注入选中模块契约；公开接口：`main`（stdin/stdout hook 合同）
 - `routing/hosts/qoder/route_cache.py` — 职责：Qoder hook 的会话级路由缓存（首条任务路由、后续消息复用、新任务标记与 `/route-reset` 失效、TTL 与注册表指纹校验）；公开接口：`read_cache`、`write_cache`、`clear_cache`、`is_new_task`、`is_reset`、`routing_dir`
+- `routing/hosts/qoder/route_diagnostics.py` — 职责：把非法路由画像转成脱敏诊断字段（注册表内标签、confidence、evidence 条数），未知标签只记 `<unknown>`；公开接口：`profile_diagnostic`
+- `routing/hosts/qoder/route_signals.py` — 职责：识别 plan 缓存的任务切换信号（执行动作/只读问题/报错），决定是否绕过会话缓存；公开接口：`cache_bypass_reason`
 - `routing/hosts/qoder/user-hook.sh` — 职责：macOS/Linux 用户级 hook 入口，按 PATH 探测 Python 后调用 `route_hook.py`；项目门禁由 route_hook 用 hook 输入里的 cwd 完成；公开接口：命令行 stdin/stdout hook 合同
 - `routing/hosts/qoder/user-hook.cmd` — 职责：Windows 用户级 hook 入口，按 PATH 探测 Python 后调用 `route_hook.py`；项目门禁由 route_hook 用 hook 输入里的 cwd 完成；公开接口：命令行 stdin/stdout hook 合同
 
