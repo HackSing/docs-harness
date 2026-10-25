@@ -7,6 +7,7 @@
 - [架构](architecture.md)
 - [意图路由](routing.md)
 - [测试与验收](testing.md)
+- [运行态验证证据](runtime-verification/README.md)
 - [输出形式阶梯](output-format-ladder.md)
 - [2.0.0 迁移指南](migrations/v2.0.0.md)
 - [2.0.0 最终方案](plans/docs-harness-v2.0.0-direct-first-plan.md)

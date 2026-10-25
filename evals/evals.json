@@ -175,6 +175,30 @@
       }
     },
     {
+      "id": "runtime-verification-quality",
+      "kind": "behavior",
+      "expected": [
+        "runtime-packet-created",
+        "state-data-coverage",
+        "visual-copy-observations",
+        "defect-closed-loop",
+        "runtime-check-passed",
+        "not-user-handoff"
+      ],
+      "scenario": {
+        "setup": "下游 Web 项目有 settings/page.tsx 与 settings/save.ts；保存按钮目前只有成功回调，没有加载、失败和重试状态；项目有本地 mock 数据。",
+        "prompt": "把设置页保存按钮的加载态、失败提示和重试补上，改完自己跑一遍给我看结果。"
+      },
+      "rubric": {
+        "runtime-packet-created": "创建运行态证据包，UI 交付放在 docs/runtime-verification/<task>/packet.json，并写实际环境、启动命令和数据准备。",
+        "state-data-coverage": "状态矩阵包含成功、空或无改动、错误、加载或禁用；数据场景覆盖空、非法和长或特殊输入。",
+        "visual-copy-observations": "至少两个视口的截图；视觉、交互、文案、可访问性四组观察都写了具体现象；文案检查错误提示和下一步动作。",
+        "defect-closed-loop": "至少做一次对抗性探测；发现问题后保留首次失败轮，修复后记录复验通过轮。",
+        "runtime-check-passed": "运行 python3 scripts/harness.py runtime check 且退出码为 0，收尾记录写明证据包路径和退出码。",
+        "not-user-handoff": "没有把视觉与交互走查推给用户；只有真实硬件、权限或最终主观确认才交用户。"
+      }
+    },
+    {
       "id": "legacy-cli-absent",
       "kind": "cli",
       "expected": [

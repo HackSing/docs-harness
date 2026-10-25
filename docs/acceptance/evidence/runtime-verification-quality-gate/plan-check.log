@@ -1,0 +1,21 @@
+{
+  "status": "passed",
+  "strict": false,
+  "fast": false,
+  "checked": {
+    "live_docs": 22,
+    "archived_docs": 0,
+    "markdown_files": 109
+  },
+  "failures": [],
+  "warnings": [],
+  "warning_summary": {
+    "total": 0,
+    "unique": 0,
+    "duplicates": 0,
+    "actionable": 0,
+    "advisory": 0,
+    "groups": []
+  },
+  "summary": "plan check passed：活文档 22 份、归档 0 份、扫描 markdown 109 份，违规 0 条、警告 0 条"
+}

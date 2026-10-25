@@ -1,0 +1,17 @@
+{
+  "action": "sync",
+  "target": "D:\\AIWareTop\\Agent\\docs-harness",
+  "version_truth": "2.33.0",
+  "sources": {
+    "VERSION": "2.33.0",
+    "controller": "2.33.0",
+    "skill": "2.33.0",
+    "package": "2.33.0",
+    "templates": "2.33.0",
+    "evals": "2.33.0"
+  },
+  "diffs": [],
+  "changelog_top_version": "2.33.0",
+  "mode": "check",
+  "status": "consistent"
+}

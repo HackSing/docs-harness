@@ -1,0 +1,138 @@
+{
+  "schema_version": "docs-harness/runtime-verification/v1",
+  "task": "runtime-verification-quality-gate",
+  "surface": "cli",
+  "risk": "complex",
+  "environment": {
+    "description": "Windows 11, Python 3.14.4, docs-harness source checkout, temporary demo project",
+    "start_command": "python scripts/harness.py runtime check --target <project> --packet <path> --json",
+    "data_setup": "temporary CLI fixture matching tests/test_runtime_check.py; logs capture command, exit code and JSON",
+    "mock": false
+  },
+  "flows": [
+    {
+      "name": "valid packet passes",
+      "steps": ["create a valid CLI packet", "run runtime check", "read exit code and JSON status"],
+      "expected": "valid packet returns status passed and exit code 0",
+      "observed": "good.log showed status passed, checked flows/states/data/probes, and exit code 0",
+      "evidence_refs": ["evidence/good.log"]
+    },
+    {
+      "name": "repetitive generic observation rejected",
+      "steps": ["set observed to six repetitions of a generic word", "run runtime check", "inspect the error"],
+      "expected": "repetitive generic observation returns status failed and exit code 2",
+      "observed": "repetitive-after-fix.log returned exit 2 and runtime_packet_text_invalid naming flows[0].observed",
+      "evidence_refs": ["evidence/repetitive-after-fix.log"]
+    },
+    {
+      "name": "missing packet returns structured error",
+      "steps": ["point runtime check at a missing packet", "read the JSON error"],
+      "expected": "missing packet returns runtime_packet_missing and exit code 2",
+      "observed": "missing.log returned exit 2, code runtime_packet_missing, and a next_action",
+      "evidence_refs": ["evidence/missing.log"]
+    }
+  ],
+  "states": [
+    {
+      "name": "success",
+      "applicable": true,
+      "expected": "valid packet exits 0",
+      "observed": "good.log recorded exit 0 and status passed with no errors",
+      "evidence_refs": ["evidence/good.log"],
+      "reason": null
+    },
+    {
+      "name": "invalid_input",
+      "applicable": true,
+      "expected": "bad packet exits 2",
+      "observed": "repetitive-after-fix.log recorded exit 2 and a field-specific error",
+      "evidence_refs": ["evidence/repetitive-after-fix.log"],
+      "reason": null
+    },
+    {
+      "name": "runtime_error",
+      "applicable": true,
+      "expected": "missing packet exits 2",
+      "observed": "missing.log recorded exit 2 with runtime_packet_missing",
+      "evidence_refs": ["evidence/missing.log"],
+      "reason": null
+    }
+  ],
+  "data": [
+    {
+      "scenario": "realistic",
+      "input": "one valid CLI packet with flows, states, data, probes and an evidence log",
+      "expected": "checker accepts the packet",
+      "observed": "good.log reported passed and counted one flow, three states and four data scenarios",
+      "evidence_refs": ["evidence/good.log"]
+    },
+    {
+      "scenario": "empty",
+      "input": "empty JSON object",
+      "expected": "checker reports missing required fields",
+      "observed": "runtime-check-tests.log includes the missing-field rejection path and all tests passed",
+      "evidence_refs": ["evidence/runtime-check-tests.log"]
+    },
+    {
+      "scenario": "invalid",
+      "input": "packet with an unknown top-level field",
+      "expected": "checker rejects the unknown field",
+      "observed": "runtime-check-tests.log shows test_unknown_field_is_rejected passing",
+      "evidence_refs": ["evidence/runtime-check-tests.log"]
+    },
+    {
+      "scenario": "boundary",
+      "input": "truncated JSON text",
+      "expected": "checker reports a parse error with line and column",
+      "observed": "runtime-check-tests.log covers invalid JSON and the CLI test asserts line and column details",
+      "evidence_refs": ["evidence/runtime-check-tests.log"]
+    }
+  ],
+  "ui": {
+    "applicable": false,
+    "reason": "This task delivers a CLI checker; no page or desktop UI was changed or walked"
+  },
+  "probes": [
+    {
+      "name": "repeated generic text",
+      "intent": "invalid",
+      "result": "before the fix it passed with exit 0; after the fix it returned exit 2 and a field-specific error",
+      "evidence_refs": ["evidence/repetitive-before-fix.log", "evidence/repetitive-after-fix.log"]
+    },
+    {
+      "name": "missing packet path",
+      "intent": "edge",
+      "result": "missing path returned runtime_packet_missing and a next_action instead of a traceback",
+      "evidence_refs": ["evidence/missing.log"]
+    }
+  ],
+  "defects": [
+    {
+      "summary": "Repeated generic words bypassed the empty-observation text check",
+      "severity": "major",
+      "fix": "Strip generic tokens before the quality test and add a repeated-generic contract test",
+      "recheck": "repetitive-after-fix.log shows exit 2; runtime-check-tests.log shows 22 tests passed",
+      "evidence_refs": ["evidence/repetitive-before-fix.log", "evidence/repetitive-after-fix.log", "evidence/runtime-check-tests.log"]
+    }
+  ],
+  "no_defect_rationale": null,
+  "iterations": [
+    {
+      "pass": 1,
+      "status": "failed",
+      "summary": "probe with six repeated generic words still returned status passed and exit 0",
+      "evidence_refs": ["evidence/repetitive-before-fix.log"]
+    },
+    {
+      "pass": 2,
+      "status": "passed",
+      "summary": "after the fix the same probe returned exit 2 and all 22 focused tests passed",
+      "evidence_refs": ["evidence/repetitive-after-fix.log", "evidence/runtime-check-tests.log"]
+    }
+  ],
+  "uncovered": [
+    "No real browser or desktop UI was walked; UI packet structure is covered only by synthetic test fixtures",
+    "No user confirmation of visual or interaction quality; this task delivers the CLI quality gate only"
+  ],
+  "conclusion": "The quality gate returned passed, rejected and structured-error results for valid, generic, repetitive and missing evidence; the bypass defect was fixed and rechecked with 21 focused tests."
+}

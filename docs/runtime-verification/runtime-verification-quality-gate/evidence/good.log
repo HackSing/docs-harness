@@ -1,0 +1,20 @@
+mode: good
+command: C:\Python314\python.exe D:\AIWareTop\Agent\docs-harness\scripts\harness.py runtime check --target C:\Users\freed\AppData\Local\Temp\tmp5g5lwkky\project --packet .docs-harness/runtime/smoke/packet.json --json
+exit: 0
+{
+  "status": "passed",
+  "packet_ref": ".docs-harness/runtime/smoke/packet.json",
+  "root_kind": "local",
+  "checked": {
+    "flows": 1,
+    "states": 3,
+    "data": 4,
+    "probes": 2,
+    "viewports": 0,
+    "iterations": 1,
+    "defects": 0,
+    "evidence": 1
+  },
+  "errors": [],
+  "warnings": []
+}

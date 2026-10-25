@@ -116,6 +116,16 @@ python3 scripts/harness.py acceptance record --target . \
 
 Contract Check、Behavior Acceptance 和 User Acceptance 必须分开。Behavior Acceptance 使用 `evidence_layer=focused_test|repository_full_test|local_runtime|package_or_install|real_device`，并固定映射到 L2/L2/L3/L4/L5；任一层不得替代另一层。失败必须用 `failure_attributions[]` 分项记录 `change_related|unrelated|pre_existing|environment|flaky`、阻断性和证据。结项后重验必须显式 `--reaccept`；只有收到用户明确确认后才能用 `--user-confirmed` 登记 User Acceptance 通过。最后运行 `acceptance settle` 与 `acceptance check`。方案废弃或工作迁出本仓库时，未完成的验收用 `acceptance settle --status deprecated --replacement <去向>` 归档，不记成 passed 或 failed。`plan settle --status implemented` 要求至少一份 passed 或 failed 的已结项 Acceptance；只有 deprecated/superseded 的验收集合不能证明已实施。
 
+## 运行态验证
+
+产生运行态行为（页面、接口、应用、命令或安装流程）的任务，收尾前建立运行态证据包并通过硬校验：
+
+```bash
+python3 scripts/harness.py runtime check --target . --packet <path> --json
+```
+
+复杂或 UI 交付放 `docs/runtime-verification/<task>/packet.json` 并随仓库提交，`risk=complex`；普通小改动放 `.docs-harness/runtime/<task>/packet.json`，`risk=simple`。证据文件放同目录 `evidence/`。证据包必须写真实环境与启动/数据准备、用户流程、状态矩阵、数据场景、UI 至少两个视口的截图与视觉/交互/文案/可访问性观察、对抗性探测，以及缺陷“首次失败 → 修复 → 复验通过”的迭代；mock 数据要写明原因和不能证明的限制。检查器拒绝空泛观察、缺失证据、状态漏项、单视口 UI、无对抗探测和未闭环修复，详见 `docs/contracts.md` 第 4b 节。它不启动应用、不截图，也不能替代真实用户验收。
+
 ## 输入形状
 
 四类资产输入 JSON 必须携带各自 `schema_version` 与注册字段；校验失败时报错直接附期望形状。各输入 JSON 的完整字段形状、示例与按状态必填规则统一见 `python3 scripts/harness.py <cmd> --help`：`knowledge create|update` → `docs-harness/knowledge-input/v1`，`acceptance create|amend` → `docs-harness/acceptance-target-input/v1`，`acceptance record` → `docs-harness/acceptance-input/v3`，`adr create|amend` → `docs-harness/adr-input/v1`，`plan settle --governance-input` → `docs-harness/plan-governance-input/v1`；`plan create --content` 字段动态，以 `plan select` 输出的 `fields` 为准。

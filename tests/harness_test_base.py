@@ -28,7 +28,7 @@ MANAGED_MODULES = (
     "managed_assets.py", "asset_checks.py", "plan_governance.py",
     "knowledge_assets.py", "acceptance_assets.py", "adr_assets.py",
     "script_hygiene.py", "codemap_check.py", "structure_check.py", "structure_ts_functions.cjs",
-    "usage_log.py", "usage_report.py", "report_check.py", "symbol_check.py",
+    "usage_log.py", "usage_report.py", "report_check.py", "runtime_check.py", "runtime_packet.py", "symbol_check.py",
     "acceptance_diagnostics.py", "diagram_view.py", "plan_amend.py",
     "plan_selection.py", "plan_check.py", "acceptance_amend.py", "acceptance_render.py", "asset_query.py", "cli_support.py",
     "agent_prompt.md",

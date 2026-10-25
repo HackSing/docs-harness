@@ -1,0 +1,27 @@
+mode: missing
+command: C:\Python314\python.exe D:\AIWareTop\Agent\docs-harness\scripts\harness.py runtime check --target C:\Users\freed\AppData\Local\Temp\tmpl99vqibh\project --packet .docs-harness/runtime/smoke/packet.json --json
+exit: 2
+{
+  "status": "failed",
+  "packet_ref": ".docs-harness/runtime/smoke/packet.json",
+  "root_kind": "unknown",
+  "checked": {
+    "flows": 0,
+    "states": 0,
+    "data": 0,
+    "probes": 0,
+    "viewports": 0,
+    "iterations": 0,
+    "defects": 0,
+    "evidence": 0
+  },
+  "errors": [
+    {
+      "code": "runtime_packet_missing",
+      "message": "运行态证据包不存在：.docs-harness/runtime/smoke/packet.json",
+      "path": ".docs-harness/runtime/smoke/packet.json"
+    }
+  ],
+  "warnings": [],
+  "next_action": "确认证据包路径与 JSON 后重跑 runtime check"
+}

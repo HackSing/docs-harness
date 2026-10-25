@@ -1,0 +1,141 @@
+> 状态：已实施-仅追溯（代码已是真源，2026-10-25 核对）
+<!-- docs-harness:plan-document/v1 -->
+
+# 运行态验证证据包与质量门
+
+- 冻结合同：`sha256:21bbee9becb0f40c5d2e8bdc80d9b402275dc285c013da84e9fae4ea823eb215`
+- 关键符号：`check_packet`、`RUNTIME_PACKET_SCHEMA`、`RUNTIME_VERIFICATION_RELATIVE`
+
+## 背景
+
+现有受管入口要求产生运行态行为的任务由 agent 自己走查，但只有原则性描述；report check 只校验五项收尾字段，acceptance 的 local_runtime 只校验方法、证据文件存在和层级匹配。结果是“已走查”可以只写一句结论，状态覆盖、数据边界、视觉与交互观察、文案质量、缺陷修复复验都没有可拒绝的交付物。用户要求把运行态验证做成有交付质量的证据，而不是勾选过程。
+
+## 目标
+
+为所有产生运行态行为的任务建立统一的运行态证据包和硬校验：记录可复现环境、真实用户流程、状态矩阵、数据场景、视觉/交互/文案/可访问性观察、对抗性探测、缺陷修复与复验；检查器拒绝空泛观察、缺失证据、状态漏项、单视口 UI、未闭环修复和未声明 mock 限制。证据按风险存放：复杂或 UI 交付进入 docs/runtime-verification/<任务>/ 并随仓库提交，普通小改动留在 .docs-harness/runtime/<任务>/。
+
+## 非目标
+
+不自动启动浏览器、模拟器或应用，不自动截图，不判断审美或像素级视觉质量，不用自动检查替代真实用户验收；不新增生命周期资产类型，不要求每个任务创建 Acceptance，不改变现有 report check 五项字段语义；不引入第三方依赖，不做网络调用。
+
+## 成功标准
+
+1) 新增 runtime check 命令和 docs-harness/runtime-verification/v1 schema；2) 通过包可通过，空泛 observation、缺证据、缺状态、UI 单视口、无对抗探测、缺陷未复验、mock 未声明限制等坏包被拒绝；3) 受管入口、frontend_ui 模板、contracts/testing/CODEMAP/CHANGELOG 与安装清单同步；4) 聚焦测试与仓库全量测试通过；5) 用真实 demo 包完成一次 local_runtime 验证，证明质量门可运行；6) 下游 project init 包含新模块和运行态本地目录。
+
+## 执行范围
+
+scripts/runtime_check.py（新增）；scripts/harness.py（CLI、本地目录、安装清单）；scripts/agent_prompt.md 与 AGENTS.md/CLAUDE.md 受管区块；plan-templates/profiles/frontend-ui.json；docs/contracts.md、docs/testing.md、docs/CODEMAP.md、docs/README.md、CHANGELOG.md；package.json；tests/test_runtime_check.py、tests/test_cli_surface.py、tests/test_project_install.py 等受影响用例；evals/evals.json 的行为用例说明。
+
+## 执行内容
+
+B1 定义 schema、CLI 与模块骨架；B2 实现校验器（必填字段、状态/数据矩阵、UI 维度、证据文件、反 boilerplate、缺陷复验闭环、git 忽略判定）；B3 接入受管入口、模板、文档、安装与打包；B4 补合同测试、真实 demo 包与坏包反例；B5 跑聚焦/全量/assets/package 验证，完成 Acceptance 与 Plan 结算。
+
+## 执行进度
+
+```json
+{
+  "completed_steps": [],
+  "remaining_steps": [
+    "B1 schema/CLI 骨架",
+    "B2 校验器实现",
+    "B3 受管规则/模板/安装面",
+    "B4 合同测试与 demo 证据",
+    "B5 验收、全量与结算"
+  ]
+}
+```
+
+## 流程图
+
+```mermaid
+flowchart TD
+  A[任务产生页面/接口/应用/命令/安装流程行为] --> B{复杂或 UI 交付?}
+  B -- 是 --> C[建立 docs/runtime-verification/任务/packet.json 与证据文件]
+  B -- 否 --> D[建立 .docs-harness/runtime/任务/packet.json 与本地证据]
+  C --> E[启动本地环境，按真实用户流程走查]
+  D --> E
+  E --> F[记录状态矩阵、数据场景、视觉/交互/文案/可访问性观察]
+  F --> G[执行对抗性探测]
+  G --> H{发现问题?}
+  H -- 是 --> I[修复后重新走查并记录复验证据]
+  I --> J[运行 runtime check]
+  H -- 否 --> J
+  J --> K{检查通过?}
+  K -- 否 --> L[补观察/证据/状态或修复实现]
+  L --> J
+  K -- 是 --> M[收尾记录写明证据包路径与退出码]
+```
+
+## 体验/操作者路径
+
+操作者完成运行态改动后，先选证据位置：复杂或 UI 交付放 docs/runtime-verification/<任务>/，普通小改动放 .docs-harness/runtime/<任务>/。启动本地环境，按真实用户入口走主流程；逐个记录成功、空、错误、加载/禁用等状态；用空、边界、非法、长文本等数据场景验证输入与展示；UI 任务还要记录至少两个视口的截图与视觉层级、间距、对比度、响应式、焦点、键盘、反馈、文案和可访问性观察。至少做一次对抗性探测；发现问题就修复并复验，证据包里保留首次失败和最终通过两轮。最后运行 runtime check，失败就按 details 补齐，通过后在收尾记录写明包路径和退出码。reviewer 打开证据包和截图/日志即可判断验证是否真实、覆盖是否完整、遗留风险是什么。
+
+## 模块划分与接口骨架
+
+新增 scripts/runtime_check.py：职责为运行态证据包加载、schema/覆盖/证据/质量校验；公开接口 RUNTIME_PACKET_SCHEMA、SURFACES、REQUIRED_STATE_MATRIX、check_packet。scripts/harness.py 新增 runtime check 子命令与 RUNTIME_VERIFICATION_RELATIVE 常量，并把新模块加入 MANAGED_MODULE_RELATIVE_FILES、portable_install_paths、package.json files 与 LOCAL_ONLY_DIRS。现有 report_check、acceptance_assets 接口不变。
+
+## 验收方案
+
+c1 合同/L1：schema 常量、CLI 帮助、安装清单与本地目录合同；c2 行为/L2：聚焦测试覆盖通过包与至少 8 类坏包，仓库全量测试通过；c3 运行态/L3：用真实 demo 包跑 runtime check 通过，并用坏包复现拒绝；c4 安装/L4：npm pack 清单包含新模块，临时项目 init 后 runtime check 可运行。
+
+## 是否需要 Acceptance 资产闭环
+
+```json
+true
+```
+
+## Knowledge 影响
+
+updated
+
+## 约束
+
+只使用 Python 标准库；Windows 与 macOS 都要可运行；不新增网络或自动浏览器依赖；检查器只读证据包与文件系统，不执行用户应用；保持 direct-first，不把 runtime check 变成任务入口；旧报告和旧验收资产不做追溯性拒绝。
+
+## 风险与回滚
+
+风险：证据包增加 agent 编写成本；自动检查无法证明截图与实际页面一致；简单任务可能误判为运行态任务；证据文件可能很大。回滚：删除 runtime check 命令、受管规则段落和模板 guidance，保留已生成的证据包作为普通文档；不涉及数据迁移。
+
+## 当前约束
+
+运行态验证目前是受管入口的一句话要求；report check 只做五项字段正则检查；local_runtime 只校验方法非空、证据文件存在、层级匹配；没有状态/数据/视觉/文案维度的可拒绝交付物；用户明确要求质量而不是过程。
+
+## 候选方案
+
+A 只强化提示词和 Plan 字段：成本最低，但仍可用一句“已走查”交差；B 只扩展 Acceptance 记录：能管复杂任务，普通运行态任务仍无约束；C 新增独立证据包和硬校验：覆盖所有运行态任务，可审计，成本最高。选择 C，并把 B 的 Acceptance 作为复杂任务的复用证据来源。
+
+## 真实取舍
+
+证据包要求 agent 填写实际观察并附证据，完成时间会增加；检查器能拒绝空泛内容但不能判断截图是否真的对应页面，需要人工抽查；独立命令增加维护面；按风险分存放避免仓库被普通小改动的截图撑大，但普通任务的证据离开本机后不可复查。
+
+## 最终决策
+
+采用独立运行态证据包 docs-harness/runtime-verification/v1，加 runtime check 硬校验；复杂或 UI 交付提交到 docs/runtime-verification/，普通小改动放 .docs-harness/runtime/；不自动执行应用，不替代用户验收。
+
+## 边界与接口
+
+runtime check 只读取项目内证据包和证据文件，校验 JSON schema、文本质量、文件存在性、git 忽略状态与覆盖矩阵；不启动应用、不截图、不访问网络。CLI 接口为 harness runtime check --target <dir> --packet <path> [--json]；退出码 0 通过、2 证据包不合法、3 路径/冲突错误。受管入口负责告诉 agent 何时创建、放在哪里。
+
+## 兼容与迁移
+
+新增命令与本地目录，不改变现有命令、report check 五项字段和 Acceptance schema；旧项目升级只增加受管模块、提示词区块与 .docs-harness/runtime/.gitignore，不清理任何旧内容；旧运行态证据不追溯校验。
+
+## 回滚或替代路径
+
+从受管入口和模板移除 runtime check 要求，删除 CLI 子命令与模块及安装清单；已生成的证据包保留为普通文档，不执行迁移或删除。
+
+## 架构验收
+
+合同测试验证 schema/CLI/安装清单；行为测试验证通过包和坏包拒绝矩阵；真实 demo 验证质量门可运行；安装验证确认下游 init 包含模块；文档与 CHANGELOG 同步。
+
+## ADR 处理
+
+登记 ADR：docs/adr/runtime-verification-evidence-packet.json，记录选择独立证据包和硬校验而非只改提示词或只扩 Acceptance。
+
+<!-- docs-harness:plan-governance:start -->
+## 资产治理
+
+- 关联验收：`docs/acceptance/runtime-verification-quality-gate.json`
+- 需要 Acceptance：true
+- Knowledge 影响：updated
+<!-- docs-harness:plan-governance:end -->

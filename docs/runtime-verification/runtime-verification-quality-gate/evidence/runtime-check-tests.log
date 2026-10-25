@@ -1,0 +1,27 @@
+test_closed_defect_loop_passes (tests.test_runtime_check.RuntimeCheckTest.test_closed_defect_loop_passes) ... ok
+test_committed_evidence_cannot_be_gitignored (tests.test_runtime_check.RuntimeCheckTest.test_committed_evidence_cannot_be_gitignored) ... ok
+test_committed_packet_requires_complex_risk (tests.test_runtime_check.RuntimeCheckTest.test_committed_packet_requires_complex_risk) ... ok
+test_copied_observation_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_copied_observation_is_rejected) ... ok
+test_defect_without_recheck_cannot_pass (tests.test_runtime_check.RuntimeCheckTest.test_defect_without_recheck_cannot_pass) ... ok
+test_duplicate_flows_are_rejected (tests.test_runtime_check.RuntimeCheckTest.test_duplicate_flows_are_rejected) ... ok
+test_generic_observation_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_generic_observation_is_rejected) ... ok
+test_local_packet_rejects_complex_risk (tests.test_runtime_check.RuntimeCheckTest.test_local_packet_rejects_complex_risk) ... ok
+test_missing_evidence_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_missing_evidence_is_rejected) ... ok
+test_missing_packet_is_structured_error (tests.test_runtime_check.RuntimeCheckTest.test_missing_packet_is_structured_error) ... ok
+test_missing_state_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_missing_state_is_rejected) ... ok
+test_mock_without_limitations_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_mock_without_limitations_is_rejected) ... ok
+test_non_ui_cannot_claim_ui_evidence (tests.test_runtime_check.RuntimeCheckTest.test_non_ui_cannot_claim_ui_evidence) ... ok
+test_packet_outside_allowed_roots_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_packet_outside_allowed_roots_is_rejected) ... ok
+test_repeated_generic_observation_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_repeated_generic_observation_is_rejected) ... ok
+test_ui_accessibility_dimension_is_required (tests.test_runtime_check.RuntimeCheckTest.test_ui_accessibility_dimension_is_required) ... ok
+test_ui_copy_dimension_is_required (tests.test_runtime_check.RuntimeCheckTest.test_ui_copy_dimension_is_required) ... ok
+test_ui_duplicate_screenshot_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_ui_duplicate_screenshot_is_rejected) ... ok
+test_ui_single_viewport_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_ui_single_viewport_is_rejected) ... ok
+test_unknown_field_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_unknown_field_is_rejected) ... ok
+test_valid_cli_packet_passes (tests.test_runtime_check.RuntimeCheckTest.test_valid_cli_packet_passes) ... ok
+test_valid_ui_packet_passes (tests.test_runtime_check.RuntimeCheckTest.test_valid_ui_packet_passes) ... ok
+
+----------------------------------------------------------------------
+Ran 22 tests in 10.124s
+
+OK

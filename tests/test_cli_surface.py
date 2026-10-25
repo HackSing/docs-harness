@@ -98,7 +98,7 @@ class CliSurfaceTest(HarnessTestBase):
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
         public_commands = {
             "knowledge", "plan", "acceptance", "adr", "project", "release",
-            "assets-check", "structure", "usage", "view", "self-test",
+            "assets-check", "structure", "usage", "view", "runtime", "self-test",
         }
         for command in public_commands:
             self.assertIn(command, help_result.stdout)
@@ -265,6 +265,10 @@ class CliSurfaceTest(HarnessTestBase):
         self.assertNotIn("超过 500 行时必须拆分", agents)
     def test_cli_help_carries_input_schema_examples(self) -> None:
         cases = {
+            ("runtime", "check"): (
+                "docs-harness/runtime-verification/v1",
+                "evidence_refs",
+            ),
             ("knowledge", "create"): (
                 "docs-harness/knowledge-input/v1",
                 "key_symbols",

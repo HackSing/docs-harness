@@ -1,0 +1,32 @@
+usage: harness runtime [-h] [--target TARGET] [--json] --packet PACKET {check}
+
+positional arguments:
+  {check}
+
+options:
+  -h, --help       show this help message and exit
+  --target TARGET
+  --json
+  --packet PACKET  证据包路径，相对 target 解析
+
+运行态证据包形状（docs-harness/runtime-verification/v1）：
+{
+  "schema_version": "docs-harness/runtime-verification/v1",
+  "task": "<证据包目录名>",
+  "surface": "web_ui|desktop_ui|api|cli|install|other",
+  "risk": "simple|complex",
+  "environment": {"description": "<环境>", "start_command": "<启动命令>", "data_setup": "<数据准备>", "mock": false},
+  "flows": [{"name": "<流程>", "steps": ["<步骤>"], "expected": "<预期>", "observed": "<实际观察>", "evidence_refs": ["evidence/<文件>"]}],
+  "states": [{"name": "success", "applicable": true, "expected": "<预期>", "observed": "<实际观察>", "evidence_refs": ["evidence/<文件>"], "reason": null}],
+  "data": [{"scenario": "realistic", "input": "<输入>", "expected": "<预期>", "observed": "<实际观察>", "evidence_refs": ["evidence/<文件>"]}],
+  "ui": {"applicable": false, "reason": "<非 UI 任务的原因>"},
+  "probes": [{"name": "<探测>", "intent": "edge", "result": "<实际结果>", "evidence_refs": ["evidence/<文件>"]}],
+  "defects": [],
+  "no_defect_rationale": "<为什么探测后没有发现缺陷>",
+  "iterations": [{"pass": 1, "status": "passed", "summary": "<本轮走查>", "evidence_refs": ["evidence/<文件>"]}],
+  "uncovered": [],
+  "conclusion": "<运行态结论>"
+}
+路径：复杂/UI 放 docs/runtime-verification/<task>/packet.json（risk=complex）；普通小改动放 .docs-harness/runtime/<task>/packet.json（risk=simple）。
+UI 任务还需 ui.viewports（至少两个不同尺寸，含截图）、visual_checks、interaction_checks、copy_checks、accessibility_checks 与 ui.evidence_refs。
+检查器拒绝空泛观察、缺失证据、必需状态/数据场景缺失、UI 单视口或重复截图、无对抗探测、缺陷未闭环、未声明的 mock 限制。

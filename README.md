@@ -289,6 +289,7 @@ GitHub Actions --strict
 | `adr create/amend/show/settle/check` | 管理架构决策记录（ADR）生命周期（定稿不可改） |
 | `assets-check` | 统一检查四类资产、ScriptHygiene 脚本卫生与跨资产关系；`--verbose` 输出全部 WARN |
 | `report check` | 校验当次收尾报告是否含改动路径、验证命令/退出码、验证层级与未覆盖项 |
+| `runtime check` | 硬校验运行态证据包：流程、状态/数据矩阵、UI 视觉/交互/文案/可访问性、对抗探测与缺陷复验 |
 | `usage report` | 聚合本地命令调用、真实失败率、WARN 率与收尾报告完整率 |
 | `self-test` | 运行安装副本的内置合同检查 |
 | `release sync` | 检查版本真源是否一致（--strict 强制 CHANGELOG 顶部版本一致） |

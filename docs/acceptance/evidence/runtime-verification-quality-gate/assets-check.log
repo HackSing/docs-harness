@@ -1,0 +1,37 @@
+{
+  "status": "failed",
+  "strict": true,
+  "fast": false,
+  "checked": {
+    "plans": {
+      "live_docs": 22,
+      "archived_docs": 0,
+      "markdown_files": 109
+    },
+    "knowledge": 5,
+    "acceptance": 16,
+    "adr": 7,
+    "script_hygiene": 3,
+    "structure": 51,
+    "cross": 37
+  },
+  "failures": [],
+  "warnings": [
+    "WARN: Structure: tests/test_qoder_hook.py 本次净增 132 行（557→689），突破 600 行结构评估阈值，检查职责是否混合；职责单一可保留并说明理由"
+  ],
+  "warning_summary": {
+    "total": 1,
+    "unique": 1,
+    "duplicates": 0,
+    "actionable": 1,
+    "advisory": 0,
+    "groups": [
+      {
+        "group": "structure.size",
+        "count": 1,
+        "actionable": true
+      }
+    ]
+  },
+  "summary": "assets-check failed：Plan/Knowledge/Acceptance/ADR/ScriptHygiene/Structure 已检查，违规 0 条、警告 1 条"
+}

@@ -1,0 +1,27 @@
+mode: repetitive
+command: C:\Python314\python.exe D:\AIWareTop\Agent\docs-harness\scripts\harness.py runtime check --target C:\Users\freed\AppData\Local\Temp\tmpizpa36z0\project --packet .docs-harness/runtime/smoke/packet.json --json
+exit: 2
+{
+  "status": "failed",
+  "packet_ref": ".docs-harness/runtime/smoke/packet.json",
+  "root_kind": "local",
+  "checked": {
+    "flows": 1,
+    "states": 3,
+    "data": 4,
+    "probes": 2,
+    "viewports": 0,
+    "iterations": 1,
+    "defects": 0,
+    "evidence": 1
+  },
+  "errors": [
+    {
+      "code": "runtime_packet_text_invalid",
+      "message": "flows[0].observed 过于空泛或过短（至少 12 字），必须写实际观察或具体结论",
+      "path": "flows[0].observed"
+    }
+  ],
+  "warnings": [],
+  "next_action": "按 errors 补齐真实观察或证据后重跑 runtime check；不要用“正常/通过”替代具体现象"
+}

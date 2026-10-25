@@ -1,0 +1,501 @@
+[
+  {
+    "id": "docs-harness@2.33.0",
+    "name": "docs-harness",
+    "version": "2.33.0",
+    "size": 428109,
+    "unpackedSize": 1365104,
+    "shasum": "3061720f4b4bd6a3fe88b9ba3662f324ea570b4f",
+    "integrity": "sha512-HY9axWArB0NaFd+D0jmBEtAggsu/iw+PqC4bpw3ezrmUJHJ7/VtAjVy6ka8I/e4kUvtWu6+em9Q+Oj0alRZVag==",
+    "filename": "docs-harness-2.33.0.tgz",
+    "files": [
+      {
+        "path": "CHANGELOG.md",
+        "size": 142747,
+        "mode": 420
+      },
+      {
+        "path": "README.md",
+        "size": 15397,
+        "mode": 420
+      },
+      {
+        "path": "SKILL.md",
+        "size": 14432,
+        "mode": 420
+      },
+      {
+        "path": "VERSION",
+        "size": 8,
+        "mode": 420
+      },
+      {
+        "path": "docs/acceptance/docs-harness-assets-governance-2.7.0.json",
+        "size": 7308,
+        "mode": 420
+      },
+      {
+        "path": "docs/acceptance/docs-harness-assets-governance-2.7.0.md",
+        "size": 1541,
+        "mode": 420
+      },
+      {
+        "path": "docs/acceptance/README.md",
+        "size": 369,
+        "mode": 420
+      },
+      {
+        "path": "docs/adr/README.md",
+        "size": 397,
+        "mode": 420
+      },
+      {
+        "path": "docs/architecture.md",
+        "size": 8197,
+        "mode": 420
+      },
+      {
+        "path": "docs/contracts.md",
+        "size": 34891,
+        "mode": 420
+      },
+      {
+        "path": "docs/INDEX.md",
+        "size": 14049,
+        "mode": 420
+      },
+      {
+        "path": "docs/knowledge/docs-harness-assets-governance.json",
+        "size": 8772,
+        "mode": 420
+      },
+      {
+        "path": "docs/knowledge/docs-harness-assets-governance.md",
+        "size": 6269,
+        "mode": 420
+      },
+      {
+        "path": "docs/knowledge/README.md",
+        "size": 351,
+        "mode": 420
+      },
+      {
+        "path": "docs/migrations/v2.0.0.md",
+        "size": 7545,
+        "mode": 420
+      },
+      {
+        "path": "docs/output-format-ladder.md",
+        "size": 5514,
+        "mode": 420
+      },
+      {
+        "path": "docs/plans/docs-harness-asset-lifecycle-plan.json",
+        "size": 12047,
+        "mode": 420
+      },
+      {
+        "path": "docs/plans/docs-harness-asset-lifecycle-plan.md",
+        "size": 10921,
+        "mode": 420
+      },
+      {
+        "path": "docs/plans/docs-harness-assets-governance-2.7.0.json",
+        "size": 7503,
+        "mode": 420
+      },
+      {
+        "path": "docs/plans/docs-harness-assets-governance-2.7.0.md",
+        "size": 6750,
+        "mode": 420
+      },
+      {
+        "path": "docs/plans/docs-harness-plan-lifecycle-management-plan.json",
+        "size": 7195,
+        "mode": 420
+      },
+      {
+        "path": "docs/plans/docs-harness-plan-lifecycle-management-plan.md",
+        "size": 4643,
+        "mode": 420
+      },
+      {
+        "path": "docs/plans/docs-harness-v2.0.0-direct-first-plan.md",
+        "size": 60616,
+        "mode": 420
+      },
+      {
+        "path": "docs/plans/README.md",
+        "size": 363,
+        "mode": 420
+      },
+      {
+        "path": "docs/README.md",
+        "size": 1011,
+        "mode": 420
+      },
+      {
+        "path": "docs/routing.md",
+        "size": 29171,
+        "mode": 420
+      },
+      {
+        "path": "docs/runtime-verification/README.md",
+        "size": 703,
+        "mode": 420
+      },
+      {
+        "path": "docs/testing.md",
+        "size": 38118,
+        "mode": 420
+      },
+      {
+        "path": "docs/todo.md",
+        "size": 968,
+        "mode": 420
+      },
+      {
+        "path": "evals/evals.json",
+        "size": 28703,
+        "mode": 420
+      },
+      {
+        "path": "evals/intent_routing/__pycache__/jev_predict.cpython-314.pyc",
+        "size": 23142,
+        "mode": 420
+      },
+      {
+        "path": "evals/intent_routing/__pycache__/score.cpython-314.pyc",
+        "size": 36665,
+        "mode": 420
+      },
+      {
+        "path": "evals/intent_routing/cases.json",
+        "size": 12180,
+        "mode": 420
+      },
+      {
+        "path": "evals/intent_routing/held_out_cases_2.json",
+        "size": 26006,
+        "mode": 420
+      },
+      {
+        "path": "evals/intent_routing/held_out_cases.json",
+        "size": 27042,
+        "mode": 420
+      },
+      {
+        "path": "evals/intent_routing/jev_predict.py",
+        "size": 18153,
+        "mode": 420
+      },
+      {
+        "path": "evals/intent_routing/README.md",
+        "size": 11845,
+        "mode": 420
+      },
+      {
+        "path": "evals/intent_routing/score.py",
+        "size": 20879,
+        "mode": 420
+      },
+      {
+        "path": "package.json",
+        "size": 2786,
+        "mode": 420
+      },
+      {
+        "path": "plan-templates/levels/brief.json",
+        "size": 547,
+        "mode": 420
+      },
+      {
+        "path": "plan-templates/levels/full.json",
+        "size": 3222,
+        "mode": 420
+      },
+      {
+        "path": "plan-templates/profiles/architecture.json",
+        "size": 847,
+        "mode": 420
+      },
+      {
+        "path": "plan-templates/profiles/backend-service.json",
+        "size": 936,
+        "mode": 420
+      },
+      {
+        "path": "plan-templates/profiles/bugfix.json",
+        "size": 1713,
+        "mode": 420
+      },
+      {
+        "path": "plan-templates/profiles/frontend-ui.json",
+        "size": 2978,
+        "mode": 420
+      },
+      {
+        "path": "plan-templates/profiles/general.json",
+        "size": 142,
+        "mode": 420
+      },
+      {
+        "path": "plan-templates/profiles/migration-release.json",
+        "size": 688,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/__pycache__/route_cache.cpython-314.pyc",
+        "size": 10407,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/__pycache__/route_diagnostics.cpython-314.pyc",
+        "size": 5771,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/__pycache__/route_hook.cpython-314.pyc",
+        "size": 33315,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/__pycache__/route_signals.cpython-314.pyc",
+        "size": 4371,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/fake_profile.json",
+        "size": 192,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/README.md",
+        "size": 6827,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/route_cache.py",
+        "size": 5124,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/route_diagnostics.py",
+        "size": 2931,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/route_hook.py",
+        "size": 20256,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/route_signals.py",
+        "size": 2234,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/settings.cli.example.json",
+        "size": 743,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/settings.example.json",
+        "size": 495,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/user-hook.cmd",
+        "size": 577,
+        "mode": 420
+      },
+      {
+        "path": "routing/hosts/qoder/user-hook.sh",
+        "size": 527,
+        "mode": 420
+      },
+      {
+        "path": "routing/registry.json",
+        "size": 9309,
+        "mode": 420
+      },
+      {
+        "path": "scripts/acceptance_amend.py",
+        "size": 3260,
+        "mode": 420
+      },
+      {
+        "path": "scripts/acceptance_assets.py",
+        "size": 26652,
+        "mode": 420
+      },
+      {
+        "path": "scripts/acceptance_diagnostics.py",
+        "size": 5362,
+        "mode": 420
+      },
+      {
+        "path": "scripts/acceptance_render.py",
+        "size": 1908,
+        "mode": 420
+      },
+      {
+        "path": "scripts/adr_assets.py",
+        "size": 13291,
+        "mode": 420
+      },
+      {
+        "path": "scripts/agent_prompt.md",
+        "size": 25936,
+        "mode": 420
+      },
+      {
+        "path": "scripts/asset_checks.py",
+        "size": 15115,
+        "mode": 420
+      },
+      {
+        "path": "scripts/asset_query.py",
+        "size": 9325,
+        "mode": 420
+      },
+      {
+        "path": "scripts/cli_support.py",
+        "size": 3978,
+        "mode": 420
+      },
+      {
+        "path": "scripts/codemap_check.py",
+        "size": 2635,
+        "mode": 420
+      },
+      {
+        "path": "scripts/diagram_view.py",
+        "size": 3813,
+        "mode": 420
+      },
+      {
+        "path": "scripts/githooks/pre-commit",
+        "size": 1587,
+        "mode": 420
+      },
+      {
+        "path": "scripts/githooks/setup.sh",
+        "size": 3106,
+        "mode": 420
+      },
+      {
+        "path": "scripts/harness.py",
+        "size": 217863,
+        "mode": 420
+      },
+      {
+        "path": "scripts/knowledge_assets.py",
+        "size": 17997,
+        "mode": 420
+      },
+      {
+        "path": "scripts/managed_assets.py",
+        "size": 16562,
+        "mode": 420
+      },
+      {
+        "path": "scripts/plan_amend.py",
+        "size": 8918,
+        "mode": 420
+      },
+      {
+        "path": "scripts/plan_check.py",
+        "size": 8746,
+        "mode": 420
+      },
+      {
+        "path": "scripts/plan_governance.py",
+        "size": 26032,
+        "mode": 420
+      },
+      {
+        "path": "scripts/plan_selection.py",
+        "size": 12787,
+        "mode": 420
+      },
+      {
+        "path": "scripts/report_check.py",
+        "size": 1735,
+        "mode": 420
+      },
+      {
+        "path": "scripts/routing_contract.py",
+        "size": 19175,
+        "mode": 420
+      },
+      {
+        "path": "scripts/routing_metrics.py",
+        "size": 16434,
+        "mode": 420
+      },
+      {
+        "path": "scripts/routing_registry.py",
+        "size": 17953,
+        "mode": 420
+      },
+      {
+        "path": "scripts/routing_shadow_fields.py",
+        "size": 15615,
+        "mode": 420
+      },
+      {
+        "path": "scripts/routing_shadow.py",
+        "size": 8916,
+        "mode": 420
+      },
+      {
+        "path": "scripts/runtime_check.py",
+        "size": 27524,
+        "mode": 420
+      },
+      {
+        "path": "scripts/runtime_packet.py",
+        "size": 8256,
+        "mode": 420
+      },
+      {
+        "path": "scripts/script_hygiene.py",
+        "size": 2310,
+        "mode": 420
+      },
+      {
+        "path": "scripts/structure_check.py",
+        "size": 24832,
+        "mode": 420
+      },
+      {
+        "path": "scripts/structure_ts_functions.cjs",
+        "size": 4198,
+        "mode": 420
+      },
+      {
+        "path": "scripts/symbol_check.py",
+        "size": 3302,
+        "mode": 420
+      },
+      {
+        "path": "scripts/usage_log.py",
+        "size": 5861,
+        "mode": 420
+      },
+      {
+        "path": "scripts/usage_report.py",
+        "size": 12722,
+        "mode": 420
+      },
+      {
+        "path": "tests/test_release_version_sync.py",
+        "size": 2049,
+        "mode": 420
+      }
+    ],
+    "entryCount": 97,
+    "bundled": []
+  }
+]

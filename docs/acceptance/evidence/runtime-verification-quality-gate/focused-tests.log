@@ -1,0 +1,52 @@
+test_closed_defect_loop_passes (tests.test_runtime_check.RuntimeCheckTest.test_closed_defect_loop_passes) ... ok
+test_committed_evidence_cannot_be_gitignored (tests.test_runtime_check.RuntimeCheckTest.test_committed_evidence_cannot_be_gitignored) ... ok
+test_committed_packet_requires_complex_risk (tests.test_runtime_check.RuntimeCheckTest.test_committed_packet_requires_complex_risk) ... ok
+test_copied_observation_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_copied_observation_is_rejected) ... ok
+test_defect_without_recheck_cannot_pass (tests.test_runtime_check.RuntimeCheckTest.test_defect_without_recheck_cannot_pass) ... ok
+test_duplicate_flows_are_rejected (tests.test_runtime_check.RuntimeCheckTest.test_duplicate_flows_are_rejected) ... ok
+test_generic_observation_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_generic_observation_is_rejected) ... ok
+test_local_packet_rejects_complex_risk (tests.test_runtime_check.RuntimeCheckTest.test_local_packet_rejects_complex_risk) ... ok
+test_missing_evidence_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_missing_evidence_is_rejected) ... ok
+test_missing_packet_is_structured_error (tests.test_runtime_check.RuntimeCheckTest.test_missing_packet_is_structured_error) ... ok
+test_missing_state_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_missing_state_is_rejected) ... ok
+test_mock_without_limitations_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_mock_without_limitations_is_rejected) ... ok
+test_non_ui_cannot_claim_ui_evidence (tests.test_runtime_check.RuntimeCheckTest.test_non_ui_cannot_claim_ui_evidence) ... ok
+test_packet_outside_allowed_roots_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_packet_outside_allowed_roots_is_rejected) ... ok
+test_repeated_generic_observation_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_repeated_generic_observation_is_rejected) ... ok
+test_ui_accessibility_dimension_is_required (tests.test_runtime_check.RuntimeCheckTest.test_ui_accessibility_dimension_is_required) ... ok
+test_ui_copy_dimension_is_required (tests.test_runtime_check.RuntimeCheckTest.test_ui_copy_dimension_is_required) ... ok
+test_ui_duplicate_screenshot_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_ui_duplicate_screenshot_is_rejected) ... ok
+test_ui_single_viewport_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_ui_single_viewport_is_rejected) ... ok
+test_unknown_field_is_rejected (tests.test_runtime_check.RuntimeCheckTest.test_unknown_field_is_rejected) ... ok
+test_valid_cli_packet_passes (tests.test_runtime_check.RuntimeCheckTest.test_valid_cli_packet_passes) ... ok
+test_valid_ui_packet_passes (tests.test_runtime_check.RuntimeCheckTest.test_valid_ui_packet_passes) ... ok
+test_action_specific_flags_are_rejected (tests.test_cli_surface.CliSurfaceTest.test_action_specific_flags_are_rejected) ... ok
+test_ci_matrix_starts_with_minimum_python (tests.test_cli_surface.CliSurfaceTest.test_ci_matrix_starts_with_minimum_python) ... ok
+test_cli_help_carries_input_schema_examples (tests.test_cli_surface.CliSurfaceTest.test_cli_help_carries_input_schema_examples) ... ok
+test_controller_source_has_no_legacy_state_machine_implementation (tests.test_cli_surface.CliSurfaceTest.test_controller_source_has_no_legacy_state_machine_implementation) ... ok
+test_docs_check_command_removed (tests.test_cli_surface.CliSurfaceTest.test_docs_check_command_removed) ... ok
+test_harness_script_runs_under_minimum_python (tests.test_cli_surface.CliSurfaceTest.test_harness_script_runs_under_minimum_python) ... skipped '本机没有 Python 3.9 解释器'
+test_invalid_json_reports_line_and_column (tests.test_cli_surface.CliSurfaceTest.test_invalid_json_reports_line_and_column) ... ok
+test_json_input_accepts_utf8_bom (tests.test_cli_surface.CliSurfaceTest.test_json_input_accepts_utf8_bom) ... ok
+test_legacy_rule_assets_are_machine_marked_non_default (tests.test_cli_surface.CliSurfaceTest.test_legacy_rule_assets_are_machine_marked_non_default) ... ok
+test_package_exposes_only_current_public_docs (tests.test_cli_surface.CliSurfaceTest.test_package_exposes_only_current_public_docs) ... ok
+test_package_files_cover_every_managed_module (tests.test_cli_surface.CliSurfaceTest.test_package_files_cover_every_managed_module)
+npm 包必须带齐全部受管模块。 ... ok
+test_package_files_entries_all_exist (tests.test_cli_surface.CliSurfaceTest.test_package_files_entries_all_exist)
+files 每一项都必须真实存在。 ... ok
+test_plan_create_reports_all_validation_errors (tests.test_cli_surface.CliSurfaceTest.test_plan_create_reports_all_validation_errors) ... ok
+test_prompt_surfaces_carry_input_schemas_and_managed_blocks_synced (tests.test_cli_surface.CliSurfaceTest.test_prompt_surfaces_carry_input_schemas_and_managed_blocks_synced) ... ok
+test_removed_v1_commands_are_absent_from_cli (tests.test_cli_surface.CliSurfaceTest.test_removed_v1_commands_are_absent_from_cli) ... ok
+test_script_sources_fit_py39_tokenizer_chunks (tests.test_cli_surface.CliSurfaceTest.test_script_sources_fit_py39_tokenizer_chunks) ... ok
+test_existing_gitignore_is_never_overwritten (tests.test_project_install.LocalOnlyDirectoryTest.test_existing_gitignore_is_never_overwritten) ... ok
+test_files_in_local_only_dirs_are_git_ignored (tests.test_project_install.LocalOnlyDirectoryTest.test_files_in_local_only_dirs_are_git_ignored) ... ok
+test_init_creates_dirs_with_nested_gitignore (tests.test_project_install.LocalOnlyDirectoryTest.test_init_creates_dirs_with_nested_gitignore) ... ok
+test_local_only_dirs_cover_inputs_tasks_reports_views_and_runtime (tests.test_project_install.LocalOnlyDirectoryTest.test_local_only_dirs_cover_inputs_tasks_reports_views_and_runtime) ... ok
+test_preview_and_diff_list_missing_gitignore_before_apply (tests.test_project_install.LocalOnlyDirectoryTest.test_preview_and_diff_list_missing_gitignore_before_apply)
+预览、diff 与 apply 走同一份判定：缺嵌套 .gitignore 时三处都看得到它。 ... ok
+test_upgrade_creates_dirs_and_never_cleans_them (tests.test_project_install.LocalOnlyDirectoryTest.test_upgrade_creates_dirs_and_never_cleans_them) ... ok
+
+----------------------------------------------------------------------
+Ran 44 tests in 23.993s
+
+OK (skipped=1)

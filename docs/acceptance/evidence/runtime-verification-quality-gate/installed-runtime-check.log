@@ -1,0 +1,6 @@
+test_installed_controller_runs_runtime_check (tests.test_project_install.ProjectInstallTest.test_installed_controller_runs_runtime_check) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 1.156s
+
+OK

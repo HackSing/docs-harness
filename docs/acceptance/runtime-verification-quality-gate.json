@@ -1,0 +1,165 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "运行态验证证据包与质量门验收",
+  "objective": "建立所有运行态任务可用的证据包与硬校验：真实流程、状态矩阵、数据场景、UI 视觉/交互/文案/可访问性观察、对抗性探测、缺陷修复复验都有可拒绝的证据；复杂或 UI 证据可提交复查，普通改动本地留存。",
+  "key_symbols": [
+    "check_packet",
+    "RUNTIME_PACKET_SCHEMA",
+    "RUNTIME_VERIFICATION_RELATIVE"
+  ],
+  "plan_ref": "docs/plans/runtime-verification-quality-gate.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "合同：schema 常量、runtime check CLI、安装清单与本地证据目录生效",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261025T071844-9281c062ee",
+          "objective_fingerprint": "sha256:50fe9840ab84e2321b12c4aa5f10bb307e35122b81da71d694b405dbfaff5b75",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "runtime check --help 输出 docs-harness/runtime-verification/v1 与路径规则；self-test 与 release sync --strict 均通过，版本真源一致",
+          "evidence_refs": [
+            "docs/acceptance/evidence/runtime-verification-quality-gate/contract-runtime-help.log",
+            "docs/acceptance/evidence/runtime-verification-quality-gate/self-test.log",
+            "docs/acceptance/evidence/runtime-verification-quality-gate/release-sync.log"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-25T07:18:44+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "行为：聚焦测试覆盖通过包与空泛观察/缺证据/缺状态/UI 单视口/无探测/缺陷未复验等坏包拒绝",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "focused_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261025T071844-224fbf6dd8",
+          "objective_fingerprint": "sha256:50fe9840ab84e2321b12c4aa5f10bb307e35122b81da71d694b405dbfaff5b75",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "focused_test",
+          "method": "python -m unittest tests.test_runtime_check tests.test_cli_surface tests.test_project_install.LocalOnlyDirectoryTest -v：44 项通过，skipped=1，退出码 0；覆盖通过包、重复空泛词、缺状态、缺证据、UI 单视口/重复截图、缺陷未闭环、路径与安装合同",
+          "evidence_refs": [
+            "docs/acceptance/evidence/runtime-verification-quality-gate/focused-tests.log"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-25T07:18:44+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "运行态：真实 demo 证据包通过 runtime check，坏包复现失败",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261025T071845-73e10955cf",
+          "objective_fingerprint": "sha256:50fe9840ab84e2321b12c4aa5f10bb307e35122b81da71d694b405dbfaff5b75",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "runtime check --target . --packet docs/runtime-verification/runtime-verification-quality-gate/packet.json --json：status=passed，flows=3/states=3/data=4/probes=2/iterations=2/defects=1，退出码 0；证据包含有效包、修复前重复空泛词、修复后拒绝、缺失包四组真实命令输出",
+          "evidence_refs": [
+            "docs/acceptance/evidence/runtime-verification-quality-gate/task-packet-check.log",
+            "docs/runtime-verification/runtime-verification-quality-gate/packet.json",
+            "docs/runtime-verification/runtime-verification-quality-gate/evidence/good.log",
+            "docs/runtime-verification/runtime-verification-quality-gate/evidence/repetitive-before-fix.log",
+            "docs/runtime-verification/runtime-verification-quality-gate/evidence/repetitive-after-fix.log",
+            "docs/runtime-verification/runtime-verification-quality-gate/evidence/missing.log"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-25T07:18:45+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "title": "安装：npm pack 包含新模块，临时项目 init 后 runtime check 可运行",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L4",
+      "evidence_layer": "package_or_install",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261025T071845-990fd13820",
+          "objective_fingerprint": "sha256:50fe9840ab84e2321b12c4aa5f10bb307e35122b81da71d694b405dbfaff5b75",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L4",
+          "evidence_layer": "package_or_install",
+          "method": "npm pack --dry-run --json：97 个文件，包含 runtime_check.py、runtime_packet.py 与 docs/runtime-verification/README.md；安装副本 test_installed_controller_runs_runtime_check 通过，临时项目 init 后 .docs-harness/runtime 存在且命令返回结构化错误，退出码 2",
+          "evidence_refs": [
+            "docs/acceptance/evidence/runtime-verification-quality-gate/npm-pack-summary.log",
+            "docs/acceptance/evidence/runtime-verification-quality-gate/npm-pack.json",
+            "docs/acceptance/evidence/runtime-verification-quality-gate/installed-runtime-check.log"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-10-25T07:18:45+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 6,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:2fe14e6b74416626371337ea402bf23edcb8aca7b1171b985322d611bb8d43ec",
+      "updated_at": "2026-10-25T06:57:25+00:00"
+    },
+    {
+      "revision": 2,
+      "asset_fingerprint": "sha256:b501f040e4d60f5127203ffdeb79ea1fff1f34569991e5101c305a5dbfa0e5fc",
+      "updated_at": "2026-10-25T07:18:44+00:00"
+    },
+    {
+      "revision": 3,
+      "asset_fingerprint": "sha256:35fe8361340c7243aadf0f77139cff92bd1e5f1df7d0735ed63ec9c63314f4ee",
+      "updated_at": "2026-10-25T07:18:44+00:00"
+    },
+    {
+      "revision": 4,
+      "asset_fingerprint": "sha256:927648e266cddb7c5103a86888daaccf5eb15e1ae24c3f2dc32c41d016e0187d",
+      "updated_at": "2026-10-25T07:18:45+00:00"
+    },
+    {
+      "revision": 5,
+      "asset_fingerprint": "sha256:9119af82d6fc9ec2ae35f753fcb83f9c48b16a7f7e6b24fca604eebb7264bf67",
+      "updated_at": "2026-10-25T07:18:45+00:00"
+    }
+  ],
+  "created_at": "2026-10-25T06:57:25+00:00",
+  "updated_at": "2026-10-25T07:18:53+00:00",
+  "settled_at": "2026-10-25T07:18:53+00:00",
+  "asset_fingerprint": "sha256:473e3cf0895931d52289eb8562749251cd91a44c6c95f368c605c0379eeed596",
+  "replacement": null
+}

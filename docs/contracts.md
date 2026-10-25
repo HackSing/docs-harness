@@ -171,6 +171,16 @@ L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 �
 
 `adr create` 使用 `docs-harness/adr-input/v1`，输出固定为 `docs/adr/<name>.json`：标题、2–4 个关键符号、context、decision、consequences 与可选 `supersedes`（每项必须是已存在的 ADR 资产）。定稿后不得手改 JSON/Markdown；活跃 ADR 内容修正用 `adr amend --input`（同 create 形状）并必填 `--reason`，递增 `revision`、追加 `revision_history`，不得改变 `supersedes`。失效时 `adr settle --status deprecated|superseded` 归档并退出活索引，superseded 必须提供活跃 ADR 作为 replacement。`adr check` 校验指纹、投影、索引与 supersedes 引用有效性。
 
+## 4b. 运行态验证证据包合同
+
+产生运行态行为（页面、接口、应用、命令或安装流程）的任务，用 `runtime check` 校验运行态证据包。命令为 `python3 scripts/harness.py runtime check --target <项目> --packet <路径> --json`；退出码 0 表示通过，2 表示证据包不合法。检查器只读取项目内证据包和证据文件，不启动应用、不截图、不访问网络。
+
+证据包 schema 为 `docs-harness/runtime-verification/v1`。路径按风险固定：复杂或 UI 交付放 `docs/runtime-verification/<task>/packet.json` 并随仓库提交，`risk` 必须为 `complex`；普通小改动放 `.docs-harness/runtime/<task>/packet.json`，`risk` 必须为 `simple` 且目录由 `project init/upgrade` 生成的嵌套 `.gitignore` 忽略。`task` 必须等于证据包目录名；证据文件放在同目录 `evidence/` 下，提交路径中的证据不得被 git 忽略。
+
+包内必须包含：可复现的 `environment`（启动命令、数据准备；使用 mock 时声明原因和不能证明的限制）、至少一条真实 `flows`、覆盖成功/空/错误/加载或禁用等状态的 `states`、覆盖真实/空/非法/边界（UI 另加长或特殊）的 `data`、至少一次对抗性 `probes`、`iterations`、`uncovered` 和 `conclusion`。UI 任务还必须提供至少两个不同视口的截图与视觉、交互、文案、可访问性四组观察；不同视口不能复用同一张截图。非 UI 任务用 `ui.applicable=false` 和原因明确排除。
+
+检查器拒绝以下空转证据：`expected` 与 `observed` 照抄、`observed` 只有“正常/通过/符合预期”等空泛词、证据文件不存在或过小、必需状态缺失、UI 只有单视口或重复截图、没有对抗性探测、有缺陷却没有“首次失败 → 修复 → 复验通过”的迭代、mock 未写限制、未注册字段、路径或 `task` 不符合约定。检查通过只证明证据结构和覆盖矩阵成立，不证明截图与实际页面一致，也不替代真实用户验收；视觉与交互仍由 agent 自己走查，真实硬件/权限才交用户。
+
 ## 5. 统一资产检查合同
 
 `assets-check` 聚合 Plan、Knowledge、Acceptance、ADR 领域检查、ScriptHygiene 脚本卫生扫描及跨资产正反向关系（`checked` 字段含 `plans`/`knowledge`/`acceptance`/`adr`/`script_hygiene`/`cross` 六个键）。结构、Schema、指纹、索引、活引用和已结算合同破坏属于 FAIL；声明矛盾、pending 验收指向归档 Plan、长期未结项等属于 WARN。默认只有 FAIL 返回非零，`--strict` 使 WARN 也失败；`--fast` 跳过 Plan 符号存活和 Git 历史时效检查，供 pre-commit 使用。WARN 按 Plan 索引/陈旧/结算、Structure CODEMAP/体量、ADR/Knowledge/Acceptance 投影等分组，`warning_summary` 返回总数、可行动/提示数与重复数；非 JSON 输出默认只显示可行动优先的 5 条预览，`--verbose` 输出全部，`warnings` 在 JSON 中始终完整。

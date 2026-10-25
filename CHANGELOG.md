@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **运行态验证质量门**：新增 `runtime check` 与 `docs-harness/runtime-verification/v1` 证据包，校验真实流程、状态/数据矩阵、UI 多视口视觉/交互/文案/可访问性观察、对抗性探测和缺陷修复复验；拒绝空泛/照抄观察、缺失证据、状态漏项、单视口 UI、无探测和未闭环修复。复杂/UI 证据提交到 `docs/runtime-verification/`，普通小改动留在 `.docs-harness/runtime/`。
+- **受管入口与模板**：AGENTS.md/CLAUDE.md 受管区块、frontend_ui Plan guidance、SKILL、contracts、testing、CODEMAP、README 与 npm 安装清单同步；`project init/upgrade` 新增 `.docs-harness/runtime/.gitignore`。
+- **测试**：新增 `tests/test_runtime_check.py`（22 项合同测试）与安装副本 `runtime check` 用例；`assets-check --strict` 仅剩 `tests/test_qoder_hook.py` 的既有结构 WARN。
+
 ## 2.33.0 - 2026-10-23
 
 - **提示词格式规则**：收紧「呈现形式」阶梯的第 1/2/7 行；补「同一回复命中多行取更具体的一行」「有改动的任务即使一句话能说清仍按四块」「附件放结果句后、记录路径末行」；解释类请求改为「图后最多补 3 条、不写步骤清单」。新增 `docs/output-format-ladder.md` 逐字快照与防漂移测试。

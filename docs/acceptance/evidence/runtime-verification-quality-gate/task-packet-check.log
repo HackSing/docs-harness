@@ -1,0 +1,17 @@
+{
+  "status": "passed",
+  "packet_ref": "docs/runtime-verification/runtime-verification-quality-gate/packet.json",
+  "root_kind": "committed",
+  "checked": {
+    "flows": 3,
+    "states": 3,
+    "data": 4,
+    "probes": 2,
+    "viewports": 0,
+    "iterations": 2,
+    "defects": 1,
+    "evidence": 5
+  },
+  "errors": [],
+  "warnings": []
+}
