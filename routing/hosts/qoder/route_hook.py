@@ -14,7 +14,6 @@ with the real low-context model call when the endpoint is available.
 
 from __future__ import annotations
 
-import datetime as dt
 import hashlib
 import json
 import os
@@ -49,9 +48,10 @@ from route_cache import (  # noqa: E402
     is_new_task,
     is_reset,
     read_cache,
-    routing_dir,
     write_cache,
 )
+from route_diagnostics import profile_diagnostic, report_error  # noqa: E402
+from route_signals import cache_bypass_reason  # noqa: E402
 
 FAKE_PROFILE_RELATIVE = "routing/hosts/qoder/fake_profile.json"
 NATIVE_CLI = Path.home() / ".local/bin/qoderclicn"
@@ -70,6 +70,7 @@ DEFAULT_CLI = _default_cli()
 DEFAULT_CLI_CONFIG = Path.home() / ".qoder-cn/docs-harness-router/cn-config"
 DEFAULT_CLI_EMPTY = Path.home() / ".qoder-cn/docs-harness-router/empty"
 CLI_TIMEOUT_SECONDS = 60
+SYSTEM_NOTIFICATION_PREFIX = "<task-notification>"
 CLI_ENV_DROP = frozenset(
     {
         "QODER_AGENT_SDK_ENTRYPOINT",
@@ -105,6 +106,8 @@ def main() -> int:
     prompt = payload.get("prompt")
     if not isinstance(prompt, str) or not prompt.strip():
         return 0
+    if _is_system_notification(prompt):
+        return 0
     session_id = payload.get("session_id")
     if not isinstance(session_id, str) or not session_id:
         session_id = "unknown"
@@ -122,13 +125,18 @@ def main() -> int:
         _run_full_route(project, session_id, prompt, registry, phase)
         return 0
     except (HookError, RoutingContractError, RoutingShadowError, OSError, UnicodeDecodeError) as exc:
-        _report_error(
+        report_error(
             project,
             getattr(exc, "code", "hook_error"),
             _error_field(exc),
             session_id,
         )
         return 0
+
+
+def _is_system_notification(prompt: str) -> bool:
+    # Qoder 把后台任务通知的正文作为 prompt 传给 hook，它不是用户输入。
+    return prompt.lstrip().startswith(SYSTEM_NOTIFICATION_PREFIX)
 
 
 def _handle_cache(
@@ -141,6 +149,8 @@ def _handle_cache(
         return False
     cached = read_cache(project, session_id, registry)
     if cached is None:
+        return False
+    if cache_bypass_reason(prompt, cached["profile"]):
         return False
     result = validate_profile(cached["profile"], registry)
     if not result.ok or result.effective_clarify or not result.modules:
@@ -177,7 +187,16 @@ def _run_full_route(
     latency_ms = round((time.monotonic() - started) * 1000, 1)
     result = validate_profile(profile, registry)
     if not result.ok:
-        _report_error(project, "profile_invalid", result.errors[0].code, session_id)
+        report_error(
+            project,
+            "profile_invalid",
+            result.errors[0].code,
+            session_id,
+            details={
+                "phase": phase,
+                "profile": profile_diagnostic(profile, registry),
+            },
+        )
         return
     event = build_shadow_event(
         _task_id(session_id, prompt),
@@ -415,7 +434,11 @@ def _router_system_prompt(registry: Registry) -> str:
         "or scope is too vague, set must_clarify=true, keep tentative intents or [], and "
         "triggers=['clarify_required']; when must_clarify is true, do not include any "
         "other trigger. If the user says not to use Harness, add direct_override. "
-        "Confidence below 0.5 is treated as clarify."
+        "If the task contains an explicit execution action (for example 做、改、优化、"
+        "修复、重启、启动、运行、打包、构建、检测、实现、加上、删除), do not set "
+        "must_clarify=true unless the target, deliverable, or scope is genuinely "
+        "ambiguous; short follow-ups may rely on prior context, so prefer the action "
+        "intent when the action is clear. Confidence below 0.5 is treated as clarify."
     )
 
 
@@ -530,27 +553,6 @@ def _registry_for(project: Path) -> Registry:
     raise HookError("registry_missing", "routing/registry.json")
 
 
-def _report_error(
-    project: Path | None, code: str, field: str, session_id: str
-) -> None:
-    suffix = f" ({field})" if field else ""
-    print(f"docs-harness router: {code}{suffix}", file=sys.stderr)
-    if project is None:
-        return
-    entry = {
-        "ts": _now(),
-        "code": code,
-        "field": field or None,
-        "session_hash": hashlib.sha256(session_id.encode("utf-8")).hexdigest()[:16],
-    }
-    try:
-        directory = routing_dir(project)
-        with open(directory / "hook-errors.jsonl", "a", encoding="utf-8", newline="\n") as handle:
-            handle.write(json.dumps(entry, ensure_ascii=False, separators=(",", ":")) + "\n")
-    except (OSError, UnicodeEncodeError) as exc:
-        print(f"docs-harness router: error log write failed: {exc}", file=sys.stderr)
-
-
 def _error_field(exc: Exception) -> str:
     details = getattr(exc, "details", {})
     if isinstance(details, dict):
@@ -564,12 +566,6 @@ def _error_field(exc: Exception) -> str:
 def _task_id(session_id: str, prompt: str) -> str:
     digest = hashlib.sha256(f"{session_id}\0{prompt}".encode("utf-8")).hexdigest()
     return "task-" + digest[:16]
-
-
-def _now() -> str:
-    return dt.datetime.now(dt.timezone.utc).replace(microsecond=0).isoformat().replace(
-        "+00:00", "Z"
-    )
 
 
 if __name__ == "__main__":

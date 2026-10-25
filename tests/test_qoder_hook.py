@@ -189,6 +189,16 @@ print(json.dumps({
             if line.strip()
         ]
 
+    def hook_errors(self) -> list[dict]:
+        path = self.project / ".docs-harness" / "routing" / "hook-errors.jsonl"
+        if not path.is_file():
+            return []
+        return [
+            json.loads(line)
+            for line in path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+
     def test_shadow_phase_logs_decision_without_injecting(self) -> None:
         result = self.run_hook()
         self.assertEqual(result.returncode, 0, result.stderr)
@@ -324,6 +334,75 @@ print(json.dumps({
         )
         self.assertIn("profile_invalid", errors)
         self.assertNotIn(PROMPT, errors)
+
+    def test_system_notification_is_skipped_before_routing(self) -> None:
+        prompt = (
+            "  \n<task-notification>\n"
+            "<task-id>task-123</task-id>\n"
+            "<output-file>C:\\temp\\out.log</output-file>\n"
+            "</task-notification>"
+        )
+        result = self.run_hook(
+            prompt=prompt,
+            extra_env={
+                "DOCS_HARNESS_ROUTER_BACKEND": "cli",
+                "DOCS_HARNESS_QODER_CLI": str(self.project / "missing-qoder"),
+            },
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "")
+        self.assertEqual(result.stderr.strip(), "")
+        self.assertEqual(self.shadow_events(), [])
+        self.assertFalse((self.project / ".docs-harness" / "routing").exists())
+
+    def test_invalid_profile_logs_safe_diagnostic(self) -> None:
+        self.write_fake(
+            {
+                "intents": ["code_task"],
+                "triggers": ["plan_required"],
+                "must_clarify": False,
+                "confidence": 0.8,
+                "evidence": ["内部证据不应落盘"],
+            }
+        )
+        result = self.run_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("profile_invalid", result.stderr)
+        entries = self.hook_errors()
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        self.assertEqual(entry["code"], "profile_invalid")
+        self.assertEqual(entry["field"], "trigger_conflict")
+        self.assertEqual(entry["phase"], "shadow")
+        profile = entry["profile"]
+        self.assertEqual(profile["intents"], ["code_task"])
+        self.assertEqual(profile["triggers"], ["plan_required"])
+        self.assertEqual(profile["modules"], [])
+        self.assertFalse(profile["must_clarify"])
+        self.assertEqual(profile["confidence"], 0.8)
+        self.assertEqual(profile["evidence_count"], 1)
+        serialized = json.dumps(entry, ensure_ascii=False)
+        self.assertNotIn("内部证据不应落盘", serialized)
+        self.assertNotIn(PROMPT, serialized)
+
+    def test_invalid_profile_redacts_unknown_labels(self) -> None:
+        self.write_fake(
+            {
+                "intents": ["code_task", "把任务原文塞进标签"],
+                "triggers": ["plan_required"],
+                "must_clarify": False,
+                "confidence": 0.8,
+            }
+        )
+        result = self.run_hook()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        entries = self.hook_errors()
+        self.assertEqual(len(entries), 1)
+        self.assertEqual(entries[0]["profile"]["intents"], ["code_task", "<unknown>"])
+        self.assertNotIn(
+            "把任务原文塞进标签",
+            json.dumps(entries[0], ensure_ascii=False),
+        )
 
     def test_direct_override_skips_injection_and_logging(self) -> None:
         result = self.run_hook(prompt="这次不使用 Harness，直接改 routing/registry.json")
@@ -508,6 +587,59 @@ print(json.dumps({
         self.assertTrue(events[-1]["model"]["cache_hit"])
         self.assertEqual(events[-1]["model"]["name"], "route-cache")
         self.assertEqual(events[-1]["actual_modules"], events[0]["actual_modules"])
+
+    def test_plan_cache_is_bypassed_on_execution_task(self) -> None:
+        self.write_fake(
+            {
+                "intents": ["plan_decision"],
+                "triggers": ["plan_required"],
+                "must_clarify": False,
+                "confidence": 0.9,
+            }
+        )
+        first = self.run_hook()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        self.assertEqual(len(self.session_caches()), 1)
+        second = self.run_hook(
+            prompt="现在重启本地联调",
+            extra_env={
+                "DOCS_HARNESS_ROUTER_BACKEND": "cli",
+                "DOCS_HARNESS_QODER_CLI": str(self.project / "missing-qoder"),
+            },
+        )
+        self.assertEqual(second.returncode, 0, second.stderr)
+        self.assertIn("qoder_cli_missing", second.stderr)
+        self.assertEqual(len(self.shadow_events()), 1)
+
+    def test_code_cache_is_reused_for_bug_report(self) -> None:
+        first = self.run_hook()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        second = self.run_hook(prompt="报错了")
+        self.assertEqual(second.returncode, 0, second.stderr)
+        events = self.shadow_events()
+        self.assertEqual(len(events), 2)
+        self.assertTrue(events[-1]["model"]["cache_hit"])
+        self.assertEqual(events[-1]["modules"], ["code"])
+
+    def test_plan_cache_is_reused_for_design_continuation(self) -> None:
+        self.write_fake(
+            {
+                "intents": ["plan_decision"],
+                "triggers": ["plan_required"],
+                "must_clarify": False,
+                "confidence": 0.9,
+            }
+        )
+        first = self.run_hook()
+        self.assertEqual(first.returncode, 0, first.stderr)
+        second = self.run_hook(
+            prompt="这个已实现的功能依然保持关闭，继续按这个方向"
+        )
+        self.assertEqual(second.returncode, 0, second.stderr)
+        events = self.shadow_events()
+        self.assertEqual(len(events), 2)
+        self.assertTrue(events[-1]["model"]["cache_hit"])
+        self.assertEqual(events[-1]["modules"], ["plan"])
 
     def test_new_task_marker_bypasses_cache(self) -> None:
         first = self.run_hook()

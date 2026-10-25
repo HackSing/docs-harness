@@ -245,7 +245,9 @@ Qoder 官方 hooks 文档确认：`UserPromptSubmit` 在用户提交 prompt 后�
 - 没有 `routing/registry.json`、画像非法、phase 非法或后端不可用时，hook 不注入、退出 0，把错误写入 stderr 和 `.docs-harness/routing/hook-errors.jsonl`。
 - hook 的 stdin、stdout、stderr 与 CLI 子进程输出统一按 UTF-8 编解码，不依赖 Windows 系统代码页。
 - `direct_override` 直接跳过；`must_clarify` 只记 Shadow，不注入；无模块时不注入。
+- 系统消息：Qoder 把后台任务通知的正文作为 prompt 传给 hook，正文以 `<task-notification>` 开头；hook 在路由前跳过，不启动 CLI、不写 Shadow、不写缓存、不建日志。
 - Shadow 事件不写 prompt 原文，只写 `task_hash`、字符数和结构化画像。
+- 画像校验失败时，`hook-errors.jsonl` 除错误码和 session hash 外，记录 `phase` 与脱敏画像：只保留注册表内的 intents/triggers/modules、`must_clarify`、`confidence` 和 evidence 条数；未知标签记为 `<unknown>`，不落任务原文或证据文本。
 - 注入内容只来自注册表契约；内核规则仍由 AGENTS.md 提供。
 
 ### CLI backend
@@ -356,9 +358,11 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 - Windows 必须使用原生 `qoderclicn.exe`；npm 的 `.cmd` 不能可靠转发多行/中文参数。Windows 用户级 `command` 直接写 `py.exe -3 <DOCS_HARNESS_ROOT>/routing/hosts/qoder/route_hook.py`；Qoder 0.4.11 对 `cmd /c user-hook.cmd` 会报告成功但不执行批处理。macOS/Linux 继续用 `user-hook.sh`。
 - 国内 CLI 已登录，`dfmodel` 完成真实路由；CLI 对该模型报告 0 tokens / 0 Credits，暂时无法用它校准 token/成本预算。
 - CLI 是完整 Agent Runtime：首条任务和重路由会多一次启动开销；同会话后续消息走缓存，不再每条启动。原生版真实路由墙钟约 3.1s（启动约 1.1s、模型约 2s），npm 版约 4.1s（启动约 2.6s）。
-- 缓存可能沿用旧路由：后续消息换了任务但没有“新任务/换个任务”等标记时，主 agent 需要从 registry 读取新契约，或用户发 `/route-reset`。真实同会话缓存已验证“CLI 路径不存在仍复用”。
+- 缓存可能沿用旧路由：后续消息换了任务但没有“新任务/换个任务”等标记时，主 agent 需要从 registry 读取新契约，或用户发 `/route-reset`。真实同会话缓存已验证“CLI 路径不存在仍复用”；zbuddy-desktop 2026-10-24 也出现一次讨论会话里的“现在重启本地联调”沿用 plan 路由，切换任务时需要重置。
+- 2026-10-25 shadow 召回实验：缓存命中前先做确定性任务切换检查——缓存是 plan 且新消息含执行动作、只读问题或报错信号时不沿用缓存，重新路由；code 缓存遇到报错消息不绕过（单次回放显示“报错了”重路由会退化为 answer_only）。路由系统提示同时增加“明确执行动作不要轻易判澄清”。实验仍保持 shadow，只影响记录，不注入。
+- 通知过滤依赖 Qoder 传给 hook 的正文以 `<task-notification>` 开头；宿主版本改变通知格式时需要同步更新前置判断。
 - `shadow` 阶段不改变上下文；Hook 只能追加 context，不能移除已加载的 AGENTS.md，token 收益仍要等 canary/enforced 与内核/模块契约拆分。
-- Qoder Desktop 的项目级 `UserPromptSubmit` 与同会话缓存已在 demo 复验；用户级 hook 已在本仓会话真实触发。用户级门禁只认项目内 `routing/registry.json`，旧版 docs-harness 和未安装项目都会被静默跳过，不影响其上下文或日志。真实 shadow 才刚开始（3 条事件），尚未覆盖 1–2 周、多任务、长会话和上下文压缩下的缓存命中率与误复用。
+- Qoder Desktop 的项目级 `UserPromptSubmit` 与同会话缓存已在 demo 复验；用户级 hook 已在本仓会话真实触发。用户级门禁只认项目内 `routing/registry.json`，旧版 docs-harness 和未安装项目都会被静默跳过，不影响其上下文或日志。截至 2026-10-25T02:02Z，zbuddy-desktop 累计 32 条 shadow 事件（30 条真实消息、2 条系统通知误触发）；尚未覆盖 1–2 周、多任务、长会话和上下文压缩下的缓存命中率与误复用。
 - 国内账号已能在 CLI 登录；是否与 Desktop 套餐共享额度，以 CLI `/status` 和实际 Credits 为准。
 - 每次宿主重启或配置变化后要重新确认 hook 是否加载。
 
@@ -370,11 +374,12 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 
 - `zbuddy-mobile`：`/Users/aiware/projects/zbuddy-mobile/routing/registry.json` + `README.md`。
 - `zbuddy-desktop`：`/Users/aiware/projects/zbuddy-desktop/routing/registry.json` + `README.md`。
+- `onceright`：`D:\AIWareTop\Agent\onceright\routing\registry.json` + `README.md`（Windows，2026-10-23 追加；同一 shadow 灰度，不改变 zbuddy 试点方案边界）。
 
 做法与边界：
 
 - 只复制注册表快照和一页 README；不复制 `routing/hosts/`、不安装路由脚本、不改下游 `AGENTS.md`、`scripts/` 或 `.docs-harness/config.json`。
-- 用户级 Qoder hook 的项目门禁只认项目内 `routing/registry.json`；两个项目因此 opt-in。
+- 用户级 Qoder hook 的项目门禁只认项目内 `routing/registry.json`；接入项目因此 opt-in。
 - 默认 `shadow`：只写 `.docs-harness/routing/shadow-YYYY-MM.jsonl`，不注入 `additionalContext`，不改变执行。
 - 依赖本机用户级 hook 与本仓 `DOCS_HARNESS_ROOT`；这是单机试点，不是可移植安装。换机或在没有该 hook 的环境里，项目只剩一个未使用的注册表快照。
 - 注册表版本或指纹变化时，从本仓重新复制整个 `registry.json`，不要手改；指纹不匹配会被 `load_registry` 拒绝。
@@ -386,14 +391,16 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 - fake backend 下 `user-hook.sh` 在各自项目返回 0，stdout/stderr 为空；Shadow 事件为 `phase=shadow`、`modules=["code"]`、`actual_modules` 为全部 6 个模块。合成事件随后删除。
 - 临时移除 `registry.json` 后，两个项目均返回 0、无输出、不建 `.docs-harness/routing`；恢复后指纹一致。
 - 两个下游 `assets-check --fast` 均为违规 0、警告 0；工作区只新增未提交的 `routing/` 目录。
+- `onceright`：注册表 `version=1.0.0`、指纹 `sha256:c3b984d65a55111bdee379dbb666a52dea3d234fdd94b856ec179825835b912a`，与本仓一致；fake backend 写出 `phase=shadow`、`modules=["code"]`；真实 Windows Desktop 会话 `aab05da4-39a3-5f93-a0b3-2e1182ffa98c` 写入 `phase=shadow`、只读提示无模块、`dfmodel` 4466.9ms、0 Credits，hook `success=true exit_code=0`。
+- `onceright` 的 `routing/` 已落盘，工作区只新增该目录；用户既有未提交改动未被触碰，尚未提交。
 
-下游 `routing/` 已分别提交并推送：zbuddy-mobile `67e9eb9`、zbuddy-desktop `1c359540`。提交动作由用户明确确认，覆盖试点方案中“不提交下游仓库”的执行约束；方案本身仍保持 settled 记录。
+下游 `routing/` 已分别提交并推送：zbuddy-mobile `67e9eb9`、zbuddy-desktop `1c359540`。提交动作由用户明确确认，覆盖试点方案中“不提交下游仓库”的执行约束；方案本身仍保持 settled 记录。`onceright` 的 `routing/` 等待用户确认后提交。
 
-未覆盖：下游 Desktop 新会话的真实触发、真实任务采样、注册表漂移自动检测和跨项目日志聚合。
+未覆盖：zbuddy 与 onceright 的 1–2 周真实任务采样、注册表漂移自动检测和跨项目日志聚合；onceright 目前只验证了一次只读任务。
 
 ## 12. 未覆盖与待定
 
-- B2 shadow 的仅记录模式已启用（22 项 hook 测试）；真实任务采集、阈值校准与 B3–B5 尚未开始。
+- B2 shadow 的仅记录模式已启用（28 项 hook 测试 + 8 项缓存信号测试）；zbuddy-desktop 已有 30 条真实消息，24 条高置信标注显示关键漏配 6/24、过度路由 4/24；2026-10-25 召回实验（plan 缓存任务切换 + 澄清提示）仍保持 shadow，单次回放估计漏配降至约 4/25、过度路由降至约 1/25，真实数据未复验，B2 的 0 漏配门槛仍未达到；更多真实任务采集、阈值校准与 B3–B5 尚未开始。
 - 国内原生 `qoderclicn` 已登录并能真实调用；`dfmodel` 的 token/credit 计量为 0；项目级 Desktop 已完成端到端触发与同会话缓存复验，用户级 hook 已在本仓会话触发并记录 3 条事件，1–2 周 shadow 和回滚演练未完成。
 - 会话缓存已在 demo 和脚本级各验证一次；尚未在多任务、长会话、上下文压缩和 `/route-reset` 场景统计命中率与误复用。
 - 20–50 条真实任务基线尚未建立。
