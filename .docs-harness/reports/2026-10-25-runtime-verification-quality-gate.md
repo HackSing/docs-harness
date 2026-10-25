@@ -44,3 +44,9 @@
 - 只在 Windows 本机执行了运行态命令；macOS 未在本轮实测，尽管实现只使用 Python 标准库与跨平台路径处理。
 - `assets-check --strict` 因工作区既有 `tests/test_qoder_hook.py` 结构警告返回 1；本任务自身的结构警告已消除。
 - 未发版、未 bump 版本；CHANGELOG 记录在 Unreleased，版本真源仍为 2.33.0。
+
+## 追加：提交后复跑（2026-10-25）
+
+- `python scripts/harness.py assets-check --target . --strict --json`：0 失败 0 警告，退出码 0。此前唯一的 `tests/test_qoder_hook.py` WARN 是未提交路由测试触发的增量检查；提交后干净树不再触发。该文件 689 行的存量体量债仍建议单独整理。
+- `python scripts/harness.py plan check`、`acceptance check`、`knowledge check`：均 passed，退出码 0。
+- 本轮只提交到 `feat/strong-model-routing` 功能分支：`afc0d31`（路由收尾）、`6fb9127`（运行态质量门）、`4e25def`（共享文档索引）；未合并 main、未推送、未打 tag。

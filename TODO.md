@@ -15,6 +15,7 @@
 
 - [ ] 强力模型直路由 B1 已落地：`routing/registry.json`、纯校验、Shadow 事件/指标/覆盖率与 61 项测试；默认关闭，未新增 CLI 命令，未进入下游安装面（见 `docs/routing.md`）。Qoder hook + 国内账号 + 会话缓存已落地（20 项测试）；原生 `qoderclicn` 1.1.78 已装（`~/.local/bin/qoderclicn`，`--skip-path`），`dfmodel` 免费、0 tokens/0 Credits；项目级 Desktop 已触发并复验同会话缓存（route-cache, cache_hit=true, 0.0s）。用户级 hook 已写入 `~/.qoder-cn/settings.json`（有备份，无 statusMessage）；`user-hook.sh` 只对含 `routing/registry.json` 的项目生效，旧版 docs-harness（仅 `.docs-harness/config.json`）和未安装项目静默跳过，不改上下文、不建日志。`shadow` 阶段已改为只记录、不注入（canary/enforced 才注入，28 项 hook 测试 + 8 项缓存信号测试）；用户级 hook 已在本仓会话触发并记录 3 条真实事件（`answer_only` 1 条、澄清/低置信 2 条，`dfmodel`，3.2–6.2s）。2026-10-24 修复系统通知误触发（`<task-notification>` 跳过）与非法画像诊断记录；zbuddy-desktop 截至 2026-10-25T02:02Z 累计 32 条事件（30 条真实消息、2 条通知），高置信标注 24 条：关键漏配 6/24、过度路由 4/24，尚未达到 B2 的 0 漏配门槛。2026-10-25 已加 plan 缓存任务切换绕过与澄清提示（仍 shadow）；单次回放 9 条历史消息估计关键漏配 7/25→4/25、过度路由 4/25→1/25，待真实数据复验。下一步：继续 shadow 采样并复验召回实验；剩余缺口是缺会话/截图上下文的短跟进（09:40、14:45、07:10）和 07:50 的 answer_only 误判。再继续累积 20–50 条真实任务，补 `needed_modules`/返工标注并校准阈值；随后拆分内核/模块契约以取得 token 收益（aiware，2026-10-25）
 
+- [ ] `tests/test_qoder_hook.py` 已到 689 行（超过 600 行结构评估阈值）；按职责拆分 hook 契约与缓存/诊断信号用例，或记录保留理由（aiware，2026-10-25）
 - [ ] 用加重后的 `subagent-evidence-checked` fixture（每模块 3–5 个查询文件、schema 与慢查询日志）重跑该用例；两轮基线的轻量 fixture 未触发子智能体，不能据此判定该规则失败（aiware，2026-10-22）
 
 - [ ] zbuddy-mobile 已升级 2.31.0（提交 7c57951），需在 2026-10-23 至 2026-10-29 观察真实调用：对比 assets-check WARN 率、acceptance settle/record 失败率与收尾报告完整率；desktop 尚未升级（aiware，2026-10-22）
