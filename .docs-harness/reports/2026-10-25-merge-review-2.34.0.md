@@ -39,3 +39,9 @@
 - 路由仍为 shadow，缺少 1–2 周真实任务采样；B2 0 漏配门槛未达，不能据此宣称强制路由已就绪。
 - `tests/test_qoder_hook.py` 689 行的结构存量债未在本轮拆分。
 - 未合并、未推送、未打 tag；2.34.0 尚未发布。
+
+## 追加：发布结果（2026-10-25）
+
+- 用户确认整条分支后，`feat/strong-model-routing` 已 fast-forward 合并到 `main`：`35ba7de..f238db1`。
+- `origin/main` 与 tag `v2.34.0` 均已推送，远端均指向 `f238db1`。
+- 发布验证与下游待办见 `.docs-harness/reports/2026-10-25-release-2.34.0.md`。
