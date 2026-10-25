@@ -392,9 +392,9 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 - 临时移除 `registry.json` 后，两个项目均返回 0、无输出、不建 `.docs-harness/routing`；恢复后指纹一致。
 - 两个下游 `assets-check --fast` 均为违规 0、警告 0；工作区只新增未提交的 `routing/` 目录。
 - `onceright`：注册表 `version=1.0.0`、指纹 `sha256:c3b984d65a55111bdee379dbb666a52dea3d234fdd94b856ec179825835b912a`，与本仓一致；fake backend 写出 `phase=shadow`、`modules=["code"]`；真实 Windows Desktop 会话 `aab05da4-39a3-5f93-a0b3-2e1182ffa98c` 写入 `phase=shadow`、只读提示无模块、`dfmodel` 4466.9ms、0 Credits，hook `success=true exit_code=0`。
-- `onceright` 的 `routing/` 已落盘，工作区只新增该目录；用户既有未提交改动未被触碰，尚未提交。
+- `onceright` 的 `routing/` 已提交并推送 main `78fd240`；用户既有未提交视频改动未被触碰，仍留在本机工作区。
 
-下游 `routing/` 已分别提交并推送：zbuddy-mobile `67e9eb9`、zbuddy-desktop `1c359540`。提交动作由用户明确确认，覆盖试点方案中“不提交下游仓库”的执行约束；方案本身仍保持 settled 记录。`onceright` 的 `routing/` 等待用户确认后提交。
+下游 `routing/` 已分别提交并推送：zbuddy-mobile `67e9eb9`、zbuddy-desktop `1c359540`、onceright `78fd240`。提交动作由用户明确确认，覆盖试点方案中“不提交下游仓库”的执行约束；方案本身仍保持 settled 记录。
 
 未覆盖：zbuddy 与 onceright 的 1–2 周真实任务采样、注册表漂移自动检测和跨项目日志聚合；onceright 目前只验证了一次只读任务。
 
