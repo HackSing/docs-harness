@@ -2,6 +2,8 @@
 
 复杂或 UI 运行态任务的证据包放在 `docs/runtime-verification/<task>/packet.json`，证据文件放在同目录 `evidence/`，随仓库提交。普通小改动的证据包放在 `.docs-harness/runtime/<task>/`，不入库。
 
+验证默认在后台或隐藏窗口执行，不弹窗、不抢焦点，不自动打开资源管理器、图片查看器或文件夹；截图与日志直接写入 `evidence/`。只有真实硬件、系统权限、原生弹窗等无法后台的层才上前台，并按 [docs/contracts.md](../contracts.md) 第 4c 节的前台例外协议提前说明、收尾记录。
+
 证据包字段、状态/数据覆盖矩阵、UI 视口与文案/可访问性要求，以及 `runtime check` 的拒绝规则见 [docs/contracts.md](../contracts.md) 第 4b 节。运行：
 
 ```bash

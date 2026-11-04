@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- **验证默认后台**：受管入口新增“验证默认后台”规则：单测、构建和静态检查走后台进程，UI 用隐藏窗口或离屏渲染，模拟器用 headless；不得弹窗、抢焦点、播放声音或自动打开文件夹；只有真实硬件、系统权限、原生弹窗等无法后台的层才上前台，并须提前说明、收尾记录前台/后台。`docs/contracts.md` 新增 4c 节，固化分层做法、前台例外协议与完成判定；`runtime-verification-quality` behavior 用例增加后台验证判定项。
+
 ## 2.34.0 - 2026-10-25
 
 - **Qoder 路由 hook 与 shadow 试点**：落地 `UserPromptSubmit` hook 的注册表校验、Shadow 事件、canary/enforced 注入门、会话缓存与原生国内版 CLI；新增后台任务通知过滤、非法画像脱敏诊断和 plan 缓存任务切换信号；zbuddy-mobile、zbuddy-desktop 与 onceright 完成注册表试点。路由仍为 shadow，只记录、不注入；B2 的 0 漏配门槛未达，本版不宣称强制路由完成。
