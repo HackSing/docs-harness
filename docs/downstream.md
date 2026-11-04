@@ -15,7 +15,24 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 | onceright | `HackSing/onceright` | 2026-09-27 以 2.24.0 接入 main；2026-10-03 升级到 2.25.0，删掉 `CLAUDE.md` 块外自己写的 `@AGENTS.md`，改由受管区块导入，受管正文只加载一遍；2026-10-23 升级到 2.33.0 并加入路由 shadow 灰度（`routing/registry.json`，Windows 用户级 hook）；2026-10-25 以干净 worktree 升级到 2.34.0，`routing/` 注册表提交 `78fd240`（harness 升级为 `44437be`），本机未提交的视频改动未触碰，main 落后 2 个提交，需 pull |
 | awesome-llm-made-videos | `HackSing/awesome-llm-made-videos` | 2026-09-27 以 2.24.0 接入 main。公开仓库 |
 | avatanel | `HackSing/avatanel` | 默认分支是 `master`，推送用 `git -C <下游目录> push origin master`。`.docs-harness/inputs/` 里有早期提交入库的一次性输入文件，2.16.1 起该目录带嵌套 `.gitignore`，会出现旧文件受跟踪、新文件被忽略的混合状态，处置待定 |
-| content-system | 无（只有本地 git） | 2026-10-06 以 2.28.0 接入 main。没有远端，升级步骤第 5 步「推送」跳过，只做本地提交。克隆不在其他下游所在的项目目录里，按目录批量枚举下游时会漏掉它。接入时删掉了 `CLAUDE.md` 里自己写的 `@AGENTS.md`，改由受管区块导入（同 onceright），`@TODO.md` 保留 |
+| content-system | 无（只有本地 git） | 2026-10-06 以 2.28.0 接入 main。没有远端，升级步骤第 5 步「推送」跳过，只做本地提交。克隆不在其他下游所在的项目目录里，按目录批量枚举下游时会漏掉它。接入时删掉了 `CLAUDE.md` 里自己写的 `@AGENTS.md`，改由受管区块导入（同 onceright），`@TODO.md` 保留。2026-11-04 未升级：本机无克隆且无远端 |
+
+### 2026-11-04 批量升级（2.35.0）
+
+| 项目 | 升级前 | 新提交 | 结果 |
+|---|---|---|---|
+| dispatch | 2.30.0 | `4b72ddd` | pushed，`project check` passed/in_head |
+| suiyi | 2.30.0 | `f1bdc51` | pushed，passed/in_head |
+| ai_study | 2.30.0 | `81db027` | 临时 worktree，pushed，passed/in_head |
+| opc-skills | 2.30.0 | `ff6a768` | 临时 worktree，pushed，passed/in_head |
+| onceright | 2.34.0 | `4ccf529` | 临时 worktree，pushed，passed/in_head |
+| zbuddy-desktop | 2.34.0 | `a16eea56` | 临时 worktree，GitHub 与 codeup 均已推送，passed/in_head |
+| zbuddy-mobile | 2.34.0 | `179ccb3` | 跳过 LFS smudge 的临时浅克隆，GitHub 已推送，passed/in_head，yellow=1（既有 TODO 格式） |
+| avatanel | 2.33.0 | `42f01ff` | 浅克隆，push master，passed/in_head |
+| awesome-llm-made-videos | 2.33.0 | `b982cd4` | 浅克隆，pushed，passed/in_head |
+| content-system | 2.28.0 | — | 未升级：本机无克隆且无远端 |
+
+九个项目的远端配置版本均读回 2.35.0。有未提交改动的本地工作区未触碰；ai_study、opc-skills、onceright、zbuddy-desktop 使用基于 `origin/main` 的临时 worktree，zbuddy-mobile 使用跳过 LFS smudge 的临时浅克隆。
 
 ## 暂停维护
 

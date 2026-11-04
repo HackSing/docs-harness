@@ -8,7 +8,7 @@
 - `docs/testing.md`、`docs/runtime-verification/README.md`、`SKILL.md`：增加后台验证要点与 4c 节指向。
 - `tests/test_agent_prompt_verification.py`：新增 7 项规则与合同文本守卫测试。
 - `evals/evals.json`：`runtime-verification-quality` 增加 `background-no-interruption` 判定项。
-- `CHANGELOG.md`：新增 `## Unreleased` 条目；本任务未改版本号、未发版。
+- `CHANGELOG.md`：记录为 `## Unreleased`；随后随 2.35.0 发布（发布提交 `b5e2e90`，tag `v2.35.0`）。
 
 ## 验证
 
@@ -27,4 +27,8 @@
 - 未运行 behavior 真实会话；`runtime-verification-quality` 的新判定项只登记，未执行。
 - 未在真实 Web/Electron/WPF/模拟器项目复跑后台截图流程；合同的工具做法来自用户提议与本仓已有能力说明。
 - 未修改 `runtime check` schema；检查器无法判断是否真的没有弹窗，前台/后台依赖收尾记录自述。
-- 未发版、未 bump VERSION、未同步下游项目。
+
+## 2026-11-04 发布与下游
+
+- 功能提交 `f701937`；发布提交 `b5e2e90`，tag `v2.35.0`，已推送 GitHub。
+- 发布验证见 `2026-11-04-release-2.35.0.md`；下游统一升级见 `2026-11-04-downstream-2.35.0.md`（9 个项目升级到 2.35.0，content-system 无本地克隆且无远端未升级）。
