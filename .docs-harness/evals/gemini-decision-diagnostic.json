@@ -1,0 +1,2178 @@
+{
+  "schema_version": "docs-harness/intent-routing-predictions/v1",
+  "predictor": "gemini-decision",
+  "model": "gemini-decision-1",
+  "thresholds": {
+    "primary_confidence_min": 0.5,
+    "secondary_intent_min": 0.8,
+    "clarify_min": 0.7,
+    "aux_min": 0.7
+  },
+  "usage": {
+    "input_tokens": 32953,
+    "output_tokens": 0
+  },
+  "case_count": 20,
+  "predictions": [
+    {
+      "id": "readonly-pytest-discovery",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9843,
+      "evidence": [
+        "primary=answer_only (0.98)",
+        "answer_only=0.97",
+        "asset_lifecycle=0.06",
+        "bug_fix=0.03",
+        "code_task=0.02",
+        "docs_change=0.05",
+        "plan_decision=0.01",
+        "release=0.01",
+        "clarify=0.01",
+        "direct_override=0.04",
+        "code_verify=0.05"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_code_task": {
+            "confidence": 0.9803666046883662,
+            "noul": 0.01963339531163379,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9729766895567417,
+            "noul": 0.9729766895567417,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9432230041600873,
+            "noul": 0.05677699583991266,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9482688406877677,
+            "noul": 0.05173115931223231,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9883291506750008,
+            "noul": 0.011670849324999195,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9547115780762592,
+            "noul": 0.04528842192374086,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9729640023398097,
+            "noul": 0.027035997660190242,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9603612476188848,
+            "noul": 0.03963875238111526,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9842780313994053,
+            "choice": "answer_only",
+            "probabilities": {
+              "answer_only": 0.9842780313994053,
+              "release": 0.000448079692159139,
+              "plan_decision": 0.002598377412500744,
+              "docs_change": 0.002182538733444993,
+              "asset_lifecycle": 0.0005967662152355182,
+              "unclear": 0.0037892726551575365,
+              "bug_fix": 0.0005020073430224348,
+              "code_task": 0.005604926549074218
+            },
+            "type": "choice"
+          },
+          "clarify_required": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1637,
+          "total_input_tokens": 1637,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1637
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "readonly-version-consistency",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9578,
+      "evidence": [
+        "primary=answer_only (0.96)",
+        "answer_only=0.97",
+        "asset_lifecycle=0.08",
+        "bug_fix=0.02",
+        "code_task=0.25",
+        "docs_change=0.04",
+        "plan_decision=0.03",
+        "release=0.22",
+        "clarify=0.02",
+        "direct_override=0.08",
+        "code_verify=0.89"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "direct_override": {
+            "confidence": 0.9161632162602664,
+            "noul": 0.08383678373973358,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9742780986381975,
+            "noul": 0.9742780986381975,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.8872979350715406,
+            "noul": 0.8872979350715406,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9578155468940732,
+            "choice": "answer_only",
+            "probabilities": {
+              "asset_lifecycle": 0.002023245880301181,
+              "release": 0.016128177299206237,
+              "bug_fix": 0.0031691521119495314,
+              "unclear": 0.003935476914836322,
+              "code_task": 0.011310833520376063,
+              "answer_only": 0.9578155468940732,
+              "docs_change": 0.001759644634015428,
+              "plan_decision": 0.003857922745241797
+            },
+            "type": "choice"
+          },
+          "clarify_required": {
+            "confidence": 0.9828675245898463,
+            "noul": 0.017132475410153773,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.7454864564550926,
+            "noul": 0.2545135435449074,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9766275835749312,
+            "noul": 0.023372416425068814,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9171603533231601,
+            "noul": 0.08283964667683989,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.783577959796118,
+            "noul": 0.216422040203882,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9622569744813586,
+            "noul": 0.037743025518641345,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9709554796583711,
+            "noul": 0.029044520341628875,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1656,
+          "total_input_tokens": 1656,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1656
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "readonly-slow-query-diagnosis",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.8628,
+      "evidence": [
+        "primary=answer_only (0.86)",
+        "answer_only=0.95",
+        "asset_lifecycle=0.04",
+        "bug_fix=0.05",
+        "code_task=0.03",
+        "docs_change=0.03",
+        "plan_decision=0.03",
+        "release=0.02",
+        "clarify=0.12",
+        "direct_override=0.04",
+        "code_verify=0.59"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_answer_only": {
+            "confidence": 0.9482862178161134,
+            "noul": 0.9482862178161134,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9664098859588133,
+            "noul": 0.03359011404118677,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.5915302432837193,
+            "noul": 0.5915302432837193,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.8844841839222597,
+            "noul": 0.11551581607774028,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.965606927036287,
+            "noul": 0.034393072963713016,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9545319354455771,
+            "noul": 0.04546806455442287,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.8628262976705479,
+            "choice": "answer_only",
+            "probabilities": {
+              "plan_decision": 0.009880196338217469,
+              "docs_change": 0.0003194472637666198,
+              "code_task": 0.0037600980814099364,
+              "asset_lifecycle": 0.0013651174487257856,
+              "release": 0.0005086022433987983,
+              "answer_only": 0.8628262976705479,
+              "bug_fix": 0.08209291613204155,
+              "unclear": 0.03924732482189186
+            },
+            "type": "choice"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9634863841950797,
+            "noul": 0.036513615804920345,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9724485298835749,
+            "noul": 0.027551470116425156,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9792772555376704,
+            "noul": 0.020722744462329572,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9640477347516833,
+            "noul": 0.03595226524831669,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1643,
+          "total_input_tokens": 1643,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1643
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "code-rename-slugify",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9858,
+      "evidence": [
+        "primary=code_task (0.99)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.01",
+        "bug_fix=0.50",
+        "code_task=0.98",
+        "docs_change=0.01",
+        "plan_decision=0.04",
+        "release=0.02",
+        "clarify=0.02",
+        "direct_override=0.03",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_release": {
+            "confidence": 0.9774971292749098,
+            "noul": 0.022502870725090204,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9778119744668453,
+            "noul": 0.02218802553315472,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9757788521551827,
+            "noul": 0.9757788521551827,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9858068086813305,
+            "choice": "code_task",
+            "probabilities": {
+              "answer_only": 0.00042069006485368306,
+              "unclear": 0.0005279665801356491,
+              "asset_lifecycle": 0.0006540079576856115,
+              "docs_change": 0.00015308502606432704,
+              "plan_decision": 0.007311648064610429,
+              "bug_fix": 0.004697599140398302,
+              "release": 0.0004281944849212202,
+              "code_task": 0.9858068086813305
+            },
+            "type": "choice"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9613356601302329,
+            "noul": 0.03866433986976717,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9876797526250503,
+            "noul": 0.012320247374949717,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9871687603929395,
+            "noul": 0.012831239607060462,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.97174964042783,
+            "noul": 0.028250359572170036,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5010017283818964,
+            "noul": 0.49899827161810356,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1662,
+          "total_input_tokens": 1662,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1662
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "code-refactor-rounding",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.7719,
+      "evidence": [
+        "primary=code_task (0.77)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.04",
+        "bug_fix=0.36",
+        "code_task=0.98",
+        "docs_change=0.02",
+        "plan_decision=0.37",
+        "release=0.26",
+        "clarify=0.24",
+        "direct_override=0.03",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_plan_decision": {
+            "confidence": 0.6305838963315742,
+            "noul": 0.36941610366842575,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.6425599854032633,
+            "noul": 0.35744001459673674,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9731434816124138,
+            "noul": 0.026856518387586167,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9812933701002496,
+            "noul": 0.9812933701002496,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.7427134345059685,
+            "noul": 0.25728656549403156,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.7719341629769265,
+            "choice": "code_task",
+            "probabilities": {
+              "answer_only": 0.0027243350065029328,
+              "unclear": 0.03347080880645448,
+              "bug_fix": 0.004304216493288834,
+              "plan_decision": 0.16422515914273808,
+              "code_task": 0.7719341629769265,
+              "release": 0.019652993738278682,
+              "asset_lifecycle": 0.0028068073618244707,
+              "docs_change": 0.0008815164739860837
+            },
+            "type": "choice"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9897726452661961,
+            "noul": 0.010227354733803819,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.7613445354336171,
+            "noul": 0.2386554645663829,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9801185154854439,
+            "noul": 0.019881484514556035,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9565311985770305,
+            "noul": 0.043468801422969494,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1659,
+          "total_input_tokens": 1659,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1659
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "bugfix-cart-total",
+      "intents": [
+        "bug_fix",
+        "code_task"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report",
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.892,
+      "evidence": [
+        "primary=bug_fix (0.89)",
+        "answer_only=0.06",
+        "asset_lifecycle=0.02",
+        "bug_fix=0.93",
+        "code_task=0.83",
+        "docs_change=0.01",
+        "plan_decision=0.30",
+        "release=0.01",
+        "clarify=0.03",
+        "direct_override=0.02",
+        "code_verify=0.04"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "code_verify": {
+            "confidence": 0.9622440334247728,
+            "noul": 0.037755966575227146,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9803694843287937,
+            "noul": 0.019630515671206376,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9302952314052251,
+            "noul": 0.9302952314052251,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9897531378174252,
+            "noul": 0.010246862182574746,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9708539421278358,
+            "noul": 0.029146057872164136,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.8919519102739509,
+            "choice": "bug_fix",
+            "probabilities": {
+              "plan_decision": 0.02652729932502638,
+              "release": 0.00041785118972372144,
+              "unclear": 0.002857712202739118,
+              "code_task": 0.05803241555271148,
+              "docs_change": 0.00029918634362600927,
+              "answer_only": 0.01620416055959268,
+              "asset_lifecycle": 0.003709464552629679,
+              "bug_fix": 0.8919519102739509
+            },
+            "type": "choice"
+          },
+          "intent_docs_change": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.8288182711907838,
+            "noul": 0.8288182711907838,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.7007308152144714,
+            "noul": 0.29926918478552855,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9807576659310682,
+            "noul": 0.01924233406893187,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9443084049265101,
+            "noul": 0.05569159507348983,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1651,
+          "total_input_tokens": 1651,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1651
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "bugfix-misleading-retry",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.7766,
+      "evidence": [
+        "primary=bug_fix (0.78)",
+        "answer_only=0.03",
+        "asset_lifecycle=0.08",
+        "bug_fix=0.94",
+        "code_task=0.47",
+        "docs_change=0.01",
+        "plan_decision=0.54",
+        "release=0.03",
+        "clarify=0.37",
+        "direct_override=0.02",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_bug_fix": {
+            "confidence": 0.9395728674209802,
+            "noul": 0.9395728674209802,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.7765978094615881,
+            "choice": "bug_fix",
+            "probabilities": {
+              "release": 0.0017865597787724346,
+              "code_task": 0.032238144542148336,
+              "unclear": 0.047625899894733564,
+              "docs_change": 0.0006860843844094886,
+              "asset_lifecycle": 0.00583209536867489,
+              "bug_fix": 0.7765978094615881,
+              "answer_only": 0.06641310175444312,
+              "plan_decision": 0.0688203048152301
+            },
+            "type": "choice"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9196415110372083,
+            "noul": 0.08035848896279177,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9889489632892338,
+            "noul": 0.011051036710766264,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.5298618229557703,
+            "noul": 0.4701381770442296,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.6348948127800651,
+            "noul": 0.36510518721993496,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.966452502557763,
+            "noul": 0.033547497442236916,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.5418231777219776,
+            "noul": 0.5418231777219776,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9697625164491849,
+            "noul": 0.030237483550815132,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9758801221536383,
+            "noul": 0.02411987784636168,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1653,
+          "total_input_tokens": 1653,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1653
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "plan-architecture-sync",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9793,
+      "evidence": [
+        "primary=plan_decision (0.98)",
+        "answer_only=0.27",
+        "asset_lifecycle=0.76",
+        "bug_fix=0.53",
+        "code_task=0.01",
+        "docs_change=0.68",
+        "plan_decision=0.99",
+        "release=0.14",
+        "clarify=0.29",
+        "direct_override=0.04",
+        "code_verify=0.03"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_code_task": {
+            "confidence": 0.9888156864269756,
+            "noul": 0.011184313573024364,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.7333053715436071,
+            "noul": 0.26669462845639297,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.7132385741153622,
+            "noul": 0.2867614258846379,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.8595500958699686,
+            "noul": 0.14044990413003147,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9793455515994418,
+            "choice": "plan_decision",
+            "probabilities": {
+              "answer_only": 0.0015688215945217274,
+              "release": 9.48967840830062e-05,
+              "bug_fix": 0.00021269102432654253,
+              "code_task": 0.0008813881297521968,
+              "unclear": 0.00040188132034406625,
+              "asset_lifecycle": 0.008943450995011119,
+              "docs_change": 0.008551318552519309,
+              "plan_decision": 0.9793455515994418
+            },
+            "type": "choice"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.76359728322256,
+            "noul": 0.76359728322256,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.6831202116648945,
+            "noul": 0.6831202116648945,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9732576812550954,
+            "noul": 0.026742318744904604,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.99,
+            "noul": 0.99,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5289100559117669,
+            "noul": 0.5289100559117669,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9566261157635494,
+            "noul": 0.04337388423645065,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1659,
+          "total_input_tokens": 1659,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1659
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "plan-cross-repo-auth",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.945,
+      "evidence": [
+        "primary=plan_decision (0.95)",
+        "answer_only=0.14",
+        "asset_lifecycle=0.07",
+        "bug_fix=0.80",
+        "code_task=0.22",
+        "docs_change=0.08",
+        "plan_decision=0.98",
+        "release=0.11",
+        "clarify=0.14",
+        "direct_override=0.02",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_release": {
+            "confidence": 0.8932620874384275,
+            "noul": 0.10673791256157253,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.7831497436175127,
+            "noul": 0.21685025638248737,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.8591409330609139,
+            "noul": 0.14085906693908615,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9767718540194703,
+            "noul": 0.0232281459805297,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9846092296470885,
+            "noul": 0.015390770352911424,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9202538154217118,
+            "noul": 0.07974618457828822,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9450316392019871,
+            "choice": "plan_decision",
+            "probabilities": {
+              "docs_change": 0.0024286930579462255,
+              "plan_decision": 0.9450316392019871,
+              "answer_only": 0.001153211664299722,
+              "code_task": 0.04396294958978319,
+              "unclear": 0.0011634607767519068,
+              "release": 0.0006234259639290455,
+              "bug_fix": 0.0015534832050224988,
+              "asset_lifecycle": 0.004083136540280465
+            },
+            "type": "choice"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9332067130398932,
+            "noul": 0.06679328696010677,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.7984697121539732,
+            "noul": 0.7984697121539732,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9792080665502151,
+            "noul": 0.9792080665502151,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.8586686598709559,
+            "noul": 0.14133134012904416,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1648,
+          "total_input_tokens": 1648,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1648
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "implement-existing-plan",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9919,
+      "evidence": [
+        "primary=code_task (0.99)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.06",
+        "bug_fix=0.23",
+        "code_task=0.99",
+        "docs_change=0.02",
+        "plan_decision=0.28",
+        "release=0.05",
+        "clarify=0.03",
+        "direct_override=0.03",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "primary_intent": {
+            "confidence": 0.9919313126571736,
+            "choice": "code_task",
+            "probabilities": {
+              "bug_fix": 0.000301658341158595,
+              "docs_change": 0.0003867294327579034,
+              "unclear": 0.0003189387803066065,
+              "release": 0.000306197862793203,
+              "code_task": 0.9919313126571736,
+              "answer_only": 0.0001474993528896564,
+              "plan_decision": 0.005967162083547424,
+              "asset_lifecycle": 0.0006405014893728722
+            },
+            "type": "choice"
+          },
+          "direct_override": {
+            "confidence": 0.9707130048635756,
+            "noul": 0.029286995136424424,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.7221493630749094,
+            "noul": 0.2778506369250906,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.988369423019365,
+            "noul": 0.011630576980635004,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9866458086046025,
+            "noul": 0.9866458086046025,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.7713839852177454,
+            "noul": 0.2286160147822546,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9762968591497128,
+            "noul": 0.02370314085028719,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9689157588446281,
+            "noul": 0.031084241155371936,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9862751678495035,
+            "noul": 0.01372483215049647,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9437940803685059,
+            "noul": 0.0562059196314941,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9544470047168594,
+            "noul": 0.045552995283140565,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1663,
+          "total_input_tokens": 1663,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1663
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "assets-create-acceptance",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9952,
+      "evidence": [
+        "primary=asset_lifecycle (1.00)",
+        "answer_only=0.04",
+        "asset_lifecycle=0.97",
+        "bug_fix=0.07",
+        "code_task=0.09",
+        "docs_change=0.29",
+        "plan_decision=0.37",
+        "release=0.02",
+        "clarify=0.17",
+        "direct_override=0.02",
+        "code_verify=0.39"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_code_task": {
+            "confidence": 0.9112139737793805,
+            "noul": 0.0887860262206195,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.8272258268051301,
+            "noul": 0.1727741731948699,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.6265391631395691,
+            "noul": 0.37346083686043086,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9734306144288608,
+            "noul": 0.9734306144288608,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9776612514495477,
+            "noul": 0.022338748550452307,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.6091646098723389,
+            "noul": 0.39083539012766116,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9552367525654659,
+            "noul": 0.04476324743453404,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9834165182433554,
+            "noul": 0.016583481756644595,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9951529716805516,
+            "choice": "asset_lifecycle",
+            "probabilities": {
+              "release": 8.800350285695858e-05,
+              "asset_lifecycle": 0.9951529716805516,
+              "bug_fix": 7.678466965261541e-05,
+              "unclear": 0.00018577860150756142,
+              "docs_change": 0.0012760561529919653,
+              "plan_decision": 0.0016891428268672765,
+              "answer_only": 0.0007514378123150137,
+              "code_task": 0.0007798247532571061
+            },
+            "type": "choice"
+          },
+          "intent_docs_change": {
+            "confidence": 0.710988278294088,
+            "noul": 0.289011721705912,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.928238922874626,
+            "noul": 0.07176107712537409,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1639,
+          "total_input_tokens": 1639,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1639
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "assets-settle-knowledge",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9656,
+      "evidence": [
+        "primary=asset_lifecycle (0.97)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.98",
+        "bug_fix=0.51",
+        "code_task=0.30",
+        "docs_change=0.71",
+        "plan_decision=0.06",
+        "release=0.11",
+        "clarify=0.50",
+        "direct_override=0.03",
+        "code_verify=0.04"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "primary_intent": {
+            "confidence": 0.96563522476761,
+            "choice": "asset_lifecycle",
+            "probabilities": {
+              "asset_lifecycle": 0.96563522476761,
+              "unclear": 0.0066862516276894705,
+              "bug_fix": 0.0005654158242677167,
+              "code_task": 0.0021388119034601812,
+              "docs_change": 0.01950891631735334,
+              "answer_only": 0.00234195693932291,
+              "plan_decision": 0.0026089070197493165,
+              "release": 0.0005145156005467087
+            },
+            "type": "choice"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.984636402956791,
+            "noul": 0.984636402956791,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.6978932978298977,
+            "noul": 0.30210670217010227,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.7061677243101417,
+            "noul": 0.7061677243101417,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9580227736022945,
+            "noul": 0.04197722639770554,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9897206369907559,
+            "noul": 0.010279363009244133,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5117317545680887,
+            "noul": 0.5117317545680887,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9708473045729493,
+            "noul": 0.029152695427050727,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.8900962810192158,
+            "noul": 0.10990371898078422,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.5009108828485764,
+            "noul": 0.5009108828485764,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.941983117032401,
+            "noul": 0.05801688296759895,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1637,
+          "total_input_tokens": 1637,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1637
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "release-version-bump",
+      "intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "triggers": [
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9883,
+      "evidence": [
+        "primary=release (0.99)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.05",
+        "bug_fix=0.08",
+        "code_task=0.26",
+        "docs_change=0.04",
+        "plan_decision=0.26",
+        "release=0.97",
+        "clarify=0.03",
+        "direct_override=0.02",
+        "code_verify=0.05"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_code_task": {
+            "confidence": 0.7382991546618792,
+            "noul": 0.26170084533812077,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9481865137604272,
+            "noul": 0.051813486239572784,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9614041832474747,
+            "noul": 0.038595816752525366,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9758477303479567,
+            "noul": 0.02415226965204329,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.988276537230478,
+            "choice": "release",
+            "probabilities": {
+              "release": 0.988276537230478,
+              "unclear": 0.0005930948656673464,
+              "asset_lifecycle": 0.0005586465708667039,
+              "plan_decision": 0.0010550174794651688,
+              "code_task": 0.0021412375352373937,
+              "bug_fix": 0.000163550458709999,
+              "docs_change": 0.007017380119908616,
+              "answer_only": 0.00019453573966665078
+            },
+            "type": "choice"
+          },
+          "clarify_required": {
+            "confidence": 0.9748075608318016,
+            "noul": 0.025192439168198376,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9736498805842049,
+            "noul": 0.9736498805842049,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.7436581009237294,
+            "noul": 0.2563418990762706,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9487510430782463,
+            "noul": 0.051248956921753734,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.922626824585494,
+            "noul": 0.07737317541450589,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.989313930477789,
+            "noul": 0.010686069522211007,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1652,
+          "total_input_tokens": 1652,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1652
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "release-after-bugfix",
+      "intents": [
+        "bug_fix",
+        "release"
+      ],
+      "modules": [
+        "bugfix",
+        "code",
+        "release"
+      ],
+      "triggers": [
+        "bug_report",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.5193,
+      "evidence": [
+        "primary=release (0.52)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.03",
+        "bug_fix=0.91",
+        "code_task=0.78",
+        "docs_change=0.01",
+        "plan_decision=0.50",
+        "release=0.98",
+        "clarify=0.16",
+        "direct_override=0.03",
+        "code_verify=0.09"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_asset_lifecycle": {
+            "confidence": 0.9716206642182612,
+            "noul": 0.028379335781738832,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.5192631664334728,
+            "choice": "release",
+            "probabilities": {
+              "unclear": 0.046601152064103056,
+              "release": 0.5192631664334728,
+              "bug_fix": 0.33675861087055137,
+              "code_task": 0.06807575700212806,
+              "asset_lifecycle": 0.0020519803735560686,
+              "plan_decision": 0.02310239973472304,
+              "docs_change": 0.002029985891325464,
+              "answer_only": 0.0021169476301401346
+            },
+            "type": "choice"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9125253459922772,
+            "noul": 0.9125253459922772,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9882788627045913,
+            "noul": 0.011721137295408648,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.776271843236452,
+            "noul": 0.776271843236452,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9113201393585272,
+            "noul": 0.08867986064147282,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9760568745875405,
+            "noul": 0.9760568745875405,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9719819146935986,
+            "noul": 0.02801808530640134,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.840732130726744,
+            "noul": 0.15926786927325598,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.5031656515325287,
+            "noul": 0.5031656515325287,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1642,
+          "total_input_tokens": 1642,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1642
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "release-preflight-tests",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "code_verify"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9678,
+      "evidence": [
+        "primary=code_task (0.97)",
+        "answer_only=0.37",
+        "asset_lifecycle=0.38",
+        "bug_fix=0.03",
+        "code_task=0.90",
+        "docs_change=0.02",
+        "plan_decision=0.19",
+        "release=0.03",
+        "clarify=0.12",
+        "direct_override=0.05",
+        "code_verify=0.98"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_bug_fix": {
+            "confidence": 0.9656425520422658,
+            "noul": 0.03435744795773426,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9768379505258507,
+            "noul": 0.023162049474149328,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9678402217343639,
+            "choice": "code_task",
+            "probabilities": {
+              "code_task": 0.9678402217343639,
+              "asset_lifecycle": 0.0024447481996761194,
+              "release": 0.010800219361354009,
+              "plan_decision": 0.002045260010671763,
+              "unclear": 0.0020697359927688425,
+              "docs_change": 0.00022767128475455024,
+              "answer_only": 0.007626156922646233,
+              "bug_fix": 0.006945986493764585
+            },
+            "type": "choice"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.814055255766223,
+            "noul": 0.18594474423377708,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.6236256987918898,
+            "noul": 0.3763743012081102,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.8962874274761095,
+            "noul": 0.8962874274761095,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.97466090277791,
+            "noul": 0.025339097222090004,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9549056332896673,
+            "noul": 0.045094366710332706,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.8841245681082794,
+            "noul": 0.11587543189172059,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.6283841540309922,
+            "noul": 0.3716158459690078,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9796823722917208,
+            "noul": 0.9796823722917208,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1642,
+          "total_input_tokens": 1642,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1642
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "docs-readme-install",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9891,
+      "evidence": [
+        "primary=docs_change (0.99)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.29",
+        "bug_fix=0.75",
+        "code_task=0.10",
+        "docs_change=0.98",
+        "plan_decision=0.04",
+        "release=0.05",
+        "clarify=0.11",
+        "direct_override=0.04",
+        "code_verify=0.04"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_answer_only": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.8970728889043214,
+            "noul": 0.10292711109567862,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9890689254520487,
+            "choice": "docs_change",
+            "probabilities": {
+              "code_task": 0.0025638515892571732,
+              "release": 0.0002496541682852091,
+              "answer_only": 0.0004973761857968062,
+              "unclear": 0.0009786864122601267,
+              "docs_change": 0.9890689254520487,
+              "plan_decision": 0.0016676428587862103,
+              "asset_lifecycle": 0.00429856811789829,
+              "bug_fix": 0.0006752952156676078
+            },
+            "type": "choice"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.7139654136861029,
+            "noul": 0.28603458631389717,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9774504863087431,
+            "noul": 0.9774504863087431,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.7536738566443483,
+            "noul": 0.7536738566443483,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9611621633291687,
+            "noul": 0.0388378366708313,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9629724226091508,
+            "noul": 0.037027577390849144,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.8880899522801237,
+            "noul": 0.11191004771987634,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9598864115005677,
+            "noul": 0.040113588499432244,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9515955473122552,
+            "noul": 0.048404452687744806,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1635,
+          "total_input_tokens": 1635,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1635
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "docs-customer-guide",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9754,
+      "evidence": [
+        "primary=docs_change (0.98)",
+        "answer_only=0.02",
+        "asset_lifecycle=0.24",
+        "bug_fix=0.04",
+        "code_task=0.03",
+        "docs_change=0.98",
+        "plan_decision=0.10",
+        "release=0.12",
+        "clarify=0.13",
+        "direct_override=0.05",
+        "code_verify=0.03"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "primary_intent": {
+            "confidence": 0.9754216892042851,
+            "choice": "docs_change",
+            "probabilities": {
+              "unclear": 0.001990935708369651,
+              "release": 0.0020889435817102015,
+              "asset_lifecycle": 0.014942859317897862,
+              "answer_only": 0.0014279416123606059,
+              "docs_change": 0.9754216892042851,
+              "bug_fix": 0.000282446234734232,
+              "code_task": 0.0013641428364479095,
+              "plan_decision": 0.00248104150419469
+            },
+            "type": "choice"
+          },
+          "clarify_required": {
+            "confidence": 0.8726637947586531,
+            "noul": 0.12733620524134695,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9547742851593694,
+            "noul": 0.04522571484063061,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9559200460396015,
+            "noul": 0.044079953960398516,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9737973828061104,
+            "noul": 0.02620261719388956,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.981697253393192,
+            "noul": 0.01830274660680803,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.8794743129553507,
+            "noul": 0.12052568704464926,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.899871480817591,
+            "noul": 0.10012851918240898,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9778266642649858,
+            "noul": 0.9778266642649858,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9665458428432869,
+            "noul": 0.03345415715671305,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.7609114114966069,
+            "noul": 0.23908858850339312,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1640,
+          "total_input_tokens": 1640,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1640
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "direct-override-refactor",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "direct_override"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9369,
+      "evidence": [
+        "primary=code_task (0.94)",
+        "answer_only=0.02",
+        "asset_lifecycle=0.02",
+        "bug_fix=0.71",
+        "code_task=0.98",
+        "docs_change=0.01",
+        "plan_decision=0.23",
+        "release=0.12",
+        "clarify=0.03",
+        "direct_override=0.97",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_bug_fix": {
+            "confidence": 0.7072500419889967,
+            "noul": 0.7072500419889967,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9368722558803252,
+            "choice": "code_task",
+            "probabilities": {
+              "docs_change": 0.0004945679985331274,
+              "release": 0.0009138651884661213,
+              "asset_lifecycle": 0.0021943947215812476,
+              "unclear": 0.0018704894592114231,
+              "code_task": 0.9368722558803252,
+              "answer_only": 0.0009941524838408672,
+              "bug_fix": 0.007044882330190339,
+              "plan_decision": 0.049615391937851853
+            },
+            "type": "choice"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9877409947863228,
+            "noul": 0.012259005213677163,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9730954878981726,
+            "noul": 0.9730954878981726,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9841549976843263,
+            "noul": 0.9841549976843263,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.8825116395412834,
+            "noul": 0.11748836045871658,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9801133451727442,
+            "noul": 0.019886654827255844,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.7673532237382996,
+            "noul": 0.2326467762617004,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9707535336674853,
+            "noul": 0.029246466332514758,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9796276339990788,
+            "noul": 0.02037236600092114,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.978823235779356,
+            "noul": 0.021176764220643973,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1662,
+          "total_input_tokens": 1662,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1662
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "ambiguous-change-scope",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.0475,
+      "evidence": [
+        "primary=unclear (0.87)",
+        "answer_only=0.02",
+        "asset_lifecycle=0.10",
+        "bug_fix=0.46",
+        "code_task=0.84",
+        "docs_change=0.07",
+        "plan_decision=0.76",
+        "release=0.04",
+        "clarify=0.95",
+        "direct_override=0.05",
+        "code_verify=0.03"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_docs_change": {
+            "confidence": 0.9292581014852037,
+            "noul": 0.07074189851479624,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9559354518519189,
+            "noul": 0.044064548148081105,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.8745817501959361,
+            "choice": "unclear",
+            "probabilities": {
+              "code_task": 0.05421756724183879,
+              "plan_decision": 0.055710331769752146,
+              "answer_only": 0.002299080399610352,
+              "asset_lifecycle": 0.0018460421352627693,
+              "bug_fix": 0.009076716373327368,
+              "docs_change": 0.0007414628173323821,
+              "release": 0.0015270490669401205,
+              "unclear": 0.8745817501959361
+            },
+            "type": "choice"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.7624899365696812,
+            "noul": 0.7624899365696812,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9743752175276356,
+            "noul": 0.02562478247236448,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9524892365635929,
+            "noul": 0.9524892365635929,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.984528929733232,
+            "noul": 0.015471070266768,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5419502335330999,
+            "noul": 0.45804976646690015,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.8982690717974402,
+            "noul": 0.10173092820255983,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.839319053324257,
+            "noul": 0.839319053324257,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9487371838885317,
+            "noul": 0.05126281611146833,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1637,
+          "total_input_tokens": 1637,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1637
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "ambiguous-review-login",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.8968,
+      "evidence": [
+        "primary=answer_only (0.90)",
+        "answer_only=0.97",
+        "asset_lifecycle=0.05",
+        "bug_fix=0.07",
+        "code_task=0.22",
+        "docs_change=0.04",
+        "plan_decision=0.05",
+        "release=0.01",
+        "clarify=0.28",
+        "direct_override=0.03",
+        "code_verify=0.78"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "primary_intent": {
+            "confidence": 0.896838033372263,
+            "choice": "answer_only",
+            "probabilities": {
+              "answer_only": 0.896838033372263,
+              "unclear": 0.055885623701544256,
+              "bug_fix": 0.021252084402965877,
+              "asset_lifecycle": 0.0011852544562551597,
+              "release": 0.0012210837988562387,
+              "plan_decision": 0.0136075090164457,
+              "docs_change": 0.0005742962327964649,
+              "code_task": 0.009436115018873578
+            },
+            "type": "choice"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.930319632621137,
+            "noul": 0.06968036737886296,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9732458338915083,
+            "noul": 0.026754166108491656,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9594849760497561,
+            "noul": 0.040515023950243846,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9894294145165752,
+            "noul": 0.010570585483424783,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.7785463816196867,
+            "noul": 0.7785463816196867,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9460085135222853,
+            "noul": 0.05399148647771472,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9519112002351111,
+            "noul": 0.04808879976488886,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9736050670035584,
+            "noul": 0.9736050670035584,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.7212979803294769,
+            "noul": 0.2787020196705231,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.7773791513839864,
+            "noul": 0.2226208486160136,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1636,
+          "total_input_tokens": 1636,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1636
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    }
+  ]
+}

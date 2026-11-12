@@ -1,0 +1,23 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 \"${QODER_PROJECT_DIR}/routing/hosts/qoder/route_hook.py\"",
+            "timeout": 20,
+            "env": {
+              "DOCS_HARNESS_ROUTER_ENABLED": "1",
+              "DOCS_HARNESS_ROUTER_PHASE": "shadow",
+              "DOCS_HARNESS_ROUTER_BACKEND": "decisions",
+              "DOCS_HARNESS_ROUTER_MODEL": "gemini-decision-1",
+              "DOCS_HARNESS_GEMINI_ENV_FILE": "${QODER_PROJECT_DIR}/.docs-harness/inputs/gemini.env"
+            },
+            "statusMessage": "Docs Harness routing (Gemini Decisions)"
+          }
+        ]
+      }
+    ]
+  }
+}

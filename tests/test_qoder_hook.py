@@ -684,6 +684,19 @@ print(json.dumps({
         self.assertIn("qoder_cli_missing", second.stderr)
         self.assertNotIn("沿用上次路由", second.stdout)
 
+    def test_decisions_backend_missing_api_key_is_non_blocking(self) -> None:
+        result = self.run_hook(
+            extra_env={
+                "DOCS_HARNESS_ROUTER_BACKEND": "decisions",
+                "GEMINI_API_KEY": "",
+                "GOOGLE_API_KEY": "",
+            }
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(result.stdout.strip(), "")
+        self.assertIn("gemini_api_key_missing", result.stderr)
+        self.assertEqual(self.shadow_events(), [])
+
 
 if __name__ == "__main__":
     unittest.main()

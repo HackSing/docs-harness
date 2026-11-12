@@ -1,0 +1,5441 @@
+{
+  "schema_version": "docs-harness/intent-routing-predictions/v1",
+  "predictor": "gemini-decision",
+  "model": "gemini-decision-1",
+  "thresholds": {
+    "primary_confidence_min": 0.5,
+    "secondary_intent_min": 0.8,
+    "clarify_min": 0.7,
+    "aux_min": 0.7
+  },
+  "usage": {
+    "input_tokens": 82054,
+    "output_tokens": 0
+  },
+  "case_count": 50,
+  "predictions": [
+    {
+      "id": "heldout-answer-stacktrace",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9742,
+      "evidence": [
+        "primary=answer_only (0.97)",
+        "answer_only=0.96",
+        "asset_lifecycle=0.02",
+        "bug_fix=0.03",
+        "code_task=0.02",
+        "docs_change=0.02",
+        "plan_decision=0.02",
+        "release=0.05",
+        "clarify=0.09",
+        "direct_override=0.21",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_answer_only": {
+            "confidence": 0.959899490764149,
+            "noul": 0.959899490764149,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9063668402358833,
+            "noul": 0.09363315976411674,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9769313590385632,
+            "noul": 0.023068640961436813,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.978936536022272,
+            "noul": 0.021063463977727997,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.7888255102434375,
+            "noul": 0.21117448975656253,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9484692535687944,
+            "noul": 0.05153074643120563,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9741676845290596,
+            "choice": "answer_only",
+            "probabilities": {
+              "unclear": 0.001222852454585966,
+              "release": 0.0002547597143990796,
+              "code_task": 0.001247996573667975,
+              "bug_fix": 0.020034405970903117,
+              "plan_decision": 0.002006326227265323,
+              "docs_change": 0.00037065198775758053,
+              "answer_only": 0.9741676845290596,
+              "asset_lifecycle": 0.0006953225423614547
+            },
+            "type": "choice"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9804737384636618,
+            "noul": 0.019526261536338144,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9734602157153975,
+            "noul": 0.02653978428460249,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9806465154404912,
+            "noul": 0.019353484559508784,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9809347656301481,
+            "noul": 0.019065234369851847,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1651,
+          "total_input_tokens": 1651,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1651
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-answer-pr-risk",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9782,
+      "evidence": [
+        "primary=answer_only (0.98)",
+        "answer_only=0.98",
+        "asset_lifecycle=0.05",
+        "bug_fix=0.02",
+        "code_task=0.05",
+        "docs_change=0.02",
+        "plan_decision=0.15",
+        "release=0.02",
+        "clarify=0.23",
+        "direct_override=0.07",
+        "code_verify=0.65"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "clarify_required": {
+            "confidence": 0.7700448713656324,
+            "noul": 0.22995512863436765,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.6547407110688515,
+            "noul": 0.6547407110688515,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9317423961508678,
+            "noul": 0.06825760384913211,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.8541563473652571,
+            "noul": 0.1458436526347429,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9505196830803542,
+            "noul": 0.049480316919645856,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9511715016753457,
+            "noul": 0.04882849832465425,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9781968198240987,
+            "choice": "answer_only",
+            "probabilities": {
+              "code_task": 0.003739286363418509,
+              "bug_fix": 0.002462605074468744,
+              "plan_decision": 0.01193993133785067,
+              "docs_change": 0.0005041844506036113,
+              "asset_lifecycle": 0.0007736628779942819,
+              "release": 0.0004329454662085354,
+              "answer_only": 0.9781968198240987,
+              "unclear": 0.001950564605357215
+            },
+            "type": "choice"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9795849508470058,
+            "noul": 0.020415049152994233,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9801018777553221,
+            "noul": 0.01989812224467785,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9762975356601488,
+            "noul": 0.9762975356601488,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9813665402757288,
+            "noul": 0.018633459724271224,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1644,
+          "total_input_tokens": 1644,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1644
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-answer-config-usage",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9848,
+      "evidence": [
+        "primary=answer_only (0.98)",
+        "answer_only=0.98",
+        "asset_lifecycle=0.03",
+        "bug_fix=0.02",
+        "code_task=0.03",
+        "docs_change=0.03",
+        "plan_decision=0.01",
+        "release=0.02",
+        "clarify=0.01",
+        "direct_override=0.27",
+        "code_verify=0.39"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_docs_change": {
+            "confidence": 0.9728977432145167,
+            "noul": 0.027102256785483274,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.968491420346297,
+            "noul": 0.03150857965370305,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9759335502460125,
+            "noul": 0.024066449753987494,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9848285720819877,
+            "choice": "answer_only",
+            "probabilities": {
+              "bug_fix": 0.000783458164769052,
+              "docs_change": 0.0005162100528712511,
+              "unclear": 0.0017174655727134746,
+              "answer_only": 0.9848285720819877,
+              "asset_lifecycle": 0.0007954028069587516,
+              "plan_decision": 0.004308338064294682,
+              "release": 0.00028810767678252803,
+              "code_task": 0.006762445579622487
+            },
+            "type": "choice"
+          },
+          "intent_code_task": {
+            "confidence": 0.9687522249100796,
+            "noul": 0.031247775089920347,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.7303701774184375,
+            "noul": 0.2696298225815625,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9769241349201454,
+            "noul": 0.023075865079854548,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.978919069485533,
+            "noul": 0.978919069485533,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9880577971180504,
+            "noul": 0.011942202881949556,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.6088413648159177,
+            "noul": 0.39115863518408234,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1649,
+          "total_input_tokens": 1649,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1649
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-answer-command-help",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9743,
+      "evidence": [
+        "primary=answer_only (0.97)",
+        "answer_only=0.97",
+        "asset_lifecycle=0.39",
+        "bug_fix=0.04",
+        "code_task=0.06",
+        "docs_change=0.03",
+        "plan_decision=0.07",
+        "release=0.24",
+        "clarify=0.03",
+        "direct_override=0.03",
+        "code_verify=0.05"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_docs_change": {
+            "confidence": 0.9724168079908315,
+            "noul": 0.027583192009168485,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9541692294258399,
+            "noul": 0.045830770574160094,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.968465265402629,
+            "noul": 0.03153473459737095,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.761966498354435,
+            "noul": 0.238033501645565,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9674844977605962,
+            "noul": 0.032515502239403804,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9674047042675414,
+            "noul": 0.9674047042675414,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9279259005996617,
+            "noul": 0.07207409940033828,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9743326313077885,
+            "choice": "answer_only",
+            "probabilities": {
+              "release": 0.0014495082769853131,
+              "bug_fix": 0.0005922425467421771,
+              "answer_only": 0.9743326313077885,
+              "code_task": 0.0066830676890807204,
+              "plan_decision": 0.006799869848043432,
+              "unclear": 0.008185049047804673,
+              "docs_change": 0.0013063408833632933,
+              "asset_lifecycle": 0.0006512904001921015
+            },
+            "type": "choice"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9607868905366422,
+            "noul": 0.03921310946335776,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.6052559865569842,
+            "noul": 0.39474401344301574,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9386672494562305,
+            "noul": 0.06133275054376949,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1638,
+          "total_input_tokens": 1638,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1638
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-answer-dependency-license",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.8977,
+      "evidence": [
+        "primary=answer_only (0.90)",
+        "answer_only=0.96",
+        "asset_lifecycle=0.29",
+        "bug_fix=0.04",
+        "code_task=0.02",
+        "docs_change=0.16",
+        "plan_decision=0.21",
+        "release=0.03",
+        "clarify=0.04",
+        "direct_override=0.02",
+        "code_verify=0.04"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "clarify_required": {
+            "confidence": 0.9627790974931645,
+            "noul": 0.03722090250683555,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9647298695540832,
+            "noul": 0.03527013044591671,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9810671979945214,
+            "noul": 0.01893280200547859,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9787638800773714,
+            "noul": 0.02123611992262859,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9612914646190241,
+            "noul": 0.038708535380975816,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.7093382766240206,
+            "noul": 0.29066172337597934,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.8977349279214512,
+            "choice": "answer_only",
+            "probabilities": {
+              "bug_fix": 0.0009335893735364711,
+              "release": 0.0017360894100750155,
+              "code_task": 0.0031523941697151974,
+              "plan_decision": 0.0713081949569696,
+              "asset_lifecycle": 0.009861595604837124,
+              "unclear": 0.00859505702042935,
+              "docs_change": 0.006678151542985889,
+              "answer_only": 0.8977349279214512
+            },
+            "type": "choice"
+          },
+          "intent_release": {
+            "confidence": 0.974612159563748,
+            "noul": 0.025387840436251995,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.8438257383898149,
+            "noul": 0.15617426161018508,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9588082714385313,
+            "noul": 0.9588082714385313,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.7927504395666585,
+            "noul": 0.2072495604333415,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1637,
+          "total_input_tokens": 1637,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1637
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-answer-slow-endpoint",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9604,
+      "evidence": [
+        "primary=answer_only (0.96)",
+        "answer_only=0.96",
+        "asset_lifecycle=0.03",
+        "bug_fix=0.03",
+        "code_task=0.02",
+        "docs_change=0.02",
+        "plan_decision=0.05",
+        "release=0.01",
+        "clarify=0.08",
+        "direct_override=0.14",
+        "code_verify=0.57"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_docs_change": {
+            "confidence": 0.9836378328053629,
+            "noul": 0.016362167194637157,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9452136603862036,
+            "noul": 0.05478633961379647,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9590482701126498,
+            "noul": 0.9590482701126498,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.5687668294235014,
+            "noul": 0.5687668294235014,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9604311197668448,
+            "choice": "answer_only",
+            "probabilities": {
+              "plan_decision": 0.006867904009310412,
+              "answer_only": 0.9604311197668448,
+              "release": 0.00030508344054288233,
+              "asset_lifecycle": 0.0008929046635861353,
+              "bug_fix": 0.02600040868628452,
+              "docs_change": 0.00019019669327595033,
+              "code_task": 0.0014313988448507447,
+              "unclear": 0.0038809838953044796
+            },
+            "type": "choice"
+          },
+          "clarify_required": {
+            "confidence": 0.9150366133565915,
+            "noul": 0.08496338664340847,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9860225250500262,
+            "noul": 0.013977474949973787,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9691659593937026,
+            "noul": 0.03083404060629734,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9798688803194713,
+            "noul": 0.020131119680528737,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.8573423975687469,
+            "noul": 0.14265760243125317,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9731571556346419,
+            "noul": 0.026842844365358158,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1663,
+          "total_input_tokens": 1663,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1663
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-answer-plan-gaps",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9661,
+      "evidence": [
+        "primary=answer_only (0.97)",
+        "answer_only=0.97",
+        "asset_lifecycle=0.77",
+        "bug_fix=0.03",
+        "code_task=0.08",
+        "docs_change=0.03",
+        "plan_decision=0.06",
+        "release=0.01",
+        "clarify=0.03",
+        "direct_override=0.15",
+        "code_verify=0.71"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "clarify_required": {
+            "confidence": 0.9745165814894168,
+            "noul": 0.025483418510583243,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.707574976726283,
+            "noul": 0.707574976726283,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.7725278604967137,
+            "noul": 0.7725278604967137,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9896189702291625,
+            "noul": 0.010381029770837557,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.923765868752216,
+            "noul": 0.07623413124778398,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9663145826722644,
+            "noul": 0.03368541732773558,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.8548139566118218,
+            "noul": 0.14518604338817823,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9683742477355867,
+            "noul": 0.9683742477355867,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9661466059447471,
+            "choice": "answer_only",
+            "probabilities": {
+              "docs_change": 0.005825055437182615,
+              "answer_only": 0.9661466059447471,
+              "bug_fix": 0.0008502700317879828,
+              "release": 0.00033967186703784516,
+              "asset_lifecycle": 0.011887737045967435,
+              "unclear": 0.0013290184024895419,
+              "plan_decision": 0.012220726528730672,
+              "code_task": 0.00140091474205694
+            },
+            "type": "choice"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9447973775906789,
+            "noul": 0.05520262240932108,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9689923381387462,
+            "noul": 0.03100766186125377,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1651,
+          "total_input_tokens": 1651,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1651
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-answer-test-coverage",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.8456,
+      "evidence": [
+        "primary=answer_only (0.85)",
+        "answer_only=0.90",
+        "asset_lifecycle=0.17",
+        "bug_fix=0.03",
+        "code_task=0.37",
+        "docs_change=0.04",
+        "plan_decision=0.01",
+        "release=0.02",
+        "clarify=0.02",
+        "direct_override=0.03",
+        "code_verify=0.78"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_docs_change": {
+            "confidence": 0.9558968002047854,
+            "noul": 0.04410319979521456,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9851825024980092,
+            "noul": 0.014817497501990747,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9847446477678338,
+            "noul": 0.015255352232166265,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9712908570103962,
+            "noul": 0.028709142989603767,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.6250279014637203,
+            "noul": 0.3749720985362796,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9027092689435586,
+            "noul": 0.9027092689435586,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.7807332936372037,
+            "noul": 0.7807332936372037,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.8455773110906434,
+            "choice": "answer_only",
+            "probabilities": {
+              "plan_decision": 0.005869652662144394,
+              "bug_fix": 0.005753302408142101,
+              "answer_only": 0.8455773110906434,
+              "docs_change": 0.0017456717511828814,
+              "code_task": 0.12564669537811482,
+              "unclear": 0.010624372340457777,
+              "release": 0.001001161338082122,
+              "asset_lifecycle": 0.003781833031232564
+            },
+            "type": "choice"
+          },
+          "direct_override": {
+            "confidence": 0.9690583576887348,
+            "noul": 0.03094164231126515,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.8349562813407145,
+            "noul": 0.16504371865928552,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9779860186122026,
+            "noul": 0.022013981387797407,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1640,
+          "total_input_tokens": 1640,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1640
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-answer-failing-test-explain",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9618,
+      "evidence": [
+        "primary=answer_only (0.96)",
+        "answer_only=0.98",
+        "asset_lifecycle=0.03",
+        "bug_fix=0.01",
+        "code_task=0.02",
+        "docs_change=0.04",
+        "plan_decision=0.01",
+        "release=0.01",
+        "clarify=0.03",
+        "direct_override=0.04",
+        "code_verify=0.04"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "code_verify": {
+            "confidence": 0.9578124643733967,
+            "noul": 0.04218753562660328,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9896709375438377,
+            "noul": 0.010329062456162252,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9617609606736524,
+            "choice": "answer_only",
+            "probabilities": {
+              "asset_lifecycle": 0.0009443996313134275,
+              "docs_change": 0.0003356453225517133,
+              "plan_decision": 0.0033904473028999963,
+              "code_task": 0.0022241798068634733,
+              "release": 0.00032991246612434243,
+              "answer_only": 0.9617609606736524,
+              "unclear": 0.002481384392701148,
+              "bug_fix": 0.028533070403893815
+            },
+            "type": "choice"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9741878117411523,
+            "noul": 0.025812188258847665,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.957720974141198,
+            "noul": 0.04227902585880208,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9751794685414049,
+            "noul": 0.9751794685414049,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9783964791401045,
+            "noul": 0.02160352085989553,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9678881763911378,
+            "noul": 0.032111823608862174,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9601597353228469,
+            "noul": 0.039840264677153105,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9893887593817011,
+            "noul": 0.010611240618298861,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1634,
+          "total_input_tokens": 1634,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1634
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-answer-release-notes-diff",
+      "intents": [
+        "answer_only"
+      ],
+      "modules": [],
+      "triggers": [
+        "read_only"
+      ],
+      "must_clarify": false,
+      "confidence": 0.8814,
+      "evidence": [
+        "primary=answer_only (0.88)",
+        "answer_only=0.82",
+        "asset_lifecycle=0.04",
+        "bug_fix=0.03",
+        "code_task=0.04",
+        "docs_change=0.10",
+        "plan_decision=0.02",
+        "release=0.09",
+        "clarify=0.02",
+        "direct_override=0.04",
+        "code_verify=0.36"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "primary_intent": {
+            "confidence": 0.8813620954750986,
+            "choice": "answer_only",
+            "probabilities": {
+              "plan_decision": 0.01560114635271505,
+              "answer_only": 0.8813620954750986,
+              "unclear": 0.004553087722441638,
+              "release": 0.024893255133621353,
+              "docs_change": 0.06133644222238923,
+              "bug_fix": 0.0015967088210164665,
+              "asset_lifecycle": 0.008680961005827879,
+              "code_task": 0.001976303266889842
+            },
+            "type": "choice"
+          },
+          "intent_answer_only": {
+            "confidence": 0.8163417626510607,
+            "noul": 0.8163417626510607,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9811571623955405,
+            "noul": 0.018842837604459522,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9141623864252176,
+            "noul": 0.08583761357478235,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9566175259030932,
+            "noul": 0.043382474096906716,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.6447479269061367,
+            "noul": 0.35525207309386325,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9613195659918539,
+            "noul": 0.03868043400814616,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.969681088296505,
+            "noul": 0.03031891170349498,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.896918664451429,
+            "noul": 0.10308133554857105,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9812155419138215,
+            "noul": 0.01878445808617848,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9577386581549989,
+            "noul": 0.04226134184500113,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1641,
+          "total_input_tokens": 1641,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1641
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-code-add-flag",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9562,
+      "evidence": [
+        "primary=code_task (0.96)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.03",
+        "bug_fix=0.14",
+        "code_task=0.97",
+        "docs_change=0.01",
+        "plan_decision=0.12",
+        "release=0.02",
+        "clarify=0.02",
+        "direct_override=0.03",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_bug_fix": {
+            "confidence": 0.8553982512446645,
+            "noul": 0.14460174875533546,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9651885865116601,
+            "noul": 0.034811413488339896,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.8778082471779702,
+            "noul": 0.12219175282202974,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.984026434852468,
+            "noul": 0.015973565147531996,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.977242600453478,
+            "noul": 0.022757399546522047,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9671582025752167,
+            "noul": 0.9671582025752167,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9894666193531622,
+            "noul": 0.010533380646837827,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9562026169036483,
+            "choice": "code_task",
+            "probabilities": {
+              "code_task": 0.9562026169036483,
+              "bug_fix": 0.0021798795096704487,
+              "unclear": 0.002796469956115065,
+              "release": 0.0008700682587545876,
+              "asset_lifecycle": 0.0012544166593191743,
+              "answer_only": 0.0008787440696636456,
+              "docs_change": 0.0007260685198269457,
+              "plan_decision": 0.035091736123001725
+            },
+            "type": "choice"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9880738204421113,
+            "noul": 0.011926179557888704,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9716580701322539,
+            "noul": 0.028341929867746085,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9899146861651951,
+            "noul": 0.010085313834804897,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1637,
+          "total_input_tokens": 1637,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1637
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-code-rename-config",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "direct_override"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9447,
+      "evidence": [
+        "primary=code_task (0.94)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.02",
+        "bug_fix=0.45",
+        "code_task=0.97",
+        "docs_change=0.04",
+        "plan_decision=0.33",
+        "release=0.03",
+        "clarify=0.02",
+        "direct_override=0.98",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_plan_decision": {
+            "confidence": 0.6734947097794894,
+            "noul": 0.3265052902205106,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9780261875197639,
+            "noul": 0.02197381248023607,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9636139850192987,
+            "noul": 0.0363860149807013,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9735969575161456,
+            "noul": 0.026403042483854423,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9679334166010923,
+            "noul": 0.9679334166010923,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5486903154578482,
+            "noul": 0.45130968454215176,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9782359592274248,
+            "noul": 0.021764040772575224,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9811716303904884,
+            "noul": 0.9811716303904884,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9446959110001166,
+            "choice": "code_task",
+            "probabilities": {
+              "unclear": 0.0034423461024734904,
+              "asset_lifecycle": 0.002063973193140281,
+              "docs_change": 0.0006278359371543056,
+              "answer_only": 0.0010298447860722464,
+              "bug_fix": 0.0034859207383006506,
+              "code_task": 0.9446959110001166,
+              "plan_decision": 0.04352332288691126,
+              "release": 0.0011308453558311993
+            },
+            "type": "choice"
+          },
+          "code_verify": {
+            "confidence": 0.9884143829476407,
+            "noul": 0.011585617052359259,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9891995257136516,
+            "noul": 0.01080047428634847,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1643,
+          "total_input_tokens": 1643,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1643
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-ambiguous-permissions",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.0291,
+      "evidence": [
+        "primary=unclear (0.95)",
+        "answer_only=0.02",
+        "asset_lifecycle=0.14",
+        "bug_fix=0.49",
+        "code_task=0.81",
+        "docs_change=0.05",
+        "plan_decision=0.64",
+        "release=0.05",
+        "clarify=0.97",
+        "direct_override=0.02",
+        "code_verify=0.03"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_code_task": {
+            "confidence": 0.8123026049518484,
+            "noul": 0.8123026049518484,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5064371680726272,
+            "noul": 0.4935628319273728,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9532872634046932,
+            "noul": 0.0467127365953068,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9524530875806673,
+            "noul": 0.04754691241933269,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9754147718657611,
+            "noul": 0.0245852281342389,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9456113254724273,
+            "choice": "unclear",
+            "probabilities": {
+              "asset_lifecycle": 0.0007125378787235977,
+              "code_task": 0.022958237955533513,
+              "docs_change": 0.0008579696932959234,
+              "answer_only": 0.0008540251321206932,
+              "bug_fix": 0.004545473222172382,
+              "release": 0.0007954121333702136,
+              "unclear": 0.9456113254724273,
+              "plan_decision": 0.02366501851235635
+            },
+            "type": "choice"
+          },
+          "clarify_required": {
+            "confidence": 0.970933948134,
+            "noul": 0.970933948134,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.8602080903044932,
+            "noul": 0.13979190969550684,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9655459224439181,
+            "noul": 0.034454077556081826,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9847437140519079,
+            "noul": 0.01525628594809213,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.6356643704615087,
+            "noul": 0.6356643704615087,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1633,
+          "total_input_tokens": 1633,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1633
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-code-refactor-dup",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9541,
+      "evidence": [
+        "primary=code_task (0.95)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.02",
+        "bug_fix=0.54",
+        "code_task=0.98",
+        "docs_change=0.02",
+        "plan_decision=0.19",
+        "release=0.03",
+        "clarify=0.02",
+        "direct_override=0.04",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_plan_decision": {
+            "confidence": 0.8126909092653595,
+            "noul": 0.18730909073464055,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5404196048296671,
+            "noul": 0.5404196048296671,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.982746443347181,
+            "noul": 0.01725355665281899,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9540893293595881,
+            "choice": "code_task",
+            "probabilities": {
+              "release": 0.0005006494523313175,
+              "docs_change": 0.0004197597002816738,
+              "code_task": 0.9540893293595881,
+              "unclear": 0.001831327548233525,
+              "asset_lifecycle": 0.0014261550007129533,
+              "answer_only": 0.001196648833681264,
+              "bug_fix": 0.0028618315146300057,
+              "plan_decision": 0.03767429859054108
+            },
+            "type": "choice"
+          },
+          "intent_docs_change": {
+            "confidence": 0.977795585608333,
+            "noul": 0.02220441439166696,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9612695160278041,
+            "noul": 0.03873048397219594,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9746507079493376,
+            "noul": 0.025349292050662425,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9800018766119077,
+            "noul": 0.019998123388092287,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9770378970218433,
+            "noul": 0.9770378970218433,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1656,
+          "total_input_tokens": 1656,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1656
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-code-add-test",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9557,
+      "evidence": [
+        "primary=code_task (0.96)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.07",
+        "bug_fix=0.57",
+        "code_task=0.97",
+        "docs_change=0.01",
+        "plan_decision=0.04",
+        "release=0.02",
+        "clarify=0.01",
+        "direct_override=0.02",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_release": {
+            "confidence": 0.9774176502915735,
+            "noul": 0.02258234970842657,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.964250249504817,
+            "noul": 0.03574975049518298,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9662512341069982,
+            "noul": 0.9662512341069982,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9788701544520035,
+            "noul": 0.0211298455479965,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9316594148606817,
+            "noul": 0.06834058513931826,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.95566728701998,
+            "choice": "code_task",
+            "probabilities": {
+              "unclear": 0.0016388583698847016,
+              "plan_decision": 0.00950877288514604,
+              "code_task": 0.95566728701998,
+              "bug_fix": 0.02723104526790243,
+              "docs_change": 0.0009069004386098214,
+              "answer_only": 0.0025772093704018663,
+              "asset_lifecycle": 0.002011321374277104,
+              "release": 0.00045860527379773774
+            },
+            "type": "choice"
+          },
+          "intent_docs_change": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9768930395946961,
+            "noul": 0.023106960405303925,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5708840565052301,
+            "noul": 0.5708840565052301,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1646,
+          "total_input_tokens": 1646,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1646
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-code-upgrade-dep",
+      "intents": [
+        "code_task",
+        "release"
+      ],
+      "modules": [
+        "code",
+        "release"
+      ],
+      "triggers": [
+        "code_edit",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.8847,
+      "evidence": [
+        "primary=code_task (0.88)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.05",
+        "bug_fix=0.37",
+        "code_task=0.98",
+        "docs_change=0.01",
+        "plan_decision=0.09",
+        "release=0.88",
+        "clarify=0.02",
+        "direct_override=0.03",
+        "code_verify=0.03"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "code_verify": {
+            "confidence": 0.968287824669058,
+            "noul": 0.0317121753309419,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.94723976937573,
+            "noul": 0.052760230624270044,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9867419201514512,
+            "noul": 0.013258079848548784,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.8847455762836428,
+            "choice": "code_task",
+            "probabilities": {
+              "plan_decision": 0.028568407997797026,
+              "code_task": 0.8847455762836428,
+              "docs_change": 0.0004118791805865958,
+              "release": 0.07452987383906017,
+              "bug_fix": 0.006628161819425095,
+              "unclear": 0.0016119310342790764,
+              "answer_only": 0.0008949238772419522,
+              "asset_lifecycle": 0.002609245967967365
+            },
+            "type": "choice"
+          },
+          "intent_release": {
+            "confidence": 0.8786173700970575,
+            "noul": 0.8786173700970575,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9699902037003599,
+            "noul": 0.030009796299640103,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.979814443284152,
+            "noul": 0.979814443284152,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9104648732533569,
+            "noul": 0.08953512674664309,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.631959709252905,
+            "noul": 0.36804029074709493,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9845793385895371,
+            "noul": 0.015420661410462971,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1649,
+          "total_input_tokens": 1649,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1649
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-ambiguous-optimize-api",
+      "intents": [],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.0,
+      "evidence": [
+        "primary=unclear (0.95)",
+        "answer_only=0.07",
+        "asset_lifecycle=0.12",
+        "bug_fix=0.46",
+        "code_task=0.67",
+        "docs_change=0.05",
+        "plan_decision=0.38",
+        "release=0.04",
+        "clarify=0.98",
+        "direct_override=0.02",
+        "code_verify=0.04"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_release": {
+            "confidence": 0.955819455207528,
+            "noul": 0.04418054479247199,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.8812942446756917,
+            "noul": 0.11870575532430833,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9475404972879314,
+            "choice": "unclear",
+            "probabilities": {
+              "asset_lifecycle": 0.0010990115201128324,
+              "plan_decision": 0.017736707501015078,
+              "code_task": 0.019701204449597377,
+              "bug_fix": 0.006497040302445304,
+              "release": 0.0015904897239993904,
+              "unclear": 0.9475404972879314,
+              "docs_change": 0.0005693489725355511,
+              "answer_only": 0.005265700242363
+            },
+            "type": "choice"
+          },
+          "direct_override": {
+            "confidence": 0.9757701636440264,
+            "noul": 0.02422983635597363,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9750258310749943,
+            "noul": 0.9750258310749943,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9649194845187661,
+            "noul": 0.035080515481233976,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9502562241948456,
+            "noul": 0.04974377580515438,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.6189390754295931,
+            "noul": 0.3810609245704069,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5382929428995553,
+            "noul": 0.46170705710044463,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9345505811504004,
+            "noul": 0.06544941884959961,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.6708353790179151,
+            "noul": 0.6708353790179151,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1630,
+          "total_input_tokens": 1630,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1630
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-code-pagination",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9102,
+      "evidence": [
+        "primary=code_task (0.91)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.02",
+        "bug_fix=0.57",
+        "code_task=0.98",
+        "docs_change=0.03",
+        "plan_decision=0.26",
+        "release=0.04",
+        "clarify=0.03",
+        "direct_override=0.04",
+        "code_verify=0.03"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "clarify_required": {
+            "confidence": 0.9708963414963205,
+            "noul": 0.029103658503679443,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5745189862146908,
+            "noul": 0.5745189862146908,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9611515488898608,
+            "noul": 0.03884845111013925,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.973783033378534,
+            "noul": 0.026216966621465977,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9101620567538661,
+            "choice": "code_task",
+            "probabilities": {
+              "code_task": 0.9101620567538661,
+              "plan_decision": 0.07128165978662196,
+              "asset_lifecycle": 0.0023663901034128567,
+              "answer_only": 0.0022682252457919888,
+              "release": 0.0013073159205843473,
+              "bug_fix": 0.00433629108335976,
+              "docs_change": 0.0007572155447630916,
+              "unclear": 0.0075208455615999184
+            },
+            "type": "choice"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9756821242440086,
+            "noul": 0.02431787575599148,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9776537733688493,
+            "noul": 0.9776537733688493,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9639990350211205,
+            "noul": 0.036000964978879474,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9746956071714754,
+            "noul": 0.02530439282852456,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.7436925758091535,
+            "noul": 0.25630742419084657,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1640,
+          "total_input_tokens": 1640,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1640
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-code-run-tests",
+      "intents": [
+        "code_task"
+      ],
+      "modules": [
+        "code"
+      ],
+      "triggers": [
+        "code_edit",
+        "code_verify"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9752,
+      "evidence": [
+        "primary=code_task (0.98)",
+        "answer_only=0.25",
+        "asset_lifecycle=0.29",
+        "bug_fix=0.04",
+        "code_task=0.98",
+        "docs_change=0.01",
+        "plan_decision=0.02",
+        "release=0.02",
+        "clarify=0.02",
+        "direct_override=0.05",
+        "code_verify=0.97"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "direct_override": {
+            "confidence": 0.949168783007445,
+            "noul": 0.05083121699255502,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.7477665810767922,
+            "noul": 0.25223341892320783,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9752113521806215,
+            "choice": "code_task",
+            "probabilities": {
+              "docs_change": 0.0001282582833031969,
+              "answer_only": 0.007517062936624271,
+              "code_task": 0.9752113521806215,
+              "unclear": 0.0016834788554074501,
+              "bug_fix": 0.008231287163858125,
+              "release": 0.003659340693876442,
+              "asset_lifecycle": 0.0014611010060323728,
+              "plan_decision": 0.0021081188802767057
+            },
+            "type": "choice"
+          },
+          "intent_code_task": {
+            "confidence": 0.9836905843911203,
+            "noul": 0.9836905843911203,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9757521378193743,
+            "noul": 0.024247862180625725,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.7066594503873329,
+            "noul": 0.29334054961266703,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9819689192651881,
+            "noul": 0.01803108073481189,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.975603496429935,
+            "noul": 0.02439650357006496,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.964505300682223,
+            "noul": 0.03549469931777701,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9713746219400957,
+            "noul": 0.9713746219400957,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9874243442434425,
+            "noul": 0.012575655756557454,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1640,
+          "total_input_tokens": 1640,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1640
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-bug-offbyone",
+      "intents": [
+        "bug_fix",
+        "code_task"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report",
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9464,
+      "evidence": [
+        "primary=bug_fix (0.95)",
+        "answer_only=0.03",
+        "asset_lifecycle=0.05",
+        "bug_fix=0.97",
+        "code_task=0.94",
+        "docs_change=0.01",
+        "plan_decision=0.04",
+        "release=0.02",
+        "clarify=0.20",
+        "direct_override=0.04",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "primary_intent": {
+            "confidence": 0.9463948235477935,
+            "choice": "bug_fix",
+            "probabilities": {
+              "docs_change": 0.00012857652297136078,
+              "asset_lifecycle": 0.002284397062306862,
+              "unclear": 0.0023435308120202704,
+              "release": 0.00036811838921112504,
+              "code_task": 0.040543057122342116,
+              "answer_only": 0.004552329910613745,
+              "bug_fix": 0.9463948235477935,
+              "plan_decision": 0.0033851666327408643
+            },
+            "type": "choice"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9592026442487696,
+            "noul": 0.040797355751230495,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9857329139308252,
+            "noul": 0.014267086069174865,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.7991759950072005,
+            "noul": 0.2008240049927995,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.973188047922911,
+            "noul": 0.02681195207708894,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9785440078797442,
+            "noul": 0.021455992120255847,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9450430778496178,
+            "noul": 0.054956922150382156,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9860405786771147,
+            "noul": 0.013959421322885277,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9629895569294248,
+            "noul": 0.03701044307057524,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9662072779853987,
+            "noul": 0.9662072779853987,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9424793252690521,
+            "noul": 0.9424793252690521,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1643,
+          "total_input_tokens": 1643,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1643
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-bug-race",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.8216,
+      "evidence": [
+        "primary=bug_fix (0.82)",
+        "answer_only=0.06",
+        "asset_lifecycle=0.02",
+        "bug_fix=0.89",
+        "code_task=0.56",
+        "docs_change=0.01",
+        "plan_decision=0.49",
+        "release=0.01",
+        "clarify=0.18",
+        "direct_override=0.02",
+        "code_verify=0.12"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_docs_change": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9413974057408052,
+            "noul": 0.05860259425919484,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.5067118876617662,
+            "noul": 0.4932881123382337,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.8244651171122257,
+            "noul": 0.17553488288777427,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9883198150207313,
+            "noul": 0.01168018497926865,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.8215501573966885,
+            "choice": "bug_fix",
+            "probabilities": {
+              "release": 0.001589247402321521,
+              "unclear": 0.014949209616357017,
+              "bug_fix": 0.8215501573966885,
+              "code_task": 0.06638661979969494,
+              "answer_only": 0.0311202428583157,
+              "asset_lifecycle": 0.003530536122621702,
+              "docs_change": 0.0005595706095287355,
+              "plan_decision": 0.06031441619447204
+            },
+            "type": "choice"
+          },
+          "intent_code_task": {
+            "confidence": 0.5633747245932982,
+            "noul": 0.5633747245932982,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.8887565618810908,
+            "noul": 0.8887565618810908,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.977734589462121,
+            "noul": 0.02226541053787902,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.8848178056448616,
+            "noul": 0.11518219435513843,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9805266592285365,
+            "noul": 0.01947334077146342,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1633,
+          "total_input_tokens": 1633,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1633
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-bug-null-parser",
+      "intents": [
+        "bug_fix",
+        "code_task"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report",
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9296,
+      "evidence": [
+        "primary=bug_fix (0.93)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.06",
+        "bug_fix=0.96",
+        "code_task=0.98",
+        "docs_change=0.02",
+        "plan_decision=0.04",
+        "release=0.02",
+        "clarify=0.06",
+        "direct_override=0.03",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "code_verify": {
+            "confidence": 0.9821056723204855,
+            "noul": 0.017894327679514495,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9551569406842064,
+            "noul": 0.04484305931579352,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9796196380698142,
+            "noul": 0.9796196380698142,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9391570994698294,
+            "noul": 0.06084290053017065,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9808186001561027,
+            "noul": 0.019181399843897277,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9733119020652337,
+            "noul": 0.02668809793476635,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9420753409463288,
+            "noul": 0.05792465905367119,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9296072032852793,
+            "choice": "bug_fix",
+            "probabilities": {
+              "answer_only": 0.0015510202446699479,
+              "bug_fix": 0.9296072032852793,
+              "asset_lifecycle": 0.00233581662058519,
+              "release": 0.00040618442271704407,
+              "unclear": 0.0016757481772331142,
+              "code_task": 0.06188359845388614,
+              "plan_decision": 0.0024259944050404538,
+              "docs_change": 0.00011443439058901161
+            },
+            "type": "choice"
+          },
+          "intent_release": {
+            "confidence": 0.9808092270360571,
+            "noul": 0.01919077296394288,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9625194536979998,
+            "noul": 0.9625194536979998,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1634,
+          "total_input_tokens": 1634,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1634
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-bug-fresh-install",
+      "intents": [
+        "bug_fix"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9355,
+      "evidence": [
+        "primary=bug_fix (0.94)",
+        "answer_only=0.07",
+        "asset_lifecycle=0.02",
+        "bug_fix=0.94",
+        "code_task=0.67",
+        "docs_change=0.04",
+        "plan_decision=0.13",
+        "release=0.04",
+        "clarify=0.36",
+        "direct_override=0.02",
+        "code_verify=0.08"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_docs_change": {
+            "confidence": 0.96475841027174,
+            "noul": 0.03524158972826002,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9768392217493334,
+            "noul": 0.02316077825066664,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9444761628988189,
+            "noul": 0.9444761628988189,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9237561176204295,
+            "noul": 0.07624388237957044,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9815698991437235,
+            "noul": 0.01843010085627648,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.8724780513859536,
+            "noul": 0.12752194861404642,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.6669138697396263,
+            "noul": 0.6669138697396263,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9343973963465044,
+            "noul": 0.06560260365349556,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9625332082460692,
+            "noul": 0.0374667917539308,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9354999404557308,
+            "choice": "bug_fix",
+            "probabilities": {
+              "unclear": 0.00898967407393621,
+              "answer_only": 0.010793721522128163,
+              "docs_change": 0.0003354835228987384,
+              "bug_fix": 0.9354999404557308,
+              "plan_decision": 0.01697394539539205,
+              "release": 0.0008530327989202284,
+              "code_task": 0.024513686312895286,
+              "asset_lifecycle": 0.002040515918098481
+            },
+            "type": "choice"
+          },
+          "clarify_required": {
+            "confidence": 0.6365790219000511,
+            "noul": 0.36342097809994894,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1640,
+          "total_input_tokens": 1640,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1640
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-bug-timezone-test",
+      "intents": [
+        "bug_fix",
+        "code_task"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report",
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9035,
+      "evidence": [
+        "primary=bug_fix (0.90)",
+        "answer_only=0.03",
+        "asset_lifecycle=0.03",
+        "bug_fix=0.96",
+        "code_task=0.97",
+        "docs_change=0.03",
+        "plan_decision=0.06",
+        "release=0.03",
+        "clarify=0.36",
+        "direct_override=0.02",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_docs_change": {
+            "confidence": 0.9712319846173155,
+            "noul": 0.028768015382684448,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.967363306560441,
+            "noul": 0.967363306560441,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9035111571398741,
+            "choice": "bug_fix",
+            "probabilities": {
+              "code_task": 0.07447757061163554,
+              "plan_decision": 0.006446942525415602,
+              "docs_change": 0.00018514818722388155,
+              "asset_lifecycle": 0.0023836474462942156,
+              "unclear": 0.0043734747014711976,
+              "bug_fix": 0.9035111571398741,
+              "answer_only": 0.007904369671354819,
+              "release": 0.0007176897167304866
+            },
+            "type": "choice"
+          },
+          "direct_override": {
+            "confidence": 0.9754367695105582,
+            "noul": 0.02456323048944178,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9699949061150761,
+            "noul": 0.030005093884923846,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9681126563918571,
+            "noul": 0.03188734360814291,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.936866061515683,
+            "noul": 0.06313393848431709,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9670695322975258,
+            "noul": 0.03293046770247426,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9597660096132798,
+            "noul": 0.9597660096132798,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9763281605315031,
+            "noul": 0.023671839468496957,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.6394068216011717,
+            "noul": 0.3605931783988283,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1641,
+          "total_input_tokens": 1641,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1641
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-bug-token-refresh",
+      "intents": [
+        "bug_fix",
+        "code_task"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report",
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.8714,
+      "evidence": [
+        "primary=bug_fix (0.87)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.03",
+        "bug_fix=0.97",
+        "code_task=0.97",
+        "docs_change=0.02",
+        "plan_decision=0.08",
+        "release=0.03",
+        "clarify=0.18",
+        "direct_override=0.03",
+        "code_verify=0.01"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_asset_lifecycle": {
+            "confidence": 0.967324214170952,
+            "noul": 0.032675785829047975,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9695963696385207,
+            "noul": 0.030403630361479347,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.8714142552430872,
+            "choice": "bug_fix",
+            "probabilities": {
+              "docs_change": 0.0002759415519688973,
+              "code_task": 0.09648689593775397,
+              "asset_lifecycle": 0.0028255483982222588,
+              "release": 0.0008751755003453663,
+              "bug_fix": 0.8714142552430872,
+              "answer_only": 0.006506844941275658,
+              "plan_decision": 0.013252763349360487,
+              "unclear": 0.008362575077986155
+            },
+            "type": "choice"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9182143801893362,
+            "noul": 0.08178561981066382,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.8247035910493363,
+            "noul": 0.1752964089506637,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9803901346462498,
+            "noul": 0.01960986535375022,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.989550289611973,
+            "noul": 0.010449710388027002,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9695157005251768,
+            "noul": 0.9695157005251768,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9669197032424269,
+            "noul": 0.9669197032424269,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9739679979763808,
+            "noul": 0.026032002023619168,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1641,
+          "total_input_tokens": 1641,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1641
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-plan-db-migration",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9898,
+      "evidence": [
+        "primary=plan_decision (0.99)",
+        "answer_only=0.30",
+        "asset_lifecycle=0.62",
+        "bug_fix=0.43",
+        "code_task=0.04",
+        "docs_change=0.45",
+        "plan_decision=0.99",
+        "release=0.03",
+        "clarify=0.04",
+        "direct_override=0.05",
+        "code_verify=0.07"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_asset_lifecycle": {
+            "confidence": 0.6213289244100484,
+            "noul": 0.6213289244100484,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5675241563530304,
+            "noul": 0.4324758436469695,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.5541061560477683,
+            "noul": 0.44589384395223175,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.6988253332343002,
+            "noul": 0.30117466676569987,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9566866996053137,
+            "noul": 0.04331330039468626,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.99,
+            "noul": 0.99,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9897652183608088,
+            "choice": "plan_decision",
+            "probabilities": {
+              "asset_lifecycle": 0.0030670354384359313,
+              "docs_change": 0.004024711804282611,
+              "plan_decision": 0.9897652183608088,
+              "code_task": 0.0019591883639961407,
+              "answer_only": 0.0006864921364299046,
+              "release": 0.0001255531129823609,
+              "unclear": 0.0001461288813630489,
+              "bug_fix": 0.00022567190170118232
+            },
+            "type": "choice"
+          },
+          "code_verify": {
+            "confidence": 0.9263216824511019,
+            "noul": 0.07367831754889809,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9720397716129867,
+            "noul": 0.027960228387013293,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9546936209267944,
+            "noul": 0.04530637907320556,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9566481810897489,
+            "noul": 0.04335181891025105,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1651,
+          "total_input_tokens": 1651,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1651
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-plan-service-split",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9745,
+      "evidence": [
+        "primary=plan_decision (0.97)",
+        "answer_only=0.33",
+        "asset_lifecycle=0.44",
+        "bug_fix=0.52",
+        "code_task=0.07",
+        "docs_change=0.07",
+        "plan_decision=0.99",
+        "release=0.03",
+        "clarify=0.07",
+        "direct_override=0.03",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "primary_intent": {
+            "confidence": 0.9744707112829268,
+            "choice": "plan_decision",
+            "probabilities": {
+              "release": 0.00031567422654147894,
+              "code_task": 0.002362299544452841,
+              "plan_decision": 0.9744707112829268,
+              "answer_only": 0.0038231005927739097,
+              "docs_change": 0.002240777606944489,
+              "unclear": 0.000953596416371642,
+              "asset_lifecycle": 0.015144583736734383,
+              "bug_fix": 0.00068925659325447
+            },
+            "type": "choice"
+          },
+          "code_verify": {
+            "confidence": 0.9835395217447185,
+            "noul": 0.016460478255281515,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.99,
+            "noul": 0.99,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.5582702593370692,
+            "noul": 0.44172974066293075,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.971732411371586,
+            "noul": 0.028267588628414053,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.6713679036576472,
+            "noul": 0.32863209634235285,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9297629702356455,
+            "noul": 0.07023702976435456,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5188386355281788,
+            "noul": 0.5188386355281788,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9297878228987327,
+            "noul": 0.07021217710126722,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9742069201279838,
+            "noul": 0.02579307987201617,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9271564165310213,
+            "noul": 0.07284358346897873,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1645,
+          "total_input_tokens": 1645,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1645
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-plan-queue-choice",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.941,
+      "evidence": [
+        "primary=plan_decision (0.94)",
+        "answer_only=0.51",
+        "asset_lifecycle=0.58",
+        "bug_fix=0.03",
+        "code_task=0.05",
+        "docs_change=0.24",
+        "plan_decision=0.98",
+        "release=0.01",
+        "clarify=0.17",
+        "direct_override=0.03",
+        "code_verify=0.03"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_bug_fix": {
+            "confidence": 0.968678395792524,
+            "noul": 0.031321604207476005,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9542226790908421,
+            "noul": 0.045777320909157884,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.96967202163466,
+            "noul": 0.030327978365340007,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.5092084036244776,
+            "noul": 0.5092084036244776,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.5814974578722484,
+            "noul": 0.5814974578722484,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9838550634367765,
+            "noul": 0.9838550634367765,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9739042781564619,
+            "noul": 0.026095721843538117,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9890738985881314,
+            "noul": 0.01092610141186857,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.7637586183616746,
+            "noul": 0.23624138163832542,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.940979431320264,
+            "choice": "plan_decision",
+            "probabilities": {
+              "code_task": 0.0009892636982157942,
+              "release": 0.0005100448651565779,
+              "asset_lifecycle": 0.0418638220289094,
+              "answer_only": 0.009673548118847195,
+              "bug_fix": 0.0002537715278320577,
+              "unclear": 0.0018631026984300006,
+              "docs_change": 0.003867015742345103,
+              "plan_decision": 0.940979431320264
+            },
+            "type": "choice"
+          },
+          "clarify_required": {
+            "confidence": 0.8263690260256006,
+            "noul": 0.1736309739743994,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1639,
+          "total_input_tokens": 1639,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1639
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-plan-rollout",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9778,
+      "evidence": [
+        "primary=plan_decision (0.98)",
+        "answer_only=0.17",
+        "asset_lifecycle=0.24",
+        "bug_fix=0.52",
+        "code_task=0.04",
+        "docs_change=0.46",
+        "plan_decision=0.99",
+        "release=0.52",
+        "clarify=0.25",
+        "direct_override=0.02",
+        "code_verify=0.23"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "code_verify": {
+            "confidence": 0.7725434582274803,
+            "noul": 0.22745654177251973,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.5379698154420351,
+            "noul": 0.4620301845579649,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9618784359603866,
+            "noul": 0.03812156403961338,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.518705035148881,
+            "noul": 0.518705035148881,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9839650260076906,
+            "noul": 0.016034973992309395,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.5211240831353235,
+            "noul": 0.5211240831353235,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.7623423020121534,
+            "noul": 0.23765769798784667,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.8310338397984711,
+            "noul": 0.16896616020152888,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9778084614253751,
+            "choice": "plan_decision",
+            "probabilities": {
+              "unclear": 0.001075327270040226,
+              "code_task": 0.0032208097527781305,
+              "asset_lifecycle": 0.002881014688019044,
+              "docs_change": 0.003410051445826243,
+              "bug_fix": 0.0006667149041424303,
+              "plan_decision": 0.9778084614253751,
+              "release": 0.008468709879108343,
+              "answer_only": 0.0024689106347104616
+            },
+            "type": "choice"
+          },
+          "clarify_required": {
+            "confidence": 0.7503387501633348,
+            "noul": 0.24966124983666513,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.99,
+            "noul": 0.99,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1642,
+          "total_input_tokens": 1642,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1642
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-ambiguous-plan",
+      "intents": [],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.0,
+      "evidence": [
+        "primary=unclear (0.95)",
+        "answer_only=0.20",
+        "asset_lifecycle=0.40",
+        "bug_fix=0.15",
+        "code_task=0.53",
+        "docs_change=0.20",
+        "plan_decision=0.61",
+        "release=0.38",
+        "clarify=0.97",
+        "direct_override=0.05",
+        "code_verify=0.16"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_code_task": {
+            "confidence": 0.5308412006218758,
+            "noul": 0.5308412006218758,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.6020066594789362,
+            "noul": 0.3979933405210638,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.7970721753126635,
+            "noul": 0.20292782468733653,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.6068666576072791,
+            "noul": 0.6068666576072791,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9510715520462778,
+            "choice": "unclear",
+            "probabilities": {
+              "answer_only": 0.0019143884422117075,
+              "asset_lifecycle": 0.0009618202831179764,
+              "unclear": 0.9510715520462778,
+              "docs_change": 0.0005121564231289445,
+              "release": 0.0009384758773062169,
+              "code_task": 0.011928117386476306,
+              "plan_decision": 0.03204575253250538,
+              "bug_fix": 0.0006277370089757059
+            },
+            "type": "choice"
+          },
+          "clarify_required": {
+            "confidence": 0.9739023156908763,
+            "noul": 0.9739023156908763,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.8505574083930593,
+            "noul": 0.1494425916069407,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.7968383531781544,
+            "noul": 0.2031616468218456,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.6218573374365253,
+            "noul": 0.3781426625634748,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.836658486339132,
+            "noul": 0.16334151366086805,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9490975078492997,
+            "noul": 0.05090249215070032,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1628,
+          "total_input_tokens": 1628,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1628
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-plan-security-remediation",
+      "intents": [
+        "bug_fix",
+        "plan_decision"
+      ],
+      "modules": [
+        "bugfix",
+        "code",
+        "plan"
+      ],
+      "triggers": [
+        "bug_report",
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.732,
+      "evidence": [
+        "primary=plan_decision (0.73)",
+        "answer_only=0.18",
+        "asset_lifecycle=0.19",
+        "bug_fix=0.87",
+        "code_task=0.07",
+        "docs_change=0.04",
+        "plan_decision=0.96",
+        "release=0.04",
+        "clarify=0.29",
+        "direct_override=0.03",
+        "code_verify=0.05"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "direct_override": {
+            "confidence": 0.9663521758816295,
+            "noul": 0.033647824118370535,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9601592586817558,
+            "noul": 0.039840741318244215,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9588521394055501,
+            "noul": 0.04114786059444985,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.8192072681676436,
+            "noul": 0.18079273183235642,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9611104439722086,
+            "noul": 0.9611104439722086,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.7319712770458359,
+            "choice": "plan_decision",
+            "probabilities": {
+              "bug_fix": 0.19806575000328427,
+              "unclear": 0.021440032375978323,
+              "release": 0.0020497269580844126,
+              "docs_change": 0.0012888812006530358,
+              "code_task": 0.02796696753145386,
+              "answer_only": 0.007545692971013587,
+              "plan_decision": 0.7319712770458359,
+              "asset_lifecycle": 0.009671671913696769
+            },
+            "type": "choice"
+          },
+          "clarify_required": {
+            "confidence": 0.7068594897154019,
+            "noul": 0.29314051028459814,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.873359511848861,
+            "noul": 0.873359511848861,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9281000776066555,
+            "noul": 0.07189992239334449,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9457465564294902,
+            "noul": 0.054253443570509804,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.81366322071553,
+            "noul": 0.18633677928447004,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1646,
+          "total_input_tokens": 1646,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1646
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-asset-acceptance-create",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [
+        "assets"
+      ],
+      "triggers": [
+        "asset_operation"
+      ],
+      "must_clarify": false,
+      "confidence": 0.968,
+      "evidence": [
+        "primary=asset_lifecycle (0.97)",
+        "answer_only=0.10",
+        "asset_lifecycle=0.98",
+        "bug_fix=0.17",
+        "code_task=0.22",
+        "docs_change=0.12",
+        "plan_decision=0.60",
+        "release=0.06",
+        "clarify=0.06",
+        "direct_override=0.03",
+        "code_verify=0.49"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_code_task": {
+            "confidence": 0.7799712794511694,
+            "noul": 0.2200287205488306,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.8794203604293729,
+            "noul": 0.12057963957062712,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.5084188005840435,
+            "noul": 0.49158119941595646,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9023038042358509,
+            "noul": 0.09769619576414912,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.941735348318083,
+            "noul": 0.058264651681916926,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9776345525528215,
+            "noul": 0.9776345525528215,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.5957420537417475,
+            "noul": 0.5957420537417475,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9705385554533263,
+            "noul": 0.02946144454667371,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.8305019352252498,
+            "noul": 0.1694980647747502,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9679867059438875,
+            "choice": "asset_lifecycle",
+            "probabilities": {
+              "plan_decision": 0.01838813884365676,
+              "release": 0.001742627498061674,
+              "docs_change": 0.005397391627277731,
+              "answer_only": 0.0026262574694889524,
+              "bug_fix": 0.0003596746186470001,
+              "unclear": 0.0009080743565790366,
+              "code_task": 0.002591129642401221,
+              "asset_lifecycle": 0.9679867059438875
+            },
+            "type": "choice"
+          },
+          "clarify_required": {
+            "confidence": 0.9356069074760311,
+            "noul": 0.06439309252396881,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1640,
+          "total_input_tokens": 1640,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1640
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-ambiguous-acceptance",
+      "intents": [
+        "asset_lifecycle"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.0318,
+      "evidence": [
+        "primary=unclear (0.93)",
+        "answer_only=0.15",
+        "asset_lifecycle=0.91",
+        "bug_fix=0.12",
+        "code_task=0.21",
+        "docs_change=0.30",
+        "plan_decision=0.37",
+        "release=0.34",
+        "clarify=0.97",
+        "direct_override=0.03",
+        "code_verify=0.25"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_release": {
+            "confidence": 0.657987565930015,
+            "noul": 0.3420124340699851,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9681873492264244,
+            "noul": 0.9681873492264244,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.8821815468222398,
+            "noul": 0.11781845317776024,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9139598526824495,
+            "noul": 0.9139598526824495,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.6263609688581899,
+            "noul": 0.37363903114181,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.8507751841352273,
+            "noul": 0.1492248158647726,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9287890800272413,
+            "choice": "unclear",
+            "probabilities": {
+              "release": 0.0011472740708303147,
+              "docs_change": 0.006893012283617615,
+              "answer_only": 0.005024284893487178,
+              "unclear": 0.9287890800272413,
+              "bug_fix": 0.00046134171432907645,
+              "code_task": 0.0010788152093210717,
+              "asset_lifecycle": 0.0519110586088383,
+              "plan_decision": 0.004695133192335204
+            },
+            "type": "choice"
+          },
+          "direct_override": {
+            "confidence": 0.9722216928538964,
+            "noul": 0.027778307146103604,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.7027081593452729,
+            "noul": 0.2972918406547271,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.7547843588705018,
+            "noul": 0.2452156411294982,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.7855065087181484,
+            "noul": 0.21449349128185158,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1627,
+          "total_input_tokens": 1627,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1627
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-asset-knowledge-create",
+      "intents": [
+        "asset_lifecycle",
+        "docs_change"
+      ],
+      "modules": [
+        "assets",
+        "docs"
+      ],
+      "triggers": [
+        "asset_operation",
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9898,
+      "evidence": [
+        "primary=asset_lifecycle (0.99)",
+        "answer_only=0.04",
+        "asset_lifecycle=0.97",
+        "bug_fix=0.03",
+        "code_task=0.04",
+        "docs_change=0.85",
+        "plan_decision=0.05",
+        "release=0.02",
+        "clarify=0.05",
+        "direct_override=0.02",
+        "code_verify=0.06"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_release": {
+            "confidence": 0.9780986709740099,
+            "noul": 0.02190132902599012,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9496062247172748,
+            "noul": 0.05039377528272518,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9457973746126209,
+            "noul": 0.05420262538737907,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9715683683180903,
+            "noul": 0.9715683683180903,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9599500939870435,
+            "noul": 0.04004990601295657,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9897736078888776,
+            "choice": "asset_lifecycle",
+            "probabilities": {
+              "docs_change": 0.0054617077063364335,
+              "answer_only": 0.002008468333526595,
+              "asset_lifecycle": 0.9897736078888776,
+              "plan_decision": 0.0012756792054960475,
+              "bug_fix": 0.0002171937110059852,
+              "code_task": 0.0008255812586232791,
+              "release": 8.982716969540987e-05,
+              "unclear": 0.0003479347264385285
+            },
+            "type": "choice"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.966360589006676,
+            "noul": 0.03363941099332399,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9356353121977179,
+            "noul": 0.06436468780228215,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9772688476532806,
+            "noul": 0.022731152346719446,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9595098003375684,
+            "noul": 0.04049019966243164,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.8501458226737498,
+            "noul": 0.8501458226737498,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1650,
+          "total_input_tokens": 1650,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1650
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-asset-adr-create",
+      "intents": [
+        "asset_lifecycle",
+        "plan_decision"
+      ],
+      "modules": [
+        "assets",
+        "plan"
+      ],
+      "triggers": [
+        "asset_operation",
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9379,
+      "evidence": [
+        "primary=asset_lifecycle (0.94)",
+        "answer_only=0.03",
+        "asset_lifecycle=0.97",
+        "bug_fix=0.05",
+        "code_task=0.02",
+        "docs_change=0.74",
+        "plan_decision=0.94",
+        "release=0.03",
+        "clarify=0.04",
+        "direct_override=0.03",
+        "code_verify=0.04"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_plan_decision": {
+            "confidence": 0.935341000916566,
+            "noul": 0.935341000916566,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9760485128870012,
+            "noul": 0.023951487112998725,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9683446273223077,
+            "noul": 0.9683446273223077,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9696478555947466,
+            "noul": 0.03035214440525337,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9705730338395216,
+            "noul": 0.029426966160478317,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9378586439726913,
+            "choice": "asset_lifecycle",
+            "probabilities": {
+              "docs_change": 0.015444971543168663,
+              "plan_decision": 0.041366416066154786,
+              "unclear": 0.0009751147594649628,
+              "answer_only": 0.0020578432820533097,
+              "release": 0.0003232843208536774,
+              "code_task": 0.001752495295614113,
+              "asset_lifecycle": 0.9378586439726913,
+              "bug_fix": 0.0002212307599992314
+            },
+            "type": "choice"
+          },
+          "intent_docs_change": {
+            "confidence": 0.741180611345625,
+            "noul": 0.741180611345625,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9520284414373097,
+            "noul": 0.047971558562690336,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.96391765464838,
+            "noul": 0.03608234535161998,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9636627798924718,
+            "noul": 0.036337220107528205,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9738591299869211,
+            "noul": 0.02614087001307889,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1644,
+          "total_input_tokens": 1644,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1644
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-release-patch",
+      "intents": [
+        "release"
+      ],
+      "modules": [
+        "release"
+      ],
+      "triggers": [
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9984,
+      "evidence": [
+        "primary=release (1.00)",
+        "answer_only=0.02",
+        "asset_lifecycle=0.03",
+        "bug_fix=0.10",
+        "code_task=0.47",
+        "docs_change=0.02",
+        "plan_decision=0.23",
+        "release=0.98",
+        "clarify=0.04",
+        "direct_override=0.02",
+        "code_verify=0.04"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_code_task": {
+            "confidence": 0.5267936739311572,
+            "noul": 0.47320632606884283,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9741663970457582,
+            "noul": 0.025833602954241704,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.963489561395232,
+            "noul": 0.03651043860476803,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.7718024993699663,
+            "noul": 0.22819750063003377,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9554940784780503,
+            "noul": 0.0445059215219496,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9822967902786208,
+            "noul": 0.9822967902786208,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9808897783791711,
+            "noul": 0.019110221620828913,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9813455091964433,
+            "noul": 0.01865449080355673,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9983525925806684,
+            "choice": "release",
+            "probabilities": {
+              "release": 0.9983525925806684,
+              "docs_change": 0.0004323068520052117,
+              "asset_lifecycle": 0.00016111478422541883,
+              "unclear": 4.2931890592629855e-05,
+              "code_task": 0.0005608483695997217,
+              "plan_decision": 0.0003158044251395849,
+              "answer_only": 4.446051163369448e-05,
+              "bug_fix": 8.99405861352933e-05
+            },
+            "type": "choice"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.8991141676107987,
+            "noul": 0.10088583238920139,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9844815443020958,
+            "noul": 0.015518455697904275,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1651,
+          "total_input_tokens": 1651,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1651
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-release-package",
+      "intents": [
+        "code_task",
+        "release"
+      ],
+      "modules": [
+        "code",
+        "release"
+      ],
+      "triggers": [
+        "code_edit",
+        "code_verify",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.7062,
+      "evidence": [
+        "primary=release (0.71)",
+        "answer_only=0.08",
+        "asset_lifecycle=0.11",
+        "bug_fix=0.09",
+        "code_task=0.91",
+        "docs_change=0.03",
+        "plan_decision=0.08",
+        "release=0.97",
+        "clarify=0.08",
+        "direct_override=0.16",
+        "code_verify=0.92"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_code_task": {
+            "confidence": 0.9102054201445932,
+            "noul": 0.9102054201445932,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9706280590601215,
+            "noul": 0.029371940939878466,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9243814263256549,
+            "noul": 0.07561857367434505,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.7061932520343762,
+            "choice": "release",
+            "probabilities": {
+              "plan_decision": 0.010753455580870088,
+              "asset_lifecycle": 0.0018082572485881526,
+              "code_task": 0.2467174166139833,
+              "release": 0.7061932520343762,
+              "answer_only": 0.02453901144033991,
+              "unclear": 0.004889358487158153,
+              "docs_change": 0.0016599294146340347,
+              "bug_fix": 0.00343931918005026
+            },
+            "type": "choice"
+          },
+          "intent_release": {
+            "confidence": 0.9671228621779349,
+            "noul": 0.9671228621779349,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9076682851782716,
+            "noul": 0.09233171482172836,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.894851168124885,
+            "noul": 0.10514883187511502,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9151449054790197,
+            "noul": 0.08485509452098022,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.8418483093868222,
+            "noul": 0.15815169061317777,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9201823061683676,
+            "noul": 0.07981769383163242,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9187444085563,
+            "noul": 0.9187444085563,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1642,
+          "total_input_tokens": 1642,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1642
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-release-downstream",
+      "intents": [
+        "code_task",
+        "release"
+      ],
+      "modules": [
+        "code",
+        "release"
+      ],
+      "triggers": [
+        "code_edit",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.6884,
+      "evidence": [
+        "primary=release (0.69)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.11",
+        "bug_fix=0.60",
+        "code_task=0.94",
+        "docs_change=0.01",
+        "plan_decision=0.35",
+        "release=0.97",
+        "clarify=0.05",
+        "direct_override=0.04",
+        "code_verify=0.06"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_bug_fix": {
+            "confidence": 0.5985796905622246,
+            "noul": 0.5985796905622246,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.650613773351508,
+            "noul": 0.3493862266484919,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.974787167911808,
+            "noul": 0.974787167911808,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.6883997245017902,
+            "choice": "release",
+            "probabilities": {
+              "release": 0.6883997245017902,
+              "code_task": 0.2734501848466554,
+              "docs_change": 0.0007233354853822612,
+              "answer_only": 0.0011792175740265199,
+              "bug_fix": 0.0023606370014179747,
+              "plan_decision": 0.028319831575279102,
+              "asset_lifecycle": 0.003207408866892714,
+              "unclear": 0.0023596601485556916
+            },
+            "type": "choice"
+          },
+          "intent_answer_only": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9429025409757895,
+            "noul": 0.9429025409757895,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9870573010517858,
+            "noul": 0.012942698948214221,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9407002981753596,
+            "noul": 0.05929970182464045,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.8862489634823081,
+            "noul": 0.11375103651769186,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9648467244376306,
+            "noul": 0.0351532755623693,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9515211753004555,
+            "noul": 0.048478824699544475,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1641,
+          "total_input_tokens": 1641,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1641
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-ambiguous-release",
+      "intents": [
+        "release"
+      ],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.0471,
+      "evidence": [
+        "primary=release (0.65)",
+        "answer_only=0.02",
+        "asset_lifecycle=0.04",
+        "bug_fix=0.06",
+        "code_task=0.46",
+        "docs_change=0.04",
+        "plan_decision=0.58",
+        "release=0.97",
+        "clarify=0.95",
+        "direct_override=0.03",
+        "code_verify=0.26"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_release": {
+            "confidence": 0.9690803260182947,
+            "noul": 0.9690803260182947,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9416215652970377,
+            "noul": 0.05837843470296229,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.7446715149543384,
+            "noul": 0.2553284850456617,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9529443665527737,
+            "noul": 0.9529443665527737,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.971670264315108,
+            "noul": 0.02832973568489209,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9638348875734386,
+            "noul": 0.036165112426561376,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9648585053675247,
+            "noul": 0.03514149463247529,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9828814192612967,
+            "noul": 0.017118580738703326,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.5755527158797822,
+            "noul": 0.5755527158797822,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.6462147314158931,
+            "choice": "release",
+            "probabilities": {
+              "code_task": 0.004430428306951086,
+              "bug_fix": 0.0005405324749997977,
+              "unclear": 0.3392088141572063,
+              "asset_lifecycle": 0.0006297037185053105,
+              "answer_only": 0.0006476845639764904,
+              "docs_change": 0.0005490645204289777,
+              "release": 0.6462147314158931,
+              "plan_decision": 0.007779040842038941
+            },
+            "type": "choice"
+          },
+          "intent_code_task": {
+            "confidence": 0.5379873540612483,
+            "noul": 0.46201264593875174,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1631,
+          "total_input_tokens": 1631,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1631
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-docs-readme-quickstart",
+      "intents": [
+        "bug_fix",
+        "docs_change"
+      ],
+      "modules": [
+        "bugfix",
+        "code",
+        "docs"
+      ],
+      "triggers": [
+        "bug_report",
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9832,
+      "evidence": [
+        "primary=docs_change (0.98)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.26",
+        "bug_fix=0.86",
+        "code_task=0.33",
+        "docs_change=0.98",
+        "plan_decision=0.08",
+        "release=0.03",
+        "clarify=0.06",
+        "direct_override=0.04",
+        "code_verify=0.05"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_docs_change": {
+            "confidence": 0.9789618079077141,
+            "noul": 0.9789618079077141,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9196664620261845,
+            "noul": 0.08033353797381547,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.7355797522358158,
+            "noul": 0.2644202477641841,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9714517676752416,
+            "noul": 0.028548232324758484,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.956155094923509,
+            "noul": 0.043844905076491004,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9401809313678832,
+            "noul": 0.059819068632116834,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.949979918170939,
+            "noul": 0.05002008182906105,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.6743146801861148,
+            "noul": 0.3256853198138852,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9832445418709769,
+            "choice": "docs_change",
+            "probabilities": {
+              "bug_fix": 0.0013767020671467181,
+              "unclear": 0.0009350995320318397,
+              "docs_change": 0.9832445418709769,
+              "code_task": 0.004845778735387498,
+              "asset_lifecycle": 0.003229283909100992,
+              "release": 0.00037689884188609824,
+              "plan_decision": 0.005355170630840204,
+              "answer_only": 0.0006365244126297511
+            },
+            "type": "choice"
+          },
+          "intent_answer_only": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.8554850683593248,
+            "noul": 0.8554850683593248,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1635,
+          "total_input_tokens": 1635,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1635
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-docs-api-reference",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.9639,
+      "evidence": [
+        "primary=docs_change (0.96)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.21",
+        "bug_fix=0.54",
+        "code_task=0.15",
+        "docs_change=0.97",
+        "plan_decision=0.10",
+        "release=0.03",
+        "clarify=0.04",
+        "direct_override=0.03",
+        "code_verify=0.04"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_code_task": {
+            "confidence": 0.853832787348213,
+            "noul": 0.14616721265178703,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9710913648675908,
+            "noul": 0.028908635132409183,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.99,
+            "noul": 0.01,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5448594672740953,
+            "noul": 0.5448594672740953,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.9639125564543894,
+            "choice": "docs_change",
+            "probabilities": {
+              "plan_decision": 0.006260770057979698,
+              "release": 0.0005054124812801568,
+              "answer_only": 0.0016522570136971078,
+              "asset_lifecycle": 0.012830765456672616,
+              "docs_change": 0.9639125564543894,
+              "code_task": 0.012837791056662856,
+              "unclear": 0.0010656384733918709,
+              "bug_fix": 0.0009348090059262549
+            },
+            "type": "choice"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.7941157003984262,
+            "noul": 0.20588429960157384,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9572885306567877,
+            "noul": 0.04271146934321231,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9697003442685256,
+            "noul": 0.03029965573147439,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9031453035915826,
+            "noul": 0.09685469640841742,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9570523176173178,
+            "noul": 0.04294768238268225,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9729114839758074,
+            "noul": 0.9729114839758074,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1636,
+          "total_input_tokens": 1636,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1636
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-docs-migration-guide",
+      "intents": [
+        "docs_change",
+        "plan_decision"
+      ],
+      "modules": [
+        "docs",
+        "plan"
+      ],
+      "triggers": [
+        "docs_edit",
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.6511,
+      "evidence": [
+        "primary=docs_change (0.65)",
+        "answer_only=0.07",
+        "asset_lifecycle=0.28",
+        "bug_fix=0.49",
+        "code_task=0.06",
+        "docs_change=0.96",
+        "plan_decision=0.92",
+        "release=0.32",
+        "clarify=0.34",
+        "direct_override=0.03",
+        "code_verify=0.03"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "direct_override": {
+            "confidence": 0.9666915420667143,
+            "noul": 0.0333084579332857,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9567264732693302,
+            "noul": 0.9567264732693302,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.6784489098284654,
+            "noul": 0.32155109017153455,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9445189004463201,
+            "noul": 0.055481099553679844,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9283010767937329,
+            "noul": 0.07169892320626713,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.6630686879175336,
+            "noul": 0.33693131208246646,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9196600151570439,
+            "noul": 0.9196600151570439,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.5055550968649518,
+            "noul": 0.49444490313504813,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.6510776242240325,
+            "choice": "docs_change",
+            "probabilities": {
+              "bug_fix": 0.001339515089012402,
+              "code_task": 0.0025031642459209503,
+              "plan_decision": 0.32126588095373315,
+              "answer_only": 0.004360606914329458,
+              "unclear": 0.0011294508927708602,
+              "docs_change": 0.6510776242240325,
+              "release": 0.009372361882866756,
+              "asset_lifecycle": 0.008951395797334059
+            },
+            "type": "choice"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.7170019556103306,
+            "noul": 0.2829980443896693,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9739187299735089,
+            "noul": 0.026081270026491035,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1650,
+          "total_input_tokens": 1650,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1650
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-docs-architecture",
+      "intents": [
+        "docs_change"
+      ],
+      "modules": [
+        "docs"
+      ],
+      "triggers": [
+        "docs_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.8907,
+      "evidence": [
+        "primary=docs_change (0.89)",
+        "answer_only=0.02",
+        "asset_lifecycle=0.54",
+        "bug_fix=0.72",
+        "code_task=0.08",
+        "docs_change=0.91",
+        "plan_decision=0.27",
+        "release=0.05",
+        "clarify=0.12",
+        "direct_override=0.02",
+        "code_verify=0.03"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_bug_fix": {
+            "confidence": 0.7179876934465622,
+            "noul": 0.7179876934465622,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.92036239172398,
+            "noul": 0.07963760827601991,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9525157440747114,
+            "noul": 0.047484255925288626,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.731501249909462,
+            "noul": 0.2684987500905381,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9805669807860208,
+            "noul": 0.019433019213979174,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9126956255780947,
+            "noul": 0.9126956255780947,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.8906950580868623,
+            "choice": "docs_change",
+            "probabilities": {
+              "asset_lifecycle": 0.024641500554866497,
+              "answer_only": 0.0016619511320650538,
+              "plan_decision": 0.07328723249259138,
+              "docs_change": 0.8906950580868623,
+              "bug_fix": 0.0020817962295741517,
+              "release": 0.00036565017160407456,
+              "unclear": 0.002942367702456673,
+              "code_task": 0.004324443629979703
+            },
+            "type": "choice"
+          },
+          "code_verify": {
+            "confidence": 0.9714695087498493,
+            "noul": 0.028530491250150773,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9812802903055601,
+            "noul": 0.018719709694439965,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.8764875809371395,
+            "noul": 0.12351241906286048,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.5440180375488473,
+            "noul": 0.5440180375488473,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1635,
+          "total_input_tokens": 1635,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1635
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-ambiguous-docs",
+      "intents": [],
+      "modules": [],
+      "triggers": [
+        "clarify_required"
+      ],
+      "must_clarify": true,
+      "confidence": 0.0,
+      "evidence": [
+        "primary=unclear (0.82)",
+        "answer_only=0.03",
+        "asset_lifecycle=0.39",
+        "bug_fix=0.23",
+        "code_task=0.30",
+        "docs_change=0.75",
+        "plan_decision=0.37",
+        "release=0.33",
+        "clarify=0.97",
+        "direct_override=0.04",
+        "code_verify=0.06"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_code_task": {
+            "confidence": 0.7019087492431617,
+            "noul": 0.2980912507568383,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.7691284544547399,
+            "noul": 0.2308715455452601,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.6296291197802113,
+            "noul": 0.37037088021978876,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.6081666332728388,
+            "noul": 0.3918333667271612,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.9727526022916108,
+            "noul": 0.9727526022916108,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.7527636584188147,
+            "noul": 0.7527636584188147,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9410960292867201,
+            "noul": 0.058903970713279935,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.6739000752565074,
+            "noul": 0.32609992474349264,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9667425663750654,
+            "noul": 0.033257433624934635,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.8160472012697538,
+            "choice": "unclear",
+            "probabilities": {
+              "docs_change": 0.14618088421024014,
+              "code_task": 0.004112207397482626,
+              "plan_decision": 0.0041849078444219385,
+              "answer_only": 0.0029225508704635223,
+              "bug_fix": 0.00041273709815197997,
+              "asset_lifecycle": 0.02359804876902445,
+              "release": 0.0025414625404615023,
+              "unclear": 0.8160472012697538
+            },
+            "type": "choice"
+          },
+          "direct_override": {
+            "confidence": 0.9646778464408949,
+            "noul": 0.03532215355910502,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1627,
+          "total_input_tokens": 1627,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1627
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-multi-bugfix-release",
+      "intents": [
+        "bug_fix",
+        "code_task",
+        "release"
+      ],
+      "modules": [
+        "bugfix",
+        "code",
+        "release"
+      ],
+      "triggers": [
+        "bug_report",
+        "code_edit",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.5453,
+      "evidence": [
+        "primary=bug_fix (0.55)",
+        "answer_only=0.02",
+        "asset_lifecycle=0.03",
+        "bug_fix=0.96",
+        "code_task=0.95",
+        "docs_change=0.02",
+        "plan_decision=0.10",
+        "release=0.97",
+        "clarify=0.07",
+        "direct_override=0.02",
+        "code_verify=0.03"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_bug_fix": {
+            "confidence": 0.9601302654365172,
+            "noul": 0.9601302654365172,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9786727225121569,
+            "noul": 0.021327277487843105,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.545342848418136,
+            "choice": "bug_fix",
+            "probabilities": {
+              "code_task": 0.062000129693229225,
+              "unclear": 0.0527655600374926,
+              "answer_only": 0.0010861175132129708,
+              "plan_decision": 0.006944741211528615,
+              "release": 0.32907380633662187,
+              "docs_change": 0.00046872286608945447,
+              "asset_lifecycle": 0.002318073923689269,
+              "bug_fix": 0.545342848418136
+            },
+            "type": "choice"
+          },
+          "code_verify": {
+            "confidence": 0.9741555352690551,
+            "noul": 0.0258444647309449,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9040873459215054,
+            "noul": 0.09591265407849456,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.96676031153167,
+            "noul": 0.033239688468329996,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9754024444944113,
+            "noul": 0.024597555505588724,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9847416879805738,
+            "noul": 0.01525831201942623,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9654653351626269,
+            "noul": 0.9654653351626269,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.927897503344769,
+            "noul": 0.07210249665523104,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9539496394016694,
+            "noul": 0.9539496394016694,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1638,
+          "total_input_tokens": 1638,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1638
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-multi-code-release",
+      "intents": [
+        "code_task",
+        "release"
+      ],
+      "modules": [
+        "code",
+        "release"
+      ],
+      "triggers": [
+        "code_edit",
+        "release"
+      ],
+      "must_clarify": false,
+      "confidence": 0.597,
+      "evidence": [
+        "primary=code_task (0.60)",
+        "answer_only=0.03",
+        "asset_lifecycle=0.02",
+        "bug_fix=0.12",
+        "code_task=0.97",
+        "docs_change=0.03",
+        "plan_decision=0.07",
+        "release=0.96",
+        "clarify=0.05",
+        "direct_override=0.03",
+        "code_verify=0.02"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_docs_change": {
+            "confidence": 0.9670942115516242,
+            "noul": 0.03290578844837581,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9815692526692812,
+            "noul": 0.018430747330718755,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.9791025568496385,
+            "noul": 0.02089744315036143,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.8781242971599148,
+            "noul": 0.12187570284008525,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9647328576809493,
+            "noul": 0.9647328576809493,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.9711600246251676,
+            "noul": 0.9711600246251676,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.949278904736542,
+            "noul": 0.05072109526345803,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9738645017717766,
+            "noul": 0.026135498228223322,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9723559949277006,
+            "noul": 0.02764400507229932,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9299573085158142,
+            "noul": 0.0700426914841859,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.5969596703923749,
+            "choice": "code_task",
+            "probabilities": {
+              "code_task": 0.5969596703923749,
+              "unclear": 0.013468522645749458,
+              "plan_decision": 0.014334187324513541,
+              "bug_fix": 0.002308279020057393,
+              "asset_lifecycle": 0.0009935645801793988,
+              "answer_only": 0.000802566929001466,
+              "release": 0.3690128587236286,
+              "docs_change": 0.0021203503844953527
+            },
+            "type": "choice"
+          }
+        },
+        "usage": {
+          "total_tokens": 1638,
+          "total_input_tokens": 1638,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1638
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-multi-plan-assets",
+      "intents": [
+        "asset_lifecycle",
+        "plan_decision"
+      ],
+      "modules": [
+        "assets",
+        "plan"
+      ],
+      "triggers": [
+        "asset_operation",
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.7613,
+      "evidence": [
+        "primary=plan_decision (0.76)",
+        "answer_only=0.06",
+        "asset_lifecycle=0.87",
+        "bug_fix=0.61",
+        "code_task=0.09",
+        "docs_change=0.29",
+        "plan_decision=0.98",
+        "release=0.05",
+        "clarify=0.12",
+        "direct_override=0.04",
+        "code_verify=0.19"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "code_verify": {
+            "confidence": 0.8103630603285741,
+            "noul": 0.18963693967142592,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.8794497199766462,
+            "noul": 0.12055028002335372,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.6100847374718056,
+            "noul": 0.6100847374718056,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9437598864468617,
+            "noul": 0.05624011355313828,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.868200599645676,
+            "noul": 0.868200599645676,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.911450098450268,
+            "noul": 0.08854990154973198,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9515739663172298,
+            "noul": 0.048426033682770216,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.761254818557171,
+            "choice": "plan_decision",
+            "probabilities": {
+              "release": 0.001243452740554235,
+              "docs_change": 0.005439191909283331,
+              "bug_fix": 0.0010155310343117376,
+              "answer_only": 0.0024811690456007234,
+              "asset_lifecycle": 0.21039805068730089,
+              "unclear": 0.003716514949101336,
+              "plan_decision": 0.761254818557171,
+              "code_task": 0.014451271076676635
+            },
+            "type": "choice"
+          },
+          "direct_override": {
+            "confidence": 0.964641168799003,
+            "noul": 0.03535883120099704,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9781206898573,
+            "noul": 0.9781206898573,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.7111243873758025,
+            "noul": 0.2888756126241975,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1647,
+          "total_input_tokens": 1647,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1647
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-multi-code-assets",
+      "intents": [
+        "asset_lifecycle",
+        "code_task"
+      ],
+      "modules": [
+        "assets",
+        "code"
+      ],
+      "triggers": [
+        "asset_operation",
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.5467,
+      "evidence": [
+        "primary=code_task (0.55)",
+        "answer_only=0.01",
+        "asset_lifecycle=0.89",
+        "bug_fix=0.07",
+        "code_task=0.94",
+        "docs_change=0.08",
+        "plan_decision=0.53",
+        "release=0.02",
+        "clarify=0.54",
+        "direct_override=0.03",
+        "code_verify=0.05"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "intent_answer_only": {
+            "confidence": 0.9860923657196192,
+            "noul": 0.013907634280380799,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.538319588499966,
+            "noul": 0.538319588499966,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9758414602763442,
+            "noul": 0.02415853972365576,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.969172921633632,
+            "noul": 0.030827078366368055,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9158641194789048,
+            "noul": 0.08413588052109525,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.5259554492051864,
+            "noul": 0.5259554492051864,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.5467350360278226,
+            "choice": "code_task",
+            "probabilities": {
+              "code_task": 0.5467350360278226,
+              "answer_only": 0.0029178144164209384,
+              "bug_fix": 0.0020850173687099777,
+              "asset_lifecycle": 0.3426886279825863,
+              "docs_change": 0.006378917859624313,
+              "unclear": 0.03359173498714161,
+              "release": 0.002784750306353487,
+              "plan_decision": 0.06281810105134066
+            },
+            "type": "choice"
+          },
+          "intent_code_task": {
+            "confidence": 0.9405668257933361,
+            "noul": 0.9405668257933361,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9343156864047915,
+            "noul": 0.06568431359520853,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.8926107735685157,
+            "noul": 0.8926107735685157,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9526141329832294,
+            "noul": 0.04738586701677057,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1637,
+          "total_input_tokens": 1637,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1637
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-multi-bugfix-docs",
+      "intents": [
+        "bug_fix",
+        "code_task"
+      ],
+      "modules": [
+        "bugfix",
+        "code"
+      ],
+      "triggers": [
+        "bug_report",
+        "code_edit"
+      ],
+      "must_clarify": false,
+      "confidence": 0.6953,
+      "evidence": [
+        "primary=bug_fix (0.70)",
+        "answer_only=0.02",
+        "asset_lifecycle=0.34",
+        "bug_fix=0.96",
+        "code_task=0.88",
+        "docs_change=0.21",
+        "plan_decision=0.11",
+        "release=0.06",
+        "clarify=0.17",
+        "direct_override=0.04",
+        "code_verify=0.03"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "clarify_required": {
+            "confidence": 0.8288957900401416,
+            "noul": 0.1711042099598584,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9752758661620657,
+            "noul": 0.02472413383793423,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.6952825728804954,
+            "choice": "bug_fix",
+            "probabilities": {
+              "asset_lifecycle": 0.07134054653001225,
+              "plan_decision": 0.008444340786143253,
+              "unclear": 0.06328745722283667,
+              "bug_fix": 0.6952825728804954,
+              "docs_change": 0.0816255828198779,
+              "answer_only": 0.004874502054985563,
+              "code_task": 0.07230881042141395,
+              "release": 0.0028361872842349845
+            },
+            "type": "choice"
+          },
+          "intent_release": {
+            "confidence": 0.9440283239269921,
+            "noul": 0.0559716760730079,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.9601535674286071,
+            "noul": 0.9601535674286071,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.655659881246555,
+            "noul": 0.344340118753445,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.8816225501601982,
+            "noul": 0.8816225501601982,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.8927141664841411,
+            "noul": 0.10728583351585884,
+            "type": "noul"
+          },
+          "code_verify": {
+            "confidence": 0.9694192585183113,
+            "noul": 0.03058074148168862,
+            "type": "noul"
+          },
+          "intent_docs_change": {
+            "confidence": 0.7857323409775715,
+            "noul": 0.2142676590224285,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.964719598357163,
+            "noul": 0.03528040164283696,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1643,
+          "total_input_tokens": 1643,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1643
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    },
+    {
+      "id": "heldout-multi-plan-code",
+      "intents": [
+        "plan_decision"
+      ],
+      "modules": [
+        "plan"
+      ],
+      "triggers": [
+        "plan_required"
+      ],
+      "must_clarify": false,
+      "confidence": 0.8954,
+      "evidence": [
+        "primary=plan_decision (0.90)",
+        "answer_only=0.07",
+        "asset_lifecycle=0.39",
+        "bug_fix=0.64",
+        "code_task=0.61",
+        "docs_change=0.09",
+        "plan_decision=0.98",
+        "release=0.04",
+        "clarify=0.37",
+        "direct_override=0.05",
+        "code_verify=0.03"
+      ],
+      "raw": {
+        "model": null,
+        "answers": {
+          "code_verify": {
+            "confidence": 0.9664357066152945,
+            "noul": 0.033564293384705464,
+            "type": "noul"
+          },
+          "clarify_required": {
+            "confidence": 0.6253852711079315,
+            "noul": 0.3746147288920685,
+            "type": "noul"
+          },
+          "intent_answer_only": {
+            "confidence": 0.9281307219752073,
+            "noul": 0.07186927802479269,
+            "type": "noul"
+          },
+          "intent_release": {
+            "confidence": 0.9570498816409515,
+            "noul": 0.04295011835904848,
+            "type": "noul"
+          },
+          "intent_code_task": {
+            "confidence": 0.6060401292497671,
+            "noul": 0.6060401292497671,
+            "type": "noul"
+          },
+          "primary_intent": {
+            "confidence": 0.895437829347504,
+            "choice": "plan_decision",
+            "probabilities": {
+              "bug_fix": 0.0012577463107126948,
+              "release": 0.0004913648112211662,
+              "code_task": 0.09058974147394577,
+              "answer_only": 0.001530115940798003,
+              "plan_decision": 0.895437829347504,
+              "asset_lifecycle": 0.0031945449797874045,
+              "unclear": 0.003946685704854422,
+              "docs_change": 0.0035519714311763304
+            },
+            "type": "choice"
+          },
+          "intent_docs_change": {
+            "confidence": 0.9061540570010376,
+            "noul": 0.09384594299896241,
+            "type": "noul"
+          },
+          "intent_plan_decision": {
+            "confidence": 0.9790277018435304,
+            "noul": 0.9790277018435304,
+            "type": "noul"
+          },
+          "intent_bug_fix": {
+            "confidence": 0.641587762397112,
+            "noul": 0.641587762397112,
+            "type": "noul"
+          },
+          "intent_asset_lifecycle": {
+            "confidence": 0.6106046527129261,
+            "noul": 0.3893953472870739,
+            "type": "noul"
+          },
+          "direct_override": {
+            "confidence": 0.9521667149548547,
+            "noul": 0.047833285045145266,
+            "type": "noul"
+          }
+        },
+        "usage": {
+          "total_tokens": 1637,
+          "total_input_tokens": 1637,
+          "input_tokens_by_modality": [
+            {
+              "modality": "text",
+              "tokens": 1637
+            }
+          ],
+          "total_output_tokens": 0
+        }
+      }
+    }
+  ]
+}

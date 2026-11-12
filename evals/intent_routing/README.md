@@ -110,6 +110,32 @@ python3 evals/intent_routing/jev_predict.py
 python3 evals/intent_routing/score.py --predictions .docs-harness/evals/jev-predictions.json
 ```
 
+切换为 Google Gemini Decisions（`gemini-decision-1`）运行同一套评测（读取 `GEMINI_API_KEY` 或 `GOOGLE_API_KEY`，调用 `POST https://generativelanguage.googleapis.com/v1beta/decisions`，自动将 `noul` 的 `criteria` 转为 `true_description`/`false_description` 并将 `state` 序列化为 `input`）：
+
+```bash
+GEMINI_API_KEY="<your-key>" python3 evals/intent_routing/jev_predict.py \
+  --model gemini-decision-1 \
+  --output .docs-harness/evals/gemini-decision-predictions.json
+python3 evals/intent_routing/score.py --predictions .docs-harness/evals/gemini-decision-predictions.json
+```
+
+### Gemini Decision 1 实测对照（2026-11-12，120 条）
+
+使用同一套 11 个问题与固定阈值（0.5 / 0.8 / 0.7 / 0.7，未针对新模型重调词）在三组数据集上实测 `gemini-decision-1`（输出 token 恒为 0，单条输入约 1,630 tokens、成本约 \$0.00016）：
+
+| 数据集（条数） | 对比项 | 模块完全匹配 | 关键漏配率 | 错配率 | 澄清判断正确率 | 输入 / 输出 Tokens |
+|---|---|---|---|---|---|---|
+| **诊断集（20）** | Jev 1.14.0 (v2) | 95.0% | 5.0% | 5.0% | 100.0% | 31,489 / 5,428 |
+| **诊断集（20）** | **gemini-decision-1** | **100.0%** | **0.0%** | **0.0%** | **100.0%** | **32,953 / 0** |
+| **Held-out 1（50）** | Jev 1.14.0 | 76.0% | 14.0% | 24.0% | 88.0% | 78,316 / 13,569 |
+| **Held-out 1（50）** | **gemini-decision-1** | **80.0%** | **4.0% (2/50)** | **20.0%** | **100.0%** | **82,054 / 0** |
+| **Held-out 2（50）** | **gemini-decision-1** | **80.0%** | **10.0% (5/50)** | **20.0%** | **98.0% (49/50)** | **81,899 / 0** |
+
+核心改进与余留误差模式：
+- **误澄清彻底消除**：Jev 1.14.0 在 Held-out 1 上的 6 条误澄清（导致 6 条关键漏配）在 `gemini-decision-1` 上降为 **0 条**（Held-out 1 澄清准确率 100%，Held-out 2 为 98%）；关键漏配率从 14.0% 降至 **4.0%**。
+- **余留漏配集中在多意图次要标签（阈值 0.8）**：Held-out 1 的 2 条漏配（`heldout-multi-bugfix-docs`、`heldout-multi-plan-code`）和 Held-out 2 的 4 条多意图漏配，均为主意图已命中、但第二意图 `noul` 落在 0.50–0.79 之间未跨过 `SECONDARY_INTENT_MIN = 0.8`。
+- **过度包含（forbidden_hits）**：在 `asset_lifecycle`（创建 Knowledge/ADR）或 `docs_change`（写迁移指南）上，模型常同时给出 `docs_change` 或 `plan_decision` 副意图（>0.8），属于保守多装模块而非漏装。
+
 | 指标 | rules-v1 | Jev v1 | Jev v2 |
 |---|---|---|---|
 | 意图完全匹配 | 45.0% | 90.0% | 90.0% |

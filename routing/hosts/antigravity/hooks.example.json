@@ -1,0 +1,11 @@
+{
+  "docs-harness-router": {
+    "PreInvocation": [
+      {
+        "type": "command",
+        "command": "C:/Windows/py.exe -3 D:/Project/docs-harness/routing/hosts/antigravity/route_hook.py --enabled --phase shadow --backend decisions --model gemini-decision-1 --env-file D:/Project/docs-harness/.docs-harness/inputs/gemini.env",
+        "timeout": 20
+      }
+    ]
+  }
+}

@@ -28,7 +28,9 @@ SOURCE_ROOT = Path(
     os.environ.get("DOCS_HARNESS_ROOT") or Path(__file__).resolve().parents[3]
 )
 sys.path.insert(0, str(SOURCE_ROOT / "scripts"))
+sys.path.insert(0, str(SOURCE_ROOT / "evals" / "intent_routing"))
 
+from jev_predict import GEMINI_DECISION_MODEL, route_prompt_with_decisions  # noqa: E402
 from routing_contract import (  # noqa: E402
     Registry,
     RoutingContractError,
@@ -234,9 +236,31 @@ def _route_task(
     backend = os.environ.get("DOCS_HARNESS_ROUTER_BACKEND", "fake").strip().lower()
     if backend == "fake":
         return _route_task_fake()
+    if backend in ("decisions", "gemini_decision", "gemini-decision-1"):
+        return _route_task_decisions(prompt)
     if backend == "cli":
         return _route_task_cli(prompt, registry)
     raise HookError("unknown_router_backend", "DOCS_HARNESS_ROUTER_BACKEND")
+
+
+def _route_task_decisions(
+    prompt: str,
+) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+    model = (
+        os.environ.get("DOCS_HARNESS_ROUTER_MODEL", "").strip()
+        or GEMINI_DECISION_MODEL
+    )
+    try:
+        return route_prompt_with_decisions(prompt, model=model)
+    except ValueError as exc:
+        code = (
+            "gemini_api_key_missing"
+            if str(exc) == "gemini_api_key_missing"
+            else "decisions_profile_invalid"
+        )
+        raise HookError(code, "GEMINI_API_KEY") from exc
+    except RuntimeError as exc:
+        raise HookError("decisions_api_error", "GEMINI_API_KEY") from exc
 
 
 def _route_task_fake() -> tuple[Mapping[str, Any], Mapping[str, Any]]:
