@@ -189,7 +189,6 @@ MANAGED_MODULE_RELATIVE_FILES = (
     "acceptance_render.py",
     "asset_query.py",
     "cli_support.py",
-    "plan_review.py",
     "agent_prompt.md",
 )
 PLAN_DOCS_RELATIVE = "docs/plans"
@@ -1540,12 +1539,6 @@ def plan_amend(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     from plan_amend import run_plan_amend  # noqa: PLC0415
 
     return run_plan_amend(args)
-
-
-def plan_review_prompt(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
-    from plan_review import run_plan_review_prompt  # noqa: PLC0415
-
-    return run_plan_review_prompt(args)
 
 def plan_settle_paths(target: Path, raw: str) -> tuple[Path | None, Path, bool]:
     relative = Path(raw)
@@ -4615,9 +4608,6 @@ PLAN_EPILOG = _EPILOG_INTRO + "\n\n" + "\n\n".join((
     f"核对日起 {PLAN_PARTIAL_DELIVERY_RECHECK_DAYS} 天内不报符号全命中告警，未来日期不豁免。",
     "plan amend --content：形状与 plan create --content 相同（整包 content 替换）；"
     "不得改变 acceptance_required/knowledge_impact；已 settle 或归档方案拒绝。",
-    "plan review-prompt --plan <path> | --content <draft> "
-    "[--lens all|comprehension|implementation_readiness] [--context-ref <path>]："
-    "只读生成零上下文盲审提示词（禁止 fork，仅限白名单上下文）。",
 ))
 
 ACCEPTANCE_EPILOG = _EPILOG_INTRO + "\n\n" + "\n\n".join((
@@ -4649,20 +4639,6 @@ ADR_EPILOG = _EPILOG_INTRO + "\n\n" + _schema_example_block(
     ),
 )
 
-def _add_plan_review_args(plan: argparse.ArgumentParser) -> None:
-    plan.add_argument(
-        "--lens",
-        choices=("all", "comprehension", "implementation_readiness"),
-        help="盲审视角（仅 review-prompt）：all / comprehension / implementation_readiness",
-    )
-    plan.add_argument(
-        "--context-ref",
-        action="append",
-        default=None,
-        help="盲审白名单文件或目录（仅 review-prompt，可重复传入）",
-    )
-
-
 def add_plan_parser(commands: argparse._SubParsersAction) -> None:
     plan = commands.add_parser(
         "plan",
@@ -4670,10 +4646,7 @@ def add_plan_parser(commands: argparse._SubParsersAction) -> None:
         epilog=PLAN_EPILOG,
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    plan.add_argument(
-        "action",
-        choices=("select", "create", "show", "list", "review-prompt", "amend", "settle", "check"),
-    )
+    plan.add_argument("action", choices=("select", "create", "show", "list", "amend", "settle", "check"))
     add_target(plan)
     plan.add_argument("--strict", action="store_true", help="WARN 也使退出码非 0（供 CI 使用；仅 check）")
     plan.add_argument("--fast", action="store_true", help="跳过符号存活性与 Git 时效慢检查（仅 check）")
@@ -4715,7 +4688,6 @@ def add_plan_parser(commands: argparse._SubParsersAction) -> None:
         "--reason",
         help="修订原因（仅 amend）：单行非空",
     )
-    _add_plan_review_args(plan)
 
 def add_acceptance_parser(commands: argparse._SubParsersAction) -> None:
     acceptance = commands.add_parser(
@@ -4999,7 +4971,6 @@ def dispatch_command(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "create": plan_create,
             "show": plan_show,
             "list": plan_list,
-            "review-prompt": plan_review_prompt,
             "amend": plan_amend,
             "settle": plan_settle,
             "check": command_plan_check,

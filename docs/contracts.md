@@ -121,8 +121,6 @@ JSON `docs-harness/knowledge-asset/v1` 是事实真源，Markdown 是可读投�
 
 `plan show --plan <path>` 是只读查询：冻结方案返回完整 `content`、`execution_projection`、状态、`acceptance_refs` 与 `governance`；手写方案返回 `markdown` 正文。`plan list` 只读列出活/归档方案、状态、关键符号与关联验收。两者都不写文件，供长任务、上下文压缩后或子 agent 恢复执行上下文。
 
-`plan review-prompt`（`scripts/plan_review.py`）是面向全方案与草案的只读零上下文盲审提示词生成器：`--plan <path>`（经 `plan_settle_paths` 解析）与 `--content <draft>`（支持项目内 `.json`/`.md` 草案）二选一必填；`--lens` 支持 `all|comprehension|implementation_readiness`；`--context-ref` 可重复指定白名单文件或目录（校验存在且位于目标目录内、无符号链接，禁止传 `.`）。命令不写任何文件，拒绝 `plan_level=none`，对 `brief` 输出警告，并返回显式声明禁止 fork 与仅限白名单上下文的只读提示词包。
-
 无伴随 JSON、前 3 行无 Harness 文档标记但有状态横幅的手写方案 Markdown 同样可以 `plan settle`（2.18.0 起）：`implemented` 改写横幅，方案条目位于受管方案区块内时同步改写条目状态；`deprecated` 改写横幅、移入 `docs/plans/archive/` 并改写明确匹配的链接。手写方案没有冻结治理合同，不做治理终验，传 `--governance-input` 以 `invalid_plan_transition` 拒绝。横幅首个 `｜` 之后的附注原样保留。受管区块外的 INDEX 条目属项目正文，不改写，结果以 `handwritten=true` 与 `warnings` 提示手工同步。带 Harness 文档标记却缺冻结 JSON 的方案仍以 `invalid_plan_ref` 拒绝。
 
 ### 3.4 ADR
@@ -251,7 +249,7 @@ Harness 不采集用户授权、不解析 agent usage、不保存原始用户聊
 项目安装只提供：
 
 - 受管的 direct-first `AGENTS.md` 区块，以及只含一行 `@AGENTS.md` 导入的 `CLAUDE.md` 区块（2.25.0 起；规约正文只在 `AGENTS.md`）；
-- `scripts/harness.py` 与受管资产生命周期模块（`managed_assets`、`asset_checks`、`plan_governance`、`knowledge_assets`、`acceptance_assets`、`adr_assets`、`script_hygiene`、`structure_check`、`structure_ts_functions.cjs`、`usage_log`、`usage_report`、`diagram_view`、`plan_amend`、`plan_selection`、`plan_check`、`acceptance_amend`、`acceptance_render`、`asset_query`、`cli_support`、`plan_review`、`agent_prompt.md`）；
+- `scripts/harness.py` 与受管资产生命周期模块（`managed_assets`、`asset_checks`、`plan_governance`、`knowledge_assets`、`acceptance_assets`、`adr_assets`、`script_hygiene`、`structure_check`、`structure_ts_functions.cjs`、`usage_log`、`usage_report`、`diagram_view`、`plan_amend`、`plan_selection`、`plan_check`、`acceptance_amend`、`acceptance_render`、`asset_query`、`cli_support`、`agent_prompt.md`）；
 - 版本化 `plan-templates/`；
 - `scripts/githooks/`。目标是 git 仓库且 `core.filemode=false`（Windows 默认）时，`init`/`upgrade --apply` 会把索引中缺失或非 `100755` 的两个钩子以 `git update-index --add --chmod=+x` 登记，内容随之进入暂存区，payload 的 `githook_index_mode_registered` 列出登记路径；登记失败以 `githook_index_mode_failed` 报错并给出手工命令，被 git 忽略的钩子路径不强行加入（2.23.0）；
 - `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、`docs/adr/`、各自 archive 与 `docs/INDEX.md` 独立索引区块；

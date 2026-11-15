@@ -68,7 +68,6 @@
     "scripts/routing_shadow.py",
     "scripts/routing_metrics.py",
     "routing/",
-    "scripts/plan_review.py",
     "scripts/agent_prompt.md",
     "tests/test_release_version_sync.py"
   ],

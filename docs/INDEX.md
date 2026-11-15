@@ -38,7 +38,6 @@
 - [zbuddy 下游路由试点接入（mobile + desktop）](plans/zbuddy-routing-pilot.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-23 核对）；关键符号：`load_registry`、`_uses_docs_harness`、`shadow_log_path`
 - [强力模型意图路由落地：Shadow → Canary → 强制执行](plans/strong-model-routing-rollout.md) — 状态：有效（实施中）；关键符号：`score_cases`、`interpret_response`、`command_assets_check`、`run_assets_check`
 - [运行态验证证据包与质量门](plans/runtime-verification-quality-gate.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-25 核对）；关键符号：`check_packet`、`RUNTIME_PACKET_SCHEMA`、`RUNTIME_VERIFICATION_RELATIVE`
-- [引入 EGM 启发的两项独立增强：Plan 零上下文盲审提示词生成与 evals 行为轨迹离线校验器](plans/egm-blind-review-and-trace-verifier.md) — 状态：已实施-仅追溯（代码已是真源，2026-11-15 核对）；关键符号：`run_plan_review_prompt`、`build_review_prompts`、`verify_trace_case`、`adapt_trace_payload`
 <!-- docs-harness:plans-index:end -->
 
 ## 历史边界
@@ -74,7 +73,6 @@
 - [Docs Harness 遵循率优化验收](acceptance/harness-adherence-optimization.md) — 状态：已验收-仅追溯；关键符号：`run_assets_check`、`build_report`、`symbol_hit`、`plan_check_banner`
 - [强力模型意图路由落地验收](acceptance/strong-model-routing-rollout.md) — 状态：有效（待验收）；关键符号：`load_registry`、`validate_profile`、`summarize_shadow`、`coverage_check`
 - [运行态验证证据包与质量门验收](acceptance/runtime-verification-quality-gate.md) — 状态：已验收-仅追溯；关键符号：`check_packet`、`RUNTIME_PACKET_SCHEMA`、`RUNTIME_VERIFICATION_RELATIVE`
-- [EGM 启发两项增强：Plan 零上下文盲审提示词与 evals 行为轨迹离线校验器](acceptance/egm-blind-review-and-trace-verifier.md) — 状态：已验收-仅追溯；关键符号：`run_plan_review_prompt`、`build_review_prompts`、`verify_trace_case`、`adapt_trace_payload`
 <!-- docs-harness:acceptance-index:end -->
 
 <!-- docs-harness:adr-index:start -->

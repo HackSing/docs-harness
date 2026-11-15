@@ -130,7 +130,6 @@ Plan/Knowledge 引用 + 验收目标与标准 → acceptance create
 - `scripts/script_hygiene.py`
 - `scripts/structure_check.py`
 - `scripts/cli_support.py`
-- `scripts/plan_review.py`
 - `scripts/usage_log.py`
 - `scripts/usage_report.py`
 - `scripts/diagram_view.py`

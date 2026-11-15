@@ -284,7 +284,7 @@ GitHub Actions --strict
 | `project check` | 检查版本、指纹、结构、项目文档和 Git 交付状态 |
 | `project uninstall` | 预览或移除所有权明确的受管程序 |
 | `knowledge create/update/query/show/settle/check` | 管理 Knowledge 生命周期 |
-| `plan select/create/show/list/review-prompt/amend/settle/check` | 管理 Plan 生命周期；`review-prompt` 只读生成零上下文盲审提示词；`check` 检查 Plan 文档、索引、符号与链接 |
+| `plan select/create/show/list/amend/settle/check` | 管理 Plan 生命周期，check 检查 Plan 文档、索引、符号与链接 |
 | `acceptance create/amend/record/show/list/settle/check` | 管理 Acceptance 生命周期 |
 | `adr create/amend/show/settle/check` | 管理架构决策记录（ADR）生命周期（定稿不可改） |
 | `assets-check` | 统一检查四类资产、ScriptHygiene 脚本卫生与跨资产关系；`--verbose` 输出全部 WARN |

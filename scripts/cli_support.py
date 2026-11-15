@@ -28,7 +28,6 @@ _ACTION_FLAGS: dict[tuple[str, str | None], frozenset[str]] = {
     ("plan", "amend"): frozenset({"--plan", "--content", "--patch", "--reason", "--dry-run"}),
     ("plan", "settle"): frozenset({"--plan", "--status", "--replacement", "--governance-input"}),
     ("plan", "check"): frozenset({"--strict", "--fast", "--verbose"}),
-    ("plan", "review-prompt"): frozenset({"--plan", "--content", "--lens", "--context-ref"}),
     ("acceptance", "create"): frozenset({"--input", "--output", "--dry-run"}),
     ("acceptance", "amend"): frozenset({"--acceptance", "--input", "--reason", "--dry-run"}),
     ("acceptance", "record"): frozenset({"--input", "--acceptance", "--reaccept", "--user-confirmed", "--dry-run"}),

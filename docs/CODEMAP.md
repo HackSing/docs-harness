@@ -34,7 +34,6 @@
 - `scripts/acceptance_diagnostics.py` — 职责：Acceptance 失败诊断的待处理标准、期望/实际与下一步命令；公开接口：`find_criterion`、`match_record_to_criterion`、`settle_mismatch_error`、`criterion_not_pending_error`
 - `scripts/diagram_view.py` — 职责：`harness view` 的 Mermaid → 独立 HTML 页面，渲染（纯函数）、落盘到 `.docs-harness/views/` 与系统浏览器打开三层分开，错误一律向上传递；公开接口：`render_mermaid_html`、`write_view`、`open_in_browser`、`VIEWS_RELATIVE`（views 目录常量真源，harness 导入并列入 LOCAL_ONLY_DIRS）
 - `scripts/structure_ts_functions.cjs` — 职责：Structure 的 TS/JS 函数体量解析子进程（stdin JSON 源码批 → stdout 函数限定名→行数），在目标项目 node_modules 或 DOCS_HARNESS_TS_MODULE_DIR 目录加载 typescript，harness 自身零依赖；公开接口：`collectSpans`、`functionName`（命令行调用，无模块导出）
-- `scripts/plan_review.py` — 职责：为受管方案或草案 JSON/Markdown 生成零上下文盲审（comprehension / implementation_readiness）只读提示词，校验白名单 `--context-ref` 并禁止 fork；公开接口：`REVIEW_LENSES`、`extract_plan_packet`、`validate_context_refs`、`build_review_prompts`、`run_plan_review_prompt`
 
 ## 意图路由（仓库侧，默认关闭）
 
@@ -43,17 +42,14 @@
 - `scripts/routing_shadow_fields.py` — 职责：Shadow 事件字段白名单、结构校验、时间/哈希/任务标识规范化；公开接口：`validate_shadow_event`、`RoutingShadowError`、`SHADOW_SCHEMA`、`PHASES`、`RISK_LEVELS`
 - `scripts/routing_shadow.py` — 职责：Shadow 事件构造、本地 JSONL 写入/读取与损坏日志失败；公开接口：`build_shadow_event`、`append_shadow_event`、`read_shadow_events`、`shadow_log_path`、`validate_shadow_event`、`RoutingShadowError`
 - `scripts/routing_metrics.py` — 职责：Shadow 指标聚合（关键漏配、过度路由、澄清、返工、延迟分位、token/cost、分组与告警）与执行前覆盖率核对；公开接口：`summarize_shadow`、`coverage_check`、`ShadowSummary`、`CoverageResult`、`RoutingMetricsError`
-- `routing/hosts/qoder/route_hook.py` — 职责：Qoder `UserPromptSubmit` command hook 原型——读 stdin、加载注册表、校验 fake/真实画像（Qoder CLI 或 Gemini Decisions API）、写脱敏 Shadow 事件、记录非法画像脱敏诊断并注入选中模块契约；公开接口：`main`（stdin/stdout hook 合同）
+- `routing/hosts/qoder/route_hook.py` — 职责：Qoder `UserPromptSubmit` command hook 原型——读 stdin、加载注册表、校验 fake/真实画像、写脱敏 Shadow 事件、记录非法画像脱敏诊断并注入选中模块契约；公开接口：`main`（stdin/stdout hook 合同）
 - `routing/hosts/qoder/route_cache.py` — 职责：Qoder hook 的会话级路由缓存（首条任务路由、后续消息复用、新任务标记与 `/route-reset` 失效、TTL 与注册表指纹校验）；公开接口：`read_cache`、`write_cache`、`clear_cache`、`is_new_task`、`is_reset`、`routing_dir`
 - `routing/hosts/qoder/route_diagnostics.py` — 职责：把非法路由画像转成脱敏诊断字段（注册表内标签、confidence、evidence 条数），未知标签只记 `<unknown>`；公开接口：`profile_diagnostic`
 - `routing/hosts/qoder/route_signals.py` — 职责：识别 plan 缓存的任务切换信号（执行动作/只读问题/报错），决定是否绕过会话缓存；公开接口：`cache_bypass_reason`
 - `routing/hosts/qoder/user-hook.sh` — 职责：macOS/Linux 用户级 hook 入口，按 PATH 探测 Python 后调用 `route_hook.py`；项目门禁由 route_hook 用 hook 输入里的 cwd 完成；公开接口：命令行 stdin/stdout hook 合同
 - `routing/hosts/qoder/user-hook.cmd` — 职责：Windows 用户级 hook 入口，按 PATH 探测 Python 后调用 `route_hook.py`；项目门禁由 route_hook 用 hook 输入里的 cwd 完成；公开接口：命令行 stdin/stdout hook 合同
-- `routing/hosts/antigravity/route_hook.py` — 职责：Antigravity `PreInvocation` command hook——解析 `conversationId`/`workspacePaths`/`lastUserInput`（剥离 `<USER_REQUEST>` 与附加元数据）、同轮工具调用去重、复用 `decisions`/缓存路由写 Shadow 事件，并按阶段输出 `{}` 或 `injectSteps` 系统消息；公开接口：`extract_user_prompt`、`main`（stdin/stdout hook 合同）
 
 ## 评测
 
 - `evals/intent_routing/score.py` — 职责：意图路由基线数据集校验与预测评分（内置规则基线或外部 predictions），输出意图/模块/触发项的召回、精确率与错配率；公开接口：`load_dataset`、`validate_dataset`、`predict_rules`、`predictions_from_rules`、`score_cases`、`main`
-- `evals/intent_routing/jev_predict.py` — 职责：用 TypeSafe Jev 或 Google Gemini Decisions（`gemini-decision-1`）的 primary Choice + 7 个意图 Noul + 3 个辅助 Noul 生成意图画像，按阈值映射模块与触发项，并写出 `score.py` 可读的 predictions 或供 `route_hook` 在线调用；公开接口：`GEMINI_DECISION_MODEL`、`is_gemini_decision_model`、`build_decisions_payload`、`build_payload`、`answers_to_profile`、`interpret_response`、`extract_usage`、`call_systemone`、`call_gemini_decisions`、`route_prompt_with_decisions`、`main`
-- `evals/trace_adapters.py` — 职责：将 `docs-harness/behavior-trace/v1` JSON 或 `claude_jsonl` 对话轨迹规范化为统一离线只读模型 `NormalizedTrace`；公开接口：`TRACE_SCHEMA_VERSION`、`SUPPORTED_FORMATS`、`TraceParseError`、`NormalizedToolCall`、`NormalizedTrace`、`detect_trace_format`、`adapt_trace_payload`、`load_trace_file`
-- `evals/trace_verifier.py` — 职责：离线校验 `evals/evals.json` 中 behavior 用例轨迹，机械可证 rubric 输出 PASS/FAIL 与证据，纯语义项诚实输出 `manual_review`；公开接口：`EXIT_PASS`、`EXIT_FAIL`、`EXIT_INPUT_ERROR`、`load_behavior_cases`、`verify_trace_case`、`verify_batch`、`main`
+- `evals/intent_routing/jev_predict.py` — 职责：用 TypeSafe Jev 的 primary Choice + 7 个意图 Noul + 3 个辅助 Noul 生成意图画像，按阈值映射模块与触发项，并写出 `score.py` 可读的 predictions；公开接口：`build_payload`、`interpret_response`、`call_systemone`、`main`

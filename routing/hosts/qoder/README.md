@@ -8,7 +8,7 @@ Qoder 在用户提交 prompt 后、主 Agent 处理前触发 `UserPromptSubmit`�
 
 1. 从 stdin 读取 hook 输入；
 2. 加载 `routing/registry.json`；
-3. 通过 `_route_task` 取得路由画像：`fake` backend 读 `fake_profile.json`，`decisions` backend 调用 Google Gemini Decisions API（默认模型 `gemini-decision-1`），`cli` backend 调用 Qoder CLI 无头模式；
+3. 通过 `_route_task` 取得路由画像：`fake` backend 读 `fake_profile.json`，`cli` backend 调用 Qoder CLI 无头模式；
 4. 用 `validate_profile` 校验；
 5. 写 `.docs-harness/routing/shadow-YYYY-MM.jsonl`；
 6. `shadow` 到此结束，不输出上下文；`canary`/`enforced` 向 stdout 输出 `hookSpecificOutput.additionalContext`，只包含选中的模块契约。
@@ -17,11 +17,10 @@ Qoder 在用户提交 prompt 后、主 Agent 处理前触发 `UserPromptSubmit`�
 
 ## 文件
 
-- `route_hook.py`：hook 脚本；`_route_task` 分派 fake/decisions/cli backend。
-- `route_cache.py`：同会话路由缓存，避免后续消息重复调用路由后端。
+- `route_hook.py`：hook 脚本；`_route_task` 分派 fake/cli backend。
+- `route_cache.py`：同会话路由缓存，避免后续消息重复启动 CLI。
 - `fake_profile.json`：fake backend 的静态 code_task 画像。
 - `settings.example.json`：fake backend 的 Qoder hooks 配置片段。
-- `settings.decisions.example.json`：Google Gemini Decisions（`gemini-decision-1`）backend 的配置片段。
 - `settings.cli.example.json`：Qoder CLI backend 的配置片段。
 - `user-hook.sh`：macOS/Linux 用户级 hook 入口，按 PATH 探测可用的 `python3`/`python` 后调用 `route_hook.py`；项目门禁由 `route_hook.py` 用 hook 输入里的 `cwd` 判断。
 - `user-hook.cmd`：Windows 批处理入口（可选，适合能直接执行批处理的宿主），按 PATH 探测 `python`/`python3`/`py -3` 后调用 `route_hook.py`；Qoder 用户级 `command` 建议直接用 `py.exe -3`。
@@ -39,15 +38,6 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
   QODER_PROJECT_DIR="$PWD" DOCS_HARNESS_ROUTER_ENABLED=1 \
   python3 routing/hosts/qoder/route_hook.py
 ```
-
-## Gemini Decisions backend（`gemini-decision-1`）
-
-设置 `DOCS_HARNESS_ROUTER_BACKEND=decisions`（或 `gemini_decision` / `gemini-decision-1`）时，`route_hook.py` 直接复用 `evals/intent_routing/jev_predict.py` 的 `route_prompt_with_decisions`，向 `POST https://generativelanguage.googleapis.com/v1beta/decisions` 发送 1 个主意图 `choice` 与 10 个 `noul` 问题（0 输出 token）：
-
-- 鉴权：优先从 `GEMINI_API_KEY`（或 `GOOGLE_API_KEY`）读取 API Key，未设置时读取 `DOCS_HARNESS_GEMINI_ENV_FILE` 指向的本地 `.env` 文件（如 `.docs-harness/inputs/gemini.env`），通过 `x-goog-api-key` 请求头传递，不把密钥硬编码进 `settings.json` 或仓库。
-- 模型：默认 `gemini-decision-1`，可用 `DOCS_HARNESS_ROUTER_MODEL` 覆盖。
-- 端点：默认 `https://generativelanguage.googleapis.com`，可用 `DOCS_HARNESS_DECISIONS_BASE_URL` 覆盖（便于本地 mock 联调）。
-- 用量与成本：将响应的 `usage.total_input_tokens` / `usage.total_output_tokens` 与按 \$0.10 / 1M 输入 token 折算的 `cost_usd` 写入 Shadow 事件的 `model` 字段。
 
 ## CLI backend
 

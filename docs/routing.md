@@ -233,14 +233,13 @@ Qoder 官方 hooks 文档确认：`UserPromptSubmit` 在用户提交 prompt 后�
 - `routing/hosts/qoder/route_hook.py`：命令 hook。读取 stdin，加载注册表，调用 `_route_task`，校验画像，写 Shadow 事件，输出选中的模块契约。
 - `routing/hosts/qoder/fake_profile.json`：fake backend 的静态 code_task 画像。
 - `routing/hosts/qoder/settings.example.json`：fake backend 的 Qoder hooks 配置示例。
-- `routing/hosts/qoder/settings.decisions.example.json`：Google Gemini Decisions（`gemini-decision-1`）backend 的配置示例。
 - `routing/hosts/qoder/settings.cli.example.json`：Qoder CLI backend 的配置示例。
 - `routing/hosts/qoder/user-hook.sh`：用户级 hook 入口，先检查项目是否使用 Docs Harness，再调用 `route_hook.py`。
 
 行为：
 
 - `DOCS_HARNESS_ROUTER_ENABLED=1` 时启用；默认关闭。
-- `DOCS_HARNESS_ROUTER_BACKEND=fake|decisions|cli`；默认 `fake`，`decisions`（别名 `gemini_decision` / `gemini-decision-1`）调用 Google Gemini Decisions API（默认 `gemini-decision-1`，优先读 `GEMINI_API_KEY` / `GOOGLE_API_KEY`，未设置时读 `DOCS_HARNESS_GEMINI_ENV_FILE` 本地密钥文件），`cli` 调用 Qoder CLI 无头模式。
+- `DOCS_HARNESS_ROUTER_BACKEND=fake|cli`；默认 `fake`，`cli` 调用 Qoder CLI 无头模式。
 - `DOCS_HARNESS_ROUTER_PHASE=shadow|canary|enforced`，默认 `shadow`。`shadow` 只写事件、不输出 `additionalContext`；`canary`/`enforced` 注入选中模块契约。
 - shadow 不切换模块，实际加载仍是完整常驻规则，`actual_modules` 记为注册表全部模块；canary/enforced 记为实际注入模块。
 - 没有 `routing/registry.json`、画像非法、phase 非法或后端不可用时，hook 不注入、退出 0，把错误写入 stderr 和 `.docs-harness/routing/hook-errors.jsonl`。
@@ -366,15 +365,6 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 - Qoder Desktop 的项目级 `UserPromptSubmit` 与同会话缓存已在 demo 复验；用户级 hook 已在本仓会话真实触发。用户级门禁只认项目内 `routing/registry.json`，旧版 docs-harness 和未安装项目都会被静默跳过，不影响其上下文或日志。截至 2026-10-25T02:02Z，zbuddy-desktop 累计 32 条 shadow 事件（30 条真实消息、2 条系统通知误触发）；尚未覆盖 1–2 周、多任务、长会话和上下文压缩下的缓存命中率与误复用。
 - 国内账号已能在 CLI 登录；是否与 Desktop 套餐共享额度，以 CLI `/status` 和实际 Credits 为准。
 - 每次宿主重启或配置变化后要重新确认 hook 是否加载。
-
-### Antigravity `PreInvocation` hook
-
-当前主力宿主为 **Antigravity**（`~/.gemini/config/hooks.json` 或工作区 `.agents/hooks.json`），入口位于 `routing/hosts/antigravity/route_hook.py`：
-
-- 事件与协议：挂载 `PreInvocation` 生命周期事件；从 `stdin` 读取 `conversationId`、`workspacePaths`、`lastUserInput`，剥离 `<USER_REQUEST>...</USER_REQUEST>` 与 `<ADDITIONAL_METADATA>` 后提取用户输入。
-- 同轮工具步去重：Antigravity 在单轮工具循环的每次模型调用前都会触发 `PreInvocation`（此时 `conversationId` 与 `lastUserInput` 不变）；`route_hook.py` 在 `.docs-harness/routing/sessions/<hash>.last` 记录最近一次已路由的输入哈希，同一用户消息的后续工具调用步直接输出 `{}` 并退出 0，不重复请求 `gemini-decision-1` 或重复写 Shadow 日志。
-- 输出契约：`shadow` 阶段（及未接入 `routing/registry.json` 的普通工作区）向 `stdout` 输出 `{}`；`canary`/`enforced` 阶段输出 `{"injectSteps": [{"systemMessage": {"systemMessage": "<模块契约>"}}]}`。
-- 全局配置：安装在 `~/.gemini/config/hooks.json`（见 `routing/hosts/antigravity/hooks.example.json`），通过命令行参数 `--enabled --phase shadow --backend decisions --model gemini-decision-1 --env-file D:/Project/docs-harness/.docs-harness/inputs/gemini.env` 传参，不在 `hooks.json` 中硬编码密钥。
 
 ## 11. 下游试点接入
 
