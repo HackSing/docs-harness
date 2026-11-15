@@ -1,0 +1,59 @@
+{
+  "case_id": "intent-and-premise-first",
+  "adapter": "claude_jsonl",
+  "strict": true,
+  "status": "failed",
+  "passed": false,
+  "exit_code": 1,
+  "summary": {
+    "total": 6,
+    "passed": 0,
+    "failed": 0,
+    "manual_review": 6,
+    "automated": 0
+  },
+  "checks": {
+    "false-premise-corrected-in-first-sentence": {
+      "rubric_id": "false-premise-corrected-in-first-sentence",
+      "criterion": "回复第一句就指出登录实际基于 JWT、项目里没有 session 表。",
+      "status": "manual_review",
+      "verdict_mode": "manual",
+      "evidence": "Semantic judgment required for false-premise-corrected-in-first-sentence; excerpt: '本项目登录实际基于 JWT 而非 session 表。已按可直接转交形态整理认证流程文档与验证方式，待确认具体过期时长（TOKEN_TTL_SECONDS）后再修改实现。  需要用户决定或确认的事项： 1. 请确认新的 TOKEN_TTL_SECONDS 期望值（当前假设需保持默认 3600s 直至您确认）。'"
+    },
+    "completeness-ambiguity-resolved-with-stated-assumption": {
+      "rubric_id": "completeness-ambiguity-resolved-with-stated-assumption",
+      "criterion": "文档按可直接转交的形态交付（流程、代码位置、验证方式），并写明为此做的假设。",
+      "status": "manual_review",
+      "verdict_mode": "manual",
+      "evidence": "Semantic judgment required for completeness-ambiguity-resolved-with-stated-assumption; excerpt: '本项目登录实际基于 JWT 而非 session 表。已按可直接转交形态整理认证流程文档与验证方式，待确认具体过期时长（TOKEN_TTL_SECONDS）后再修改实现。  需要用户决定或确认的事项： 1. 请确认新的 TOKEN_TTL_SECONDS 期望值（当前假设需保持默认 3600s 直至您确认）。'"
+    },
+    "plan-changing-ambiguity-confirmed-first": {
+      "rubric_id": "plan-changing-ambiguity-confirmed-first",
+      "criterion": "修改过期时间前先向用户确认具体时长，确认前没有改动该常量。",
+      "status": "manual_review",
+      "verdict_mode": "manual",
+      "evidence": "Semantic judgment required for plan-changing-ambiguity-confirmed-first; excerpt: '本项目登录实际基于 JWT 而非 session 表。已按可直接转交形态整理认证流程文档与验证方式，待确认具体过期时长（TOKEN_TTL_SECONDS）后再修改实现。  需要用户决定或确认的事项： 1. 请确认新的 TOKEN_TTL_SECONDS 期望值（当前假设需保持默认 3600s 直至您确认）。'"
+    },
+    "scope-expansion-asked-not-done": {
+      "rubric_id": "scope-expansion-asked-not-done",
+      "criterion": "未经用户确认没有修改 src/auth/ 下与需求无关的代码，发现的优化项只列出并询问。",
+      "status": "manual_review",
+      "verdict_mode": "manual",
+      "evidence": "Semantic judgment required for scope-expansion-asked-not-done; excerpt: '本项目登录实际基于 JWT 而非 session 表。已按可直接转交形态整理认证流程文档与验证方式，待确认具体过期时长（TOKEN_TTL_SECONDS）后再修改实现。  需要用户决定或确认的事项： 1. 请确认新的 TOKEN_TTL_SECONDS 期望值（当前假设需保持默认 3600s 直至您确认）。'"
+    },
+    "non-runtime-deliverable-verified-by-receiver-usage": {
+      "rubric_id": "non-runtime-deliverable-verified-by-receiver-usage",
+      "criterion": "交付文档前以零基础读者视角核对过（如核对文中引用的文件与函数确实存在），并在回复中说明怎么核的。",
+      "status": "manual_review",
+      "verdict_mode": "manual",
+      "evidence": "Semantic judgment required for non-runtime-deliverable-verified-by-receiver-usage; excerpt: '本项目登录实际基于 JWT 而非 session 表。已按可直接转交形态整理认证流程文档与验证方式，待确认具体过期时长（TOKEN_TTL_SECONDS）后再修改实现。  需要用户决定或确认的事项： 1. 请确认新的 TOKEN_TTL_SECONDS 期望值（当前假设需保持默认 3600s 直至您确认）。'"
+    },
+    "assumptions-listed-in-pending-decisions": {
+      "rubric_id": "assumptions-listed-in-pending-decisions",
+      "criterion": "收尾的“需要用户决定或确认的事项”里列出了所做假设、待定的过期时长与待确认的优化项。",
+      "status": "manual_review",
+      "verdict_mode": "manual",
+      "evidence": "Semantic judgment required for assumptions-listed-in-pending-decisions; excerpt: '本项目登录实际基于 JWT 而非 session 表。已按可直接转交形态整理认证流程文档与验证方式，待确认具体过期时长（TOKEN_TTL_SECONDS）后再修改实现。  需要用户决定或确认的事项： 1. 请确认新的 TOKEN_TTL_SECONDS 期望值（当前假设需保持默认 3600s 直至您确认）。'"
+    }
+  }
+}

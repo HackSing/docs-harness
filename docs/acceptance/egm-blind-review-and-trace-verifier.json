@@ -1,0 +1,142 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "EGM 启发两项增强：Plan 零上下文盲审提示词与 evals 行为轨迹离线校验器",
+  "objective": "交付只读 CLI 子命令 `plan review-prompt`（scripts/plan_review.py）与离线 behavior 轨迹校验器（evals/trace_adapters.py + evals/trace_verifier.py），满足契约一致性、单测与全量回归、真实 CLI 冒烟及打包安装可运行性。",
+  "key_symbols": [
+    "run_plan_review_prompt",
+    "build_review_prompts",
+    "verify_trace_case",
+    "adapt_trace_payload"
+  ],
+  "plan_ref": "docs/plans/egm-blind-review-and-trace-verifier.json",
+  "knowledge_refs": [],
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "CLI 契约、打包清单（package.json/MANAGED_MODULES/CODEMAP）、py39 行长<=511B 与结构/资产检查全通过",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261115T093358-e8d0a00f8a",
+          "objective_fingerprint": "sha256:8d90cb8ab5667dae9ffee636596fe702aa3688f812e7f15bb61cd6d2f659b373",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "运行 `python scripts/harness.py structure check --target . --json`（checked=51, failures=[], warnings=[]）、`python scripts/harness.py release sync --target . --strict --json`（consistent, changelog_top_version=2.35.0）与 `test_cli_surface` / `test_evals`。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/egm-blind-review-and-trace-verifier/l1-structure-check.json",
+            "docs/acceptance/evidence/egm-blind-review-and-trace-verifier/l1-release-sync.json"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-11-15T09:33:58+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "新增测试 tests/test_plan_review.py 与 tests/test_trace_verifier.py 及仓库全量单测套件全部通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "repository_full_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261115T093358-bb1f7421a4",
+          "objective_fingerprint": "sha256:8d90cb8ab5667dae9ffee636596fe702aa3688f812e7f15bb61cd6d2f659b373",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "repository_full_test",
+          "method": "运行全量单测套件 `python -m unittest discover -s tests -p \"test_*.py\" -v`（Ran 516 tests in 329.024s, OK, skipped=12，含 test_plan_review 7 项与 test_trace_verifier 20 项）。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/egm-blind-review-and-trace-verifier/l2-full-unittest.log"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-11-15T09:33:58+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "真实 CLI 本地运行冒烟通过：plan review-prompt 对冻结 Plan 生成零上下文提示词，evals/trace_verifier.py 对样本轨迹完成离线判定并归档证据日志",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261115T093358-f940c48135",
+          "objective_fingerprint": "sha256:8d90cb8ab5667dae9ffee636596fe702aa3688f812e7f15bb61cd6d2f659b373",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "以本冻结 Full Plan 运行真实 `plan review-prompt --json`（exit=0, read_only=true, prompts=2, forbid_fork_from_coordinator=true），并以 v1 + claude_jsonl 样本运行 `evals/trace_verifier.py --batch`（exit=0, 6/6 automated passed + 6 manual_review）及 `--strict`（exit=1 阻断 manual_review）。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/egm-blind-review-and-trace-verifier/plan-review-smoke.json",
+            "docs/acceptance/evidence/egm-blind-review-and-trace-verifier/trace-verifier-smoke.json",
+            "docs/acceptance/evidence/egm-blind-review-and-trace-verifier/trace-verifier-strict-manual-smoke.json"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-11-15T09:33:58+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c4",
+      "title": "打包、自检与下游安装验证通过：self-test、npm run pack:check 与 test_project_install 验证安装副本可运行 plan review-prompt",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L4",
+      "evidence_layer": "package_or_install",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261115T093358-ada3ccf3a1",
+          "objective_fingerprint": "sha256:8d90cb8ab5667dae9ffee636596fe702aa3688f812e7f15bb61cd6d2f659b373",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L4",
+          "evidence_layer": "package_or_install",
+          "method": "运行 `python scripts/harness.py self-test --target . --json`（exit=0, status=passed）、`npm run pack:check`（exit=0, docs-harness-2.35.0.tgz 共 112 文件含 scripts/plan_review.py 与 evals/trace_*.py）及 `test_project_install` + `test_installed_copy_runs_plan_review_prompt`。",
+          "evidence_refs": [
+            "docs/acceptance/evidence/egm-blind-review-and-trace-verifier/l4-self-test.json",
+            "docs/acceptance/evidence/egm-blind-review-and-trace-verifier/l4-pack-check.txt",
+            "docs/acceptance/evidence/egm-blind-review-and-trace-verifier/l2-full-unittest.log"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-11-15T09:33:58+00:00"
+        }
+      ]
+    }
+  ],
+  "status": "passed",
+  "revision": 2,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:0e824098b742574cc48f158f78066f15aced582f7afae452ac6162b3c4ca7cc5",
+      "updated_at": "2026-11-15T09:09:56+00:00"
+    }
+  ],
+  "created_at": "2026-11-15T09:09:56+00:00",
+  "updated_at": "2026-11-15T09:33:58+00:00",
+  "settled_at": "2026-11-15T09:33:58+00:00",
+  "asset_fingerprint": "sha256:f8711231af7b880115331da8b6f9cdd4f338caeb2c5252168d92e4b7938b3dcf",
+  "replacement": null
+}

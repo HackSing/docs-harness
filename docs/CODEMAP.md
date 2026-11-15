@@ -34,6 +34,7 @@
 - `scripts/acceptance_diagnostics.py` — 职责：Acceptance 失败诊断的待处理标准、期望/实际与下一步命令；公开接口：`find_criterion`、`match_record_to_criterion`、`settle_mismatch_error`、`criterion_not_pending_error`
 - `scripts/diagram_view.py` — 职责：`harness view` 的 Mermaid → 独立 HTML 页面，渲染（纯函数）、落盘到 `.docs-harness/views/` 与系统浏览器打开三层分开，错误一律向上传递；公开接口：`render_mermaid_html`、`write_view`、`open_in_browser`、`VIEWS_RELATIVE`（views 目录常量真源，harness 导入并列入 LOCAL_ONLY_DIRS）
 - `scripts/structure_ts_functions.cjs` — 职责：Structure 的 TS/JS 函数体量解析子进程（stdin JSON 源码批 → stdout 函数限定名→行数），在目标项目 node_modules 或 DOCS_HARNESS_TS_MODULE_DIR 目录加载 typescript，harness 自身零依赖；公开接口：`collectSpans`、`functionName`（命令行调用，无模块导出）
+- `scripts/plan_review.py` — 职责：为受管方案或草案 JSON/Markdown 生成零上下文盲审（comprehension / implementation_readiness）只读提示词，校验白名单 `--context-ref` 并禁止 fork；公开接口：`REVIEW_LENSES`、`extract_plan_packet`、`validate_context_refs`、`build_review_prompts`、`run_plan_review_prompt`
 
 ## 意图路由（仓库侧，默认关闭）
 
@@ -54,3 +55,5 @@
 
 - `evals/intent_routing/score.py` — 职责：意图路由基线数据集校验与预测评分（内置规则基线或外部 predictions），输出意图/模块/触发项的召回、精确率与错配率；公开接口：`load_dataset`、`validate_dataset`、`predict_rules`、`predictions_from_rules`、`score_cases`、`main`
 - `evals/intent_routing/jev_predict.py` — 职责：用 TypeSafe Jev 或 Google Gemini Decisions（`gemini-decision-1`）的 primary Choice + 7 个意图 Noul + 3 个辅助 Noul 生成意图画像，按阈值映射模块与触发项，并写出 `score.py` 可读的 predictions 或供 `route_hook` 在线调用；公开接口：`GEMINI_DECISION_MODEL`、`is_gemini_decision_model`、`build_decisions_payload`、`build_payload`、`answers_to_profile`、`interpret_response`、`extract_usage`、`call_systemone`、`call_gemini_decisions`、`route_prompt_with_decisions`、`main`
+- `evals/trace_adapters.py` — 职责：将 `docs-harness/behavior-trace/v1` JSON 或 `claude_jsonl` 对话轨迹规范化为统一离线只读模型 `NormalizedTrace`；公开接口：`TRACE_SCHEMA_VERSION`、`SUPPORTED_FORMATS`、`TraceParseError`、`NormalizedToolCall`、`NormalizedTrace`、`detect_trace_format`、`adapt_trace_payload`、`load_trace_file`
+- `evals/trace_verifier.py` — 职责：离线校验 `evals/evals.json` 中 behavior 用例轨迹，机械可证 rubric 输出 PASS/FAIL 与证据，纯语义项诚实输出 `manual_review`；公开接口：`EXIT_PASS`、`EXIT_FAIL`、`EXIT_INPUT_ERROR`、`load_behavior_cases`、`verify_trace_case`、`verify_batch`、`main`

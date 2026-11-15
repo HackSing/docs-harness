@@ -1,0 +1,4 @@
+{"type": "user", "case_id": "intent-and-premise-first", "message": {"role": "user", "content": [{"type": "text", "text": "把 docs 里的 session 表登录流程整理给我，顺便把过期时间调短。"}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "tool_use", "id": "u1", "name": "read_file", "input": {"file_path": "src/auth/jwt.py"}}]}}
+{"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "u1", "content": "TOKEN_TTL_SECONDS = 3600"}]}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "本项目登录实际基于 JWT 而非 session 表。已按可直接转交形态整理认证流程文档与验证方式，待确认具体过期时长（TOKEN_TTL_SECONDS）后再修改实现。\n\n需要用户决定或确认的事项：\n1. 请确认新的 TOKEN_TTL_SECONDS 期望值（当前假设需保持默认 3600s 直至您确认）。"}]}}

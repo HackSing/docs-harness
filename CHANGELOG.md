@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### 新增能力
+- **Plan 零上下文盲审提示词生成器（`plan review-prompt` / `scripts/plan_review.py`）**：只读加载已冻结 Plan、手写 Markdown 或未冻结草案（`--plan` / `--content` 互斥），支持 `--lens all|comprehension|implementation_readiness` 与可重复白名单 `--context-ref`（校验目标内存在且无符号链接，禁止 `.`），生成强制“独立全新子智能体、禁止 `fork`、先批后评、零决策规则”的自包含审校提示词；对 `plan_level=none` 拒绝，对 `brief` 输出警告。
+- **evals 行为轨迹离线校验器（`evals/trace_verifier.py` / `evals/trace_adapters.py`）**：纯 Python 3.9+ 标准库实现 `docs-harness/behavior-trace/v1` 与 `claude_jsonl`（自动探测或显式 `--format`）轨迹规范化，针对 `evals/evals.json` 的 15 条 `behavior` 用例做确定性机械判定（退出码 `0/1/2`），对纯语义/主观项诚实输出 `manual_review`（`--strict` 下阻断），并支持 `--batch` 目录/清单批量核验。
+
 ## 2.35.0 - 2026-11-04
 
 - **验证默认后台**：受管入口新增“验证默认后台”规则：单测、构建和静态检查走后台进程，UI 用隐藏窗口或离屏渲染，模拟器用 headless；不得弹窗、抢焦点、播放声音或自动打开文件夹；只有真实硬件、系统权限、原生弹窗等无法后台的层才上前台，并须提前说明、收尾记录前台/后台。`docs/contracts.md` 新增 4c 节，固化分层做法、前台例外协议与完成判定；`runtime-verification-quality` behavior 用例增加后台验证判定项。

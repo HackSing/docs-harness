@@ -70,7 +70,7 @@ python3 scripts/harness.py plan show --target . \
   --plan docs/plans/<plan>.json --json
 ```
 
-`plan show` 返回冻结 `content`、`execution_projection`、状态、关联验收与治理数据；手写方案返回 Markdown 正文。`plan list` 只读列出活/归档方案。`plan amend` 除整包 `--content` 外支持 `--patch`（浅合并）和 `--dry-run`；Full Plan 可选 `progress.remaining_steps` 让 `plan check` 按进度判断。任务收尾必须运行：
+`plan show` 返回冻结 `content`、`execution_projection`、状态、关联验收与治理数据；手写方案返回 Markdown 正文。`plan list` 只读列出活/归档方案。`plan review-prompt`（`--plan` 或 `--content` 互斥，可选 `--lens all|comprehension|implementation_readiness` 与白名单 `--context-ref`）只读生成零上下文盲审提示词，显式要求独立新开无历史子智能体（禁止 fork）先批后评。`plan amend` 除整包 `--content` 外支持 `--patch`（浅合并）和 `--dry-run`；Full Plan 可选 `progress.remaining_steps` 让 `plan check` 按进度判断。任务收尾必须运行：
 
 ```bash
 python3 scripts/harness.py plan settle --target . \
