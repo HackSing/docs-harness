@@ -186,6 +186,7 @@ class AssetsCheckTest(HarnessTestBase):
                 "objective": "验证 strict 与 fast 边界",
                 "scope": ["scripts/harness.py"],
                 "steps": ["创建", "结项"],
+                "constraints_and_pitfalls": "不改动无关文件",
                 "acceptance": ["strict 阻断慢检查 WARN"],
             },
         )

@@ -190,6 +190,7 @@ class PlanLifecycleTest(HarnessTestBase):
             "objective": "修复前端确认状态",
             "scope": ["web/confirm.tsx"],
             "steps": ["复现", "修复", "走真实页面流程"],
+            "constraints_and_pitfalls": "不改动范围外模块",
             "acceptance": ["启动页面并完成确认流程"],
         }
         content_path = self.write_json("content.json", content)
@@ -230,6 +231,7 @@ class PlanLifecycleTest(HarnessTestBase):
             "objective": "验证方案生命周期",
             "scope": ["scripts/harness.py"],
             "steps": ["创建", "完成", "归档"],
+            "constraints_and_pitfalls": "不改动范围外模块",
             "acceptance": ["plan check 通过"],
         }
         content_path = self.write_json("content.json", content)
@@ -275,6 +277,7 @@ class PlanLifecycleTest(HarnessTestBase):
                 "objective": "兼容旧方案",
                 "scope": ["scripts/harness.py"],
                 "steps": ["迁移"],
+                "constraints_and_pitfalls": "不改动范围外模块",
                 "acceptance": ["完成状态可写入"],
             },
         )
@@ -319,6 +322,7 @@ class PlanLifecycleTest(HarnessTestBase):
                 "objective": "拒绝篡改",
                 "scope": ["scripts/harness.py"],
                 "steps": ["校验"],
+                "constraints_and_pitfalls": "不改动范围外模块",
                 "acceptance": ["篡改被拒绝"],
             },
         )
@@ -484,6 +488,7 @@ class PlanLifecycleTest(HarnessTestBase):
             "objective": "目标",
             "scope": "范围",
             "steps": "步骤",
+            "constraints_and_pitfalls": "不改动范围外模块",
             "acceptance": "验收",
         })
         payload = self.run_cli(
@@ -666,6 +671,7 @@ class PlanLifecycleTest(HarnessTestBase):
             "objective": "目标",
             "scope": "范围",
             "steps": "步骤",
+            "constraints_and_pitfalls": "不改动范围外模块",
             "acceptance": "验收",
         })
         self.run_cli(

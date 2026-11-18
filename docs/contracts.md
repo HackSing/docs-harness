@@ -19,6 +19,7 @@ acceptance create | amend | record | settle | check
 adr create | adr amend | settle | check
 assets-check [--fast] [--strict] [--verbose]
 report check --path <报告>
+checklist check --path <清单>
 ```
 
 `--dry-run` 支持 `plan create/amend` 与 `acceptance create/amend/record/settle`，只校验并返回 `dry_run_valid`，不写任何文件；其他动作带上它以 `dry_run_unsupported`（退出码 2）拒绝。
@@ -75,8 +76,8 @@ JSON `docs-harness/knowledge-asset/v1` 是事实真源，Markdown 是可读投�
 用户明确选择优先。自动选择只使用结构化的复杂度、实际修改面、跨模块程度、风险和“用户要求方案”信号，不从任务正文关键词猜模板。
 
 - `none`：直接执行；
-- `brief`：目标、范围、步骤、验收；
-- `full`：全面通用字段，加一个主领域 Profile。
+- `brief`：目标、范围（含改动文件与消费链）、关键步骤、约束与已知陷阱、可执行验收方案（含验证层级）；
+- `full`：全面通用字段（含必填 `constraints` 与结构化 `verification_scope`），加一个主领域 Profile。
 
 字段与任务无关时不出现，不填写空数组、“无”或“不适用”。复合任务仍只有一份主方案，次级 Profile 只补会改变执行或验收的字段。
 
@@ -86,7 +87,7 @@ JSON `docs-harness/knowledge-asset/v1` 是事实真源，Markdown 是可读投�
 
 选择校验只比较 `contract_fingerprint`；模板文案或 `reason` 变化不再让旧选择失效。合同不一致时返回 `differences[]`（字段、期望值、实际值）。主 Profile 字段保持模板要求的 required；次级 Profile 字段默认 optional，按“只补会改变执行或验收的字段”填写。Full Plan 可选填写 `progress`（`completed_steps`/`remaining_steps`）：`remaining_steps` 非空时，`plan check` 不再因关键符号全部命中而提示“代码很可能已交付”。
 
-成功结果同时写入冻结的 `docs-harness/plan/v3` JSON、同名可审查 Markdown，以及 `docs/INDEX.md` 受管区块内的状态/关键符号条目。`execution_projection` 是完整 `content`，不继承模板选择过程或候选讨论；`plan settle` 只做治理终验，不修改执行内容。v2 方案保持只读兼容且不回填新字段；已有不同内容的 JSON 或 Markdown 均失败关闭。所有 Full Plan 必须声明 `acceptance_required=true|false` 和 `knowledge_impact=updated|unchanged`；`full + bugfix` 还要求以下结构化字段：
+成功结果同时写入冻结的 `docs-harness/plan/v3` JSON、同名可审查 Markdown，以及 `docs/INDEX.md` 受管区块内的状态/关键符号条目。`execution_projection` 是完整 `content`，不继承模板选择过程或候选讨论；`plan settle` 只做治理终验，不修改执行内容。v2 方案保持只读兼容且不回填新字段；已有不同内容的 JSON 或 Markdown 均失败关闭。所有 Full Plan 必须声明 `acceptance_required=true|false`、`knowledge_impact=updated|unchanged`、必填 `constraints`（约束与已知陷阱），以及结构化 `verification_scope`（可额外带 `layers[]` 验证层级声明）；`full + bugfix` 另要求 `affected_modules`、`full_regression_trigger` 与 `failure_attribution`：
 
 ```json
 {
@@ -236,6 +237,8 @@ Plan check 额外校验 INDEX 条目的标题、关键符号、状态与 Markdow
 
 `report check --path <报告>` 校验收尾记录的五项字段：改动路径、验证命令、退出结果、验证层级（验收层）、未覆盖项。通过返回 `status=passed`，缺项返回 1 与 `missing` 标签；文件不存在返回 `report_missing`（退出码 2）。它只校验格式，不判断证据真伪；验证层级枚举见受管入口。
 
+`checklist check --path <清单>` 按双模式校验 `.docs-harness/tasks/<任务>.md`：含 `docs/plans/*.json|md` 引用的清单进入 `plan_linked` 模式，仅校验 `plan_ref` 与 `- [ ]` 进度勾选项（不复述方案）；无 Plan 引用的清单进入 `standalone` 模式，校验改动文件与符号、禁碰边界与脏文件、已知陷阱、验收命令与层级及 `- [ ]` 进度勾选项。缺项返回 1 与 `missing`，文件不存在返回 `checklist_missing`（退出码 2）。
+
 ## 6. 风险、授权与数据边界
 
 Docs Harness 不提供任务级 Gate、动作 preflight、授权文件或 Host Adapter。Git 写入、删除、发布、安装和外部系统写入使用 agent 原生授权与沙箱。
@@ -249,14 +252,14 @@ Harness 不采集用户授权、不解析 agent usage、不保存原始用户聊
 项目安装只提供：
 
 - 受管的 direct-first `AGENTS.md` 区块，以及只含一行 `@AGENTS.md` 导入的 `CLAUDE.md` 区块（2.25.0 起；规约正文只在 `AGENTS.md`）；
-- `scripts/harness.py` 与受管资产生命周期模块（`managed_assets`、`asset_checks`、`plan_governance`、`knowledge_assets`、`acceptance_assets`、`adr_assets`、`script_hygiene`、`structure_check`、`structure_ts_functions.cjs`、`usage_log`、`usage_report`、`diagram_view`、`plan_amend`、`plan_selection`、`plan_check`、`acceptance_amend`、`acceptance_render`、`asset_query`、`cli_support`、`agent_prompt.md`）；
+- `scripts/harness.py` 与受管资产生命周期模块（`managed_assets`、`asset_checks`、`plan_governance`、`knowledge_assets`、`acceptance_assets`、`adr_assets`、`script_hygiene`、`structure_check`、`structure_ts_functions.cjs`、`usage_log`、`usage_report`、`report_check`、`checklist_check`、`runtime_check`、`runtime_packet`、`symbol_check`、`acceptance_diagnostics`、`diagram_view`、`plan_amend`、`plan_selection`、`plan_check`、`acceptance_amend`、`acceptance_render`、`asset_query`、`cli_support`、`agent_prompt.md`）；
 - 版本化 `plan-templates/`；
 - `scripts/githooks/`。目标是 git 仓库且 `core.filemode=false`（Windows 默认）时，`init`/`upgrade --apply` 会把索引中缺失或非 `100755` 的两个钩子以 `git update-index --add --chmod=+x` 登记，内容随之进入暂存区，payload 的 `githook_index_mode_registered` 列出登记路径；登记失败以 `githook_index_mode_failed` 报错并给出手工命令，被 git 忽略的钩子路径不强行加入（2.23.0）；
 - `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、`docs/adr/`、各自 archive 与 `docs/INDEX.md` 独立索引区块；
 - 缺失时的项目级 `CHANGELOG.md`、`TODO.md`、`README.md` 骨架（已存在绝不覆盖）；
 - `.docs-harness/config.json`（`docs-harness/project-config/v13`，含 `usage_log.enabled`）；
 - `.docs-harness/inputs/`：一次性输入 JSON（`plan create --content`、`plan settle --governance-input`、`knowledge`/`acceptance`/`adr` 各自的 `--input`）的约定位置，init 与 upgrade 都确保其存在并落一个内容为 `*` 的嵌套 `.gitignore`（已存在则一律不覆盖）。它既在项目内满足输入文件必须位于项目内的要求，又不入库，且不在 `LEGACY_RUNTIME_NAMES` 内、升级不清理；1.x 运行态目录 `.docs-harness/task-inputs/` 仍按 legacy 清除，两者不做迁移。
-- `.docs-harness/tasks/`（2.19.0）：长任务进度清单的约定位置，与 `inputs/` 同一套判定（`LOCAL_ONLY_DIRS`）：init 与 upgrade 确保存在并落内容为 `*` 的嵌套 `.gitignore`（已存在不覆盖），不入库、升级不清理。有 Plan 的任务清单只引用 Plan 路径并记进度，进度不写回冻结合同。
+- `.docs-harness/tasks/`（2.19.0 起；2.36.0 补双模式契约）：任务进度与跨会话交接清单的约定位置，与 `inputs/` 同一套判定（`LOCAL_ONLY_DIRS`）：init 与 upgrade 确保存在并落内容为 `*` 的嵌套 `.gitignore`（已存在不覆盖），不入库、升级不清理。有 Plan 的任务清单只引用 Plan 路径并记进度，不写回冻结合同；无 Plan 清单须包含改动文件与符号、禁碰边界与脏文件、已知陷阱、验收命令与层级四要素与进度条目，可用 `checklist check` 自检。
 - `.docs-harness/views/`：`view <source> [--open] [--target .] [--json]` 把一个 Mermaid 源码文件渲染成 `<源文件名去扩展名>.html` 写到这里（页面从 CDN 加载 mermaid），与 `inputs/` 同一套判定（`LOCAL_ONLY_DIRS`），不入库、升级不清理。错误码：`view_source_missing`、`view_source_empty`、`view_source_not_utf8`；`--open` 打开失败为 `view_open_failed`，页面已写入，payload 带 `path`。
 
 `project init`、`upgrade`、`uninstall` 不带 `--apply` 时只返回 `mode: preview` 与 `write_performed: false`，不落任何文件（`init` 自 2.22.0 起）。fresh init 初始化四类空资产目录、受管索引区块与缺失的项目级文档骨架，但不生成项目事实、验收结论、规则目录或任务 Runtime，不自动启动知识、ADR、Changelog、TODO 或后台治理 Job。upgrade 先补齐四类体系，再清理指纹归属明确的旧规则、已识别知识地图、旧版本受管区块和旧 Runtime；四类用户资产、项目文档、质量账本、已修改或归属不明文件保留。`release sync --strict` 要求 CHANGELOG 顶部版本与 VERSION 一致；`project check` 对缺失的 CHANGELOG/TODO 出 red、TODO 条目格式问题出 yellow。

@@ -27,6 +27,7 @@ if str(SCRIPT_MODULE_DIR) not in sys.path:
 from managed_assets import AssetError, AssetSpec, apply_structure, asset_pair, load_asset, structure_changes
 from asset_checks import preview_warnings, run_assets_check, summarize_warnings
 from report_check import check_report
+from checklist_check import add_checklist_parser, run_checklist_check
 from runtime_check import RUNTIME_VERIFICATION_RELATIVE, check_packet
 from runtime_packet import RUNTIME_PACKET_EXAMPLE
 from script_hygiene import check_script_line_endings
@@ -128,7 +129,7 @@ from plan_selection import (
     validate_selection,
 )
 
-VERSION = "2.35.0"
+VERSION = "2.36.0"
 CONFIG_SCHEMA = "docs-harness/project-config/v13"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
     f"docs-harness/project-config/v{version}" for version in range(1, 13)
@@ -177,6 +178,7 @@ MANAGED_MODULE_RELATIVE_FILES = (
     "usage_log.py",
     "usage_report.py",
     "report_check.py",
+    "checklist_check.py",
     "runtime_check.py",
     "runtime_packet.py",
     "symbol_check.py",
@@ -1303,6 +1305,7 @@ PLAN_CONTENT_EXAMPLE = {
     "objective": "目标",
     "scope": "范围",
     "steps": "关键步骤",
+    "constraints_and_pitfalls": "不动边界、既有脏文件禁碰清单与已知陷阱",
     "acceptance": "验收方案",
 }
 PLAN_CONTENT_NOTES = (
@@ -4422,6 +4425,9 @@ def command_report(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         payload["next_action"] = "补齐 missing 字段后重跑 report check；字段名见 FIELD_LABELS"
     return (0 if payload["status"] == "passed" else 1), payload
 
+def command_checklist(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
+    return run_checklist_check(args, safe_target, HarnessError)
+
 def command_runtime(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
     """运行态证据包校验；检查器只读项目内证据，不启动应用。"""
     target = safe_target(args.target)
@@ -4828,6 +4834,7 @@ def build_parser() -> argparse.ArgumentParser:
     add_target(report)
     report.add_argument("--path", required=True, help="收尾报告路径，相对 target 解析")
 
+    add_checklist_parser(commands)
     add_runtime_parser(commands)
 
     view = commands.add_parser(
@@ -5001,6 +5008,8 @@ def dispatch_command(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
         return command_assets_check(args)
     if args.command == "report":
         return command_report(args)
+    if args.command == "checklist":
+        return command_checklist(args)
     if args.command == "runtime":
         return command_runtime(args)
     if args.command == "structure":

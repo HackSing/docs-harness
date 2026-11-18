@@ -95,7 +95,15 @@ class EvalPlanSelectCaseTest(HarnessTestBase):
         payload = self.select("--level", "brief", "--profile", "frontend_ui")
         self.assertEqual(
             self.field_ids(payload),
-            {"title", "key_symbols", "objective", "scope", "steps", "acceptance"},
+            {
+                "title",
+                "key_symbols",
+                "objective",
+                "scope",
+                "steps",
+                "constraints_and_pitfalls",
+                "acceptance",
+            },
         )
 
     def test_full_frontend_merges_secondary_into_one_main_plan(self) -> None:

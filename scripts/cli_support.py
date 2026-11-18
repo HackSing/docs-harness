@@ -53,6 +53,7 @@ _ACTION_FLAGS: dict[tuple[str, str | None], frozenset[str]] = {
     ("usage", "report"): frozenset({"--days"}),
     ("view", None): frozenset({"--open"}),
     ("report", "check"): frozenset({"--path"}),
+    ("checklist", "check"): frozenset({"--path"}),
     ("assets-check", None): frozenset({"--strict", "--fast", "--verbose"}),
     ("self-test", None): frozenset(),
 }

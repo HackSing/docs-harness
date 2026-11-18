@@ -2,7 +2,7 @@
 name: docs-harness
 description: "默认不介入普通任务；仅按需提供项目知识、方案模板和真实验收记录。"
 metadata:
-  version: 2.35.0
+  version: 2.36.0
   status: active
 ---
 
@@ -40,12 +40,12 @@ python3 scripts/harness.py plan select --target . \
   --complexity complex --surface architecture --json
 ```
 
-- `none`：直接执行；
-- `brief`：目标、范围、关键步骤、验收；
-- `full`：完整通用模板，加一个主领域 Profile；冻结 Markdown 必填 **流程图**（`process_flowchart`，Mermaid）与 **体验/操作者路径**（`ux_journey`）；
+- `none`：直接执行（跨多批、跨会话交接或防压缩清单写入 `.docs-harness/tasks/<task>.md` 并运行 `checklist check`）；
+- `brief`：目标、范围（全量改动路径与下游消费链）、关键步骤、约束与已知陷阱、可执行验收方案（含验证层级）；
+- `full`：完整通用模板（必填 `constraints` 约束与已知陷阱、结构化 `verification_scope`、**流程图** `process_flowchart` 与 **体验/操作者路径** `ux_journey`），加一个主领域 Profile；
 - Profile：`general|frontend_ui|backend_service|bugfix|architecture|migration_release`。
 
-`full + bugfix` 必须填写结构化 `affected_modules`、`verification_scope`、`full_regression_trigger` 和 `failure_attribution`。默认选择 `affected_modules`；`repository_full` 只接受跨模块、公共契约、共享基础设施、依赖/共享夹具或发布门禁原因码。四项字段进入 `execution_projection`。
+所有 `full` 方案均须填写结构化 `verification_scope`（`mode`、`commands`、`reused_passed_evidence` 及可选 `layers`）与必填 `constraints`；`full + bugfix` 额外必填 `affected_modules`、`full_regression_trigger` 和 `failure_attribution`。默认选择 `affected_modules`；`repository_full` 只接受跨模块、公共契约、共享基础设施、依赖/共享夹具或发布门禁原因码。以上字段均进入 `execution_projection`。
 
 所有 Full Plan 必须填写 `acceptance_required=true|false` 与单字段
 `knowledge_impact=updated|unchanged`。Acceptance 创建后由 Harness 自动登记到
@@ -157,10 +157,11 @@ python3 scripts/harness.py project uninstall --target <project> --apply --json
 python3 scripts/harness.py plan check --target .
 python3 scripts/harness.py assets-check --target . --strict
 python3 scripts/harness.py report check --target . --path .docs-harness/reports/<report>.md
+python3 scripts/harness.py checklist check --target . --path .docs-harness/tasks/<task>.md
 python3 scripts/harness.py usage report --target . --days 30 --json
 python3 scripts/harness.py self-test --target .
 ```
 
 fresh init 写入受管入口、控制器、资产模块、方案模板、git 钩子和 `project-config/v13`，并初始化 Plan/Knowledge/Acceptance/ADR 四类空目录、archive 与独立索引区块，缺失时生成项目级 CHANGELOG.md、TODO.md、README.md 骨架（已存在绝不覆盖）；不安装旧规则，不生成项目事实或验收结论，不自动启动后台治理 Job，不提交、不推送、不发布。upgrade 是单向迁移：先预览，再补齐四类体系并清理所有权明确的旧规则、知识地图、受管版本区块和旧 Runtime，同时保留四类用户资产、项目正文、质量账本以及已修改或归属不明文件。
 
-安装态可用 `project check` 核对版本、指纹、方案结构与 Git 交付状态，`project diff` 只读列出与来源包的漂移；两者不做任何写入。`project uninstall` 先预览再删除所有权明确的受管程序，项目方案、质量账本和用户正文一律保留。`plan check` 是 Plan 域文档可发现性检查；收尾统一使用 `assets-check`，pre-commit 使用 `--fast`，CI 使用 `--strict`；`assets-check` 默认只显示 WARN 摘要与 5 条预览，`--verbose` 查看全部。`report check` 校验收尾报告五项字段；`usage report` 聚合真实失败率、WARN 率与报告完整率。缺失资产结构返回失败并提示先运行 init/upgrade。`self-test` 运行内置自检。init、upgrade、uninstall、check、diff 必须使用来源包或安装态中版本不低于目标的控制器；upgrade 不能从模板已缺失或滞后的项目内副本取得来源；从项目内安装副本运行 init/upgrade 时必须用 `--source` 显式指定同版本完整源包，跨版本升级必须直接运行源包内的控制器。
+安装态可用 `project check` 核对版本、指纹、方案结构与 Git 交付状态，`project diff` 只读列出与来源包的漂移；两者不做任何写入。`project uninstall` 先预览再删除所有权明确的受管程序，项目方案、质量账本和用户正文一律保留。`plan check` 是 Plan 域文档可发现性检查；收尾统一使用 `assets-check`，pre-commit 使用 `--fast`，CI 使用 `--strict`；`assets-check` 默认只显示 WARN 摘要与 5 条预览，`--verbose` 查看全部。`report check` 校验收尾报告五项字段；`checklist check` 按双模式校验 `.docs-harness/tasks/` 进度清单；`usage report` 聚合真实失败率、WARN 率与报告完整率。缺失资产结构返回失败并提示先运行 init/upgrade。`self-test` 运行内置自检。init、upgrade、uninstall、check、diff 必须使用来源包或安装态中版本不低于目标的控制器；upgrade 不能从模板已缺失或滞后的项目内副本取得来源；从项目内安装副本运行 init/upgrade 时必须用 `--source` 显式指定同版本完整源包，跨版本升级必须直接运行源包内的控制器。

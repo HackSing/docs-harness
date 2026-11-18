@@ -6,7 +6,7 @@
 
 默认直接完成任务；仅在确有长期价值时，管理 Plan、Knowledge、Acceptance、ADR 四类项目资产的完整生命周期。
 
-[![Version](https://img.shields.io/badge/version-2.35.0-2563eb.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.36.0-2563eb.svg)](CHANGELOG.md)
 [![Assets Check](https://github.com/HackSing/docs-harness/actions/workflows/assets-check.yml/badge.svg)](https://github.com/HackSing/docs-harness/actions/workflows/assets-check.yml)
 [![Python](https://img.shields.io/badge/python-3.9%2B-3776ab.svg)](https://www.python.org/)
 [![Dependencies](https://img.shields.io/badge/runtime%20dependencies-0-16a34a.svg)](scripts/harness.py)
@@ -289,6 +289,7 @@ GitHub Actions --strict
 | `adr create/amend/show/settle/check` | 管理架构决策记录（ADR）生命周期（定稿不可改） |
 | `assets-check` | 统一检查四类资产、ScriptHygiene 脚本卫生与跨资产关系；`--verbose` 输出全部 WARN |
 | `report check` | 校验当次收尾报告是否含改动路径、验证命令/退出码、验证层级与未覆盖项 |
+| `checklist check` | 校验进度清单：无 Plan 验四要素（改动文件与符号/禁碰边界/已知陷阱/验收命令与层级）+ 勾选项，有 Plan 验路径 + 勾选项 |
 | `runtime check` | 硬校验运行态证据包：流程、状态/数据矩阵、UI 视觉/交互/文案/可访问性、对抗探测与缺陷复验 |
 | `usage report` | 聚合本地命令调用、真实失败率、WARN 率与收尾报告完整率 |
 | `self-test` | 运行安装副本的内置合同检查 |

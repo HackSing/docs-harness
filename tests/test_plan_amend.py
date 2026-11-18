@@ -25,6 +25,11 @@ class PlanAmendTest(HarnessTestBase):
                 "key_symbols": ["plan_amend", "apply_plan_amend"],
                 "acceptance_required": False,
                 "knowledge_impact": "unchanged",
+                "verification_scope": {
+                    "mode": "affected_modules",
+                    "commands": ["python3 -m unittest"],
+                    "reused_passed_evidence": [],
+                },
             }
         )
         selection_path = self.write_json("amend-selection.json", selection)
@@ -69,6 +74,11 @@ class PlanAmendTest(HarnessTestBase):
                 "key_symbols": ["GovernanceAmend", "apply_plan_amend"],
                 "acceptance_required": False,
                 "knowledge_impact": "unchanged",
+                "verification_scope": {
+                    "mode": "affected_modules",
+                    "commands": ["python3 -m unittest"],
+                    "reused_passed_evidence": [],
+                },
             }
         )
         selection_path = self.write_json("governance-selection.json", selection)
@@ -109,6 +119,7 @@ class PlanAmendTest(HarnessTestBase):
             "objective": "旧目标",
             "scope": "范围",
             "steps": "步骤",
+            "constraints_and_pitfalls": "保持既有接口不变",
             "acceptance": "验收",
         }
         selection_path = self.write_json("patch-selection.json", selection)
@@ -148,6 +159,7 @@ class PlanAmendTest(HarnessTestBase):
             "objective": "目标",
             "scope": "范围",
             "steps": "步骤",
+            "constraints_and_pitfalls": "保持既有接口不变",
             "acceptance": "验收",
         }
         selection_path = self.write_json("brief-selection.json", selection)

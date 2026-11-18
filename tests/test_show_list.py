@@ -87,6 +87,7 @@ class ShowListTest(HarnessTestBase):
                 "objective": "目标",
                 "scope": "范围",
                 "steps": "步骤",
+                "constraints_and_pitfalls": "不改动无关文件",
                 "acceptance": "验收",
             },
         )

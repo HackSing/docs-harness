@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.36.0 - 2026-11-18
+
+- **阶梯 0（`.docs-harness/tasks/` 进度清单与 `checklist check`）**：受管入口补充「跨批次、跨会话交接或防压缩清单」四要素要求（改动文件与符号、禁碰边界与脏文件、已知陷阱、验收命令与层级）；新增受管模块 `scripts/checklist_check.py` 与 `checklist check --path <清单>`（对称 `report check`，支持无 Plan `standalone` 与有 Plan `plan_linked` 双模式校验，保留 1.x 旧 `task` 命令删除边界不变）。
+- **阶梯 1（`brief` 方案模板）**：`plan-templates/levels/brief.json` 新增必填字段 `constraints_and_pitfalls`（约束与已知陷阱），并为 `scope`、`steps`、`acceptance` 补充可执行 `guidance`（列全文件与消费链、按顺序列具体改法与批次、标明可执行验证命令与验证层级）。
+- **阶梯 2（`full` 公共方案模板与校验）**：`plan-templates/levels/full.json` 将 `constraints`（约束与已知陷阱）升级为必填、`module_interfaces.guidance` 补充既有调用方/消费链要求，并将结构化 `verification_scope`（支持可选 `layers[]`）从 `profiles/bugfix.json` 上提为全 `full` Profile 共用必填字段，由 `scripts/plan_governance.py` 统一校验。
+- **文档与测试**：同步更新 `docs/CODEMAP.md`、`docs/contracts.md`、`SKILL.md`、`README.md` 与 `package.json`；新增 `tests/test_checklist_check.py`，同步 `tests/harness_test_base.py` 与 `brief`/`full` 相关测试及非 `bugfix` `full` 契约覆盖。
+
 ## 2.35.0 - 2026-11-04
 
 - **验证默认后台**：受管入口新增“验证默认后台”规则：单测、构建和静态检查走后台进程，UI 用隐藏窗口或离屏渲染，模拟器用 headless；不得弹窗、抢焦点、播放声音或自动打开文件夹；只有真实硬件、系统权限、原生弹窗等无法后台的层才上前台，并须提前说明、收尾记录前台/后台。`docs/contracts.md` 新增 4c 节，固化分层做法、前台例外协议与完成判定；`runtime-verification-quality` behavior 用例增加后台验证判定项。

@@ -41,6 +41,7 @@ class PlanSelectionShowTest(HarnessTestBase):
             "objective": "验证无 selection 文件也能创建方案",
             "scope": ["scripts/harness.py"],
             "steps": ["选择", "创建", "核对"],
+            "constraints_and_pitfalls": "工作区干净，不触碰无关模块",
             "acceptance": ["聚焦测试通过"],
         }
         content_path = self.write_json("direct-content.json", content)
@@ -70,6 +71,11 @@ class PlanSelectionShowTest(HarnessTestBase):
                 "key_symbols": ["PlanShow", "execution_projection"],
                 "acceptance_required": False,
                 "knowledge_impact": "unchanged",
+                "verification_scope": {
+                    "mode": "affected_modules",
+                    "commands": ["python3 -m unittest"],
+                    "reused_passed_evidence": [],
+                },
             }
         )
         selection_path = self.write_json("show-selection.json", selection)
@@ -108,6 +114,11 @@ class PlanSelectionShowTest(HarnessTestBase):
                 "key_symbols": ["SecondaryOptional", "plan_create"],
                 "acceptance_required": False,
                 "knowledge_impact": "unchanged",
+                "verification_scope": {
+                    "mode": "affected_modules",
+                    "commands": ["python3 -m unittest"],
+                    "reused_passed_evidence": [],
+                },
             }
         )
         selection_path = self.write_json("optional-selection.json", selection)
@@ -139,6 +150,11 @@ class PlanSelectionShowTest(HarnessTestBase):
                 "key_symbols": ["ProgressAlpha", "ProgressBeta"],
                 "acceptance_required": False,
                 "knowledge_impact": "unchanged",
+                "verification_scope": {
+                    "mode": "affected_modules",
+                    "commands": ["python3 -m unittest"],
+                    "reused_passed_evidence": [],
+                },
                 "progress": {
                     "completed_steps": ["第一步"],
                     "remaining_steps": ["第二步"],
@@ -173,6 +189,7 @@ class PlanSelectionShowTest(HarnessTestBase):
             "objective": "目标",
             "scope": "范围",
             "steps": "步骤",
+            "constraints_and_pitfalls": "无额外陷阱",
             "acceptance": "验收",
         })
         self.run_cli(
@@ -195,6 +212,89 @@ class PlanSelectionShowTest(HarnessTestBase):
             payload["warnings"],
         )
 
+    def test_brief_requires_constraints_and_carries_execution_guidance(self) -> None:
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project), "--level", "brief",
+        )
+        fields = {item["id"]: item for item in selection["fields"]}
+        self.assertIn("constraints_and_pitfalls", fields)
+        self.assertTrue(fields["constraints_and_pitfalls"]["required"])
+        for field_id in ("scope", "steps", "constraints_and_pitfalls", "acceptance"):
+            self.assertTrue(fields[field_id].get("guidance"), field_id)
+        incomplete = self.write_json(
+            "inputs/brief-missing-pitfalls.json",
+            {
+                "title": "缺少陷阱约束方案",
+                "key_symbols": ["BriefAlpha", "BriefBeta"],
+                "objective": "验证 brief 必填约束与陷阱",
+                "scope": ["scripts/harness.py"],
+                "steps": ["改一处"],
+                "acceptance": ["python -m unittest tests.test_plan_selection_show"],
+            },
+        )
+        rejected = self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--level", "brief",
+            "--content", str(incomplete.relative_to(self.project)),
+            "--output", "docs/plans/brief-missing.json",
+            expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_plan_content")
+        self.assertIn("constraints_and_pitfalls", rejected["message"])
+
+    def test_non_bugfix_full_requires_constraints_and_structured_verification_scope(self) -> None:
+        selection = self.run_cli(
+            "plan", "select", "--target", str(self.project),
+            "--level", "full", "--profile", "frontend_ui",
+        )
+        fields = {item["id"]: item for item in selection["fields"]}
+        self.assertTrue(fields["constraints"]["required"])
+        self.assertTrue(fields["verification_scope"]["required"])
+        self.assertTrue(fields["constraints"].get("guidance"))
+        self.assertTrue(fields["verification_scope"].get("guidance"))
+
+        base = {item["id"]: f"已填写 {item['label']}" for item in selection["fields"]}
+        base.update({
+            "title": "非 Bugfix Full 校验方案",
+            "key_symbols": ["UiPage", "uiController"],
+            "acceptance_required": False,
+            "knowledge_impact": "unchanged",
+            "verification_scope": {
+                "mode": "affected_modules",
+                "commands": ["python3 -m unittest tests.test_plan_selection_show"],
+                "reused_passed_evidence": [],
+                "layers": ["bogus_layer"],
+            },
+        })
+        bad_layers = self.write_json("inputs/bad-layers.json", base)
+        rejected = self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--level", "full", "--profile", "frontend_ui",
+            "--content", str(bad_layers.relative_to(self.project)),
+            "--output", "docs/plans/bad-layers.json",
+            expected=2,
+        )
+        self.assertEqual(rejected["code"], "invalid_plan_content")
+        self.assertIn("verification_scope.layers", rejected["message"])
+
+        valid = dict(base)
+        valid["verification_scope"] = {
+            "mode": "affected_modules",
+            "commands": ["python3 -m unittest tests.test_plan_selection_show"],
+            "reused_passed_evidence": [],
+            "layers": ["focused_test", "local_runtime"],
+        }
+        valid_path = self.write_json("inputs/valid-ui-full.json", valid)
+        frozen = self.run_cli(
+            "plan", "create", "--target", str(self.project),
+            "--level", "full", "--profile", "frontend_ui",
+            "--content", str(valid_path.relative_to(self.project)),
+            "--output", "docs/plans/valid-ui-full.json",
+        )
+        self.assertEqual(
+            frozen["execution_projection"]["verification_scope"]["layers"],
+            ["focused_test", "local_runtime"],
+        )
 
 
 if __name__ == "__main__":

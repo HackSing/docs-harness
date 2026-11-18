@@ -98,7 +98,7 @@ class CliSurfaceTest(HarnessTestBase):
         self.assertEqual(help_result.returncode, 0, help_result.stderr)
         public_commands = {
             "knowledge", "plan", "acceptance", "adr", "project", "release",
-            "assets-check", "structure", "usage", "view", "runtime", "self-test",
+            "assets-check", "structure", "usage", "view", "report", "checklist", "runtime", "self-test",
         }
         for command in public_commands:
             self.assertIn(command, help_result.stdout)
