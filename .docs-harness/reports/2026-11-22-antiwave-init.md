@@ -40,3 +40,14 @@
 - 没有为 `antiwave` 填充 `docs/CODEMAP.md` 业务模块映射内容。
 - `antiwave` 的 GitHub CI 未接入 harness 检查，pull 后仅依赖本机 `pre-commit` 钩子。
 - 本机主克隆 `D:/Project/aiwavetop` 尚未执行 `git pull --ff-only`（因其工作区正有进行中的并发修改，未触碰）。
+
+
+## 2026-11-22 追加：主克隆快进合并
+
+- 改动路径：`D:/Project/aiwavetop`（主克隆本地 `main` 从 `0c3afe1` 快进至 `40d3358`，工作区 35 条并发改动原样保留未动）、`D:/Project/docs-harness/docs/downstream.md`、`D:/Project/docs-harness/.docs-harness/reports/2026-11-22-antiwave-init.md`。
+- 验证命令与退出码（验证层级：`local_runtime`）：
+  - `git -C D:\Project\aiwavetop fetch origin`、路径交集核对（`overlap_count=0`）、`git -C D:\Project\aiwavetop merge --ff-only origin/main` —— 退出码：0（`Updating 0c3afe1..40d3358`，`Fast-forward` 55 个文件）。
+  - 合并后状态核查（`status -sb` 首行 `## main...origin/main`、`log --oneline -1` 为 `40d3358`、`status --porcelain` 计数仍为 `35`、`worktree list` 仅 1 行无残留 worktree）—— 退出码：0。
+  - `python scripts/harness.py project check --target D:\Project\aiwavetop --json` —— 退出码：0（`status="passed"`、`delivery_status="in_head"`、`clone_ready=true`、`red=0`、`yellow=0`）。
+  - `python scripts/harness.py report check --path .docs-harness/reports/2026-11-22-antiwave-init.md --json` —— 退出码：0（`status="passed"`）。
+- 未覆盖项：用户 35 条未提交改动未提交。
