@@ -17,6 +17,7 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 | avatanel | `HackSing/avatanel` | 默认分支是 `master`，推送用 `git -C <下游目录> push origin master`。`.docs-harness/inputs/` 里有早期提交入库的一次性输入文件，2.16.1 起该目录带嵌套 `.gitignore`，会出现旧文件受跟踪、新文件被忽略的混合状态，处置待定 |
 | content-system | 无（只有本地 git） | 2026-10-06 以 2.28.0 接入 main。没有远端，升级步骤第 5 步「推送」跳过，只做本地提交。克隆不在其他下游所在的项目目录里，按目录批量枚举下游时会漏掉它。接入时删掉了 `CLAUDE.md` 里自己写的 `@AGENTS.md`，改由受管区块导入（同 onceright），`@TODO.md` 保留。2026-11-04 未升级：本机无克隆且无远端 |
 | memware-cloud | `HackSing/memware-cloud` | 2026-11-22 以 2.36.0 接入 main（`d79efbb`）。Next.js + Cloudflare 项目，CI 不跑 harness 检查，只靠本机 pre-commit。接入时补了 .gitignore 的 __pycache__/ 与 *.pyc |
+| antiwave | `HackSing/antiwave` | 2026-11-22 以 2.36.0 接入 main（`40d3358`），在临时 worktree 中完成。本机克隆目录名是 `aiwavetop`，与项目名不同，按目录名枚举下游时容易漏；接入时本机工作区有进行中的未提交改动，未触碰，main 落后 1 个提交，需 pull。Next.js + Cloudflare 项目，接入时补了 .gitignore 的 __pycache__/ 与 *.pyc |
 
 ### 2026-11-04 批量升级（2.35.0）
 
