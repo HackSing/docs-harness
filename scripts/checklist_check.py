@@ -81,10 +81,19 @@ def check_checklist(path: Path) -> dict[str, Any]:
     }
 
 
+_CHECKLIST_EPILOG = "\n".join((
+    "进度清单约定路径：.docs-harness/tasks/<任务名>.md（不入库、升级不清理），完成一项勾一项。",
+    "无 Plan（standalone）模式：开头写明改动文件与符号、禁碰边界与脏文件、已知陷阱、验收命令与层级四项，再列 - [ ] 条目。",
+    "有 Plan（plan_linked）模式：开头写明 Plan 路径（docs/plans/<name>.json|md），按步骤/批次只记 - [ ] 进度，不复述冻结 Plan 内容。",
+))
+
+
 def add_checklist_parser(commands: argparse._SubParsersAction) -> None:
     parser = commands.add_parser(
         "checklist",
         help="进度清单校验（无 Plan 四要素+勾选项 / 有 Plan 路径+勾选项）",
+        epilog=_CHECKLIST_EPILOG,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument("action", choices=("check",))
     parser.add_argument("--target", default=".")

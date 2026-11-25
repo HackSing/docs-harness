@@ -38,6 +38,7 @@
 - [zbuddy 下游路由试点接入（mobile + desktop）](plans/zbuddy-routing-pilot.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-23 核对）；关键符号：`load_registry`、`_uses_docs_harness`、`shadow_log_path`
 - [强力模型意图路由落地：Shadow → Canary → 强制执行](plans/strong-model-routing-rollout.md) — 状态：有效（实施中）；关键符号：`score_cases`、`interpret_response`、`command_assets_check`、`run_assets_check`
 - [运行态验证证据包与质量门](plans/runtime-verification-quality-gate.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-25 核对）；关键符号：`check_packet`、`RUNTIME_PACKET_SCHEMA`、`RUNTIME_VERIFICATION_RELATIVE`
+- [AGENTS.md 24 KB 字节预算与受管入口瘦身](plans/agents-md-24kb-budget.md) — 状态：已实施-仅追溯（代码已是真源，2026-11-25 核对）；关键符号：`AGENTS_FILE_MAX_BYTES`、`MANAGED_PROMPT_MAX_BYTES`、`check_agents_file_budget`
 <!-- docs-harness:plans-index:end -->
 
 ## 历史边界

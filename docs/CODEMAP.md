@@ -10,7 +10,7 @@
 ## 受管模块（随 project init/upgrade 安装）
 
 - `scripts/managed_assets.py` — 职责：受管资产通用层——AssetSpec 定义、指纹密封、原子写入、受管索引区块渲染；公开接口：`AssetSpec`、`AssetError`、`load_asset`、`seal_asset`、`atomic_write_text`、`atomic_write_json`
-- `scripts/asset_checks.py` — 职责：assets-check 统一编排——六 checker 聚合、跨资产关系校验、FAIL/WARN 汇总；公开接口：`run_assets_check`、`check_cross_asset_relations`、`plan_amend_recently`、`ASSET_STALE_DAYS`
+- `scripts/asset_checks.py` — 职责：assets-check 统一编排——六 checker 聚合、跨资产关系与 AGENTS.md 24 KB 预算校验、FAIL/WARN 汇总；公开接口：`run_assets_check`、`check_cross_asset_relations`、`check_agents_file_budget`、`plan_amend_recently`、`ASSET_STALE_DAYS`、`AGENTS_FILE_MAX_BYTES`、`MANAGED_PROMPT_MAX_BYTES`
 - `scripts/plan_governance.py` — 职责：Plan v3 治理合同——冻结指纹、Full 公共结构化 `verification_scope` 与 bugfix 校验合同、结算校验、受控 amend 与遗留模板指纹；公开接口：`validate_plan`、`apply_plan_amend`、`collect_bugfix_plan_errors`（收集全部合同错误，validate_bugfix_plan_contract 抛首个）、`VERIFICATION_SCOPE_LAYERS`、`legacy_plan_template_fingerprints`、`PLAN_SCHEMA_V3`、`PLAN_GOVERNANCE_INPUT_SCHEMA`
 - `scripts/plan_amend.py` — 职责：`plan amend` 命令实现（活方案 content 替换、审计 log、Markdown/索引同步）；公开接口：`run_plan_amend`、`collect_plan_content_errors`
 - `scripts/knowledge_assets.py` — 职责：Knowledge 资产生命周期——输入校验、创建/更新/结项与检查；公开接口：`KNOWLEDGE_SPEC`、`KNOWLEDGE_INPUT_SCHEMA`、`KNOWLEDGE_SETTLE_STATUSES`、`query`（按 token 覆盖度排序、source_ok、omitted）、`follow_archived_refs`（资产移入 archive/ 后改写 Knowledge source_refs，四类归档 settle 共用）
@@ -27,7 +27,7 @@
 - `scripts/acceptance_render.py` — 职责：Acceptance Markdown 投影渲染；公开接口：`render_markdown`
 - `scripts/usage_log.py` — 职责：本地 usage 事件的追加与读取，以及 `usage_log.enabled` 开关求值；旁路观察面，写入失败不改变任何命令的行为与退出码；公开接口：`USAGE_SCHEMA_VERSION`、`USAGE_DIR_RELATIVE`、`USAGE_LOG_DEFAULT_ENABLED`、`is_enabled`、`append_event`、`read_events`
 - `scripts/usage_report.py` — 职责：usage 事件与收尾报告完整率的聚合，输出契约沿用 `structure report`（返回 dict 交由 harness 既有 `emit` 呈现，本模块不带渲染器）；公开接口：`USAGE_REPORT_DEFAULT_DAYS`、`build_report`
-- `scripts/report_check.py` — 职责：收尾报告五项字段校验，供 `report check` 与 usage 完整率共用；公开接口：`REQUIRED_FIELDS`、`report_fields`、`check_report`
+- `scripts/report_check.py` — 职责：收尾报告五项字段校验与 `report` 子命令注册，供 `report check` 与 usage 完整率共用；公开接口：`REQUIRED_FIELDS`、`report_fields`、`check_report`、`add_report_parser`
 - `scripts/checklist_check.py` — 职责：进度清单（`.docs-harness/tasks/*.md`）双模式校验（无 Plan 校验改动文件与符号、禁碰边界与脏文件、已知陷阱、验收命令与层级与勾选项；有 Plan 校验 Plan 路径与勾选项）及 `checklist` CLI 注册；公开接口：`STANDALONE_REQUIRED_FIELDS`、`PLAN_LINKED_REQUIRED_FIELDS`、`FIELD_LABELS`、`checklist_fields`、`check_checklist`、`add_checklist_parser`、`run_checklist_check`
 - `scripts/runtime_check.py` — 职责：运行态验证证据包编排与文件证据校验——路径/风险规则、证据存在与 git 忽略判定、状态/数据矩阵、UI 视口与视觉/交互/文案/可访问性观察、对抗探测、缺陷修复复验闭环；公开接口：`RUNTIME_VERIFICATION_RELATIVE`、`RUNTIME_VERIFICATION_COMMITTED`、`check_packet`
 - `scripts/runtime_packet.py` — 职责：运行态证据包 schema 原语——字段白名单、状态/数据覆盖矩阵、空泛文本与 expected/observed 照抄检查；公开接口：`RUNTIME_PACKET_SCHEMA`、`RUNTIME_PACKET_EXAMPLE`、`SURFACES`、`REQUIRED_STATES`、`REQUIRED_DATA`、`PacketContext`

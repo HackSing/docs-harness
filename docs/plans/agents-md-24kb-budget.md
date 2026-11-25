@@ -1,0 +1,45 @@
+> 状态：已实施-仅追溯（代码已是真源，2026-11-25 核对）
+<!-- docs-harness:plan-document/v1 -->
+
+# AGENTS.md 24 KB 字节预算与受管入口瘦身
+
+- 冻结合同：`sha256:7b466ed99e8edd7f9f759a7c3c8aed09a08eeaf8a405a915cb3e447d92020732`
+- 关键符号：`AGENTS_FILE_MAX_BYTES`、`MANAGED_PROMPT_MAX_BYTES`、`check_agents_file_budget`
+
+## 目标
+
+将受管真源 scripts/agent_prompt.md 瘦身至 <= 18,000 UTF-8 字节以解决 AGENTS.md 超过 Antigravity 24,000 字节上限被截断的问题，将外置的低频 CLI 参数与字段细则补齐到既有子命令 --help（零新增受管文件），并新增源仓 18 KB 预算单测与 assets-check 24 KB 完整文件 WARN 门禁；本次仅在本仓落地并验证，不升版本号、不发版、不同步下游。
+
+## 范围
+
+- scripts/agent_prompt.md：瘦身至渲染后受管区块 <= 18,000 UTF-8 字节；原样保留 ## 呈现形式 与 ## 收尾，保留全部占位符及 test_agent_prompt_verification.py 守卫短语
+- AGENTS.md：通过 harness.managed_agent_block 同步受管区块，保留末尾块外段落 ## 本仓库例外：收尾记录入库
+- scripts/harness.py：补齐 KNOWLEDGE_EPILOG、PLAN_EPILOG、ACCEPTANCE_EPILOG 并为 report 子命令新增 _REPORT_EPILOG
+- scripts/checklist_check.py：为 add_checklist_parser 新增 _CHECKLIST_EPILOG
+- scripts/asset_checks.py：新增 AGENTS_FILE_MAX_BYTES=24000、MANAGED_PROMPT_MAX_BYTES=18000、check_agents_file_budget，接入 _warning_group（entry.budget）与 run_assets_check
+- docs/CODEMAP.md、docs/contracts.md：同步 scripts/asset_checks.py 新接口与 assets-check AGENTS.md 24 KB 门禁契约
+- tests/test_agent_prompt_verification.py、tests/test_assets_check.py：补充 18 KB/24 KB 预算守卫、--help 外置细则覆盖测试与 assets-check WARN/边界测试
+
+## 关键步骤
+
+- Batch 1（当前）：创建 brief 级方案 docs/plans/agents-md-24kb-budget.json 与进度清单 .docs-harness/tasks/agents-md-24kb-budget.md 并通过 checklist check
+- Batch 2（依赖 Batch 1）：补齐 scripts/harness.py 与 scripts/checklist_check.py 各子命令 --help epilog；瘦身 scripts/agent_prompt.md 至 <= 17,500 B（严格 <= 18,000 B）；同步 AGENTS.md 并实测 LF/CRLF UTF-8 字节数
+- Batch 3（依赖 Batch 2）：在 scripts/asset_checks.py 实现 AGENTS_FILE_MAX_BYTES、MANAGED_PROMPT_MAX_BYTES 与 check_agents_file_budget 并接入 run_assets_check 与 _warning_group；同步 docs/CODEMAP.md 与 docs/contracts.md；补充 tests/test_agent_prompt_verification.py 与 tests/test_assets_check.py
+- Batch 4（依赖 Batch 3）：依次运行聚焦测试、仓库全量测试、self-test、release sync --strict、assets-check --strict、npm pack --dry-run；建立 .docs-harness/runtime/agents-md-24kb-budget/packet.json 并通过 runtime check；结算 Plan 为 implemented 并复跑 assets-check --strict 与 git diff --check；写入收尾记录并通过 report check
+
+## 约束与已知陷阱
+
+工作区初始干净；不动 VERSION、CHANGELOG.md、package.json、MANAGED_MODULE_RELATIVE_FILES，不新增受管文档文件，不自动 git commit 或同步下游。scripts/agent_prompt.md 的 ## 呈现形式 与 ## 收尾 必须逐字保留（tests/test_agent_prompt_format.py 与 docs/output-format-ladder.md 逐字校验）；必须保留全部 5 个 {{...}} 占位符、## 工作流规则 标题及 tests/test_agent_prompt_verification.py 断言的全部精确短语。Windows CRLF 会比 LF 多约 120 字节，18,000 字节门禁须同时对 LF 与 CRLF 估算值成立；check_agents_file_budget 需使用 stat().st_size（字节数而非字符数），跳过 symlink 或不存在文件。
+
+## 验收方案
+
+- python -m unittest tests.test_agent_prompt_format tests.test_agent_prompt_verification tests.test_assets_check tests.test_cli_surface tests.test_checklist_check tests.test_project_upgrade（focused_test）
+- python -m unittest discover -s tests -p test_*.py（repository_full_test：改动涉及受管入口与 assets-check 公共基础设施）
+- python scripts/harness.py runtime check --target . --packet .docs-harness/runtime/agents-md-24kb-budget/packet.json --json（local_runtime：CLI --help 与 assets-check 24 KB 门禁运行态验证）
+- python scripts/harness.py self-test --target . --json && python scripts/harness.py release sync --target . --strict --json && python scripts/harness.py assets-check --target . --strict --json && npm pack --dry-run（package_or_install）
+
+<!-- docs-harness:plan-governance:start -->
+## 资产治理
+
+- 关联验收：无
+<!-- docs-harness:plan-governance:end -->

@@ -285,5 +285,41 @@ class AssetsCheckTest(HarnessTestBase):
             stale["warnings"],
         )
 
+    def test_assets_check_warns_when_agents_md_exceeds_24kb(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
+        clean = self.run_cli("assets-check", "--target", str(self.project), "--fast", "--strict")
+        self.assertEqual(clean["status"], "passed")
+        agents_path = self.project / "AGENTS.md"
+        base = agents_path.read_text(encoding="utf-8")
+        # 使用中文多字节字符确保按 UTF-8 字节数（而非字符数）判定超限。
+        extra = "\n## 项目自定义规则\n\n" + ("中" * 3000) + "\n"
+        agents_path.write_text(base + extra, encoding="utf-8", newline="\n")
+        self.assertLess(len(agents_path.read_text(encoding="utf-8")), asset_checks.AGENTS_FILE_MAX_BYTES)
+        self.assertGreater(agents_path.stat().st_size, asset_checks.AGENTS_FILE_MAX_BYTES)
+        warned = self.run_cli("assets-check", "--target", str(self.project), "--fast")
+        self.assertEqual(warned["status"], "passed")
+        self.assertTrue(
+            any(item.startswith("WARN: AGENTS.md:") for item in warned["warnings"]),
+            warned["warnings"],
+        )
+        groups = {item["group"]: item for item in warned["warning_summary"]["groups"]}
+        self.assertIn("entry.budget", groups)
+        self.assertTrue(groups["entry.budget"]["actionable"])
+        strict = self.run_cli(
+            "assets-check", "--target", str(self.project), "--fast", "--strict", expected=1
+        )
+        self.assertEqual(strict["status"], "failed")
+
+    def test_assets_check_agents_budget_exact_boundary_and_missing(self) -> None:
+        self.assertEqual(asset_checks.check_agents_file_budget(self.project), [])
+        agents_path = self.project / "AGENTS.md"
+        agents_path.write_bytes(b"a" * asset_checks.AGENTS_FILE_MAX_BYTES)
+        self.assertEqual(asset_checks.check_agents_file_budget(self.project), [])
+        agents_path.write_bytes(b"a" * (asset_checks.AGENTS_FILE_MAX_BYTES + 1))
+        warnings = asset_checks.check_agents_file_budget(self.project)
+        self.assertEqual(len(warnings), 1)
+        self.assertIn("24001 字节超过 24000 字节上限", warnings[0])
+
+
 if __name__ == "__main__":
     unittest.main()

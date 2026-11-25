@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -9,6 +11,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from harness_test_base import ROOT
+
+sys.path.insert(0, str(ROOT / "scripts"))
+
+import asset_checks  # noqa: E402
+import harness  # noqa: E402
 
 PROMPT_PATH = ROOT / "scripts" / "agent_prompt.md"
 AGENTS_PATH = ROOT / "AGENTS.md"
@@ -49,6 +56,49 @@ class BackgroundVerificationPromptTest(unittest.TestCase):
 
     def test_managed_agents_block_carries_the_same_rule(self) -> None:
         self.assertIn("验证默认后台", AGENTS_PATH.read_text(encoding="utf-8"))
+
+    def test_managed_agent_block_stays_within_budget(self) -> None:
+        block = harness.managed_agent_block(ROOT)
+        lf_bytes = len(block.encode("utf-8"))
+        crlf_bytes = len(block.replace("\r\n", "\n").replace("\n", "\r\n").encode("utf-8"))
+        self.assertLessEqual(lf_bytes, asset_checks.MANAGED_PROMPT_MAX_BYTES)
+        self.assertLessEqual(crlf_bytes, asset_checks.MANAGED_PROMPT_MAX_BYTES)
+        self.assertLessEqual(AGENTS_PATH.stat().st_size, asset_checks.AGENTS_FILE_MAX_BYTES)
+
+    def test_cli_help_covers_offloaded_guidance(self) -> None:
+        cases = {
+            "plan": (
+                "process_flowchart",
+                "ux_journey",
+                "Knowledge → Acceptance → Plan",
+                "可修改 acceptance_required/knowledge_impact",
+            ),
+            "knowledge": ("不得全量加载 docs/", "settle --status deprecated|superseded"),
+            "acceptance": (
+                "docs/acceptance/evidence/",
+                "persisted_to=runtime, linked=false",
+                "--user-confirmed",
+            ),
+            "adr": ("adr amend --input", "adr settle --status deprecated|superseded"),
+            "runtime": ("docs/runtime-verification/<task>/packet.json", "ui.viewports"),
+            "checklist": ("改动文件与符号", "plan_linked", ".docs-harness/tasks/"),
+            "report": ("focused_test", ".docs-harness/reports/", "runtime check 退出码"),
+        }
+        env = {**os.environ, "PYTHONUTF8": "1"}
+        harness_script = str(ROOT / "scripts" / "harness.py")
+        for command, needles in cases.items():
+            result = subprocess.run(
+                [sys.executable, harness_script, command, "--help"],
+                cwd=ROOT,
+                env=env,
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, f"{command}: {result.stderr}")
+            for needle in needles:
+                self.assertIn(needle, result.stdout, f"{command} --help 缺少 {needle}")
 
 
 class BackgroundVerificationContractTest(unittest.TestCase):

@@ -221,7 +221,7 @@ L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 �
 
 ## 5. 统一资产检查合同
 
-`assets-check` 聚合 Plan、Knowledge、Acceptance、ADR 领域检查、ScriptHygiene 脚本卫生扫描及跨资产正反向关系（`checked` 字段含 `plans`/`knowledge`/`acceptance`/`adr`/`script_hygiene`/`cross` 六个键）。结构、Schema、指纹、索引、活引用和已结算合同破坏属于 FAIL；声明矛盾、pending 验收指向归档 Plan、长期未结项等属于 WARN。默认只有 FAIL 返回非零，`--strict` 使 WARN 也失败；`--fast` 跳过 Plan 符号存活和 Git 历史时效检查，供 pre-commit 使用。WARN 按 Plan 索引/陈旧/结算、Structure CODEMAP/体量、ADR/Knowledge/Acceptance 投影等分组，`warning_summary` 返回总数、可行动/提示数与重复数；非 JSON 输出默认只显示可行动优先的 5 条预览，`--verbose` 输出全部，`warnings` 在 JSON 中始终完整。
+`assets-check` 聚合 Plan、Knowledge、Acceptance、ADR 领域检查、ScriptHygiene 脚本卫生扫描及跨资产正反向关系（`checked` 字段含 `plans`/`knowledge`/`acceptance`/`adr`/`script_hygiene`/`cross` 六个键），并检查完整 `AGENTS.md` 的 UTF-8 字节数（即使在 `--fast` 下也运行；超过 `AGENTS_FILE_MAX_BYTES`=24,000 字节报 `entry.budget` WARN，防止在 Antigravity 等宿主中被尾部截断；受管入口真源 `scripts/agent_prompt.md` 渲染后预算为 `≤ MANAGED_PROMPT_MAX_BYTES`=18,000 字节）。结构、Schema、指纹、索引、活引用和已结算合同破坏属于 FAIL；声明矛盾、pending 验收指向归档 Plan、长期未结项、`AGENTS.md` 超 24,000 字节等属于 WARN。默认只有 FAIL 返回非零，`--strict` 使 WARN 也失败；`--fast` 跳过 Plan 符号存活和 Git 历史时效检查，供 pre-commit 使用。WARN 按 Plan 索引/陈旧/结算、Structure CODEMAP/体量、ADR/Knowledge/Acceptance 投影与 `entry.budget` 等分组，`warning_summary` 返回总数、可行动/提示数与重复数；非 JSON 输出默认只显示可行动优先的 5 条预览，`--verbose` 输出全部，`warnings` 在 JSON 中始终完整。
 
 ScriptHygiene 对 tracked 脚本（`*.sh`/`*.iss`/`*.bat`/`*.cmd`/`*.ps1`）做全仓字节级扫描：同一文件混入 CRLF 与裸 LF 即 FAIL 并指明两种行尾各自行数；目标非 git 仓库或 git 不可用时跳过（`checked=0`，不产 WARN，避免 `--strict` 对环境性跳过误报——pre-commit/CI 永远在 git 仓库内运行）。它不是生命周期资产，没有 create/update/settle 动作。
 
