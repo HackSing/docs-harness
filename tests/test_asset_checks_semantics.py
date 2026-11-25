@@ -10,7 +10,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from asset_checks import _plan_amend_warning, plan_amend_recently  # noqa: E402
+from asset_checks import (  # noqa: E402
+    PLAN_AMEND_GRACE_DAYS,
+    _plan_amend_warning,
+    plan_amend_recently,
+)
 
 NOW = dt.datetime(2026, 10, 23, 12, 0, tzinfo=dt.timezone.utc)
 
@@ -65,25 +69,39 @@ class PlanAmendGraceTest(unittest.TestCase):
 
 class PlanAmendWarningTest(unittest.TestCase):
     def test_recent_amend_does_not_warn(self) -> None:
-        plan = {"amend_log": _log("2026-10-20T00:00:00+00:00")}
+        recent = (
+            dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=3)
+        ).replace(microsecond=0).isoformat()
+        plan = {"amend_log": _log(recent)}
         self.assertIsNone(_plan_amend_warning(plan, None, "docs/plans/foo.json"))
 
     def test_old_amend_warns(self) -> None:
-        plan = {"amend_log": _log("2026-09-01T00:00:00+00:00")}
+        old = (
+            dt.datetime.now(dt.timezone.utc)
+            - dt.timedelta(days=PLAN_AMEND_GRACE_DAYS + 20)
+        ).replace(microsecond=0).isoformat()
+        plan = {"amend_log": _log(old)}
         warning = _plan_amend_warning(plan, None, "docs/plans/foo.json")
         self.assertIsNotNone(warning)
         self.assertIn("amend 已达 3 次", warning or "")
 
     def test_settled_plan_does_not_warn(self) -> None:
+        now = dt.datetime.now(dt.timezone.utc)
+        old = (now - dt.timedelta(days=PLAN_AMEND_GRACE_DAYS + 20)).replace(microsecond=0).isoformat()
+        settled = (now - dt.timedelta(days=PLAN_AMEND_GRACE_DAYS + 19)).replace(microsecond=0).isoformat()
         governance = {
-            "last_amended_at": "2026-09-01T00:00:00+00:00",
-            "governance_settled_at": "2026-09-02T00:00:00+00:00",
+            "last_amended_at": old,
+            "governance_settled_at": settled,
         }
-        plan = {"amend_log": _log("2026-09-01T00:00:00+00:00")}
+        plan = {"amend_log": _log(old)}
         self.assertIsNone(_plan_amend_warning(plan, governance, "docs/plans/foo.json"))
 
     def test_below_threshold_does_not_warn(self) -> None:
-        plan = {"amend_log": _log("2026-09-01T00:00:00+00:00")[:2]}
+        old = (
+            dt.datetime.now(dt.timezone.utc)
+            - dt.timedelta(days=PLAN_AMEND_GRACE_DAYS + 20)
+        ).replace(microsecond=0).isoformat()
+        plan = {"amend_log": _log(old)[:2]}
         self.assertIsNone(_plan_amend_warning(plan, None, "docs/plans/foo.json"))
 
 
