@@ -96,6 +96,7 @@ from asset_query import (
     plan_show,
 )
 from cli_support import validate_action_flags
+from host_hooks import add_host_argument, reconcile_project_host_hook
 from plan_amend import collect_plan_content_errors
 from plan_check import (
     PLAN_CHECK_ARCHIVE_EXEMPTION,
@@ -191,6 +192,8 @@ MANAGED_MODULE_RELATIVE_FILES = (
     "acceptance_render.py",
     "asset_query.py",
     "cli_support.py",
+    "host_hooks.py",
+    "plan_root_cause_hook.py",
     "agent_prompt.md",
 )
 PLAN_DOCS_RELATIVE = "docs/plans"
@@ -3561,6 +3564,9 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 existing=existing,
                 usage_enabled=USAGE_LOG_DEFAULT_ENABLED,
             )
+            host_hook = reconcile_project_host_hook(
+                args, target, source_root, apply=False, interactive=False, error_type=HarnessError
+            )
             return 0, {
                 "action": args.action,
                 "mode": "preview",
@@ -3575,6 +3581,7 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
                 "apply_completion_possible": cleanup["cleanup_possible"],
                 "write_performed": False,
                 "knowledge": project_knowledge_summary(target),
+                "host_hook": host_hook,
                 **({"notices": notices} if notices else {}),
             }
         changed, cleanup_applied = apply_project_install(target, source_root)
@@ -3588,6 +3595,10 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             from_version=from_version,
             existing=existing,
             usage_enabled=project_config(target)["usage_log"]["enabled"],
+        )
+        host_hook = reconcile_project_host_hook(
+            args, target, source_root, apply=True,
+            interactive=bool(sys.stdin.isatty() and sys.stdout.isatty()), error_type=HarnessError,
         )
         status = (
             "failed"
@@ -3622,6 +3633,7 @@ def command_project(args: argparse.Namespace) -> tuple[int, dict[str, Any]]:
             "legacy_document_cleanup": cleanup_applied,
             "preserved_existing_docs": True,
             "knowledge": project_knowledge_summary(target),
+            "host_hook": host_hook,
             **({"notices": notices} if notices else {}),
         }
     read_only = project_read_only_command(args, target, source_root)
@@ -4808,6 +4820,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--source",
         help="init/upgrade 的来源包目录（默认使用当前控制器所在源包）",
     )
+    add_host_argument(project)
 
     release = commands.add_parser("release", help="版本真源一致性检查")
     release.add_argument("action", choices=("sync",), nargs="?", default="sync")

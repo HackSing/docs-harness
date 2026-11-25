@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- **安装/升级集成多宿主防治标 Stop Hook**：新增受管模块 `scripts/plan_root_cause_hook.py`（跨宿主统一 Stop Hook，自动识别 Antigravity 与 Claude 兼容协议，含 `continuationActive`/`stop_hook_active` 与进程外防重兜底）与 `scripts/host_hooks.py`（探测与用户级配置写入，支持 `antigravity`、`claude-code`、`codex`、`qoder`、`zcode`、`deepseek-harness` 六个宿主）。`project init` 与 `project upgrade` 新增 `--host <id|skip>`，缺失时在交互终端请用户选择当前环境并自动配置，非交互 `--json` 返回 `host_hook.status=needs_host_selection` 与 `next_action`；同步更新 `package.json`、`docs/CODEMAP.md`、`docs/contracts.md`、`SKILL.md`、`README.md` 与 `tests/test_host_hooks.py`。
+- **修复 `dsh-plugin` 引擎种子复制与 `project init --apply`**：`dsh-plugin/scripts/seed-vendor.mjs` 改为直接从 `scripts/harness.py` 解析 `MANAGED_MODULE_RELATIVE_FILES` 单一真源（修复漏复制 `scripts/agent_prompt.md` 等非 `.py`/`.cjs` 受管模块）；`dsh-plugin/scripts/extract-managed-block.mjs` 与 `dsh-plugin/src/host/project-ops.js` 补齐 `project init --apply`，`verify-package.mjs` 同步校验 `agent_prompt.md`、`host_hooks.py` 与 `plan_root_cause_hook.py`。
+
 ## 2.36.0 - 2026-11-18
 
 - **阶梯 0（`.docs-harness/tasks/` 进度清单与 `checklist check`）**：受管入口补充「跨批次、跨会话交接或防压缩清单」四要素要求（改动文件与符号、禁碰边界与脏文件、已知陷阱、验收命令与层级）；新增受管模块 `scripts/checklist_check.py` 与 `checklist check --path <清单>`（对称 `report check`，支持无 Plan `standalone` 与有 Plan `plan_linked` 双模式校验，保留 1.x 旧 `task` 命令删除边界不变）。

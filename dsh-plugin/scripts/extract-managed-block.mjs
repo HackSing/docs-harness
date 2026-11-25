@@ -34,7 +34,7 @@ function seedThrowawayProject(python) {
   // Exit 3 means "written, but not committed yet" — expected for a throwaway.
   const run = spawnSync(
     python,
-    [path.join(SEED_ROOT, 'scripts', 'harness.py'), 'project', 'init', '--json', '--target', target],
+    [path.join(SEED_ROOT, 'scripts', 'harness.py'), 'project', 'init', '--apply', '--json', '--target', target],
     { encoding: 'utf8' },
   );
   if (run.status !== 0 && run.status !== 3) {

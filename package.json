@@ -63,6 +63,8 @@
     "scripts/acceptance_render.py",
     "scripts/asset_query.py",
     "scripts/cli_support.py",
+    "scripts/host_hooks.py",
+    "scripts/plan_root_cause_hook.py",
     "scripts/routing_registry.py",
     "scripts/routing_contract.py",
     "scripts/routing_shadow_fields.py",

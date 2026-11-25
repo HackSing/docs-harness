@@ -252,9 +252,10 @@ Harness 不采集用户授权、不解析 agent usage、不保存原始用户聊
 项目安装只提供：
 
 - 受管的 direct-first `AGENTS.md` 区块，以及只含一行 `@AGENTS.md` 导入的 `CLAUDE.md` 区块（2.25.0 起；规约正文只在 `AGENTS.md`）；
-- `scripts/harness.py` 与受管资产生命周期模块（`managed_assets`、`asset_checks`、`plan_governance`、`knowledge_assets`、`acceptance_assets`、`adr_assets`、`script_hygiene`、`structure_check`、`structure_ts_functions.cjs`、`usage_log`、`usage_report`、`report_check`、`checklist_check`、`runtime_check`、`runtime_packet`、`symbol_check`、`acceptance_diagnostics`、`diagram_view`、`plan_amend`、`plan_selection`、`plan_check`、`acceptance_amend`、`acceptance_render`、`asset_query`、`cli_support`、`agent_prompt.md`）；
+- `scripts/harness.py` 与受管资产生命周期模块（`managed_assets`、`asset_checks`、`plan_governance`、`knowledge_assets`、`acceptance_assets`、`adr_assets`、`script_hygiene`、`structure_check`、`structure_ts_functions.cjs`、`usage_log`、`usage_report`、`report_check`、`checklist_check`、`runtime_check`、`runtime_packet`、`symbol_check`、`acceptance_diagnostics`、`diagram_view`、`plan_amend`、`plan_selection`、`plan_check`、`acceptance_amend`、`acceptance_render`、`asset_query`、`cli_support`、`host_hooks`、`plan_root_cause_hook`、`agent_prompt.md`）；
 - 版本化 `plan-templates/`；
 - `scripts/githooks/`。目标是 git 仓库且 `core.filemode=false`（Windows 默认）时，`init`/`upgrade --apply` 会把索引中缺失或非 `100755` 的两个钩子以 `git update-index --add --chmod=+x` 登记，内容随之进入暂存区，payload 的 `githook_index_mode_registered` 列出登记路径；登记失败以 `githook_index_mode_failed` 报错并给出手工命令，被 git 忽略的钩子路径不强行加入（2.23.0）；
+- 用户级宿主防治标 Stop Hook（`scripts/host_hooks.py` 与 `scripts/plan_root_cause_hook.py`）：`project init/upgrade` 在预览与 `--apply` 时均探测当前机器是否已配置用户级防治标 Stop Hook（支持 `antigravity`、`claude-code`、`codex`、`qoder`、`zcode`、`deepseek-harness` 六个宿主，并接受 `--host <id|skip>` 显式指定）。脚本落盘到 `~/.docs-harness/hooks/plan_root_cause_hook.py`，各宿主配置按既有格式幂等合并，不破坏原有设置；若检测到当前环境未配置且未传 `--host`：交互终端（非 `--json` 且 TTY）直接提示用户编号选择当前环境并写入，非交互/Agent（`--json` 或非 TTY）不阻塞，返回 `host_hook.status=needs_host_selection`、`available_hosts` 与 `next_action` 交由调用方询问用户后以 `--host` 完成配置。已配置环境后续再次安装/升级自动识别跳过，不修改 `.docs-harness/config.json` schema。
 - `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、`docs/adr/`、各自 archive 与 `docs/INDEX.md` 独立索引区块；
 - 缺失时的项目级 `CHANGELOG.md`、`TODO.md`、`README.md` 骨架（已存在绝不覆盖）；
 - `.docs-harness/config.json`（`docs-harness/project-config/v13`，含 `usage_log.enabled`）；

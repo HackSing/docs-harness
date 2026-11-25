@@ -100,6 +100,8 @@ python3 /path/to/docs-harness/scripts/harness.py \
 
 跨版本升级必须使用新版本源码中的控制器。升级会保留项目正文、四类用户资产、质量账本以及已修改或归属不明的文件。
 
+`project init --apply` 与 `project upgrade --apply` 同时探测用户级「防治标 Stop Hook」（支持 `antigravity`、`claude-code`、`codex`、`qoder`、`zcode`、`deepseek-harness`）：未配置时，在交互终端会提示用户选择当前环境并写入 `~/.docs-harness/hooks/plan_root_cause_hook.py` 与对应宿主配置；非交互或 `--json` 模式不阻塞，返回 `host_hook.status=needs_host_selection`，可通过 `--host <环境|skip>` 显式指定。已配置后在后续项目安装/升级中自动识别并跳过。
+
 ### 4. 启用提交前检查
 
 ```bash

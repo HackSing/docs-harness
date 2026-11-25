@@ -18,19 +18,24 @@ const PARENT_ROOT = path.join(PLUGIN_ROOT, '..');
 const SEED_ROOT = path.join(PLUGIN_ROOT, 'vendor', 'harness');
 
 /**
- * Engine modules `vendor/harness/scripts/harness.py` imports at runtime: every
- * `*.py` next to it. Read from the parent rather than listed here — a
- * hand-kept list silently rots the moment the engine grows a module (2.11.0's
- * `structure_check.py` was missed exactly that way, and every seed after it
- * died on ModuleNotFoundError), and the engine's own scripts directory is the
- * only place that knows what the engine is made of. Engine modules are not
- * Python-only: 2.15.0's `structure_ts_functions.cjs` is a managed module too,
- * and a `.py`-only filter fails `validate_project_source` on the seed.
- * @param {string} scriptsDir - the parent engine's scripts directory.
- * @returns {string[]} the module filenames to copy.
+ * Parse `MANAGED_MODULE_RELATIVE_FILES` from `../scripts/harness.py` so the
+ * vendored seed always stays in lockstep with the engine's own module manifest
+ * (including non-Python assets like `structure_ts_functions.cjs` and
+ * `agent_prompt.md`), rather than guessing by filename extension.
+ * @param {string} harnessPath - absolute path to the parent `scripts/harness.py`.
+ * @returns {string[]} filenames under `scripts/` to copy (always including `harness.py`).
  */
-function engineScripts(scriptsDir) {
-  return fs.readdirSync(scriptsDir).filter(name => name.endsWith('.py') || name.endsWith('.cjs'));
+function engineScripts(harnessPath) {
+  const source = fs.readFileSync(harnessPath, 'utf8');
+  const match = source.match(/MANAGED_MODULE_RELATIVE_FILES\s*=\s*\(([\s\S]*?)\)/);
+  if (!match) {
+    throw new Error(`[seed-vendor] MANAGED_MODULE_RELATIVE_FILES not found in ${harnessPath}`);
+  }
+  const modules = [...match[1].matchAll(/["']([^"']+)["']/g)].map(entry => entry[1]);
+  if (modules.length === 0) {
+    throw new Error(`[seed-vendor] MANAGED_MODULE_RELATIVE_FILES is empty in ${harnessPath}`);
+  }
+  return ['harness.py', ...new Set(modules)];
 }
 
 /**
@@ -47,12 +52,13 @@ function assertParentEngine(marker) {
 
 function main() {
   const parentScripts = path.join(PARENT_ROOT, 'scripts');
-  assertParentEngine(path.join(parentScripts, 'harness.py'));
+  const harnessPath = path.join(parentScripts, 'harness.py');
+  assertParentEngine(harnessPath);
   fs.rmSync(SEED_ROOT, { recursive: true, force: true });
 
   const scriptsOut = path.join(SEED_ROOT, 'scripts');
   fs.mkdirSync(scriptsOut, { recursive: true });
-  for (const name of engineScripts(parentScripts)) {
+  for (const name of engineScripts(harnessPath)) {
     fs.copyFileSync(path.join(parentScripts, name), path.join(scriptsOut, name));
   }
   fs.cpSync(path.join(parentScripts, 'githooks'), path.join(scriptsOut, 'githooks'), { recursive: true });

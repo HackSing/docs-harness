@@ -18,7 +18,7 @@ import { detectProject, resetProjectCaches } from './project-state.js';
 const OPERATIONS = {
   // Install runs from the SEED: the project has no engine of its own yet, and
   // the seed is precisely the version this plugin is prepared to support.
-  [ACTION_INIT]: { engine: () => SEED_ENGINE, args: () => ['project', 'init'] },
+  [ACTION_INIT]: { engine: () => SEED_ENGINE, args: () => ['project', 'init', '--apply'] },
   // Upgrade also runs from the seed — it is the newer side of the migration.
   [ACTION_UPGRADE]: { engine: () => SEED_ENGINE, args: () => ['project', 'upgrade', '--apply'] },
   // Removal is the project's own engine: it knows the fingerprints it wrote,

@@ -34,6 +34,8 @@
 - `scripts/symbol_check.py` — 职责：符号存活判定（去注释、词边界、带点引用归一与批量分词）；公开接口：`strip_code_comments`、`symbol_hits`、`symbol_hit`
 - `scripts/acceptance_diagnostics.py` — 职责：Acceptance 失败诊断的待处理标准、期望/实际与下一步命令；公开接口：`find_criterion`、`match_record_to_criterion`、`settle_mismatch_error`、`criterion_not_pending_error`
 - `scripts/diagram_view.py` — 职责：`harness view` 的 Mermaid → 独立 HTML 页面，渲染（纯函数）、落盘到 `.docs-harness/views/` 与系统浏览器打开三层分开，错误一律向上传递；公开接口：`render_mermaid_html`、`write_view`、`open_in_browser`、`VIEWS_RELATIVE`（views 目录常量真源，harness 导入并列入 LOCAL_ONLY_DIRS）
+- `scripts/host_hooks.py` — 职责：多宿主用户级防治标 Stop Hook 探测、交互环境选择与幂等配置写入（支持 Antigravity、Claude Code、Codex、Qoder、ZCode、DeepSeek Harness）；公开接口：`HOST_IDS`、`HOST_CHOICES`、`HostHookError`、`add_host_argument`、`inspect_host_hooks`、`install_host_hook`、`prompt_host_selection`、`reconcile_host_hook`、`reconcile_project_host_hook`、`is_host_configured`、`canonical_hook_script_path`
+- `scripts/plan_root_cause_hook.py` — 职责：跨宿主统一防治标 Stop Hook 脚本，自动识别 Antigravity 与 Claude 兼容协议，在方案初稿完成后最多触发 1 轮根因与锁定依赖源码核查；公开接口：`CHALLENGE_REASON`、`evaluate_stop`、`main`
 - `scripts/structure_ts_functions.cjs` — 职责：Structure 的 TS/JS 函数体量解析子进程（stdin JSON 源码批 → stdout 函数限定名→行数），在目标项目 node_modules 或 DOCS_HARNESS_TS_MODULE_DIR 目录加载 typescript，harness 自身零依赖；公开接口：`collectSpans`、`functionName`（命令行调用，无模块导出）
 
 ## 意图路由（仓库侧，默认关闭）

@@ -146,9 +146,9 @@ ADR 只用于会长期约束架构边界、公共接口、兼容、安全、数�
 
 ```bash
 python3 <docs-harness-source>/scripts/harness.py project init --target <project> --json
-python3 <docs-harness-source>/scripts/harness.py project init --target <project> --apply --json
+python3 <docs-harness-source>/scripts/harness.py project init --target <project> --apply [--host <antigravity|claude-code|codex|qoder|zcode|deepseek-harness|skip>] --json
 python3 <docs-harness-source>/scripts/harness.py project upgrade --target <project> --json
-python3 <docs-harness-source>/scripts/harness.py project upgrade --target <project> --apply --json
+python3 <docs-harness-source>/scripts/harness.py project upgrade --target <project> --apply [--host <antigravity|claude-code|codex|qoder|zcode|deepseek-harness|skip>] --json
 python3 scripts/harness.py project upgrade --target . --source <docs-harness-source> --apply --json
 python3 scripts/harness.py project check --target . --json
 python3 scripts/harness.py project diff --target . --json
@@ -162,6 +162,6 @@ python3 scripts/harness.py usage report --target . --days 30 --json
 python3 scripts/harness.py self-test --target .
 ```
 
-fresh init 写入受管入口、控制器、资产模块、方案模板、git 钩子和 `project-config/v13`，并初始化 Plan/Knowledge/Acceptance/ADR 四类空目录、archive 与独立索引区块，缺失时生成项目级 CHANGELOG.md、TODO.md、README.md 骨架（已存在绝不覆盖）；不安装旧规则，不生成项目事实或验收结论，不自动启动后台治理 Job，不提交、不推送、不发布。upgrade 是单向迁移：先预览，再补齐四类体系并清理所有权明确的旧规则、知识地图、受管版本区块和旧 Runtime，同时保留四类用户资产、项目正文、质量账本以及已修改或归属不明文件。
+fresh init 写入受管入口、控制器、资产模块、方案模板、git 钩子和 `project-config/v13`，并初始化 Plan/Knowledge/Acceptance/ADR 四类空目录、archive 与独立索引区块，缺失时生成项目级 CHANGELOG.md、TODO.md、README.md 骨架（已存在绝不覆盖）；不安装旧规则，不生成项目事实或验收结论，不自动启动后台治理 Job，不提交、不推送、不发布。upgrade 是单向迁移：先预览，再补齐四类体系并清理所有权明确的旧规则、知识地图、受管版本区块和旧 Runtime，同时保留四类用户资产、项目正文、质量账本以及已修改或归属不明文件。`project init/upgrade --apply` 会自动探测当前用户级宿主是否已安装防治标 Stop Hook（`~/.docs-harness/hooks/plan_root_cause_hook.py`）；未安装时，交互终端直接请用户选择当前环境并配置，非交互 `--json` 返回 `host_hook.status=needs_host_selection`，调用方 Agent 应请用户选择环境后再以 `--host <环境|skip>` 完成配置。
 
 安装态可用 `project check` 核对版本、指纹、方案结构与 Git 交付状态，`project diff` 只读列出与来源包的漂移；两者不做任何写入。`project uninstall` 先预览再删除所有权明确的受管程序，项目方案、质量账本和用户正文一律保留。`plan check` 是 Plan 域文档可发现性检查；收尾统一使用 `assets-check`，pre-commit 使用 `--fast`，CI 使用 `--strict`；`assets-check` 默认只显示 WARN 摘要与 5 条预览，`--verbose` 查看全部。`report check` 校验收尾报告五项字段；`checklist check` 按双模式校验 `.docs-harness/tasks/` 进度清单；`usage report` 聚合真实失败率、WARN 率与报告完整率。缺失资产结构返回失败并提示先运行 init/upgrade。`self-test` 运行内置自检。init、upgrade、uninstall、check、diff 必须使用来源包或安装态中版本不低于目标的控制器；upgrade 不能从模板已缺失或滞后的项目内副本取得来源；从项目内安装副本运行 init/upgrade 时必须用 `--source` 显式指定同版本完整源包，跨版本升级必须直接运行源包内的控制器。
