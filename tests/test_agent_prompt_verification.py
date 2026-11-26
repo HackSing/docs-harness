@@ -57,6 +57,23 @@ class BackgroundVerificationPromptTest(unittest.TestCase):
     def test_managed_agents_block_carries_the_same_rule(self) -> None:
         self.assertIn("验证默认后台", AGENTS_PATH.read_text(encoding="utf-8"))
 
+    def test_live_e2e_rule_present_in_prompt_and_agents(self) -> None:
+        prompt_text = PROMPT_PATH.read_text(encoding="utf-8")
+        agents_text = AGENTS_PATH.read_text(encoding="utf-8")
+        for phrase in (
+            "大任务全量实机闭环",
+            "live_e2e",
+            "pass_criteria",
+            "fail_criteria",
+            "默认停下等用户确认",
+            "禁 mock",
+            "deploy_ref",
+            "熔断",
+            "acceptance_ref",
+        ):
+            self.assertIn(phrase, prompt_text)
+            self.assertIn(phrase, agents_text)
+
     def test_managed_agent_block_stays_within_budget(self) -> None:
         block = harness.managed_agent_block(ROOT)
         lf_bytes = len(block.encode("utf-8"))
@@ -78,9 +95,18 @@ class BackgroundVerificationPromptTest(unittest.TestCase):
                 "docs/acceptance/evidence/",
                 "persisted_to=runtime, linked=false",
                 "--user-confirmed",
+                "live_e2e",
+                "pass_criteria",
+                "confirm_before_run",
             ),
             "adr": ("adr amend --input", "adr settle --status deprecated|superseded"),
-            "runtime": ("docs/runtime-verification/<task>/packet.json", "ui.viewports"),
+            "runtime": (
+                "docs/runtime-verification/<task>/packet.json",
+                "ui.viewports",
+                "acceptance_ref",
+                "deploy_ref",
+                "rechecked_criteria",
+            ),
             "checklist": ("改动文件与符号", "plan_linked", ".docs-harness/tasks/"),
             "report": ("focused_test", ".docs-harness/reports/", "runtime check 退出码"),
         }

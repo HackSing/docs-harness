@@ -1,0 +1,76 @@
+{
+  "schema_version": "docs-harness/plan/v3",
+  "plan_level": "full",
+  "plan_profile": "architecture",
+  "secondary_profiles": [],
+  "template_versions": [
+    "level/full@2.37.0",
+    "profile/architecture@2.37.0"
+  ],
+  "selection_fingerprint": "sha256:a92dbee7be23e40d9f0cceb3b655195ffe3d0351d6d60e0f7612c6a010f4d09f",
+  "content": {
+    "title": "大任务全量实机闭环验证：Acceptance 冻结判据与 Runtime 硬对齐",
+    "key_symbols": [
+      "LIVE_E2E_FIELDS",
+      "normalize_live_e2e_config",
+      "validate_acceptance_alignment",
+      "verify_record_runtime_evidence"
+    ],
+    "background": "2.37.0 现有验证流程对大任务仍存在三个结构性短板：Acceptance 标准只有 title 缺通过/失败判据，运行态证据包是收尾前才填且复杂任务 flows 下限仅 2 条并允许 mock=true，且 assets-check 与 acceptance record 未联动校验 runtime check 证据包。",
+    "objective": "在不新建第二套冻结/修订状态机、不新增受管文件且守住 AGENTS.md 18 KB 受管入口预算的前提下，打通 Acceptance 冻结前置判据（pass_criteria/fail_criteria + live_e2e 契约）与 Runtime 实机证据包硬校验（acceptance_ref、100% 流程覆盖、禁 mock、重部署 deploy_ref 与终版回归），并把 runtime check 接入 acceptance record/check 与 assets-check。",
+    "non_goals": "不新增独立的 live-verify 资产目录或第二套指纹/修订状态机；不改变普通小改动的默认直跑与最小充分证据规则；本次不升 VERSION、不发版、不修改 CHANGELOG 顶部版本、不同步下游项目。",
+    "success_criteria": "1) acceptance create/amend/render 支持可选 pass_criteria/fail_criteria 与 live_e2e 块，live_e2e 下强制至少 1 条 local_runtime/real_device 标准且全量带通过/失败判据；2) runtime check 支持 acceptance_ref、flows[].criterion_id、iterations[].deploy_ref/rechecked_criteria，关联 live_e2e 时硬拒 mock=true、漏测任一实机标准、修复后未变更 deploy_ref 或终版未回归；3) acceptance record/settle/check 与 assets-check 联动校验引用的 runtime 证据包及已提交 docs/runtime-verification/*/packet.json；4) agent_prompt.md 渲染受管块维持 <= 18,000 B（LF 与 CRLF 均满足），全部新增与全仓回归测试、self-test、release sync --strict、assets-check --strict 通过。",
+    "execution_scope": "核心代码：scripts/runtime_packet.py、scripts/runtime_check.py、scripts/acceptance_diagnostics.py、scripts/acceptance_assets.py、scripts/acceptance_amend.py、scripts/acceptance_render.py、scripts/asset_checks.py、scripts/harness.py；入口与文档：scripts/agent_prompt.md、AGENTS.md、docs/contracts.md、docs/CODEMAP.md、SKILL.md、docs/testing.md、docs/runtime-verification/README.md；资产与测试：docs/knowledge/runtime-verification-quality-gate.json、docs/acceptance/live-e2e-verification-loop.json、docs/runtime-verification/live-e2e-verification-loop/packet.json、tests/test_runtime_check.py、tests/test_acceptance.py、tests/test_acceptance_amend.py、tests/test_assets_check.py、tests/test_agent_prompt_verification.py。",
+    "implementation": "B1（基础契约）：在 scripts/runtime_packet.py 定义 LIVE_E2E_* 常量与纯校验函数、load_linked_acceptance 与 validate_acceptance_alignment，同步扩展 runtime_check.py；B2（依赖 B1，验收层）：在 scripts/acceptance_diagnostics.py 实现 verify_record_runtime_evidence，更新 acceptance_assets.py、acceptance_amend.py、acceptance_render.py；B3（依赖 B2，入口与门禁）：更新 asset_checks.py（校验提交态 packet.json）、harness.py（record 证据包硬校验与 --help 示例）、agent_prompt.md 与 AGENTS.md；B4（依赖 B3，测试）：补齐单元测试与端到端集成测试；B5（依赖 B4，文档与狗粮闭环）：更新 contracts/CODEMAP/SKILL/testing/runtime README 与 Knowledge，用本次新能力完成 Acceptance + live_e2e 证据包 + 回归与资产结算。",
+    "process_flowchart": "```mermaid\nflowchart TD\n  A[大任务开始: acceptance create 含 live_e2e 与逐条通过/失败判据] --> B[冻结 JSON + 渲染 Markdown 清单]\n  B --> C{confirm_before_run?}\n  C -- true 默认 --> D[停下等用户确认范围与落地方案]\n  C -- false 或已授权 --> E[真实测试环境逐条执行, mock=false]\n  D --> E\n  E --> F{全部符合通过标准且无失败判定?}\n  F -- 否 --> G{触发熔断/架构或不可逆变更/外部故障?}\n  G -- 是 --> H[立即暂停并上报用户]\n  G -- 否 --> I[当场修复并重新部署, 记录新 deploy_ref]\n  I --> E\n  F -- 是 --> J[runtime check 校对 acceptance_ref 100% 覆盖与终版回归]\n  J --> K[acceptance record/settle + assets-check + 输出任务报告]\n```",
+    "ux_journey": "操作者（开发者或 Agent）在大任务验证前运行 acceptance create 声明 live_e2e 真实依赖、测试环境、隔离清理、重部署命令、单缺陷熔断上限及每条实机流程的 pass_criteria/fail_criteria，生成冻结 JSON 与可读 Markdown 清单交用户确认；确认后按清单在真实测试环境逐项操作并保留每轮 deploy_ref、缺陷修复与终版回归证据，运行 runtime check 核验零漏测、零 mock 与闭环重部署；最后通过 acceptance record/settle 与 assets-check 完成结算并交付收尾报告。缺字段或漏测时 CLI 直接返回具体错误码、缺失 criterion_id 与下一步指引。",
+    "module_interfaces": "1) scripts/runtime_packet.py（零循环依赖底层）：新增 LIVE_E2E_FIELDS、LIVE_E2E_REQUIRED_FIELDS、LIVE_E2E_EVIDENCE_LAYERS、LIVE_E2E_DEFAULT_MAX_FIX_ROUNDS、LIVE_E2E_CONFIRM_DEFAULT、ALLOWED_TOP_LEVEL_FIELDS、ALLOWED_FLOW_FIELDS、ALLOWED_ITERATION_FIELDS、is_runtime_packet_ref、is_live_e2e_criterion、validate_criterion_expectations、normalize_live_e2e_config、load_linked_acceptance、validate_acceptance_alignment；2) scripts/runtime_check.py（<=600行）：在 check_packet 中加载 acceptance_ref、收集 flow_criteria/iteration_records 并调用 validate_acceptance_alignment；3) scripts/acceptance_diagnostics.py：新增 verify_record_runtime_evidence(target, asset, raw_asset, criterion, record_value) 联动 runtime_check.check_packet；4) scripts/acceptance_assets.py（<=600行）：_criterion/_parse_input/validate_asset 支持 pass_criteria/fail_criteria/live_e2e，record/_apply_settle_records/_validate_live_refs 调用 verify_record_runtime_evidence；5) scripts/acceptance_amend.py & acceptance_render.py：修订与 Markdown 投影同步 live_e2e 与通过/失败判据；6) scripts/asset_checks.py：check_cross_asset_relations 校验 docs/runtime-verification/*/packet.json；7) scripts/harness.py：assert_runtime_packets_valid 接入 build_stored_acceptance_record 并更新 ACCEPTANCE_TARGET_INPUT_EXAMPLE/NOTES。消费链：tests/test_runtime_check.py、tests/test_acceptance.py、tests/test_acceptance_amend.py、tests/test_assets_check.py、tests/test_agent_prompt_verification.py。",
+    "acceptance_plan": "分层覆盖 L1 合同（help/schema/预算/release sync --strict/assets-check --strict）、L2 聚焦测试与全仓回归（改及公共 acceptance/runtime/assets-check/入口基础设施）、L3 本地实机 CLI 闭环（以本次任务自身的 live_e2e Acceptance + runtime packet 跑通完整校验、故意坏包拒绝、修复重部署复测闭环）及 L4 打包安装（self-test、npm pack --dry-run）。",
+    "verification_scope": {
+      "mode": "repository_full",
+      "commands": [
+        "python -m unittest tests.test_runtime_check tests.test_acceptance tests.test_acceptance_amend tests.test_assets_check tests.test_agent_prompt_verification tests.test_agent_prompt_format tests.test_cli_surface -v",
+        "python -m unittest discover -s tests -p test_*.py",
+        "python scripts/harness.py runtime check --target . --packet docs/runtime-verification/live-e2e-verification-loop/packet.json --json",
+        "python scripts/harness.py self-test --target . --json",
+        "python scripts/harness.py release sync --target . --strict --json",
+        "python scripts/harness.py assets-check --target . --strict --json",
+        "npm pack --dry-run"
+      ],
+      "reused_passed_evidence": [],
+      "layers": [
+        "focused_test",
+        "repository_full_test",
+        "local_runtime",
+        "package_or_install"
+      ]
+    },
+    "acceptance_required": true,
+    "knowledge_impact": "updated",
+    "constraints": "工作区初始干净；不动 VERSION、CHANGELOG.md 顶部版本、package.json、MANAGED_MODULE_RELATIVE_FILES；不新增受管文件；scripts/runtime_check.py（现 593 行）与 scripts/acceptance_assets.py（现 586 行）严格控制在 600 行红线以内，既有 >60 行函数（如 _parse_input、build_stored_acceptance_record）增长 <10 行；scripts/agent_prompt.md 渲染受管块严格 <= 18,000 B（LF 与 CRLF 均通过），逐字保留 ## 呈现形式 与 ## 收尾 及所有占位符与守卫短语；保持现有非 live_e2e 资产与测试 100% 向后兼容；不自动 git commit 或同步下游。",
+    "current_constraints": "受管入口 scripts/agent_prompt.md 当前 16,578 B（余量 ~1.3 KB），且下游安装面不含 SKILL.md；runtime_check.py 与 acceptance_assets.py 逼近 600 行体量阈值；现有 16 份 Acceptance 与 1 份提交态 runtime packet 必须继续通过 assets-check --strict。",
+    "alternatives": "A（否决）：在 runtime 域新建 runtime plan 独立清单、独立指纹与 amend 状态机，与 Acceptance 重复造轮子；B（否决）：仅补提示词与方案模板文案，无机器硬校验易退化成已走查；C（采用）：复用 Acceptance 作为冻结标准所有者、Runtime 作为实机证据所有者，最小扩展字段并打通三方硬校验。",
+    "tradeoffs": "方案 C 零新增状态机、零新增受管文件、与既有 Acceptance/Plan/assets-check 天然闭合；代价是 runtime_packet.py 需要承载少量跨 Acceptance/Runtime 的纯 Schema 原语（导入无内部依赖的 managed_assets.fingerprint），换取严格的 DAG 无环依赖和两核心文件守住 600 行红线。",
+    "decision": "采用方案 C：在 Acceptance 补可选 pass_criteria/fail_criteria 与 live_e2e 契约，在 Runtime 补可选 acceptance_ref/criterion_id/deploy_ref/rechecked_criteria 对齐校验，在 acceptance record/check 与 assets-check 补齐 runtime 证据包联动门禁，在 agent_prompt.md 增加 1 条精炼触发规则并把字段细则放进 --help。",
+    "boundaries_interfaces": "模块依赖保持单向 DAG：managed_assets -> runtime_packet -> runtime_check -> acceptance_diagnostics -> acceptance_assets -> asset_checks -> harness；禁止反向导入。未声明 live_e2e / acceptance_ref 的既有资产走原校验分支不变。",
+    "compatibility_migration": "全部新字段均为向后兼容的可选字段，不升级 acceptance-asset/v1 或 runtime-verification/v1 的 schema_version；存量 16 份 Acceptance 与既有提交态 runtime packet 零迁移直接通过；下游下次 project upgrade 自动获益。",
+    "rollback_strategy": "所有改动位于单任务提交边界且完全向后兼容，如需回滚可直接 revert 对应文件改动；已生成的带 live_e2e 字段的 Acceptance 仅在启用新特性时产出，不影响旧资产。",
+    "architecture_acceptance": "验证正向闭环（冻结 live_e2e Acceptance -> 实机多轮修复重部署 packet -> runtime check -> acceptance record/settle -> assets-check --strict 全绿）与全部反向拒绝面（缺 pass/fail 判据、mock=true、漏测 criterion_id、修复后未换 deploy_ref、终版未回归、篡改冻结 Acceptance 指纹、引用坏 packet.json 登记通过、提交态坏 packet 进 assets-check）。",
+    "adr_decision": "既有 ADR docs/adr/runtime-verification-evidence-packet.json 确立的“采用可校验结构化证据包而非勾选清单”决策继续成立且未被推翻；本次属于沿既有决策将 Acceptance 与 Runtime 边界打通并纳入 assets-check，不推翻原 ADR，也不单开冗余 ADR，仅更新 docs/knowledge/runtime-verification-quality-gate.json 沉淀新事实。"
+  },
+  "acceptance_refs": [
+    "docs/acceptance/live-e2e-verification-loop.json"
+  ],
+  "governance": {
+    "acceptance_required": true,
+    "knowledge_impact": "updated",
+    "updated_knowledge_refs": [
+      "docs/knowledge/runtime-verification-quality-gate.json"
+    ],
+    "unchanged_reason": null,
+    "governance_settled_at": "2026-11-26T15:46:33+00:00",
+    "amend_log": []
+  },
+  "frozen_at": "2026-11-26T15:28:24+00:00",
+  "plan_fingerprint": "sha256:288679c7c7647ed1a254d62ca350724c95e082f267c980ee0a15d18689820ca8"
+}

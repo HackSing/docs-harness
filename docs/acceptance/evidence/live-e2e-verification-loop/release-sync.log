@@ -1,0 +1,20 @@
+CMD=['C:\\Users\\freed\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe', 'scripts/harness.py', 'release', 'sync', '--target', '.', '--strict', '--json']
+EXIT=0
+{
+  "action": "sync",
+  "target": "D:\\Project\\docs-harness",
+  "version_truth": "2.37.0",
+  "sources": {
+    "VERSION": "2.37.0",
+    "controller": "2.37.0",
+    "skill": "2.37.0",
+    "package": "2.37.0",
+    "templates": "2.37.0",
+    "evals": "2.37.0"
+  },
+  "diffs": [],
+  "changelog_top_version": "2.37.0",
+  "mode": "check",
+  "status": "consistent"
+}
+

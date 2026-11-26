@@ -1,0 +1,163 @@
+{
+  "schema_version": "docs-harness/runtime-verification/v1",
+  "task": "live-e2e-verification-loop",
+  "surface": "cli",
+  "risk": "complex",
+  "acceptance_ref": "docs/acceptance/live-e2e-verification-loop.json",
+  "environment": {
+    "description": "Windows 11, Python 3.x, docs-harness source checkout executing real harness.py CLI subprocesses against isolated temporary projects",
+    "start_command": "python scripts/harness.py runtime check --target . --packet docs/runtime-verification/live-e2e-verification-loop/packet.json --json",
+    "data_setup": "Initialized temporary project via project init --apply --host skip with real live_e2e Acceptance JSON and committed runtime packet fixtures",
+    "mock": false
+  },
+  "flows": [
+    {
+      "name": "valid live_e2e acceptance and packet pass end-to-end",
+      "criterion_id": "c3",
+      "steps": [
+        "create frozen live_e2e acceptance asset with pass_criteria and fail_criteria",
+        "run runtime check on linked committed packet with mock=false and changed deploy_ref",
+        "inspect exit code 0 and JSON passed payload"
+      ],
+      "expected": "CLI returns exit code 0 with status passed, 2 flows checked, and 0 errors or warnings",
+      "observed": "live-valid.log recorded EXIT=0, status passed, flows=2, states=3, data=4, probes=2, iterations=2, defects=1 with zero errors",
+      "evidence_refs": [
+        "evidence/frozen-acceptance.log",
+        "evidence/live-valid.log"
+      ]
+    },
+    {
+      "name": "live_e2e negative probes rejected with structured codes",
+      "criterion_id": "c3",
+      "steps": [
+        "set mock=true on live_e2e packet and run runtime check",
+        "remove one criterion_id and reuse prior deploy_ref then run runtime check",
+        "tamper frozen acceptance pass_criteria and run runtime check"
+      ],
+      "expected": "each bad packet returns exit code 2 naming runtime_live_e2e_mock_forbidden, runtime_live_e2e_criteria_uncovered, runtime_live_e2e_deploy_unchanged, and runtime_acceptance_fingerprint_invalid",
+      "observed": "bad-mock.log, bad-gap-deploy.log, and bad-tamper.log each returned EXIT=2 with the exact expected error codes and next_action",
+      "evidence_refs": [
+        "evidence/bad-mock.log",
+        "evidence/bad-gap-deploy.log",
+        "evidence/bad-tamper.log"
+      ]
+    }
+  ],
+  "states": [
+    {
+      "name": "success",
+      "applicable": true,
+      "expected": "valid live_e2e packet exits 0 with status passed",
+      "observed": "live-valid.log exited 0 with status passed and root_kind committed",
+      "evidence_refs": [
+        "evidence/live-valid.log"
+      ],
+      "reason": null
+    },
+    {
+      "name": "invalid_input",
+      "applicable": true,
+      "expected": "mock=true, missing criterion_id, and unchanged deploy_ref packets exit 2",
+      "observed": "bad-mock.log and bad-gap-deploy.log exited 2 and pinpointed environment.mock, flows, and iterations[1].deploy_ref",
+      "evidence_refs": [
+        "evidence/bad-mock.log",
+        "evidence/bad-gap-deploy.log"
+      ],
+      "reason": null
+    },
+    {
+      "name": "runtime_error",
+      "applicable": true,
+      "expected": "tampered frozen acceptance asset fails with fingerprint mismatch exit 2",
+      "observed": "bad-tamper.log exited 2 with code runtime_acceptance_fingerprint_invalid on acceptance_ref",
+      "evidence_refs": [
+        "evidence/bad-tamper.log"
+      ],
+      "reason": null
+    }
+  ],
+  "data": [
+    {
+      "scenario": "realistic",
+      "input": "frozen live_e2e acceptance with 2 local_runtime criteria and linked committed packet",
+      "expected": "runtime check passes with zero errors",
+      "observed": "live-valid.log returned EXIT=0 and status passed across both frozen criteria",
+      "evidence_refs": [
+        "evidence/live-valid.log"
+      ]
+    },
+    {
+      "scenario": "empty",
+      "input": "flow omitting criterion_id for one of the frozen live_e2e criteria",
+      "expected": "runtime check reports uncovered criterion id",
+      "observed": "bad-gap-deploy.log reported runtime_live_e2e_criteria_uncovered naming missing criterion f2",
+      "evidence_refs": [
+        "evidence/bad-gap-deploy.log"
+      ]
+    },
+    {
+      "scenario": "invalid",
+      "input": "environment.mock=true with mock_rationale and mock_limitations on live_e2e packet",
+      "expected": "runtime check forbids mock even when rationale is filled",
+      "observed": "bad-mock.log exited 2 with runtime_live_e2e_mock_forbidden on environment.mock",
+      "evidence_refs": [
+        "evidence/bad-mock.log"
+      ]
+    },
+    {
+      "scenario": "boundary",
+      "input": "post-freeze single-field edit to acceptance pass_criteria without re-sealing",
+      "expected": "runtime check detects SHA-256 fingerprint mismatch",
+      "observed": "bad-tamper.log exited 2 with runtime_acceptance_fingerprint_invalid blocking weakened expectations",
+      "evidence_refs": [
+        "evidence/bad-tamper.log"
+      ]
+    }
+  ],
+  "ui": {
+    "applicable": false,
+    "reason": "This task modifies CLI contracts and validators in scripts/; no web or desktop UI surface was added or modified"
+  },
+  "probes": [
+    {
+      "name": "mock escape hatch bypass attempt",
+      "intent": "abuse",
+      "result": "supplying full mock_rationale and mock_limitations still failed live_e2e check with exit 2 and runtime_live_e2e_mock_forbidden",
+      "evidence_refs": [
+        "evidence/bad-mock.log"
+      ]
+    },
+    {
+      "name": "redeploy skip and expectation tampering probe",
+      "intent": "recovery",
+      "result": "reusing cli-build-1 after defect returned runtime_live_e2e_deploy_unchanged and hand-editing frozen pass_criteria returned runtime_acceptance_fingerprint_invalid",
+      "evidence_refs": [
+        "evidence/bad-gap-deploy.log",
+        "evidence/bad-tamper.log"
+      ]
+    }
+  ],
+  "defects": [],
+  "no_defect_rationale": "Real CLI positive and adversarial probes (mock=true, uncovered criterion, unchanged deploy_ref, and tampered acceptance fingerprint) all returned the exact expected exit codes and error codes on the first run after unit test validation.",
+  "iterations": [
+    {
+      "pass": 1,
+      "status": "passed",
+      "deploy_ref": "source-working-tree-20261126-r1",
+      "rechecked_criteria": [
+        "c3"
+      ],
+      "summary": "Executed real harness.py CLI probes against isolated temp projects; valid live_e2e packet passed (exit 0) and all three adversarial rejection cases exited 2 with exact codes",
+      "evidence_refs": [
+        "evidence/live-valid.log",
+        "evidence/bad-mock.log",
+        "evidence/bad-gap-deploy.log",
+        "evidence/bad-tamper.log"
+      ]
+    }
+  ],
+  "uncovered": [
+    "下游真实业务项目的云端模型、真实数据库与桌面/浏览器端到端走查将在下次升级对应下游项目后由实际任务覆盖"
+  ],
+  "conclusion": "Real CLI runtime verification passed for live_e2e Acceptance-Runtime alignment with mock=false, 100% live criterion coverage, deploy_ref validation, and fingerprint tamper detection."
+}

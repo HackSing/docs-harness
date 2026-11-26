@@ -1,0 +1,20 @@
+CMD=['C:\\Users\\freed\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe', 'scripts/harness.py', 'self-test', '--target', '.', '--json']
+EXIT=0
+{
+  "version": "2.37.0",
+  "status": "passed",
+  "checks": {
+    "script_version": true,
+    "command_parser": true,
+    "asset_check_flags": true,
+    "direct_mode_default": true,
+    "plan_templates_valid": true,
+    "asset_modules_valid": true,
+    "project_config_v13": true,
+    "v3_acceptance_contract": true,
+    "knowledge_lifecycle_v1": true,
+    "acceptance_lifecycle_v1": true,
+    "adr_lifecycle_v1": true
+  }
+}
+

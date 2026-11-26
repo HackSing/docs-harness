@@ -126,6 +126,8 @@ python3 scripts/harness.py runtime check --target . --packet <path> --json
 
 复杂或 UI 交付放 `docs/runtime-verification/<task>/packet.json` 并随仓库提交，`risk=complex`；普通小改动放 `.docs-harness/runtime/<task>/packet.json`，`risk=simple`。证据文件放同目录 `evidence/`。证据包必须写真实环境与启动/数据准备、用户流程、状态矩阵、数据场景、UI 至少两个视口的截图与视觉/交互/文案/可访问性观察、对抗性探测，以及缺陷“首次失败 → 修复 → 复验通过”的迭代；mock 数据要写明原因和不能证明的限制。检查器拒绝空泛观察、缺失证据、状态漏项、单视口 UI、无对抗探测和未闭环修复，详见 `docs/contracts.md` 第 4b 节。它不启动应用、不截图，也不能替代真实用户验收。
 
+大任务/发版级实机全量闭环：先通过 `acceptance create` 声明顶层 `live_e2e` 块（真实依赖、测试环境、隔离与清理、重部署方式、单缺陷熔断上限 `max_fix_rounds` 默认 3、执行前确认门 `confirm_before_run` 默认 `true`）及每条实机标准的 `pass_criteria`/`fail_criteria`，冻结并渲染清单后默认停下等用户确认再进真实测试环境；运行态证据包带 `acceptance_ref`、`flows[].criterion_id`、`iterations[].deploy_ref` 与终轮 `rechecked_criteria`，由 `runtime check` 硬拒 `mock=true`、漏测任一实机标准、修复后未重部署或终版未回归，并由 `acceptance record/check` 与 `assets-check` 联动放行。
+
 验证默认后台执行：单测、构建和静态检查放后台进程，UI 用隐藏窗口或离屏渲染，模拟器用 headless；不得弹窗、抢焦点或自动打开文件夹。只有真实硬件、系统权限、原生弹窗等无法后台的层才上前台，并须提前说明、收尾记录；分层做法与前台例外协议见 `docs/contracts.md` 第 4c 节。
 
 ## 输入形状

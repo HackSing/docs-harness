@@ -1,0 +1,159 @@
+{
+  "schema_version": "docs-harness/acceptance-asset/v1",
+  "title": "大任务全量实机闭环验证（live_e2e）验收",
+  "objective": "验证 Acceptance 冻结通过/失败判据与 live_e2e 契约、Runtime 实机证据包 100% 对齐与重部署校验、acceptance record/check 与 assets-check 联动门禁，以及 18 KB 受管入口预算和全仓回归均成立。",
+  "key_symbols": [
+    "LIVE_E2E_FIELDS",
+    "normalize_live_e2e_config",
+    "validate_acceptance_alignment",
+    "verify_record_runtime_evidence"
+  ],
+  "plan_ref": "docs/plans/live-e2e-verification-loop.json",
+  "knowledge_refs": [
+    "docs/knowledge/runtime-verification-quality-gate.json"
+  ],
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "合同：18 KB 受管入口预算、acceptance/runtime --help 字段说明与 release sync --strict 一致",
+      "acceptance_type": "contract_check",
+      "layer": "L1",
+      "evidence_layer": null,
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261126T154631-71d97059fc",
+          "objective_fingerprint": "sha256:463d937b13113cd609082f169f160769f9b73199c8803068058999d51eacbfda",
+          "acceptance_type": "contract_check",
+          "status": "passed",
+          "layer": "L1",
+          "evidence_layer": null,
+          "method": "acceptance --help 与 runtime --help 输出 live_e2e/pass_criteria/fail_criteria/acceptance_ref/deploy_ref/rechecked_criteria 字段说明，受管块 LF 17,263 B / CRLF 17,377 B <= 18,000 B，AGENTS.md 17,535 B <= 24,000 B，release sync --strict 退出码 0",
+          "evidence_refs": [
+            "docs/acceptance/evidence/live-e2e-verification-loop/contract-help.log",
+            "docs/acceptance/evidence/live-e2e-verification-loop/runtime-help.log",
+            "docs/acceptance/evidence/live-e2e-verification-loop/release-sync.log"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-11-26T15:46:31+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c2",
+      "title": "回归：仓库全量单元测试（含新增 test_live_e2e_verification）通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L2",
+      "evidence_layer": "repository_full_test",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261126T154631-c3927749a9",
+          "objective_fingerprint": "sha256:463d937b13113cd609082f169f160769f9b73199c8803068058999d51eacbfda",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L2",
+          "evidence_layer": "repository_full_test",
+          "method": "python -m unittest discover -s tests -p test_*.py 运行 514 项全通（skipped=12，退出码 0），包含新增 tests/test_live_e2e_verification.py（7 项）与 tests/test_agent_prompt_verification.py 新守卫",
+          "evidence_refs": [
+            "docs/acceptance/evidence/live-e2e-verification-loop/full-tests.log"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-11-26T15:46:31+00:00"
+        }
+      ]
+    },
+    {
+      "id": "c3",
+      "title": "实机闭环：真实 CLI 执行 live_e2e 正向全通、坏包拒绝与 assets-check 联动",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L3",
+      "evidence_layer": "local_runtime",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261126T154632-cdc0b7bb3a",
+          "objective_fingerprint": "sha256:463d937b13113cd609082f169f160769f9b73199c8803068058999d51eacbfda",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L3",
+          "evidence_layer": "local_runtime",
+          "method": "真实 CLI 执行提交态 docs/runtime-verification/live-e2e-verification-loop/packet.json 返回 status=passed（退出码 0、0 错 0 警），且 mock=true、漏测 criterion_id、修复未换 deploy_ref 与篡改 Acceptance 指纹四类探测均返回退出码 2 与对应错误码",
+          "evidence_refs": [
+            "docs/runtime-verification/live-e2e-verification-loop/packet.json",
+            "docs/runtime-verification/live-e2e-verification-loop/evidence/live-valid.log",
+            "docs/runtime-verification/live-e2e-verification-loop/evidence/bad-mock.log",
+            "docs/runtime-verification/live-e2e-verification-loop/evidence/bad-gap-deploy.log",
+            "docs/runtime-verification/live-e2e-verification-loop/evidence/bad-tamper.log"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-11-26T15:46:32+00:00"
+        }
+      ],
+      "pass_criteria": "真实 CLI 运行本任务提交态 live_e2e 证据包返回 status=passed 且退出码 0，同时 mock=true、漏测 criterion_id 与未变更 deploy_ref 坏包均返回退出码 2 与对应错误码",
+      "fail_criteria": "任一正向 CLI 校验失败、任一坏包未被拒绝（退出码 0）或报错未命中预期错误码均判失败"
+    },
+    {
+      "id": "c4",
+      "title": "打包与资产门禁：self-test、npm pack --dry-run 与 assets-check --strict 通过",
+      "acceptance_type": "behavior_acceptance",
+      "layer": "L4",
+      "evidence_layer": "package_or_install",
+      "status": "passed",
+      "records": [
+        {
+          "schema_version": "docs-harness/acceptance-record/v3",
+          "record_id": "acc-20261126T154632-fddd2e3a7b",
+          "objective_fingerprint": "sha256:463d937b13113cd609082f169f160769f9b73199c8803068058999d51eacbfda",
+          "acceptance_type": "behavior_acceptance",
+          "status": "passed",
+          "layer": "L4",
+          "evidence_layer": "package_or_install",
+          "method": "python scripts/harness.py self-test --target . --json 与 npm pack --dry-run 均退出码 0，且 assets-check --strict 校验全仓资产与提交态运行态证据包通过",
+          "evidence_refs": [
+            "docs/acceptance/evidence/live-e2e-verification-loop/self-test.log",
+            "docs/acceptance/evidence/live-e2e-verification-loop/npm-pack.log"
+          ],
+          "reason": null,
+          "next_action": null,
+          "failure_attributions": [],
+          "recorded_at": "2026-11-26T15:46:32+00:00"
+        }
+      ]
+    }
+  ],
+  "live_e2e": {
+    "real_dependencies": [
+      "本地真实 Python CLI 控制器进程（scripts/harness.py）",
+      "真实临时 Git 仓库与受管文件系统"
+    ],
+    "environment": "Windows 11 本地 docs-harness 源仓与真实临时项目目录，无 mock 替代子进程执行",
+    "isolation_and_cleanup": "全部隔离实机探测写入系统临时目录并由脚本自动清理，不污染工作区既有资产",
+    "deploy_command": "python scripts/harness.py self-test --target . --json",
+    "max_fix_rounds": 3,
+    "confirm_before_run": false
+  },
+  "status": "passed",
+  "revision": 2,
+  "revision_history": [
+    {
+      "revision": 1,
+      "asset_fingerprint": "sha256:3d0cafdd215c3339b12ced39abffd6e75df3614a781f4f70741ba4d38b305ddb",
+      "updated_at": "2026-11-26T15:37:47+00:00"
+    }
+  ],
+  "created_at": "2026-11-26T15:37:47+00:00",
+  "updated_at": "2026-11-26T15:46:32+00:00",
+  "settled_at": "2026-11-26T15:46:32+00:00",
+  "asset_fingerprint": "sha256:f0a1e506357a5d57c5524e87262c646ae6b58f22f6a82ba595cd9e8d8659148a",
+  "replacement": null
+}

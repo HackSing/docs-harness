@@ -1,0 +1,25 @@
+EXIT=2
+{
+  "status": "failed",
+  "packet_ref": "docs/runtime-verification/probe/packet.json",
+  "root_kind": "committed",
+  "checked": {
+    "flows": 2,
+    "states": 3,
+    "data": 4,
+    "probes": 2,
+    "viewports": 0,
+    "iterations": 2,
+    "defects": 1,
+    "evidence": 1
+  },
+  "errors": [
+    {
+      "code": "runtime_live_e2e_mock_forbidden",
+      "message": "live_e2e 实机全量验收禁止 environment.mock=true，必须真实调用目标环境与依赖",
+      "path": "environment.mock"
+    }
+  ],
+  "warnings": [],
+  "next_action": "按 errors 补齐真实观察或证据后重跑 runtime check；不要用“正常/通过”替代具体现象"
+}

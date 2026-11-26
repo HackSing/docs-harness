@@ -1,0 +1,119 @@
+CMD=['C:\\Users\\freed\\AppData\\Local\\hermes\\hermes-agent\\venv\\Scripts\\python.exe', 'scripts/harness.py', 'acceptance', '--help']
+EXIT=0
+usage: harness acceptance [-h] [--target TARGET] [--json] [--input INPUT]
+                          [--output OUTPUT] [--dry-run]
+                          [--acceptance ACCEPTANCE]
+                          [--status {passed,failed,superseded,deprecated}]
+                          [--replacement REPLACEMENT] [--user-confirmed]
+                          [--reaccept] [--reason REASON]
+                          {create,amend,record,show,list,settle,check}
+
+positional arguments:
+  {create,amend,record,show,list,settle,check}
+
+options:
+  -h, --help            show this help message and exit
+  --target TARGET
+  --json
+  --input INPUT
+  --output OUTPUT
+  --dry-run             仅校验（仅 create）：一次性报告全部输入错误与冲突，不写任何文件
+  --acceptance ACCEPTANCE
+  --status {passed,failed,superseded,deprecated}
+  --replacement REPLACEMENT
+  --user-confirmed
+  --reaccept
+  --reason REASON       修订原因（仅 amend）：单行非空
+
+输入 JSON 形状与示例（示例常量在本文件对应校验函数附近，改 schema 请同步）：
+
+acceptance create --input（docs-harness/acceptance-target-input/v1）：
+{
+  "schema_version": "docs-harness/acceptance-target-input/v1",
+  "title": "…",
+  "key_symbols": [
+    "…"
+  ],
+  "objective": "…",
+  "plan_ref": "docs/plans/x.json（可选）",
+  "knowledge_refs": [],
+  "live_e2e": {
+    "real_dependencies": [
+      "可选：真实云端模型 API、测试数据库等（禁 mock）"
+    ],
+    "environment": "可选：真实测试环境说明（>=10字）",
+    "isolation_and_cleanup": "可选：测试账号/数据隔离、费用上限与清理方式（>=10字）",
+    "deploy_command": "可选：修复后重部署/重启命令（>=6字）",
+    "max_fix_rounds": 3,
+    "confirm_before_run": true
+  },
+  "criteria": [
+    {
+      "id": "c1",
+      "title": "…",
+      "acceptance_type": "contract_check|behavior_acceptance|user_acceptance",
+      "layer": "L1-L5",
+      "evidence_layer": "仅 behavior_acceptance 填写，且映射必须等于 layer",
+      "pass_criteria": "可选（live_e2e 实机标准必填）：什么算通过（>=8字）",
+      "fail_criteria": "可选（与 pass_criteria 成对必填）：什么算失败（>=8字）"
+    }
+  ]
+}
+耦合：contract_check=L1 且无 evidence_layer；user_acceptance=L5 且无 evidence_layer；
+behavior_acceptance 的 evidence_layer 映射 focused_test/repository_full_test→L2、local_runtime→L3、package_or_install→L4、real_device→L5。
+大任务全量实机闭环（live_e2e）：声明 live_e2e 时至少有 1 条 local_runtime/real_device 标准且全量填 pass_criteria/fail_criteria；confirm_before_run 默认 true（先输出冻结清单与落地方案等用户确认再跑实机），max_fix_rounds 默认 3（1-10）；登记 passed 须附带包含 acceptance_ref 且通过 runtime check 的 docs/runtime-verification/<task>/packet.json。
+正式创建前建议先跑 acceptance create --dry-run（同参数）：一次性返回全部字段错误，不写任何文件。
+
+acceptance record --input（docs-harness/acceptance-input/v3）：
+{
+  "schema_version": "docs-harness/acceptance-input/v3",
+  "objective": "与目标一致",
+  "criterion_id": "关联 --acceptance 时必填",
+  "acceptance_type": "contract_check|behavior_acceptance|user_acceptance",
+  "status": "passed|failed|unverified|user_pending",
+  "layer": "L1-L5",
+  "evidence_layer": "仅 behavior_acceptance 可填；与 criterion 同 L 层即可，不要求字面一致",
+  "method": "passed 必填",
+  "evidence_refs": [
+    "已存在的证据文件"
+  ],
+  "confirmation": "用户确认原话，配合 --user-confirmed"
+}
+按状态必填：
+  passed（behavior/contract）→ method + 非空 evidence_refs；
+  failed → reason + next_action + failure_attributions[]（每项 {category, summary, blocking, evidence_refs}）；
+  user_pending → automatically_verified / user_checks / steps（≤5）三个非空字符串数组 + environment_ready=true。
+记录的 evidence_layer 与 criterion 同 L 层即接受，不要求字面一致（映射仍为 focused_test/repository_full_test→L2、local_runtime→L3、package_or_install→L4、real_device→L5）。
+
+acceptance settle --input（docs-harness/acceptance-settle-input/v1）：
+{
+  "schema_version": "docs-harness/acceptance-settle-input/v1",
+  "objective": "必须与资产 objective 一致",
+  "records": [
+    {
+      "criterion_id": "c1（必须当前 pending；已验收改写走 --reaccept）",
+      "acceptance_type": "contract_check|behavior_acceptance|user_acceptance",
+      "status": "passed|failed|user_pending",
+      "layer": "L1-L5",
+      "evidence_layer": "仅 behavior_acceptance 填写，与 criterion 同 L 层",
+      "method": "passed 必填",
+      "evidence_refs": [
+        "已存在的证据文件"
+      ],
+      "confirmation": "user_acceptance passed 配合 --user-confirmed"
+    }
+  ]
+}
+records 每项 = acceptance record 单条输入去掉 objective（objective 提到顶层，必须与资产一致）；
+records 为空数组等价于不传 --input；单条记录按状态必填规则与 acceptance record 完全一致；
+records 内 criterion_id 不得重复，且目标 criterion 必须当前 pending；
+成功时返回 payload 追加 recorded/record_ids 便于核对。
+--status：passed|failed 须与逐条聚合状态一致；superseded 需 --replacement 指向本仓库另一份活跃 Acceptance，并归档；
+deprecated 用于方案废弃或工作迁出本仓库：可选 --replacement 写一行去向（如外部仓库的待办路径），未完成的 criterion 原样留档，退出 Plan 反向登记并归档。
+
+acceptance amend --acceptance <path> --input <JSON> --reason <原因>：输入形状同 acceptance create；仅 pending 且尚无任何 records 的资产可改 criteria，plan_ref 不得改变。
+
+证据文件必须位于随仓库提交的路径（如 docs/acceptance/evidence/<验收名>/）；带 criterion_id 必须带 --acceptance（不带资产的独立记录只写本地 Runtime，返回 persisted_to=runtime, linked=false 并警告）。
+
+只有收到用户明确确认原话后才能带 --user-confirmed 登记 User Acceptance 通过；合同/测试/运行/安装/用户可见五层不得相互替代。
+

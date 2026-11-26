@@ -130,7 +130,7 @@ JSON `docs-harness/knowledge-asset/v1` 是事实真源，Markdown 是可读投�
 
 ## 4. 真实验收合同
 
-`acceptance create` 使用 `docs-harness/acceptance-target-input/v1`，输出固定为 `docs/acceptance/<name>.json`。目标包含标题、2–4 个关键符号、objective 和非空 criteria；可用 `plan_ref` 与 `knowledge_refs` 关联上游受管资产。引用 v3 Plan 时 Harness 自动维护其 `acceptance_refs[]`，模型无需手填；Acceptance superseded 或 deprecated 时移除旧反向引用，此后不再计入该 Plan 的已结项验收。每条 criterion 固定 id、类型、L 层与必要的 evidence_layer。
+`acceptance create` 使用 `docs-harness/acceptance-target-input/v1`，输出固定为 `docs/acceptance/<name>.json`。目标包含标题、2–4 个关键符号、objective 和非空 criteria；可用 `plan_ref` 与 `knowledge_refs` 关联上游受管资产。引用 v3 Plan 时 Harness 自动维护其 `acceptance_refs[]`，模型无需手填；Acceptance superseded 或 deprecated 时移除旧反向引用，此后不再计入该 Plan 的已结项验收。每条 criterion 固定 id、类型、L 层与必要的 evidence_layer，并支持成对填写可选 `pass_criteria`（通过标准）与 `fail_criteria`（失败判定，各 ≥8 字、非空泛且不得相同）。大任务/发版级实机全量验收可声明可选顶层 `live_e2e` 块（`real_dependencies`、`environment`、`isolation_and_cleanup`、`deploy_command` 及可选 `max_fix_rounds` 默认 3、`confirm_before_run` 默认 `true`）：声明后至少须包含 1 条 `local_runtime`/`real_device` 行为标准且每条此类标准必填 `pass_criteria`/`fail_criteria`；渲染出的 Markdown 投影即作为执行前确认清单，默认等用户确认后再跑实机。
 
 `acceptance amend --acceptance <path> --input <JSON> --reason <原因>` 使用与 create 相同的输入形状，仅允许修订 pending 且尚无任何 records 的资产；可以改 title、key_symbols、objective、knowledge_refs 与 criteria，不得改 plan_ref。修订递增 revision、在 revision_history 记录 amend_reason，并同步 Markdown/INDEX。已有记录或已结项时拒绝，需新建 Acceptance 或走 settle。`acceptance show --acceptance <path>` 与 `acceptance list` 提供只读查询；`--dry-run` 对 amend/record/settle 只预检不落盘。
 
@@ -164,7 +164,7 @@ Behavior Acceptance 必须声明下列 `evidence_layer`，且只能使用固定 
 
 L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 客观行为，但不能替代 User Acceptance；独立记录路径不接受 `user_acceptance + passed`。只有关联 Acceptance、输入含明确 confirmation，且 agent 已收到用户确认原话后显式使用 `--user-confirmed`，才能登记用户验收通过。
 
-通过必须提供实际方法和项目内已存在的常规证据文件；User Acceptance 的明确 confirmation 是独立证据门禁。证据准入：登记入口先逐条校验存在性（缺失报 `acceptance_evidence_missing`），再经 `git check-ignore` 判定，证据落在 git 忽略路径直接拒绝登记（`acceptance_evidence_ignored`），应存放于随仓库提交的路径（如 `docs/acceptance/evidence/<验收名>/`）；验收证据与失败归因证据共用同一校验函数，非 git 目标不被锁死。失败必须提供总体原因、下一步和非空 `failure_attributions[]`；每项包含 `category`、`summary`、`blocking` 与非空 `evidence_refs`，类别只允许 `change_related|unrelated|pre_existing|environment|flaky`。归因重复、类别未知或证据不存在时拒绝记录。`user_pending` 必须包含已自动验证内容、待用户检查项、最短步骤和 `environment_ready=true`。
+通过必须提供实际方法和项目内已存在的常规证据文件；User Acceptance 的明确 confirmation 是独立证据门禁。证据准入：登记入口先逐条校验存在性（缺失报 `acceptance_evidence_missing`），再经 `git check-ignore` 判定，证据落在 git 忽略路径直接拒绝登记（`acceptance_evidence_ignored`），应存放于随仓库提交的路径（如 `docs/acceptance/evidence/<验收名>/`）；若 `evidence_refs` 包含运行态证据包（`docs/runtime-verification/<task>/packet.json` 或 `.docs-harness/runtime/<task>/packet.json`），登记入口与未结项 `acceptance check` 联动执行 `runtime check`，未通过直接拒绝（`acceptance_runtime_packet_invalid`）；声明了 `live_e2e` 的实机标准登记 `passed` 必须附带关联本验收且通过 `runtime check` 的提交态证据包（否则报 `acceptance_live_e2e_packet_required`）。验收证据与失败归因证据共用同一校验函数，非 git 目标不被锁死。失败必须提供总体原因、下一步和非空 `failure_attributions[]`；每项包含 `category`、`summary`、`blocking` 与非空 `evidence_refs`，类别只允许 `change_related|unrelated|pre_existing|environment|flaky`。归因重复、类别未知或证据不存在时拒绝记录。`user_pending` 必须包含已自动验证内容、待用户检查项、最短步骤和 `environment_ready=true`。
 
 结项后的资产再次记录必须显式 `--reaccept`；`acceptance settle --status passed|failed` 必须与逐条标准聚合状态一致，`superseded` 需要 replacement（本仓库另一份活跃 Acceptance）并归档；`deprecated` 用于方案废弃或工作迁出本仓库，可选 replacement 写一行自由文本去向（不解析为本仓库资产，不得含换行与反引号），未完成的 criterion 原样留档，不做聚合一致性要求，同样归档。`acceptance check` 校验指纹、投影、索引、上游引用和通过证据，且只对每个 criterion 的最新一条 record 校验证据存在性与用户确认——被 `--reaccept` 取代的历史记录是纯留痕，不再要求已作废证据永久存在；最新记录违规仍 FAIL。
 
@@ -178,9 +178,9 @@ L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 �
 
 证据包 schema 为 `docs-harness/runtime-verification/v1`。路径按风险固定：复杂或 UI 交付放 `docs/runtime-verification/<task>/packet.json` 并随仓库提交，`risk` 必须为 `complex`；普通小改动放 `.docs-harness/runtime/<task>/packet.json`，`risk` 必须为 `simple` 且目录由 `project init/upgrade` 生成的嵌套 `.gitignore` 忽略。`task` 必须等于证据包目录名；证据文件放在同目录 `evidence/` 下，提交路径中的证据不得被 git 忽略。
 
-包内必须包含：可复现的 `environment`（启动命令、数据准备；使用 mock 时声明原因和不能证明的限制）、至少一条真实 `flows`、覆盖成功/空/错误/加载或禁用等状态的 `states`、覆盖真实/空/非法/边界（UI 另加长或特殊）的 `data`、至少一次对抗性 `probes`、`iterations`、`uncovered` 和 `conclusion`。UI 任务还必须提供至少两个不同视口的截图与视觉、交互、文案、可访问性四组观察；不同视口不能复用同一张截图。非 UI 任务用 `ui.applicable=false` 和原因明确排除。
+包内必须包含：可复现的 `environment`（启动命令、数据准备；使用 mock 时声明原因和不能证明的限制）、至少一条真实 `flows`、覆盖成功/空/错误/加载或禁用等状态的 `states`、覆盖真实/空/非法/边界（UI 另加长或特殊）的 `data`、至少一次对抗性 `probes`、`iterations`、`uncovered` 和 `conclusion`。UI 任务还必须提供至少两个不同视口的截图与视觉、交互、文案、可访问性四组观察；不同视口不能复用同一张截图。非 UI 任务用 `ui.applicable=false` 和原因明确排除。可选字段 `acceptance_ref`（活跃 `docs/acceptance/<name>.json`，并校验其 SHA-256 指纹防篡改）、`flows[].criterion_id`、`iterations[].deploy_ref` 与 `iterations[].rechecked_criteria` 用于打通大任务实机闭环：当关联的 Acceptance 含 `live_e2e` 块时，`runtime check` 额外硬拒 `environment.mock=true`、非提交态/非 `complex` 路径、漏测任一冻结实机 `criterion_id`、轮次缺少 `deploy_ref`，以及有缺陷修复却未在终轮更换 `deploy_ref` 或缺少 `rechecked_criteria`；失败轮次超过 `max_fix_rounds` 时报 WARN 提示核对熔断与防补丁堆积。
 
-检查器拒绝以下空转证据：`expected` 与 `observed` 照抄、`observed` 只有“正常/通过/符合预期”等空泛词、证据文件不存在或过小、必需状态缺失、UI 只有单视口或重复截图、没有对抗性探测、有缺陷却没有“首次失败 → 修复 → 复验通过”的迭代、mock 未写限制、未注册字段、路径或 `task` 不符合约定。检查通过只证明证据结构和覆盖矩阵成立，不证明截图与实际页面一致，也不替代真实用户验收；视觉与交互仍由 agent 自己走查，真实硬件/权限才交用户。
+检查器拒绝以下空转证据：`expected` 与 `observed` 照抄、`observed` 只有“正常/通过/符合预期”等空泛词、证据文件不存在或过小、必需状态缺失、UI 只有单视口或重复截图、没有对抗性探测、有缺陷却没有“首次失败 → 修复 → 复验通过”的迭代、mock 未写限制、未注册字段、路径或 `task` 不符合约定，以及上述 `live_e2e` 违规项。检查通过只证明证据结构和覆盖矩阵成立，不证明截图与实际页面一致，也不替代真实用户验收；视觉与交互仍由 agent 自己走查，真实硬件/权限才交用户。
 
 ## 4c. 验证默认后台
 
@@ -221,7 +221,7 @@ L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 �
 
 ## 5. 统一资产检查合同
 
-`assets-check` 聚合 Plan、Knowledge、Acceptance、ADR 领域检查、ScriptHygiene 脚本卫生扫描及跨资产正反向关系（`checked` 字段含 `plans`/`knowledge`/`acceptance`/`adr`/`script_hygiene`/`cross` 六个键），并检查完整 `AGENTS.md` 的 UTF-8 字节数（即使在 `--fast` 下也运行；超过 `AGENTS_FILE_MAX_BYTES`=24,000 字节报 `entry.budget` WARN，防止在 Antigravity 等宿主中被尾部截断；受管入口真源 `scripts/agent_prompt.md` 渲染后预算为 `≤ MANAGED_PROMPT_MAX_BYTES`=18,000 字节）。结构、Schema、指纹、索引、活引用和已结算合同破坏属于 FAIL；声明矛盾、pending 验收指向归档 Plan、长期未结项、`AGENTS.md` 超 24,000 字节等属于 WARN。默认只有 FAIL 返回非零，`--strict` 使 WARN 也失败；`--fast` 跳过 Plan 符号存活和 Git 历史时效检查，供 pre-commit 使用。WARN 按 Plan 索引/陈旧/结算、Structure CODEMAP/体量、ADR/Knowledge/Acceptance 投影与 `entry.budget` 等分组，`warning_summary` 返回总数、可行动/提示数与重复数；非 JSON 输出默认只显示可行动优先的 5 条预览，`--verbose` 输出全部，`warnings` 在 JSON 中始终完整。
+`assets-check` 聚合 Plan、Knowledge、Acceptance、ADR 领域检查、ScriptHygiene 脚本卫生扫描及跨资产正反向关系（`checked` 字段含 `plans`/`knowledge`/`acceptance`/`adr`/`script_hygiene`/`cross` 六个键；`cross` 同时校验所有随仓库提交的 `docs/runtime-verification/*/packet.json` 证据包），并检查完整 `AGENTS.md` 的 UTF-8 字节数（即使在 `--fast` 下也运行；超过 `AGENTS_FILE_MAX_BYTES`=24,000 字节报 `entry.budget` WARN，防止在 Antigravity 等宿主中被尾部截断；受管入口真源 `scripts/agent_prompt.md` 渲染后预算为 `≤ MANAGED_PROMPT_MAX_BYTES`=18,000 字节）。结构、Schema、指纹、索引、活引用、提交态运行态证据包和已结算合同破坏属于 FAIL；声明矛盾、pending 验收指向归档 Plan、长期未结项、`AGENTS.md` 超 24,000 字节、`live_e2e` 失败轮次超 `max_fix_rounds` 等属于 WARN。默认只有 FAIL 返回非零，`--strict` 使 WARN 也失败；`--fast` 跳过 Plan 符号存活和 Git 历史时效检查，供 pre-commit 使用。WARN 按 Plan 索引/陈旧/结算、Structure CODEMAP/体量、ADR/Knowledge/Acceptance 投影、`runtime.verification` 与 `entry.budget` 等分组，`warning_summary` 返回总数、可行动/提示数与重复数；非 JSON 输出默认只显示可行动优先的 5 条预览，`--verbose` 输出全部，`warnings` 在 JSON 中始终完整。
 
 ScriptHygiene 对 tracked 脚本（`*.sh`/`*.iss`/`*.bat`/`*.cmd`/`*.ps1`）做全仓字节级扫描：同一文件混入 CRLF 与裸 LF 即 FAIL 并指明两种行尾各自行数；目标非 git 仓库或 git 不可用时跳过（`checked=0`，不产 WARN，避免 `--strict` 对环境性跳过误报——pre-commit/CI 永远在 git 仓库内运行）。它不是生命周期资产，没有 create/update/settle 动作。
 

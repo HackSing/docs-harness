@@ -11,4 +11,6 @@ python3 scripts/harness.py runtime check --target . \
   --packet docs/runtime-verification/<task>/packet.json --json
 ```
 
+大任务全量实机闭环（`live_e2e`）：先用 `acceptance create` 冻结 `live_e2e` 契约与逐条 `pass_criteria`/`fail_criteria`（默认停下等用户确认再跑实机），再在证据包填写 `acceptance_ref`、`flows[].criterion_id`、`iterations[].deploy_ref` 与终轮 `rechecked_criteria`；`runtime check` 硬拒 `mock=true`、漏测实机标准与未重部署复测，`acceptance record` 与 `assets-check` 同步联动校验提交态 `packet.json`。
+
 证据包只证明结构和观察覆盖成立，不证明截图与实际页面一致，也不替代真实用户验收。

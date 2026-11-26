@@ -39,6 +39,7 @@
 - [强力模型意图路由落地：Shadow → Canary → 强制执行](plans/strong-model-routing-rollout.md) — 状态：有效（实施中）；关键符号：`score_cases`、`interpret_response`、`command_assets_check`、`run_assets_check`
 - [运行态验证证据包与质量门](plans/runtime-verification-quality-gate.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-25 核对）；关键符号：`check_packet`、`RUNTIME_PACKET_SCHEMA`、`RUNTIME_VERIFICATION_RELATIVE`
 - [AGENTS.md 24 KB 字节预算与受管入口瘦身](plans/agents-md-24kb-budget.md) — 状态：已实施-仅追溯（代码已是真源，2026-11-25 核对）；关键符号：`AGENTS_FILE_MAX_BYTES`、`MANAGED_PROMPT_MAX_BYTES`、`check_agents_file_budget`
+- [大任务全量实机闭环验证：Acceptance 冻结判据与 Runtime 硬对齐](plans/live-e2e-verification-loop.md) — 状态：已实施-仅追溯（代码已是真源，2026-11-26 核对）；关键符号：`LIVE_E2E_FIELDS`、`normalize_live_e2e_config`、`validate_acceptance_alignment`、`verify_record_runtime_evidence`
 <!-- docs-harness:plans-index:end -->
 
 ## 历史边界
@@ -52,7 +53,7 @@
 - [Docs Harness 下游安装面：源包判定、Structure 排除与约定目录](knowledge/downstream-install-surface.md) — 状态：有效（现行事实）；关键符号：`is_source_package`、`structure_exempt_paths`、`TASK_INPUTS_RELATIVE`
 - [Docs Harness 本地 usage 观测机制](knowledge/usage-observability.md) — 状态：有效（现行事实）；关键符号：`record_usage_invoke`、`USAGE_SCHEMA_VERSION`、`build_report`、`usage_log_invalid`
 - [意图路由 B1：注册表、宿主校验、Shadow 与覆盖率](knowledge/strong-model-routing-b1.md) — 状态：有效（现行事实）；关键符号：`load_registry`、`validate_profile`、`summarize_shadow`、`coverage_check`
-- [运行态验证证据包与质量门](knowledge/runtime-verification-quality-gate.md) — 状态：有效（现行事实）；关键符号：`check_packet`、`RUNTIME_PACKET_SCHEMA`、`RUNTIME_VERIFICATION_RELATIVE`
+- [运行态验证证据包与质量门](knowledge/runtime-verification-quality-gate.md) — 状态：有效（现行事实）；关键符号：`check_packet`、`RUNTIME_PACKET_SCHEMA`、`RUNTIME_VERIFICATION_RELATIVE`、`validate_acceptance_alignment`
 <!-- docs-harness:knowledge-index:end -->
 
 <!-- docs-harness:acceptance-index:start -->
@@ -74,6 +75,7 @@
 - [Docs Harness 遵循率优化验收](acceptance/harness-adherence-optimization.md) — 状态：已验收-仅追溯；关键符号：`run_assets_check`、`build_report`、`symbol_hit`、`plan_check_banner`
 - [强力模型意图路由落地验收](acceptance/strong-model-routing-rollout.md) — 状态：有效（待验收）；关键符号：`load_registry`、`validate_profile`、`summarize_shadow`、`coverage_check`
 - [运行态验证证据包与质量门验收](acceptance/runtime-verification-quality-gate.md) — 状态：已验收-仅追溯；关键符号：`check_packet`、`RUNTIME_PACKET_SCHEMA`、`RUNTIME_VERIFICATION_RELATIVE`
+- [大任务全量实机闭环验证（live_e2e）验收](acceptance/live-e2e-verification-loop.md) — 状态：已验收-仅追溯；关键符号：`LIVE_E2E_FIELDS`、`normalize_live_e2e_config`、`validate_acceptance_alignment`、`verify_record_runtime_evidence`
 <!-- docs-harness:acceptance-index:end -->
 
 <!-- docs-harness:adr-index:start -->
