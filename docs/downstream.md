@@ -19,6 +19,25 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 | memware-cloud | `HackSing/memware-cloud` | 2026-11-22 以 2.36.0 接入 main（`d79efbb`）。Next.js + Cloudflare 项目，CI 不跑 harness 检查，只靠本机 pre-commit。接入时补了 .gitignore 的 __pycache__/ 与 *.pyc |
 | antiwave | `HackSing/antiwave` | 2026-11-22 以 2.36.0 接入 main（`40d3358`），在临时 worktree 中完成。本机克隆目录名曾为 `aiwavetop`（当前本机已有 `d:\Project\antiwave`），接入时补了 .gitignore 的 __pycache__/ 与 *.pyc |
 
+### 2026-11-27 批量升级（2.38.1）
+
+| 项目 | 升级前 | 新提交 | 结果 |
+|---|---|---|---|
+| dispatch | 2.37.0 → 2.38.0 → 2.38.1 | `382e8ca0` | 本机干净 `main` 原地升级，pushed，`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 2 WARN：`other`×1、`plan.stale`×1） |
+| suiyi | 2.37.0 → 2.38.0 → 2.38.1 | `9120826d` | 本机干净 `main` 原地升级，pushed，`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 1 WARN：`structure.codemap`×1） |
+| memware-cloud | 2.37.0 → 2.38.0 → 2.38.1 | `91d68ef1` | 本机干净 `main` 原地升级，pushed，`project check` passed/in_head（`red=0, yellow=0`） |
+| antiwave | 2.37.0 → 2.38.0 → 2.38.1 | `c10c50bd` | 临时 worktree，pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`） |
+| zbuddy-desktop | 2.37.0 | `a21276a6` | 临时 worktree，GitHub 与 `codeup` 均已推送（哈希一致），`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 7 WARN，含 `entry.budget`×1） |
+| ai_study | 2.37.0 → 2.38.0 → 2.38.1 | `055a993f` | 临时 worktree，pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`） |
+| content-system | 2.37.0 → 2.38.0 → 2.38.1 | `f3900c6d` | 临时 worktree，pushed（`main`），`project check` passed/in_head（`red=0, yellow=1` 既有 TODO 格式） |
+| opc-skills | 2.37.0 | `a0c425a1` | 临时 worktree（`core.longpaths=true`），pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 2 WARN） |
+| zbuddy-mobile | 2.37.0 | `001554cc` | 临时稀疏浅克隆（排除 `docs/external/`），pushed（仅 GitHub `main`），`project check` passed/in_head（`red=0, yellow=1` 既有 TODO 格式；`assets-check --fast` 3 WARN） |
+| onceright | 2.37.0 | `477d428d` | 临时浅克隆，pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 1 WARN：`entry.budget`×1） |
+| awesome-llm-made-videos | 2.37.0 | `e3f847ad` | 临时浅克隆，pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`） |
+| avatanel | 2.37.0 | `83d35607` | 临时浅克隆，push `master`，`project check` passed/in_head（`red=0, yellow=0`） |
+
+十二个维护中项目的远端配置版本均读回 2.38.1（`zbuddy-desktop` GitHub 与 `codeup` 哈希均为 `a21276a6`；首次升级 `2.38.0` 在 `zbuddy-desktop` 77 个历史运行态包上发现逐文件 `git check-ignore` 超时后当场发布 `2.38.1` 修复并全量重升）。有未提交改动的本机工作区（`antiwave`、`zbuddy-desktop`、`ai_study`、`content-system`、`opc-skills`、`zbuddy-mobile`）均未触碰。
+
 ### 2026-11-26 批量升级（2.37.0）
 
 | 项目 | 升级前 | 新提交 | 结果 |
