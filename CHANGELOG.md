@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.38.1 - 2026-11-27
+
+- **修复大仓 `assets-check --fast` 运行态证据包检查超时与存量历史包误阻断**：
+  - `scripts/runtime_packet.py` 与 `scripts/runtime_check.py` 将逐证据文件 `git check-ignore` 子进程（N+1 爆炸）重构为单次 `git check-ignore --stdin -z`（`git_ignored_set`），消除多证据包仓库（如 `zbuddy-desktop` 77 个提交态证据包）在 Windows 上触发数百至数千次 `git.exe` 启动导致的 >180s 超时。
+  - `scripts/asset_checks.py` 将 `assets-check --fast`（pre-commit）的提交态运行态证据包检查收敛为增量模式：仅校验本次改动的或带 `acceptance_ref` 的提交态证据包；全量 `assets-check` 巡检全部提交态证据包，并对未改动的存量无关联历史坏包降级为 `runtime.verification` WARN（避免历史残缺证据锁死无关提交），改动中或带 `acceptance_ref`/`live_e2e` 的坏包仍为硬 FAIL。
+  - 同步 `docs/contracts.md`、`docs/CODEMAP.md` 与 `tests/test_live_e2e_verification.py`。
+
 ## 2.38.0 - 2026-11-27
 
 - **大任务全量实机闭环验证（`live_e2e`）：Acceptance 冻结判据与 Runtime 证据包硬对齐**：

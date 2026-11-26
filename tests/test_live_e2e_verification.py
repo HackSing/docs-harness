@@ -411,6 +411,32 @@ class LiveE2EVerificationTest(HarnessTestBase):
         res2 = self.run_cli("runtime", "check", "--target", str(self.project), "--packet", ref2, expected=2)
         self.assertIn("runtime_acceptance_criterion_unknown", {e["code"] for e in res2["errors"]})
 
+    def test_assets_check_fast_skips_untouched_legacy_packet_but_full_warns(self) -> None:
+        import subprocess
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
+        legacy = self.live_packet("docs/acceptance/none.json", task="legacy-broken")
+        legacy.pop("acceptance_ref")
+        for flow in legacy["flows"]:
+            flow.pop("criterion_id", None)
+        legacy["flows"][0]["observed"] = "正常"
+        self.write_live_packet("docs/runtime-verification/legacy-broken/packet.json", legacy)
+        subprocess.run(["git", "-C", str(self.project), "init"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(self.project), "config", "user.email", "t@example.com"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(self.project), "config", "user.name", "Test"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(self.project), "add", "-A"], check=True, capture_output=True)
+        subprocess.run(["git", "-C", str(self.project), "commit", "--no-verify", "-m", "init"], check=True, capture_output=True)
+
+        fast = self.run_cli("assets-check", "--target", str(self.project), "--fast")
+        self.assertEqual(fast["status"], "passed", fast)
+        self.assertEqual(fast["warnings"], [])
+
+        full = self.run_cli("assets-check", "--target", str(self.project))
+        self.assertEqual(full["status"], "passed", full)
+        self.assertTrue(
+            any("存量运行态证据包校验未通过" in w for w in full["warnings"]),
+            full["warnings"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
