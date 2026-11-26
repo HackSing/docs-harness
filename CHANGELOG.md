@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.38.0 - 2026-11-27
+
+- **大任务全量实机闭环验证（`live_e2e`）：Acceptance 冻结判据与 Runtime 证据包硬对齐**：
+  - `Acceptance` 新增可选逐条 `pass_criteria`（通过标准）/ `fail_criteria`（失败判定，成对必填、非空泛、不得相同）与顶层 `live_e2e` 实机契约（`real_dependencies`、`environment`、`isolation_and_cleanup`、`deploy_command`、单缺陷熔断上限 `max_fix_rounds` 默认 `3`、执行前确认门 `confirm_before_run` 默认 `true`）；`acceptance create`/`amend`/`render` 同步支持，Markdown 投影直接作为执行前确认清单。
+  - `Runtime` 证据包（`docs-harness/runtime-verification/v1`）向后兼容扩展可选 `acceptance_ref`、`flows[].criterion_id`、`iterations[].deploy_ref` 与 `iterations[].rechecked_criteria`；关联带 `live_e2e` 的冻结 Acceptance 时，`runtime check` 自动校验 Acceptance SHA-256 指纹防篡改，并硬拒 `environment.mock=true`、非提交态路径、漏测任一实机 `criterion_id`、缺少或修复后未变更 `deploy_ref` 及终轮缺少 `rechecked_criteria`；失败轮次超 `max_fix_rounds` 输出 WARN。
+  - **补齐联动门禁**：`acceptance record`/`settle --input`/`check` 在引用运行态证据包时联动执行 `runtime check`，`live_e2e` 实机标准 `passed` 强制绑定关联本验收且通过检查的提交态 `packet.json`；`assets-check`（含 `--fast`）跨资产检查同步巡检仓库内全部 `docs/runtime-verification/*/packet.json`。
+- **受管入口、文档与测试**：`scripts/agent_prompt.md` 与 `AGENTS.md` 新增「大任务全量实机闭环」规则（受管块保持 <= 18,000 B 预算），字段细则入 `acceptance --help` / `runtime --help`；同步 `docs/contracts.md`、`docs/CODEMAP.md`、`SKILL.md`、`docs/testing.md`、`docs/runtime-verification/README.md` 与 `docs/knowledge/runtime-verification-quality-gate.json`；新增 `tests/test_live_e2e_verification.py` 与受管入口守卫（全仓 514 项测试通过）。
+- **下游升级说明**：`project upgrade --apply` 将刷新 `AGENTS.md` 受管区块（新增大任务全量实机闭环规则）与 `scripts/` 受管模块；存量非 `live_e2e` Acceptance 与运行态证据包零迁移完全兼容。
+
 ## 2.37.0 - 2026-11-26
 
 - **受管入口瘦身与 `AGENTS.md` 24 KB 预算门禁**：`scripts/agent_prompt.md` 瘦身至 18 KB 预算内（约 16.6 KB），低频命令与字段细则归位对应 `--help` epilog；`scripts/asset_checks.py` 新增 `AGENTS_FILE_MAX_BYTES = 24_000` / `MANAGED_PROMPT_MAX_BYTES = 18_000` 与 `check_agents_file_budget`，接入 `assets-check`（含 `--fast`）报 `entry.budget` WARN；`report` 子命令解析器迁入 `scripts/report_check.py`。
