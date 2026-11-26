@@ -15,9 +15,28 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 | onceright | `HackSing/onceright` | 2026-09-27 以 2.24.0 接入 main；2026-10-03 升级到 2.25.0，删掉 `CLAUDE.md` 块外自己写的 `@AGENTS.md`，改由受管区块导入，受管正文只加载一遍；2026-10-23 升级到 2.33.0 并加入路由 shadow 灰度（`routing/registry.json`，Windows 用户级 hook）；2026-10-25 以干净 worktree 升级到 2.34.0，`routing/` 注册表提交 `78fd240`（harness 升级为 `44437be`），本机未提交的视频改动未触碰，main 落后 2 个提交，需 pull |
 | awesome-llm-made-videos | `HackSing/awesome-llm-made-videos` | 2026-09-27 以 2.24.0 接入 main。公开仓库 |
 | avatanel | `HackSing/avatanel` | 默认分支是 `master`，推送用 `git -C <下游目录> push origin master`。`.docs-harness/inputs/` 里有早期提交入库的一次性输入文件，2.16.1 起该目录带嵌套 `.gitignore`，会出现旧文件受跟踪、新文件被忽略的混合状态，处置待定 |
-| content-system | 无（只有本地 git） | 2026-10-06 以 2.28.0 接入 main。没有远端，升级步骤第 5 步「推送」跳过，只做本地提交。克隆不在其他下游所在的项目目录里，按目录批量枚举下游时会漏掉它。接入时删掉了 `CLAUDE.md` 里自己写的 `@AGENTS.md`，改由受管区块导入（同 onceright），`@TODO.md` 保留。2026-11-04 未升级：本机无克隆且无远端 |
+| content-system | `HackSing/content-system` | 2026-10-06 以 2.28.0 接入 main（原仅本地 git，现已配置 GitHub 远端）。接入时删掉了 `CLAUDE.md` 里自己写的 `@AGENTS.md`，改由受管区块导入（同 onceright），`@TODO.md` 保留。2026-11-26 本机工作区有大量未提交改动且与远端分叉，升级通过临时浅克隆仅同步远端 `origin/main` |
 | memware-cloud | `HackSing/memware-cloud` | 2026-11-22 以 2.36.0 接入 main（`d79efbb`）。Next.js + Cloudflare 项目，CI 不跑 harness 检查，只靠本机 pre-commit。接入时补了 .gitignore 的 __pycache__/ 与 *.pyc |
-| antiwave | `HackSing/antiwave` | 2026-11-22 以 2.36.0 接入 main（`40d3358`），在临时 worktree 中完成。本机克隆目录名是 `aiwavetop`，与项目名不同，按目录名枚举下游时容易漏；接入时本机工作区有进行中的未提交改动，未触碰，主克隆已于 2026-11-22 快进到 `40d3358`。Next.js + Cloudflare 项目，接入时补了 .gitignore 的 __pycache__/ 与 *.pyc |
+| antiwave | `HackSing/antiwave` | 2026-11-22 以 2.36.0 接入 main（`40d3358`），在临时 worktree 中完成。本机克隆目录名曾为 `aiwavetop`（当前本机已有 `d:\Project\antiwave`），接入时补了 .gitignore 的 __pycache__/ 与 *.pyc |
+
+### 2026-11-26 批量升级（2.37.0）
+
+| 项目 | 升级前 | 新提交 | 结果 |
+|---|---|---|---|
+| dispatch | 2.35.0 | `9e212c4e` | pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 2 WARN） |
+| suiyi | 2.35.0 | `781196f9` | pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`） |
+| memware-cloud | 2.36.0 | `422c3420` | pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`） |
+| antiwave | 2.36.0 | `96911efa` | pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`） |
+| zbuddy-mobile | 2.36.0 | `aacb7467` | pushed（仅 GitHub `main`），`project check` passed/in_head（`red=0, yellow=1` 既有 TODO 格式；`assets-check --fast` 3 WARN） |
+| zbuddy-desktop | 2.36.0 | `cd8cdd36` | 临时 worktree，GitHub 与 `codeup` 均已推送，`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 7 WARN，含 `entry.budget`×1） |
+| ai_study | 2.35.0 | `b311a680` | 临时浅克隆，pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`） |
+| opc-skills | 2.35.0 | `6862851c` | 临时浅克隆（`core.longpaths=true`），pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 2 WARN） |
+| content-system | 2.33.0 | `cdc92295` | 临时浅克隆，pushed（`main`），`project check` passed/in_head（`red=0, yellow=1` 既有 TODO 格式） |
+| onceright | 2.35.0 | `8dffa4f9` | 临时浅克隆，pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 1 WARN：`entry.budget`×1） |
+| awesome-llm-made-videos | 2.35.0 | `c493c72b` | 临时浅克隆，pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`） |
+| avatanel | 2.35.0 | `6123e8a7` | 临时浅克隆，push `master`，`project check` passed/in_head（`red=0, yellow=0`） |
+
+十二个维护中项目的远端配置版本均读回 2.37.0（`zbuddy-desktop` GitHub 与 `codeup` 提交哈希一致）。有未提交改动的本机工作区（`zbuddy-desktop`、`ai_study`、`opc-skills`、`content-system`）均未触碰。
 
 ### 2026-11-04 批量升级（2.35.0）
 
