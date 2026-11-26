@@ -1,9 +1,12 @@
 # Changelog
 
-## Unreleased
+## 2.37.0 - 2026-11-26
 
-- **安装/升级集成多宿主防治标 Stop Hook**：新增受管模块 `scripts/plan_root_cause_hook.py`（跨宿主统一 Stop Hook，自动识别 Antigravity 与 Claude 兼容协议，含 `continuationActive`/`stop_hook_active` 与进程外防重兜底）与 `scripts/host_hooks.py`（探测与用户级配置写入，支持 `antigravity`、`claude-code`、`codex`、`qoder`、`zcode`、`deepseek-harness` 六个宿主）。`project init` 与 `project upgrade` 新增 `--host <id|skip>`，缺失时在交互终端请用户选择当前环境并自动配置，非交互 `--json` 返回 `host_hook.status=needs_host_selection` 与 `next_action`；同步更新 `package.json`、`docs/CODEMAP.md`、`docs/contracts.md`、`SKILL.md`、`README.md` 与 `tests/test_host_hooks.py`。
+- **受管入口瘦身与 `AGENTS.md` 24 KB 预算门禁**：`scripts/agent_prompt.md` 瘦身至 18 KB 预算内（约 16.6 KB），低频命令与字段细则归位对应 `--help` epilog；`scripts/asset_checks.py` 新增 `AGENTS_FILE_MAX_BYTES = 24_000` / `MANAGED_PROMPT_MAX_BYTES = 18_000` 与 `check_agents_file_budget`，接入 `assets-check`（含 `--fast`）报 `entry.budget` WARN；`report` 子命令解析器迁入 `scripts/report_check.py`。
+- **安装/升级集成多宿主防治标 Stop Hook 与 Antigravity 防重修复**：新增受管模块 `scripts/plan_root_cause_hook.py`（跨宿主统一 Stop Hook，自动识别 Antigravity 与 Claude 兼容协议，支持续跑未传 `continuationActive` 时的轨迹已拦截扫描与全宿主进程外单轮防重锁）与 `scripts/host_hooks.py`（探测与用户级配置写入，支持 `antigravity`、`claude-code`、`codex`、`qoder`、`zcode`、`deepseek-harness` 六个宿主）。`project init` 与 `project upgrade` 新增 `--host <id|skip>`，缺失时在交互终端请用户选择当前环境并自动配置，非交互 `--json` 返回 `host_hook.status=needs_host_selection` 与 `next_action`；同步更新 `package.json`、`docs/CODEMAP.md`、`docs/contracts.md`、`SKILL.md`、`README.md` 与 `tests/test_host_hooks.py`。
 - **修复 `dsh-plugin` 引擎种子复制与 `project init --apply`**：`dsh-plugin/scripts/seed-vendor.mjs` 改为直接从 `scripts/harness.py` 解析 `MANAGED_MODULE_RELATIVE_FILES` 单一真源（修复漏复制 `scripts/agent_prompt.md` 等非 `.py`/`.cjs` 受管模块）；`dsh-plugin/scripts/extract-managed-block.mjs` 与 `dsh-plugin/src/host/project-ops.js` 补齐 `project init --apply`，`verify-package.mjs` 同步校验 `agent_prompt.md`、`host_hooks.py` 与 `plan_root_cause_hook.py`。
+- **测试夹具日期稳定化**：`tests/test_asset_checks_semantics.py` 的 `amend` 宽限期用例改用相对当前时间的夹具日期。
+- **下游升级说明**：`project upgrade --apply` 将刷新 `AGENTS.md` 受管区块（受管块约缩减 10 KB）、新增 `scripts/host_hooks.py` 与 `scripts/plan_root_cause_hook.py`、更新 `scripts/harness.py` / 受管模块及 `plan-templates/`。
 
 ## 2.36.0 - 2026-11-18
 

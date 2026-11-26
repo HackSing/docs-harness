@@ -130,7 +130,7 @@ from plan_selection import (
     validate_selection,
 )
 
-VERSION = "2.36.0"
+VERSION = "2.37.0"
 CONFIG_SCHEMA = "docs-harness/project-config/v13"
 KNOWN_LEGACY_CONFIG_SCHEMAS = {
     f"docs-harness/project-config/v{version}" for version in range(1, 13)
