@@ -1,6 +1,6 @@
 # 意图路由：注册表、校验、Shadow 与放量
 
-状态：B1 已实现，默认关闭。B2–B5 尚未开始。本文件描述仓库侧能力与宿主接入边界。
+状态：B1 已实现，默认关闭。B2 shadow 试点（macOS 用户级 Qoder hook 与 zbuddy 两下游快照）已于 2026-11-02 停用，Windows 侧历史 shadow 运行数据已于 2026-11-22 清理；B3–B5 尚未开始。本文件描述仓库侧能力与宿主接入边界。
 
 ## 1. 职责边界
 
@@ -169,7 +169,7 @@ summary = summarize_shadow(
 | shadow sink | Qoder Desktop 真实 `UserPromptSubmit` 已在 demo 会话触发：首条 `dfmodel`/`code`，同会话后续消息命中 `route-cache`、`cache_hit=true`、延迟 0.0s；主任务生成并更新 `hello.py`，无 hook 错误。用户级 hook 已写入 `~/.qoder-cn/settings.json`，并在本仓会话真实写入 3 条 Shadow 事件 | 项目级与用户级均已确认 |
 | 20–50 条真实任务基线 | 目前只有手工真实 prompt；尚无 1–2 周真实任务统计 | 未开始 |
 
-结论：A 在 Qoder 上已完成端到端闭环：国内账号已登录，`dfmodel` 完成真实路由，Qoder Desktop 的 `UserPromptSubmit` hook 已触发并写入 Shadow；同一会话后续消息命中 `route-cache`，不再启动 CLI。用户级 hook 已安装，带项目门禁，只对含 Docs Harness 标识的项目生效。下一步是在新会话复验用户级 hook，再跑 1–2 周真实任务 shadow，采集关键漏配、返工、延迟与用量。Hook 只能追加 context，不能移除已加载的 AGENTS.md；要拿到 token 收益仍需拆分内核与模块契约。
+B0 审计结论（试点期记录；macOS 用户级 hook 已于 2026-11-02 停用，见第 10–11 节）：A 在 Qoder 上已完成端到端闭环：国内账号已登录，`dfmodel` 完成真实路由，Qoder Desktop 的 `UserPromptSubmit` hook 已触发并写入 Shadow；同一会话后续消息命中 `route-cache`，不再启动 CLI。用户级 hook 已安装，带项目门禁，只对含 Docs Harness 标识的项目生效。下一步是在新会话复验用户级 hook，再跑 1–2 周真实任务 shadow，采集关键漏配、返工、延迟与用量。Hook 只能追加 context，不能移除已加载的 AGENTS.md；要拿到 token 收益仍需拆分内核与模块契约。
 
 ## 7. B2 运行手册
 
@@ -224,7 +224,7 @@ npm run pack:check
 
 ## 10. Qoder hook 原型（A 路径）
 
-状态：用户级已安装，默认 `shadow` 只记录；`canary`/`enforced` 才注入契约。它验证 A 的宿主注入链路，不改变下游安装面。
+状态：2026-11-02 已在 macOS 本机停用（用户级 hook 条目已从 `~/.qoder-cn/settings.json` 移除，备份保留，不再路由任何项目；Windows 侧 Qoder 用户级配置未核实）。启用时默认 `shadow` 只记录，`canary`/`enforced` 才注入契约；它验证 A 的宿主注入链路，不改变下游安装面。
 
 Qoder 官方 hooks 文档确认：`UserPromptSubmit` 在用户提交 prompt 后、主 Agent 处理前触发；`command` handler 可从 stdin 读取事件 JSON，并向 stdout 输出 `hookSpecificOutput.additionalContext`。原型使用这个入口。
 
@@ -337,7 +337,7 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
   python3 routing/hosts/qoder/route_hook.py
 ```
 
-用户级安装（当前采用）：
+用户级安装（停用前采用，2026-11-02 已在 macOS 移除）：
 
 1. 在 `~/.qoder-cn/settings.json` 的 `hooks.UserPromptSubmit` 增加一组 command hook。macOS/Linux 指向本仓 `routing/hosts/qoder/user-hook.sh`；Windows 的 `command` 直接写 `C:/Windows/py.exe -3 <DOCS_HARNESS_ROOT>/routing/hosts/qoder/route_hook.py`（或用 `Get-Command python` 得到的实际解释器路径）。Qoder 0.4.11 的 hook runner 不会可靠执行 `cmd /c user-hook.cmd` 这种嵌套命令；`user-hook.cmd` 只适合能直接执行批处理的宿主。`env` 设置 `DOCS_HARNESS_ROOT`、`DOCS_HARNESS_ROUTER_ENABLED=1`、`DOCS_HARNESS_ROUTER_PHASE=shadow`、`DOCS_HARNESS_ROUTER_BACKEND=cli`、`DOCS_HARNESS_QODER_CLI`、`DOCS_HARNESS_QODER_CONFIG_DIR`、`DOCS_HARNESS_QODER_EMPTY_DIR`。
 2. 入口按 PATH 自动探测可用的 `python3`/`python`，不写死解释器路径。`route_hook.py` 用 hook 输入里的 `cwd`（或宿主提供的 `QODER_PROJECT_DIR`）检查 `routing/registry.json`；没有就静默退出，不写日志、不启动 CLI、不改上下文。只有显式带路由注册表的项目才会被注入，旧版 docs-harness（只有 `.docs-harness/config.json`）和未安装项目都不受影响。需要 opt-in 的项目把 `routing/registry.json` 放进项目即可。
@@ -370,7 +370,7 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 
 试点方案：`docs/plans/zbuddy-routing-pilot.json`。主方案仍明确不向下游安装路由器；本试点是独立的最小 opt-in，不改变下游安装面。
 
-当前接入：
+试点接入范围（2026-10-23）：
 
 - `zbuddy-mobile`：`/Users/aiware/projects/zbuddy-mobile/routing/registry.json` + `README.md`。
 - `zbuddy-desktop`：`/Users/aiware/projects/zbuddy-desktop/routing/registry.json` + `README.md`。
@@ -396,15 +396,20 @@ echo '{"hook_event_name":"UserPromptSubmit","session_id":"demo","cwd":"'"$PWD"'"
 
 下游 `routing/` 已分别提交并推送：zbuddy-mobile `67e9eb9`、zbuddy-desktop `1c359540`、onceright `78fd240`。提交动作由用户明确确认，覆盖试点方案中“不提交下游仓库”的执行约束；方案本身仍保持 settled 记录。
 
-未覆盖：zbuddy 与 onceright 的 1–2 周真实任务采样、注册表漂移自动检测和跨项目日志聚合；onceright 目前只验证了一次只读任务。
+停用与清理：
+
+- 2026-11-02（macOS）：用户级 Qoder hook 条目已从 `~/.qoder-cn/settings.json` 移除；两个 zbuddy 下游的 `routing/` 目录已删除并推送：zbuddy-mobile `9eb31e6`、zbuddy-desktop `0fa81ec5`（GitHub 与 codeup 同步）。本仓保留 `routing/registry.json`（合同测试依赖）与路由代码；macOS 侧已有 Shadow 日志保留，恢复需重新安装 hook 并重新复制注册表快照。`onceright`（Windows）的 `routing/` 目录未在本次操作中核实或删除。
+- 2026-11-22（Windows）：清理 `C:/Users/freed/.gemini/config/hooks.json` 中已停用的 `"docs-harness-router"` 条目，并删除 `docs-harness`、`zbuddy-desktop`、`zbuddy-mobile` 三个项目的 `.docs-harness/routing` 历史 Shadow 运行数据目录（见 `.docs-harness/reports/2026-11-22-remove-routing-shadow.md`）；仓库源码中的 `routing/` 与 `scripts/routing_*.py` 保留未动。
+
+未覆盖：zbuddy 与 onceright 的 1–2 周真实任务采样、注册表漂移自动检测和跨项目日志聚合；onceright 目前只验证了一次只读任务，且其 `routing/` 快照现状未核实。
 
 ## 12. 未覆盖与待定
 
-- B2 shadow 的仅记录模式已启用（28 项 hook 测试 + 8 项缓存信号测试）；zbuddy-desktop 已有 30 条真实消息，24 条高置信标注显示关键漏配 6/24、过度路由 4/24；2026-10-25 召回实验（plan 缓存任务切换 + 澄清提示）仍保持 shadow，单次回放估计漏配降至约 4/25、过度路由降至约 1/25，真实数据未复验，B2 的 0 漏配门槛仍未达到；更多真实任务采集、阈值校准与 B3–B5 尚未开始。
-- 国内原生 `qoderclicn` 已登录并能真实调用；`dfmodel` 的 token/credit 计量为 0；项目级 Desktop 已完成端到端触发与同会话缓存复验，用户级 hook 已在本仓会话触发并记录 3 条事件，1–2 周 shadow 和回滚演练未完成。
+- B2 shadow 的仅记录模式已于 2026-11-02 在 macOS 停用（原有 28 项 hook 测试 + 8 项缓存信号测试）；停用前 zbuddy-desktop 累计 30 条真实消息，24 条高置信标注显示关键漏配 6/24、过度路由 4/24；2026-10-25 召回实验（plan 缓存任务切换 + 澄清提示）保持 shadow，单次回放估计漏配降至约 4/25、过度路由降至约 1/25，真实数据未复验，B2 的 0 漏配门槛仍未达到；更多真实任务采集、阈值校准与 B3–B5 尚未开始。
+- 国内原生 `qoderclicn` 已登录并能真实调用；`dfmodel` 的 token/credit 计量为 0；项目级 Desktop 已完成端到端触发与同会话缓存复验；用户级 hook 曾在本仓会话触发并记录 3 条事件，2026-11-02 已在 macOS 移除；1–2 周 shadow 未完成。
 - 会话缓存已在 demo 和脚本级各验证一次；尚未在多任务、长会话、上下文压缩和 `/route-reset` 场景统计命中率与误复用。
 - 20–50 条真实任务基线尚未建立。
 - 延迟、token、成本、Credits、澄清和返工阈值尚未校准。
 - 内核/模块契约尚未拆分，当前 hook 只追加契约，不减少 AGENTS.md token。
-- 路由器尚未安装到任何下游项目；下游仍使用 2.33.0 的提示词规则。
+- 路由器未安装到任何下游项目；zbuddy-mobile 与 zbuddy-desktop 曾放过注册表快照，已于 2026-11-02 删除（`onceright` 快照现状未核实）；下游仍使用常规 Docs Harness 提示词规则（各项目当前版本见 `docs/downstream.md`）。
 - 离线强模型证据是引导式、同模型家族的 curated 集，不能当作生产准确率。
