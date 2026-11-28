@@ -24,7 +24,11 @@ from host_hooks import (  # noqa: E402
     is_host_configured,
     reconcile_host_hook,
 )
-from plan_root_cause_hook import CHALLENGE_REASON, evaluate_stop  # noqa: E402
+from plan_root_cause_hook import (  # noqa: E402
+    ANTIGRAVITY_CHALLENGE_REASON,
+    CHALLENGE_REASON,
+    evaluate_stop,
+)
 
 
 class HostHooksConfigTest(unittest.TestCase):
@@ -211,7 +215,10 @@ class UnifiedStopHookRuntimeTest(unittest.TestCase):
             },
             guard_cache_path=self.guard,
         )
-        self.assertEqual(first, {"decision": "continue", "reason": CHALLENGE_REASON})
+        self.assertEqual(first, {"decision": "continue", "reason": ANTIGRAVITY_CHALLENGE_REASON})
+        self.assertIn("Worked for", first["reason"])
+        self.assertIn("自包含", first["reason"])
+        self.assertNotIn("用 1–2 句给出依据直接确认", first["reason"])
         second = evaluate_stop(
             {
                 "hookEventName": "Stop",
@@ -230,26 +237,30 @@ class UnifiedStopHookRuntimeTest(unittest.TestCase):
             "确认已最小治本：唯一真源调整与单一门禁已核验无遗漏入口，无需追加额外补丁，"
             "等待你确认后直接开始执行全部改动并补充对应回归测试。" * 2
         )
-        tpath = self._write_jsonl("agy_challenged.jsonl", [
-            {"type": "USER_INPUT", "content": "<USER_REQUEST>\n检查下原因并给方案\n</USER_REQUEST>"},
-            {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "read_file", "args": {"Path": '"scripts/a.py"'}}]},
-            {"type": "PLANNER_RESPONSE", "content": "修复方案：直接调整状态所有者层。" + ("说明。" * 60)},
-            {"type": "SYSTEM_MESSAGE", "content": f"<SYSTEM_MESSAGE>\nStop hook blocked termination: {CHALLENGE_REASON}\n</SYSTEM_MESSAGE>"},
-            {"type": "PLANNER_RESPONSE", "content": followup},
-        ])
-        for extra in ({"continuationActive": False}, {}):
-            res = evaluate_stop(
-                {
-                    "hookEventName": "Stop",
-                    "terminationReason": "NO_TOOL_CALL",
-                    "fullyIdle": True,
-                    "transcriptPath": tpath,
-                    "lastUserInput": "检查下原因并给方案",
-                    **extra,
-                },
-                guard_cache_path=self.tmp_dir / f"guard_{len(extra)}.json",
-            )
-            self.assertEqual(res, {}, msg=f"Should skip when challenged in transcript: {extra}")
+        for label, injected_reason in (
+            ("antigravity", ANTIGRAVITY_CHALLENGE_REASON),
+            ("legacy", CHALLENGE_REASON),
+        ):
+            tpath = self._write_jsonl(f"agy_challenged_{label}.jsonl", [
+                {"type": "USER_INPUT", "content": "<USER_REQUEST>\n检查下原因并给方案\n</USER_REQUEST>"},
+                {"type": "PLANNER_RESPONSE", "tool_calls": [{"name": "read_file", "args": {"Path": '"scripts/a.py"'}}]},
+                {"type": "PLANNER_RESPONSE", "content": "修复方案：直接调整状态所有者层。" + ("说明。" * 60)},
+                {"type": "SYSTEM_MESSAGE", "content": f"<SYSTEM_MESSAGE>\nStop hook blocked termination: {injected_reason}\n</SYSTEM_MESSAGE>"},
+                {"type": "PLANNER_RESPONSE", "content": followup},
+            ])
+            for extra in ({"continuationActive": False}, {}):
+                res = evaluate_stop(
+                    {
+                        "hookEventName": "Stop",
+                        "terminationReason": "NO_TOOL_CALL",
+                        "fullyIdle": True,
+                        "transcriptPath": tpath,
+                        "lastUserInput": "检查下原因并给方案",
+                        **extra,
+                    },
+                    guard_cache_path=self.tmp_dir / f"guard_{label}_{len(extra)}.json",
+                )
+                self.assertEqual(res, {}, msg=f"Should skip when challenged in transcript ({label}): {extra}")
 
     def test_antigravity_loop_guard_blocks_second_trigger_and_allows_new_user_turn(self) -> None:
         prompt = "排查一下为什么这里报错，怎么修比较好"
@@ -270,7 +281,7 @@ class UnifiedStopHookRuntimeTest(unittest.TestCase):
             "lastUserInput": prompt,
         }
         first = evaluate_stop(payload, guard_cache_path=self.guard)
-        self.assertEqual(first, {"decision": "continue", "reason": CHALLENGE_REASON})
+        self.assertEqual(first, {"decision": "continue", "reason": ANTIGRAVITY_CHALLENGE_REASON})
         second = evaluate_stop(payload, guard_cache_path=self.guard)
         self.assertEqual(second, {})
 
@@ -282,7 +293,7 @@ class UnifiedStopHookRuntimeTest(unittest.TestCase):
         ])
         tpath = self._write_jsonl("agy_guard.jsonl", entries)
         third = evaluate_stop(payload, guard_cache_path=self.guard)
-        self.assertEqual(third, {"decision": "continue", "reason": CHALLENGE_REASON})
+        self.assertEqual(third, {"decision": "continue", "reason": ANTIGRAVITY_CHALLENGE_REASON})
 
     def test_claude_dialect_ignores_injected_challenge_user_message_and_blocks_repeat(self) -> None:
         followup = (
@@ -392,7 +403,9 @@ class UnifiedStopHookRuntimeTest(unittest.TestCase):
             capture_output=True,
             check=True,
         )
-        self.assertEqual(json.loads(proc.stdout)["decision"], "continue")
+        parsed_stdout = json.loads(proc.stdout)
+        self.assertEqual(parsed_stdout["decision"], "continue")
+        self.assertEqual(parsed_stdout["reason"], ANTIGRAVITY_CHALLENGE_REASON)
 
         # 验证写入 hooks.json 的真实 command 字符串可被宿主 shell 直接拉起（含 Windows cmd /c）
         cfg = json.loads((home / ".gemini" / "config" / "hooks.json").read_text(encoding="utf-8"))
@@ -413,6 +426,46 @@ class UnifiedStopHookRuntimeTest(unittest.TestCase):
             check=True,
         )
         self.assertEqual(json.loads(shell_proc.stdout), {})
+
+    def test_request_feedback_skips_visual_mockups_but_keeps_architecture_and_plan_paths(self) -> None:
+        def _run_artifact(tag: str, path_val: str, summary: str, prompt: str, reply: str) -> dict:
+            meta = json.dumps({"RequestFeedback": True, "Summary": summary, "UserFacing": True}, ensure_ascii=False)
+            tpath = self._write_jsonl(f"agy_{tag}.jsonl", [
+                {"type": "USER_INPUT", "content": f"<USER_REQUEST>\n{prompt}\n</USER_REQUEST>"},
+                {"type": "PLANNER_RESPONSE", "tool_calls": [
+                    {"name": "read_file", "args": {"Path": '"app/lib/ui/page.dart"'}},
+                    {"name": "write_file", "args": {"Path": json.dumps(path_val), "ArtifactMetadata": meta}},
+                ]},
+                {"type": "PLANNER_RESPONSE", "content": reply},
+            ])
+            return evaluate_stop(
+                {
+                    "hookEventName": "Stop", "terminationReason": "NO_TOOL_CALL",
+                    "fullyIdle": True, "continuationActive": False,
+                    "conversationId": f"conv-{tag}", "transcriptPath": tpath, "lastUserInput": prompt,
+                },
+                guard_cache_path=self.tmp_dir / f"guard_{tag}.json",
+            )
+
+        # 1. 视觉模拟图 / 视觉预览 / walkthrough 带 RequestFeedback=true 不应误判为代码方案
+        non_plans = (
+            ("mockup", r"C:\u\brain\c1\membership_ui_mockup.md", "录音卡 v2 视觉重设计模拟图", "先用生图功能生成一个模拟图"),
+            ("preview", r"C:\u\brain\c2\extension_visual_preview.md", "插件统一视觉改版预览集", "把新版界面预览图整理一下"),
+            ("walkthrough", r"C:\u\brain\c3\walkthrough.md", "改动走查说明", "整理一下走查结果"),
+        )
+        for tag, path_val, summary, prompt in non_plans:
+            self.assertEqual(_run_artifact(tag, path_val, summary, prompt, "已整理视觉模拟图请查看。" * 8), {}, tag)
+
+        # 2. 真正的架构文档与正式方案路径（即便文件名含 prototype）仍触发 Antigravity 自包含反证
+        for tag, path_val, summary, prompt in (
+            ("arch", r"C:\u\brain\c4\bidirectional-architecture.md", "全矩阵双向对接开放平台架构设计", "梳理一下对接架构"),
+            ("proto_plan", "docs/plans/frontend-prototype-review.md", "前端交互原型与视觉审查方案", "冻结原型与视觉审查方案"),
+        ):
+            self.assertEqual(
+                _run_artifact(tag, path_val, summary, prompt, "已完成方案文档，请审阅。"),
+                {"decision": "continue", "reason": ANTIGRAVITY_CHALLENGE_REASON},
+                tag,
+            )
 
 
 class ProjectInitUpgradeHostHookCliTest(HarnessTestBase):
