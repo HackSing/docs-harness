@@ -40,6 +40,7 @@
 - [运行态验证证据包与质量门](plans/runtime-verification-quality-gate.md) — 状态：已实施-仅追溯（代码已是真源，2026-10-25 核对）；关键符号：`check_packet`、`RUNTIME_PACKET_SCHEMA`、`RUNTIME_VERIFICATION_RELATIVE`
 - [AGENTS.md 24 KB 字节预算与受管入口瘦身](plans/agents-md-24kb-budget.md) — 状态：已实施-仅追溯（代码已是真源，2026-11-25 核对）；关键符号：`AGENTS_FILE_MAX_BYTES`、`MANAGED_PROMPT_MAX_BYTES`、`check_agents_file_budget`
 - [大任务全量实机闭环验证：Acceptance 冻结判据与 Runtime 硬对齐](plans/live-e2e-verification-loop.md) — 状态：已实施-仅追溯（代码已是真源，2026-11-26 核对）；关键符号：`LIVE_E2E_FIELDS`、`normalize_live_e2e_config`、`validate_acceptance_alignment`、`verify_record_runtime_evidence`
+- [前端可点击 HTML 原型确认门与产品视觉总监子智能体审查](plans/frontend-prototype-and-visual-director-review.md) — 状态：已实施-仅追溯（代码已是真源，2026-11-28 核对）；关键符号：`ALLOWED_UI_FIELDS`、`VISUAL_REVIEW_FIELDS`、`VISUAL_REVIEWERS`、`validate_ui_visual_review`
 <!-- docs-harness:plans-index:end -->
 
 ## 历史边界
@@ -53,7 +54,7 @@
 - [Docs Harness 下游安装面：源包判定、Structure 排除与约定目录](knowledge/downstream-install-surface.md) — 状态：有效（现行事实）；关键符号：`is_source_package`、`structure_exempt_paths`、`TASK_INPUTS_RELATIVE`
 - [Docs Harness 本地 usage 观测机制](knowledge/usage-observability.md) — 状态：有效（现行事实）；关键符号：`record_usage_invoke`、`USAGE_SCHEMA_VERSION`、`build_report`、`usage_log_invalid`
 - [意图路由 B1：注册表、宿主校验、Shadow 与覆盖率](knowledge/strong-model-routing-b1.md) — 状态：有效（现行事实）；关键符号：`load_registry`、`validate_profile`、`summarize_shadow`、`coverage_check`
-- [运行态验证证据包与质量门](knowledge/runtime-verification-quality-gate.md) — 状态：有效（现行事实）；关键符号：`check_packet`、`RUNTIME_PACKET_SCHEMA`、`RUNTIME_VERIFICATION_RELATIVE`、`validate_acceptance_alignment`
+- [运行态验证证据包与质量门](knowledge/runtime-verification-quality-gate.md) — 状态：有效（现行事实）；关键符号：`check_packet`、`RUNTIME_PACKET_SCHEMA`、`RUNTIME_VERIFICATION_RELATIVE`、`validate_ui_visual_review`
 <!-- docs-harness:knowledge-index:end -->
 
 <!-- docs-harness:acceptance-index:start -->

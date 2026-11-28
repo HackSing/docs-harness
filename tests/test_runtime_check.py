@@ -381,6 +381,107 @@ class RuntimeCheckTest(HarnessTestBase):
         )
         self.assertEqual(payload["errors"][0]["code"], "runtime_packet_missing")
 
+    def ui_images(self) -> dict[str, bytes]:
+        return {
+            "desktop.png": b"desktop-image" + b"d" * 2048,
+            "mobile.png": b"mobile-image" + b"m" * 2048,
+            "extra.png": b"extra-image" + b"e" * 2048,
+        }
+
+    def valid_visual_review(self) -> dict[str, object]:
+        return {
+            "reviewer": "product_visual_director_subagent",
+            "verdict": "approved",
+            "reviewed_screenshots": ["evidence/desktop.png", "evidence/mobile.png"],
+            "findings": [
+                "P2: desktop 1440x900 primary CTA hierarchy and 16px card spacing are clear with no clipping",
+                "P2: mobile 390x844 error alert wraps cleanly and consumer copy gives a concrete retry action",
+            ],
+        }
+
+    def test_ui_visual_review_subagent_and_fallback_pass(self) -> None:
+        packet = self.ui_packet()
+        packet["ui"]["visual_review"] = self.valid_visual_review()
+        relative = self.write_packet("docs/runtime-verification/ui-smoke/packet.json", packet, self.ui_images())
+        payload = self.run_cli("runtime", "check", "--target", str(self.project), "--packet", relative)
+        self.assertEqual(payload["status"], "passed", payload)
+
+        fallback = self.ui_packet()
+        fallback["task"] = "ui-fallback"
+        fallback["ui"]["visual_review"] = {
+            **self.valid_visual_review(),
+            "reviewer": "fallback_self",
+            "fallback_reason": "Current headless CI runner does not provide a multimodal subagent",
+        }
+        rel2 = self.write_packet("docs/runtime-verification/ui-fallback/packet.json", fallback, self.ui_images())
+        payload2 = self.run_cli("runtime", "check", "--target", str(self.project), "--packet", rel2)
+        self.assertEqual(payload2["status"], "passed", payload2)
+
+    def test_ui_visual_review_rejects_unapproved_fake_screenshots_and_generic_findings(self) -> None:
+        # 1. changes_requested cannot pass closeout
+        p1 = self.ui_packet()
+        p1["ui"]["visual_review"] = {**self.valid_visual_review(), "verdict": "changes_requested"}
+        r1 = self.write_packet("docs/runtime-verification/ui-smoke/packet.json", p1, self.ui_images())
+        self.assert_rejected(r1, "runtime_ui_visual_review_unapproved")
+
+        # 2. reviewed_screenshots not belonging to ui.viewports
+        p2 = self.ui_packet()
+        p2["ui"]["visual_review"] = {**self.valid_visual_review(), "reviewed_screenshots": ["evidence/desktop.png", "evidence/extra.png"]}
+        r2 = self.write_packet("docs/runtime-verification/ui-smoke/packet.json", p2, self.ui_images())
+        self.assert_rejected(r2, "runtime_ui_visual_review_screenshots_invalid")
+
+        # 3. duplicate screenshot / single viewport
+        p3 = self.ui_packet()
+        p3["ui"]["visual_review"] = {**self.valid_visual_review(), "reviewed_screenshots": ["evidence/desktop.png", "evidence/desktop.png"]}
+        r3 = self.write_packet("docs/runtime-verification/ui-smoke/packet.json", p3, self.ui_images())
+        self.assert_rejected(r3, "runtime_ui_visual_review_screenshots_invalid")
+
+        # 4. hollow generic finding & missing fallback_reason
+        p4 = self.ui_packet()
+        p4["ui"]["visual_review"] = {**self.valid_visual_review(), "reviewer": "fallback_self", "findings": ["通过"]}
+        r4 = self.write_packet("docs/runtime-verification/ui-smoke/packet.json", p4, self.ui_images())
+        res4 = self.run_cli("runtime", "check", "--target", str(self.project), "--packet", r4, expected=2)
+        self.assertIn("runtime_packet_text_invalid", {item["code"] for item in res4["errors"]})
+
+        # 5. non-UI packet cannot declare ui.visual_review
+        non_ui = self.base_packet()
+        non_ui["ui"]["visual_review"] = self.valid_visual_review()
+        r5 = self.write_packet(".docs-harness/runtime/smoke/packet.json", non_ui)
+        self.assert_rejected(r5, "runtime_ui_unexpected")
+
+    def test_ui_packet_with_acceptance_ref_requires_visual_review(self) -> None:
+        self.run_cli("project", "init", "--target", str(self.project), "--apply")
+        acc_in = self.write_json(
+            ".docs-harness/inputs/ui-acc.json",
+            {
+                "schema_version": "docs-harness/acceptance-target-input/v1",
+                "title": "UI 页面验收",
+                "key_symbols": ["UiPage", "validate_ui_visual_review"],
+                "objective": "验证 UI 页面在双视口下通过产品视觉总监子智能体审查。",
+                "criteria": [{
+                    "id": "ui.flow",
+                    "title": "页面交互与视觉审查",
+                    "acceptance_type": "behavior_acceptance",
+                    "layer": "L3",
+                    "evidence_layer": "local_runtime",
+                }],
+            },
+        )
+        self.run_cli(
+            "acceptance", "create", "--target", str(self.project),
+            "--input", str(acc_in.relative_to(self.project)),
+            "--output", "docs/acceptance/ui-acc.json",
+        )
+        pkt = self.ui_packet()
+        pkt["acceptance_ref"] = "docs/acceptance/ui-acc.json"
+        rel = self.write_packet("docs/runtime-verification/ui-smoke/packet.json", pkt, self.ui_images())
+        self.assert_rejected(rel, "runtime_ui_visual_review_missing")
+
+        pkt["ui"]["visual_review"] = self.valid_visual_review()
+        rel = self.write_packet("docs/runtime-verification/ui-smoke/packet.json", pkt, self.ui_images())
+        ok = self.run_cli("runtime", "check", "--target", str(self.project), "--packet", rel)
+        self.assertEqual(ok["status"], "passed", ok)
+
 
 if __name__ == "__main__":
     unittest.main()

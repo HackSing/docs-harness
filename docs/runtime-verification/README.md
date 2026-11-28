@@ -13,4 +13,6 @@ python3 scripts/harness.py runtime check --target . \
 
 大任务全量实机闭环（`live_e2e`）：先用 `acceptance create` 冻结 `live_e2e` 契约与逐条 `pass_criteria`/`fail_criteria`（默认停下等用户确认再跑实机），再在证据包填写 `acceptance_ref`、`flows[].criterion_id`、`iterations[].deploy_ref` 与终轮 `rechecked_criteria`；`runtime check` 硬拒 `mock=true`、漏测实机标准与未重部署复测，`acceptance record` 与 `assets-check` 同步联动校验提交态 `packet.json`。
 
+前端交互原型与产品视觉总监审查：新增页面、核心弹窗或布局/交互大改先输出 `.docs-harness/views/<task>-prototype.html` 供用户确认；UI 视觉审查由只读子智能体以「产品视觉总监」实读双视口截图分级裁决并记入 `ui.visual_review`（关联 `acceptance_ref` 的 UI 包必填且终态须 `approved`）。
+
 证据包只证明结构和观察覆盖成立，不证明截图与实际页面一致，也不替代真实用户验收。

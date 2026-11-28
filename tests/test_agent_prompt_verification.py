@@ -74,6 +74,13 @@ class BackgroundVerificationPromptTest(unittest.TestCase):
             self.assertIn(phrase, prompt_text)
             self.assertIn(phrase, agents_text)
 
+    def test_frontend_prototype_and_visual_director_rule_present(self) -> None:
+        prompt_text = PROMPT_PATH.read_text(encoding="utf-8")
+        agents_text = AGENTS_PATH.read_text(encoding="utf-8")
+        for phrase in ("前端原型与视觉审查", "-prototype.html", "产品视觉总监", "ui.visual_review"):
+            self.assertIn(phrase, prompt_text)
+            self.assertIn(phrase, agents_text)
+
     def test_managed_agent_block_stays_within_budget(self) -> None:
         block = harness.managed_agent_block(ROOT)
         lf_bytes = len(block.encode("utf-8"))
@@ -106,6 +113,8 @@ class BackgroundVerificationPromptTest(unittest.TestCase):
                 "acceptance_ref",
                 "deploy_ref",
                 "rechecked_criteria",
+                "ui.visual_review",
+                "product_visual_director_subagent",
             ),
             "checklist": ("改动文件与符号", "plan_linked", ".docs-harness/tasks/"),
             "report": ("focused_test", ".docs-harness/reports/", "runtime check 退出码"),

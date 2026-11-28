@@ -338,5 +338,5 @@ python3 scripts/harness.py runtime check --target . \
 - 检查器拒绝：空泛或照抄的 observation、缺失/过小证据、必需状态缺失、UI 单视口或重复截图、无对抗探测、缺陷未闭环、mock 未声明限制、未知字段、路径或 `task` 不符合约定。
 - 证据文件放证据包同目录 `evidence/`；提交路径中的证据不得被 git 忽略。检查器不启动应用、不截图，不能证明截图与实际页面一致，也不替代真实用户验收。
 - 验证默认后台执行：分层做法、前台例外协议与完成判定见 `contracts.md` 第 4c 节。
-- 合同测试：`python3 -m unittest tests.test_runtime_check tests.test_live_e2e_verification -v`；聚焦用例覆盖通过包、18 类基础拒绝场景，以及大任务 `live_e2e` 冻结判据、`mock=false`、100% 实机标准覆盖、重部署 `deploy_ref`、终版回归与 `acceptance record`/`assets-check` 联动门禁。
+- 合同测试：`python3 -m unittest tests.test_runtime_check tests.test_live_e2e_verification -v`；聚焦用例覆盖通过包、18 类基础拒绝场景、`ui.visual_review` 产品视觉总监双视口真图审查校验，以及大任务 `live_e2e` 冻结判据、`mock=false`、100% 实机标准覆盖、重部署 `deploy_ref`、终版回归与 `acceptance record`/`assets-check` 联动门禁。
 - 未覆盖：不自动判断审美、像素差异和截图真实性；下游项目首次升级只验证模块安装与命令可用，不重跑全部历史任务。

@@ -171,10 +171,20 @@ class PlanLifecycleTest(HarnessTestBase):
             "--level", "full", "--profile", "frontend_ui",
         )
         fields = {item["id"]: item for item in selection["fields"]}
-        for field_id in ("components_interactions", "visual_responsive", "consumer_copy", "design_system_reuse"):
+        for field_id in (
+            "interactive_prototype",
+            "components_interactions",
+            "visual_responsive",
+            "consumer_copy",
+            "design_system_reuse",
+            "runtime_acceptance",
+        ):
             self.assertIn(field_id, fields)
             self.assertTrue(fields[field_id]["required"])
             self.assertTrue(fields[field_id]["guidance"])
+        self.assertIn(".docs-harness/views/<task>-prototype.html", fields["interactive_prototype"]["guidance"])
+        self.assertIn("产品视觉总监", fields["runtime_acceptance"]["guidance"])
+        self.assertIn("ui.visual_review", fields["runtime_acceptance"]["guidance"])
         self.assertIn("Dribbble", fields["visual_responsive"]["guidance"])
         self.assertIn("消费者", fields["consumer_copy"]["guidance"])
         self.assertIn("设计 token", fields["design_system_reuse"]["guidance"])

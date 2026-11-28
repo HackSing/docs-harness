@@ -128,6 +128,8 @@ python3 scripts/harness.py runtime check --target . --packet <path> --json
 
 大任务/发版级实机全量闭环：先通过 `acceptance create` 声明顶层 `live_e2e` 块（真实依赖、测试环境、隔离与清理、重部署方式、单缺陷熔断上限 `max_fix_rounds` 默认 3、执行前确认门 `confirm_before_run` 默认 `true`）及每条实机标准的 `pass_criteria`/`fail_criteria`，冻结并渲染清单后默认停下等用户确认再进真实测试环境；运行态证据包带 `acceptance_ref`、`flows[].criterion_id`、`iterations[].deploy_ref` 与终轮 `rechecked_criteria`，由 `runtime check` 硬拒 `mock=true`、漏测任一实机标准、修复后未重部署或终版未回归，并由 `acceptance record/check` 与 `assets-check` 联动放行。
 
+前端交互原型与产品视觉总监审查：新增页面、核心弹窗、大改布局/交互流或视觉改版时，先在 `.docs-harness/views/<task>-prototype.html` 输出可点击单文件 HTML 原型（含正常/空/加载/错误状态切换与双视口预览，正式编码禁复制内联样式），等用户确认后再推进方案（`frontend_ui` 模板 `interactive_prototype` 必填；局部文案/小样式修正豁免）；UI 视觉审查委派只读子智能体以「产品视觉总监」身份实读 `evidence/` 下至少两个不同视口截图，按六维分级裁决（最多 2–3 轮）并记入 `ui.visual_review`（关联 `acceptance_ref` 的 UI 包必填且终态须 `approved`，不支持读图/子智能体的宿主须诚实声明 `fallback_self` 与 `fallback_reason`）。
+
 验证默认后台执行：单测、构建和静态检查放后台进程，UI 用隐藏窗口或离屏渲染，模拟器用 headless；不得弹窗、抢焦点或自动打开文件夹。只有真实硬件、系统权限、原生弹窗等无法后台的层才上前台，并须提前说明、收尾记录；分层做法与前台例外协议见 `docs/contracts.md` 第 4c 节。
 
 ## 输入形状
