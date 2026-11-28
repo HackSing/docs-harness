@@ -1,5 +1,12 @@
 # Changelog
 
+## 2.39.0 - 2026-11-28
+
+- **前端可点击 HTML 原型确认门（`interactive_prototype`）**：`plan-templates/profiles/frontend-ui.json` 新增必填字段 `interactive_prototype`——新增页面、核心弹窗、布局/交互大改或视觉改版时，须先在 `.docs-harness/views/<task>-prototype.html` 输出可点击单文件 HTML 原型（内置正常/空/加载/错误状态切换与桌面/移动视口预览，正式编码禁复制内联样式）待用户确认观感与体验后再推进方案；局部文案、微小样式修正或纯逻辑修复豁免。
+- **产品视觉总监只读子智能体视觉审查硬校验（`ui.visual_review`）**：`scripts/runtime_packet.py` 与 `scripts/runtime_check.py` 拆分 `UI_FIELDS`/`ALLOWED_UI_FIELDS`，新增 `validate_ui_visual_review` 校验 `ui.visual_review`（`reviewer` 仅接受 `product_visual_director_subagent` 或带 `fallback_reason` 的 `fallback_self`、`verdict` 终态须 `approved`、`reviewed_screenshots` 须覆盖 `ui.viewports` 至少 2 个不同尺寸真图、`findings` 拒绝空泛词，打回修复最多 2–3 轮）；关联 `acceptance_ref` 的 UI 证据包强制必填 `ui.visual_review`，存量无关联历史 UI 包保持向后兼容零误报；同步 `scripts/agent_prompt.md` 与 `AGENTS.md`（受管块 17,635 B / CRLF 17,750 B <= 18,000 B）、`docs/contracts.md`、`docs/CODEMAP.md`、`SKILL.md`、`docs/testing.md`、`docs/runtime-verification/README.md` 与 `docs/knowledge/runtime-verification-quality-gate.json`。
+- **防治标 Stop Hook 改进（Antigravity 自包含提示与非方案原型排除）**：`scripts/plan_root_cause_hook.py` 拆分 `ANTIGRAVITY_CHALLENGE_REASON` 提醒 Antigravity 续跑后输出完整自包含结论，新增 `_is_non_plan_feedback_artifact` 排除 mockup/wireframe/prototype/视觉预览等非方案 `RequestFeedback` 产物误触发；同步补充 `tests/test_host_hooks.py` 回归测试。
+- **下游升级说明**：`project upgrade --apply` 将刷新 `AGENTS.md` 受管区块、`plan-templates/profiles/frontend-ui.json` 与 `scripts/` 受管模块（含 `runtime_packet.py`、`runtime_check.py`、`plan_root_cause_hook.py`）；存量历史 UI 证据包与已冻结 `frontend_ui` 方案零迁移完全兼容。
+
 ## 2.38.1 - 2026-11-27
 
 - **修复大仓 `assets-check --fast` 运行态证据包检查超时与存量历史包误阻断**：
