@@ -200,6 +200,7 @@ L1 不能声明行为正确。真实设备 Behavior Acceptance 可以记录 L5 �
 - 单测与构建不重复跑；输入未变不重跑，长任务放后台，完成后读日志，不用前台终端持续刷输出。
 - Electron 隐藏窗口不要用 CDP `Page.captureScreenshot` 截图，该调用可能永久挂起；统一走 `webContents.capturePage()`，离屏截图入口收口到项目统一脚本，不在用例里各写一套。
 - WPF 卡片用离屏渲染；禁止全屏置顶背景，禁止把验证卡片显示在用户桌面。
+- Windows 隔离桌面终端避坑：若宿主内置终端运行于隔离桌面层（如 Antigravity 的 `run_command`），凡需用户肉眼联调的可见桌面窗口、Electron 或系统托盘程序，禁止在隔离终端直起（进程会占端口但主桌面不可见）；已装真实桌面启动器（如 `agent-desktop` MCP `desktop_launch`，注意对已有 `node`/`cmd`/`powershell` 映像改用 `--detach` 脱钩与防超时参数）时经真实桌面拉起，否则确认端口空闲后将最短启动命令交用户自行执行；Windows 端口探测统一用 `netstat -ano`，不用慢速 `Get-NetTCPConnection`。
 - Android 模拟器用 `-no-window` 启动，截图走 `adb exec-out screencap -p`；iOS 模拟器用 `simctl boot` + `simctl io booted screenshot`，不打开 `Simulator.app`；项目内 mock 或设备模拟器用后台进程、CLI 断言和日志。
 - 只有图形保真度或真实输入必须肉眼确认时，才显示模拟器窗口，并按前台例外协议处理。
 - 证据截图和日志直接写入验收或证据目录，不自动打开文件夹或图片查看器。
@@ -252,10 +253,10 @@ Harness 不采集用户授权、不解析 agent usage、不保存原始用户聊
 项目安装只提供：
 
 - 受管的 direct-first `AGENTS.md` 区块，以及只含一行 `@AGENTS.md` 导入的 `CLAUDE.md` 区块（2.25.0 起；规约正文只在 `AGENTS.md`）；
-- `scripts/harness.py` 与受管资产生命周期模块（`managed_assets`、`asset_checks`、`plan_governance`、`knowledge_assets`、`acceptance_assets`、`adr_assets`、`script_hygiene`、`structure_check`、`structure_ts_functions.cjs`、`usage_log`、`usage_report`、`report_check`、`checklist_check`、`runtime_check`、`runtime_packet`、`symbol_check`、`acceptance_diagnostics`、`diagram_view`、`plan_amend`、`plan_selection`、`plan_check`、`acceptance_amend`、`acceptance_render`、`asset_query`、`cli_support`、`host_hooks`、`plan_root_cause_hook`、`agent_prompt.md`）；
+- `scripts/harness.py` 与受管资产生命周期模块（`managed_assets`、`asset_checks`、`plan_governance`、`knowledge_assets`、`acceptance_assets`、`adr_assets`、`script_hygiene`、`structure_check`、`structure_ts_functions.cjs`、`usage_log`、`usage_report`、`report_check`、`checklist_check`、`runtime_check`、`runtime_packet`、`symbol_check`、`acceptance_diagnostics`、`diagram_view`、`plan_amend`、`plan_selection`、`plan_check`、`acceptance_amend`、`acceptance_render`、`asset_query`、`cli_support`、`host_hooks`、`host_rules`、`plan_root_cause_hook`、`agent_prompt.md`）；
 - 版本化 `plan-templates/`；
 - `scripts/githooks/`。目标是 git 仓库且 `core.filemode=false`（Windows 默认）时，`init`/`upgrade --apply` 会把索引中缺失或非 `100755` 的两个钩子以 `git update-index --add --chmod=+x` 登记，内容随之进入暂存区，payload 的 `githook_index_mode_registered` 列出登记路径；登记失败以 `githook_index_mode_failed` 报错并给出手工命令，被 git 忽略的钩子路径不强行加入（2.23.0）；
-- 用户级宿主防治标 Stop Hook（`scripts/host_hooks.py` 与 `scripts/plan_root_cause_hook.py`）：`project init/upgrade` 在预览与 `--apply` 时均探测当前机器是否已配置用户级防治标 Stop Hook（支持 `antigravity`、`claude-code`、`codex`、`qoder`、`zcode`、`deepseek-harness` 六个宿主，并接受 `--host <id|skip>` 显式指定）。脚本落盘到 `~/.docs-harness/hooks/plan_root_cause_hook.py`，各宿主配置按既有格式幂等合并，不破坏原有设置；若检测到当前环境未配置且未传 `--host`：交互终端（非 `--json` 且 TTY）直接提示用户编号选择当前环境并写入，非交互/Agent（`--json` 或非 TTY）不阻塞，返回 `host_hook.status=needs_host_selection`、`available_hosts` 与 `next_action` 交由调用方询问用户后以 `--host` 完成配置。已配置环境后续再次安装/升级自动识别跳过，不修改 `.docs-harness/config.json` schema。
+- 用户级宿主防治标 Stop Hook 与宿主受管规则（`scripts/host_hooks.py`、`scripts/host_rules.py` 与 `scripts/plan_root_cause_hook.py`）：`project init/upgrade` 在预览与 `--apply` 时均探测当前机器是否已配置用户级防治标 Stop Hook（支持 `antigravity`、`claude-code`、`codex`、`qoder`、`zcode`、`deepseek-harness` 六个宿主，并接受 `--host <id|skip>` 显式指定）。脚本落盘到 `~/.docs-harness/hooks/plan_root_cause_hook.py`，各宿主配置按既有格式幂等合并，不破坏原有设置；对 `antigravity` 宿主同时幂等写入 `~/.gemini/config/rules/docs-harness-antigravity-subagents.md`（全平台，约束委派子智能体仅用内置类型、防自定义 agent 4× 配额倍率）及 `docs-harness-windows-gui-launch.md`（仅 Windows，隔离桌面 GUI/托盘启动避坑与 `netstat -ano`），不占项目 `AGENTS.md` 18 KB 预算，也不触碰用户已有其他规则。若检测到当前环境未配置且未传 `--host`：交互终端（非 `--json` 且 TTY）直接提示用户编号选择当前环境并写入，非交互/Agent（`--json` 或非 TTY）不阻塞，返回 `host_hook.status=needs_host_selection`、`available_hosts` 与 `next_action` 交由调用方询问用户后以 `--host` 完成配置。已配置环境后续再次安装/升级自动识别跳过选择，并幂等刷新钩子脚本与已配置宿主的受管规则，不修改 `.docs-harness/config.json` schema。
 - `docs/plans/`、`docs/knowledge/`、`docs/acceptance/`、`docs/adr/`、各自 archive 与 `docs/INDEX.md` 独立索引区块；
 - 缺失时的项目级 `CHANGELOG.md`、`TODO.md`、`README.md` 骨架（已存在绝不覆盖）；
 - `.docs-harness/config.json`（`docs-harness/project-config/v13`，含 `usage_log.enabled`）；

@@ -193,6 +193,7 @@ MANAGED_MODULE_RELATIVE_FILES = (
     "asset_query.py",
     "cli_support.py",
     "host_hooks.py",
+    "host_rules.py",
     "plan_root_cause_hook.py",
     "agent_prompt.md",
 )

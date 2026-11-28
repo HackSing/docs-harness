@@ -24,6 +24,7 @@ from host_hooks import (  # noqa: E402
     is_host_configured,
     reconcile_host_hook,
 )
+from host_rules import antigravity_rules_dir  # noqa: E402
 from plan_root_cause_hook import (  # noqa: E402
     ANTIGRAVITY_CHALLENGE_REASON,
     CHALLENGE_REASON,
@@ -174,6 +175,58 @@ class HostHooksConfigTest(unittest.TestCase):
         info_claude = inspect_host_hooks(home_dir=self.home, environ={"CLAUDECODE": "1"})
         self.assertEqual(info_claude["status"], "missing")
         self.assertEqual(info_claude["active_host_hint"], "claude-code")
+
+    def test_antigravity_rules_platform_filter_preserves_user_rules_and_idempotent(self) -> None:
+        rules_dir = antigravity_rules_dir(self.home)
+        rules_dir.mkdir(parents=True)
+        custom = rules_dir / "my-custom-rule.md"
+        custom.write_text("# user rule\n", encoding="utf-8")
+
+        win_res = install_host_hook("antigravity", ROOT, home_dir=self.home, is_windows=True)
+        sub_rule = rules_dir / "docs-harness-antigravity-subagents.md"
+        gui_rule = rules_dir / "docs-harness-windows-gui-launch.md"
+        self.assertEqual(win_res["rule_paths"], [str(sub_rule), str(gui_rule)])
+        self.assertTrue(sub_rule.read_text(encoding="utf-8").startswith("---\ntrigger: always_on\n---"))
+        self.assertIn("netstat -ano", gui_rule.read_text(encoding="utf-8"))
+        self.assertEqual(custom.read_text(encoding="utf-8"), "# user rule\n")
+        self.assertEqual(install_host_hook("antigravity", ROOT, home_dir=self.home, is_windows=True)["changed"], [])
+
+        # 非 Windows 只写配额规则，不写 Windows 桌面启动规则；其他宿主不碰 rules 目录
+        posix_home = Path(self._tmp.name) / "posix_home"
+        posix_res = install_host_hook("antigravity", ROOT, home_dir=posix_home, is_windows=False)
+        posix_rules = antigravity_rules_dir(posix_home)
+        self.assertEqual(posix_res["rule_paths"], [str(posix_rules / "docs-harness-antigravity-subagents.md")])
+        self.assertTrue((posix_rules / "docs-harness-antigravity-subagents.md").is_file())
+        self.assertFalse((posix_rules / "docs-harness-windows-gui-launch.md").exists())
+        claude_home = Path(self._tmp.name) / "claude_home"
+        claude_res = install_host_hook("claude-code", ROOT, home_dir=claude_home, is_windows=True)
+        self.assertEqual(claude_res["rule_paths"], [])
+        self.assertFalse(antigravity_rules_dir(claude_home).exists())
+
+    def test_antigravity_preview_lists_rules_and_upgrade_refreshes_missing_rules(self) -> None:
+        preview = inspect_host_hooks(home_dir=self.home, environ={}, selected_host="antigravity", is_windows=True)
+        self.assertTrue(any(p.endswith("docs-harness-antigravity-subagents.md") for p in preview["planned_files"]))
+        self.assertTrue(any(p.endswith("docs-harness-windows-gui-launch.md") for p in preview["planned_files"]))
+        self.assertFalse(antigravity_rules_dir(self.home).exists())
+
+        # 模拟老版本已配 hooks.json 但尚无受管规则：再次 apply 自动补齐且二次幂等
+        install_host_hook("antigravity", ROOT, home_dir=self.home, is_windows=True)
+        sub_rule = antigravity_rules_dir(self.home) / "docs-harness-antigravity-subagents.md"
+        sub_rule.unlink()
+        refreshed = reconcile_host_hook(
+            action="upgrade", target=self.home / "proj", source_root=ROOT, apply=True,
+            selected_host=None, as_json=True, interactive=False,
+            home_dir=self.home, environ={}, is_windows=True,
+        )
+        self.assertEqual(refreshed["status"], "already_configured")
+        self.assertEqual(refreshed["rules_updated"], [str(sub_rule)])
+        self.assertTrue(sub_rule.is_file())
+        again = reconcile_host_hook(
+            action="upgrade", target=self.home / "proj", source_root=ROOT, apply=True,
+            selected_host=None, as_json=True, interactive=False,
+            home_dir=self.home, environ={}, is_windows=True,
+        )
+        self.assertEqual(again["rules_updated"], [])
 
 
 class UnifiedStopHookRuntimeTest(unittest.TestCase):
@@ -519,13 +572,17 @@ class ProjectInitUpgradeHostHookCliTest(HarnessTestBase):
         self.assertEqual(configured["host_hook"]["status"], "configured")
         self.assertEqual(configured["host_hook"]["host"], "antigravity")
         self.assertTrue(is_host_configured("antigravity", self.fake_home))
+        rules_dir = antigravity_rules_dir(self.fake_home)
+        self.assertTrue((rules_dir / "docs-harness-antigravity-subagents.md").is_file())
+        self.assertEqual((rules_dir / "docs-harness-windows-gui-launch.md").is_file(), os.name == "nt")
 
-        # 新项目再次安装时检测到用户级已配置，不再要求选择
+        # 新项目再次安装时检测到用户级已配置，不再要求选择，规则也已最新
         second_project = Path(self.temp.name) / "project2"
         second_project.mkdir()
         second = self._run_with_home("project", "init", "--target", str(second_project), "--apply")
         self.assertEqual(second["host_hook"]["status"], "already_configured")
         self.assertIn("antigravity", second["host_hook"]["configured_hosts"])
+        self.assertEqual(second["host_hook"]["rules_updated"], [])
 
     def test_host_flag_rejected_on_non_install_actions(self) -> None:
         self._run_with_home("project", "init", "--target", str(self.project), "--apply", "--host", "skip")
