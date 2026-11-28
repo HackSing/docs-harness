@@ -19,6 +19,25 @@ docs-harness 发版后需要同步升级的下游项目。本文只记项目名�
 | memware-cloud | `HackSing/memware-cloud` | 2026-11-22 以 2.36.0 接入 main（`d79efbb`）。Next.js + Cloudflare 项目，CI 不跑 harness 检查，只靠本机 pre-commit。接入时补了 .gitignore 的 __pycache__/ 与 *.pyc |
 | antiwave | `HackSing/antiwave` | 2026-11-22 以 2.36.0 接入 main（`40d3358`），在临时 worktree 中完成。本机克隆目录名曾为 `aiwavetop`（当前本机已有 `d:\Project\antiwave`），接入时补了 .gitignore 的 __pycache__/ 与 *.pyc |
 
+### 2026-11-28 批量升级（2.39.1）
+
+| 项目 | 升级前 | 新提交 | 结果 |
+|---|---|---|---|
+| dispatch | 2.39.0 | `79f67258` | 本机干净 `main` 原地升级，pushed，`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 2 WARN：`other`×1、`plan.stale`×1） |
+| suiyi | 2.39.0 | `6208e04d` | 本机干净 `main` 原地升级，pushed，`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 1 WARN：`structure.codemap`×1） |
+| memware-cloud | 2.39.0 | `e59246bb` | 本机干净 `main` 原地升级，pushed，`project check` passed/in_head（`red=0, yellow=0`） |
+| antiwave | 2.39.0 | `45a8b88b` | 临时 worktree，pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`） |
+| zbuddy-desktop | 2.39.0 | `6a35378c` | 临时 worktree，GitHub 与 `codeup`（HTTPS 补推）均已推送且哈希一致，`project check` passed/in_head（`red=0`） |
+| ai_study | 2.39.0 | `4b11ba09` | 临时 worktree，pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`） |
+| content-system | 2.39.0 | `259c84e1` | 临时 worktree，pushed（`main`），`project check` passed/in_head（`red=0, yellow=1` 既有 TODO 格式） |
+| opc-skills | 2.39.0 | `de740dcd` | 临时 worktree（`core.longpaths=true`），pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 2 WARN：`other`×2） |
+| zbuddy-mobile | 2.39.0 | `68d8a0a0` | 临时稀疏浅克隆（排除 `docs/external/`），pushed（仅 GitHub `main`），`project check` passed/in_head（`red=0, yellow=1` 既有 TODO 格式；`assets-check --fast` 4 WARN：`structure.codemap`×3、`plan.stale`×1） |
+| onceright | 2.39.0 | `47cb1107` | 临时浅克隆，pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 1 WARN：`entry.budget`×1） |
+| awesome-llm-made-videos | 2.39.0 | `83efb69e` | 临时浅克隆，pushed（`main`），`project check` passed/in_head（`red=0, yellow=0`） |
+| avatanel | 2.39.0 | `7fa9b507` | 临时浅克隆，push `master`，`project check` passed/in_head（`red=0, yellow=0`；`assets-check --fast` 2 WARN：`other`×1、`plan.stale`×1） |
+
+十二个维护中项目的远端配置版本均读回 2.39.1（`zbuddy-desktop` GitHub 与 `codeup` 哈希均为 `6a35378c`）。有未提交改动或非 `main` 分支的本机工作区（`antiwave`、`zbuddy-desktop`、`ai_study`、`content-system`、`opc-skills`、`zbuddy-mobile`）均未触碰。
+
 ### 2026-11-28 批量升级（2.39.0）
 
 | 项目 | 升级前 | 新提交 | 结果 |
