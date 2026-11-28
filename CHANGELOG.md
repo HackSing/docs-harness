@@ -1,5 +1,11 @@
 # Changelog
 
+## 2.39.1 - 2026-11-28
+
+- **Antigravity 用户级受管全局规则随 `--host antigravity` 自动安装与升级自愈**：新增受管模块 `scripts/host_rules.py`（全平台 `docs-harness-antigravity-subagents.md` 约束委派子智能体仅用内置类型以规避自定义 agent 高倍率计费；仅 Windows 写入 `docs-harness-windows-gui-launch.md` 沉淀隔离桌面终端 GUI/托盘避坑与 `netstat -ano`）；`scripts/host_hooks.py` 在 `--host antigravity` 预览/安装与已配置 Antigravity 环境的 `project upgrade --apply` 中幂等落盘/刷新 `~/.gemini/config/rules/docs-harness-*.md`，0 字节占用项目 `AGENTS.md` 18 KB 预算，不覆盖用户既有其他规则，也不触碰其他宿主。
+- **合同、打包守卫与回归测试同步**：`docs/contracts.md` 第 4c 节补记 Windows 隔离桌面终端与 `netstat -ano` 细则、第 7 节登记 `host_rules` 契约；同步 `scripts/harness.py`（`MANAGED_MODULE_RELATIVE_FILES`）、`package.json`、`dsh-plugin/scripts/verify-package.mjs`、`docs/CODEMAP.md`、`SKILL.md`、`tests/harness_test_base.py` 与 `tests/test_host_hooks.py`。
+- **下游升级说明**：`project upgrade --apply` 将新增 `scripts/host_rules.py`、刷新 `scripts/harness.py` 与 `scripts/host_hooks.py` 并更新 `AGENTS.md` 受管区块版本号；已配置 Antigravity Stop Hook 的机器在运行不带 `--host skip` 的升级时将自动补齐 `~/.gemini/config/rules/docs-harness-*.md`。
+
 ## 2.39.0 - 2026-11-28
 
 - **前端可点击 HTML 原型确认门（`interactive_prototype`）**：`plan-templates/profiles/frontend-ui.json` 新增必填字段 `interactive_prototype`——新增页面、核心弹窗、布局/交互大改或视觉改版时，须先在 `.docs-harness/views/<task>-prototype.html` 输出可点击单文件 HTML 原型（内置正常/空/加载/错误状态切换与桌面/移动视口预览，正式编码禁复制内联样式）待用户确认观感与体验后再推进方案；局部文案、微小样式修正或纯逻辑修复豁免。
